@@ -91,8 +91,7 @@ func (b *setBoard) summary(o Out) {
 		return
 	}
 	if b.final.Type == app.SetError {
-		PrintError(o.W, b.final.Err, false)
-		return
+		return // the command prints the error, with what to try
 	}
 	if b.final.State == provider.StateSuccess {
 		fmt.Fprintln(o.W, style.Colored(o.Style, provider.StateSuccess, "set succeeded"))

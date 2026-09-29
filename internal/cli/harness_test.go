@@ -177,6 +177,7 @@ func newHarness(t *testing.T) *harness {
 			Credentials:   filepath.Join(cfgDir, "credentials.yaml"),
 			Capabilities:  filepath.Join(home, ".cache", "bam", "capabilities.json"),
 			State:         filepath.Join(home, ".local", "state", "bam", "state.json"),
+			Sets:          filepath.Join(home, ".local", "state", "bam", "sets"),
 		},
 		Clock:   &instantClock{now: fixedNow},
 		Keyring: h.kr,

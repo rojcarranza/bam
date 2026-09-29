@@ -29,11 +29,14 @@ type Provider struct {
 	Logs          map[string][]string // by job result key
 	TriggerResult provider.Build
 	TriggerErr    error
-	StopErr       error
-	StopErrs      []error                        // returned by StopBuild in order, one per call; after them StopErr applies
-	LogErrs       []error                        // returned by FetchLog in order, one per call; nil entries succeed
-	Progressions  map[string][]provider.Progress // by build key; BuildProgress walks it and repeats the last entry
-	ProgressErr   error
+	// by plan key; TriggerResult and TriggerErr apply when a key is missing
+	TriggerResults map[string]provider.Build
+	TriggerErrs    map[string]error
+	StopErr        error
+	StopErrs       []error                        // returned by StopBuild in order, one per call; after them StopErr applies
+	LogErrs        []error                        // returned by FetchLog in order, one per call; nil entries succeed
+	Progressions   map[string][]provider.Progress // by build key; BuildProgress walks it and repeats the last entry
+	ProgressErr    error
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -166,6 +169,12 @@ func (f *Provider) Trigger(_ context.Context, req provider.TriggerRequest) (prov
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.Triggered = append(f.Triggered, req)
+	if err, ok := f.TriggerErrs[req.PlanKey]; ok {
+		return provider.Build{}, err
+	}
+	if b, ok := f.TriggerResults[req.PlanKey]; ok {
+		return b, nil
+	}
 	return f.TriggerResult, f.TriggerErr
 }
 

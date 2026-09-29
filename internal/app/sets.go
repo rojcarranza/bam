@@ -325,6 +325,11 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 	results := make(chan runResult, len(runs))
 	var wg sync.WaitGroup
 	defer wg.Wait()
+	// Leaving early (a record that cannot be written) must end the stage's
+	// watchers, or wg.Wait would wait for their builds to finish. Deferred
+	// after wg.Wait, so it runs first.
+	stageCtx, stop := context.WithCancel(ctx)
+	defer stop()
 	pending := 0
 	for j, run := range runs {
 		if recs[j].State.Finished() || recs[j].Error != "" {
@@ -355,7 +360,7 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 		wg.Add(1)
 		go func(j int, run SetRunPlan, key string) {
 			defer wg.Done()
-			results <- r.watchRun(ctx, i, j, run, key)
+			results <- r.watchRun(stageCtx, i, j, run, key)
 		}(j, run, key)
 	}
 	for ; pending > 0; pending-- {

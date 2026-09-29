@@ -502,3 +502,57 @@ func TestDescribeSetMasksSecrets(t *testing.T) {
 	_, err = DescribeSet(svc.Cfg, func(string) string { return "" }, "nope")
 	require.Equal(t, errs.KindUsage, errs.KindOf(err))
 }
+
+// gatedProvider holds GetBuild of one build until gate closes, so a test can
+// act between a trigger and that build's end.
+type gatedProvider struct {
+	*fake.Provider
+	key  string
+	gate chan struct{}
+}
+
+func (g gatedProvider) GetBuild(ctx context.Context, key string) (provider.Build, error) {
+	if key == g.key {
+		<-g.gate
+	}
+	return g.Provider.GetBuild(ctx, key)
+}
+
+func TestRunSetRecordFailureMidStageEndsTheSet(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores directory permissions")
+	}
+	fp := trainBamboo(map[string]provider.State{"PROJ-PROV12": provider.StateSuccess})
+	forever(fp, "PROJ-BUILD")
+	gate := make(chan struct{})
+	svc := setService(t, fp)
+	svc.P = gatedProvider{Provider: fp, key: "PROJ-PROV12-1", gate: gate}
+	svc.Getenv = func(string) string { return "x" }
+	svc.Cfg.Project.Sets["release"] = config.Set{Stages: []config.Stage{
+		{{Target: "publish-specs"}, {Target: "provision-lab", Vars: config.StringMap{"cluster_name": "a"}}},
+	}}
+	p, err := svc.PlanSet(context.Background(), "release", SetOptions{})
+	require.NoError(t, err)
+	_, ch, err := svc.RunSet(context.Background(), p, SetLockOptions{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.Chmod(svc.Sets.Dir, 0o700) })
+	var last SetEvent
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for e := range ch {
+			if e.Type == SetRunTriggered && e.Target == "provision-lab" {
+				require.NoError(t, os.Chmod(svc.Sets.Dir, 0o500)) // the next save fails
+				close(gate)
+			}
+			last = e
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the set never ended: a watcher of the stage kept it open")
+	}
+	require.Equal(t, SetError, last.Type)
+	require.Empty(t, fp.Stopped)
+}

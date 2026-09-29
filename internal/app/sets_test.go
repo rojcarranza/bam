@@ -477,3 +477,28 @@ func TestSetStatusFetchesLiveBuilds(t *testing.T) {
 	require.Len(t, builds, 1)
 	require.Empty(t, fp.Triggered)
 }
+
+func TestDescribeSetMasksSecrets(t *testing.T) {
+	svc := setService(t, fakeBamboo())
+	svc.Cfg.Project.Sets["release"].Stages[1][0].Vars["db_password"] = "${LAB_DB_PASSWORD}"
+	info, err := DescribeSet(svc.Cfg, func(string) string { return "" }, "release")
+	require.NoError(t, err)
+	require.Equal(t, "release", info.Name)
+	require.Equal(t, "publish-specs", info.Stages[0][0].Target)
+	require.Equal(t, "provision-lab", info.Stages[1][0].Target)
+	var names []string
+	for _, v := range info.Stages[1][0].Vars {
+		names = append(names, v.Name)
+		if v.Name == "db_password" {
+			require.True(t, v.Secret)
+			require.Equal(t, "LAB_DB_PASSWORD", v.EnvRef)
+			require.Equal(t, "${LAB_DB_PASSWORD} (unset)", v.Display())
+		}
+	}
+	require.Equal(t, []string{"cluster_name", "compute_nodes", "db_password"}, names, "sorted by name")
+	all, err := DescribeSets(svc.Cfg, func(string) string { return "" })
+	require.NoError(t, err)
+	require.Len(t, all, 1)
+	_, err = DescribeSet(svc.Cfg, func(string) string { return "" }, "nope")
+	require.Equal(t, errs.KindUsage, errs.KindOf(err))
+}

@@ -525,3 +525,55 @@ func (s *Service) SetStatus(ctx context.Context, id string) (SetRecord, map[stri
 	}
 	return rec, builds, nil
 }
+
+// SetInfo describes a set for bam set list and show.
+type SetInfo struct {
+	Name      string
+	Timeout   time.Duration
+	Stages    [][]SetRunInfo
+	DefinedIn []string
+}
+
+// SetRunInfo is one run of a described set with its set vars, safe to
+// display.
+type SetRunInfo struct {
+	Target string
+	Vars   []TargetVar
+}
+
+// DescribeSets returns every set, sorted by name.
+func DescribeSets(cfg *config.Config, getenv func(string) string) ([]SetInfo, error) {
+	all, err := cfg.Sets()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SetInfo, 0, len(all))
+	for _, name := range sortedNames(all) {
+		out = append(out, describeSet(all[name], getenv))
+	}
+	return out, nil
+}
+
+// DescribeSet returns one set.
+func DescribeSet(cfg *config.Config, getenv func(string) string, name string) (SetInfo, error) {
+	s, ok, err := cfg.Set(name)
+	if err != nil {
+		return SetInfo{}, err
+	}
+	if !ok {
+		return SetInfo{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+	}
+	return describeSet(s, getenv), nil
+}
+
+func describeSet(s config.ResolvedSet, getenv func(string) string) SetInfo {
+	info := SetInfo{Name: s.Name, Timeout: time.Duration(s.Timeout), DefinedIn: s.DefinedIn}
+	for _, st := range s.Stages {
+		runs := make([]SetRunInfo, 0, len(st))
+		for _, r := range st {
+			runs = append(runs, SetRunInfo{Target: r.Target, Vars: targetVars(r.Vars, getenv)})
+		}
+		info.Stages = append(info.Stages, runs)
+	}
+	return info
+}

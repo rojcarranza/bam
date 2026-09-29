@@ -75,14 +75,22 @@ func describe(t config.ResolvedTarget, getenv func(string) string) TargetInfo {
 	if t.Watch != nil {
 		info.Watch = *t.Watch
 	}
-	for _, name := range sortedNames(t.Defaults) {
-		v := TargetVar{Name: name, Value: t.Defaults[name], Secret: config.IsMaskedName(name)}
+	info.Defaults = targetVars(t.Defaults, getenv)
+	return info
+}
+
+// targetVars describes configured variables, sorted by name, safe to
+// display: a ${NAME} reference is always secret.
+func targetVars(m config.StringMap, getenv func(string) string) []TargetVar {
+	var out []TargetVar
+	for _, name := range sortedNames(m) {
+		v := TargetVar{Name: name, Value: m[name], Secret: config.IsMaskedName(name)}
 		if ref, ok := config.EnvRef(v.Value); ok {
 			v.EnvRef, v.EnvSet, v.Secret = ref, getenv(ref) != "", true
 		}
-		info.Defaults = append(info.Defaults, v)
+		out = append(out, v)
 	}
-	return info
+	return out
 }
 
 // RefFromTarget builds a plan reference from an already-described target.

@@ -114,3 +114,7 @@ func ColorEnabled(flag, noColor string, tty bool) (bool, error) {
 	}
 	return tty, nil
 }
+
+// Pending is the dim glyph of a run that has not triggered yet: it has no
+// state of its own.
+func Pending(m Mode) string { return Dim(m, "·") }

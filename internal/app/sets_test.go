@@ -349,3 +349,131 @@ func TestRunSetInterruptLeavesAResumableRecord(t *testing.T) {
 	_, err = os.Stat(filepath.Join(svc.Sets.Dir, "release.lock"))
 	require.ErrorIs(t, err, fs.ErrNotExist, "the lock is released")
 }
+
+// saveRecord stores a record of the set "release" for svc's repository.
+func saveRecord(t *testing.T, svc *Service, rec SetRecord) SetRecord {
+	t.Helper()
+	rec.Version, rec.Set, rec.Repo = 1, "release", svc.Cfg.RepoRoot
+	if rec.Origin == "" {
+		rec.Origin = svc.Origin
+	}
+	if rec.Status == "" {
+		rec.Status = SetInterrupted
+	}
+	rec.ID = NewSetID("release", svc.Clock.Now())
+	rec.StartedAt = svc.Clock.Now()
+	if rec.VarNames == nil {
+		rec.VarNames = []string{}
+	}
+	require.NoError(t, svc.Sets.Save(rec))
+	return rec
+}
+
+func twoStages(firstKey string) []StageRecord {
+	return []StageRecord{
+		{Runs: []RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: firstKey}}},
+		{Runs: []RunRecord{{Target: "provision-lab", PlanKey: "PROJ-PROV12"}}},
+	}
+}
+
+func TestResumeWatchesKeyedRunsAndTriggersTheRest(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateSuccess, "PROJ-PROV12": provider.StateSuccess})
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Stages: twoStages("PROJ-BUILD-1")})
+	ch, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Len(t, fp.Triggered, 1, "only the run that never triggered")
+	require.Equal(t, "PROJ-PROV12", fp.Triggered[0].PlanKey)
+	require.Equal(t, []string{
+		"stage_start:0:", "run_done:0:publish-specs", "stage_done:0:",
+		"stage_start:1:", "run_triggered:1:provision-lab", "run_done:1:provision-lab", "stage_done:1:",
+		"set_done:1:",
+	}, kinds(evs))
+	for _, e := range evs {
+		require.Equal(t, rec.ID, e.ID, "resume keeps the id")
+	}
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, SetSuccessful, got.Status)
+}
+
+func TestResumeSkipsStagesThatSucceeded(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-PROV12": provider.StateSuccess})
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	stages := twoStages("PROJ-BUILD-1")
+	stages[0].Runs[0].State = provider.StateSuccess
+	rec := saveRecord(t, svc, SetRecord{Status: SetTimedOut, Stages: stages})
+	ch, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Equal(t, "stage_start:1:", kinds(evs)[0])
+	require.Equal(t, provider.StateSuccess, evs[len(evs)-1].State)
+}
+
+func TestResumeWhenTheStageFinishedWhileAway(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-PROV12": provider.StateSuccess})
+	fp.Sequences["PROJ-BUILD-1"] = []provider.Build{{Key: "PROJ-BUILD-1", State: provider.StateSuccess}}
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Stages: twoStages("PROJ-BUILD-1")})
+	ch, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Contains(t, kinds(evs), "run_done:0:publish-specs")
+	require.Contains(t, kinds(evs), "run_triggered:1:provision-lab")
+	require.Equal(t, SetDone, evs[len(evs)-1].Type)
+}
+
+func TestResumeRefusals(t *testing.T) {
+	for name, tc := range map[string]struct {
+		rec  SetRecord
+		kind errs.Kind
+		want string
+	}{
+		"failed":       {SetRecord{Status: SetFailed, Stages: twoStages("")}, errs.KindUsage, "rerun --failed is not built yet"},
+		"successful":   {SetRecord{Status: SetSuccessful, Stages: twoStages("")}, errs.KindUsage, "nothing to resume"},
+		"missing var":  {SetRecord{Stages: twoStages(""), VarNames: []string{"env"}}, errs.KindUsage, "--var env="},
+		"changed set":  {SetRecord{Stages: twoStages("")[:1]}, errs.KindConfig, "changed since"},
+		"other origin": {SetRecord{Stages: twoStages(""), Origin: "https://bamboo.lab.example"}, errs.KindConfig, "bamboo.lab.example"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fp := trainBamboo(nil)
+			svc := setService(t, fp)
+			svc.Getenv = func(string) string { return "x" }
+			rec := saveRecord(t, svc, tc.rec)
+			_, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+			require.Error(t, err)
+			require.Equal(t, tc.kind, errs.KindOf(err), "%v", err)
+			require.Contains(t, err.Error()+" "+errTry(err), tc.want)
+			require.Empty(t, fp.Triggered)
+		})
+	}
+}
+
+func TestResumeWhileRunningIsRefusedByTheLock(t *testing.T) {
+	fp := trainBamboo(nil)
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Status: SetRunning, Stages: twoStages("")})
+	held, err := svc.Sets.Lock([]string{rec.ID}, false, svc.Clock.Now())
+	require.NoError(t, err)
+	defer held.Release()
+	_, err = svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.Equal(t, errs.KindUsage, errs.KindOf(err))
+	require.Contains(t, err.Error(), "in progress")
+}
+
+func TestSetStatusFetchesLiveBuilds(t *testing.T) {
+	fp := trainBamboo(nil)
+	forever(fp, "PROJ-BUILD")
+	svc := setService(t, fp)
+	rec := saveRecord(t, svc, SetRecord{Stages: twoStages("PROJ-BUILD-1")})
+	got, builds, err := svc.SetStatus(context.Background(), rec.ID)
+	require.NoError(t, err)
+	require.Equal(t, rec.ID, got.ID)
+	require.Equal(t, provider.StateRunning, builds["PROJ-BUILD-1"].State)
+	require.Len(t, builds, 1)
+	require.Empty(t, fp.Triggered)
+}

@@ -422,3 +422,106 @@ func (r *setRun) watchRun(ctx context.Context, i, j int, run SetRunPlan, key str
 		}
 	}
 }
+
+// ResumeSet continues an interrupted or timed-out set run under its own id:
+// it watches the runs that triggered and triggers the ones that did not.
+func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error) {
+	rec, err := s.Sets.Load(id)
+	if err != nil {
+		return nil, err
+	}
+	switch rec.Status {
+	case SetFailed:
+		return nil, errs.Usagef("set run %s failed; rerun --failed is not built yet", id).WithTry("bam set run " + rec.Set)
+	case SetSuccessful:
+		return nil, errs.Usagef("set run %s succeeded; nothing to resume", id)
+	}
+	if rec.Origin != s.Origin {
+		return nil, errs.Configf("set run %s ran on %s, not %s", id, rec.Origin, s.Origin).
+			WithTry("pass --server with the alias of " + rec.Origin)
+	}
+	given := varNames(o.Vars)
+	var missing []string
+	for _, n := range rec.VarNames {
+		if !slices.Contains(given, n) {
+			missing = append(missing, "--var "+n+"=...")
+		}
+	}
+	if len(missing) > 0 {
+		return nil, errs.Usagef("resume needs the variables set run %s was given", id).
+			WithWhy("bam never stores variable values").WithTry(strings.Join(missing, " "))
+	}
+	p, err := s.PlanSet(ctx, rec.Set, o)
+	if err != nil {
+		return nil, err
+	}
+	if !sameShape(p, rec) {
+		return nil, errs.Configf("set %s has changed since run %s", rec.Set, id).
+			WithWhy("its stages no longer list the same presets").WithTry("bam set run " + rec.Set)
+	}
+	p.VarNames = rec.VarNames
+	l, err := s.Sets.Lock([]string{rec.Set, rec.ID}, lock.Force, s.Clock.Now())
+	if err != nil {
+		return nil, lockErr(err)
+	}
+	rec.Status, rec.FinishedAt = SetRunning, nil
+	if err := s.Sets.Save(rec); err != nil {
+		l.Release()
+		return nil, recordErr(err)
+	}
+	from := 0
+	for from < len(rec.Stages) && stageSucceeded(rec.Stages[from]) {
+		from++
+	}
+	return s.startSet(ctx, p, rec, l, from), nil
+}
+
+// sameShape reports whether the set still lists the recorded presets, in
+// the same stages and order.
+func sameShape(p SetPlan, rec SetRecord) bool {
+	if len(p.Stages) != len(rec.Stages) {
+		return false
+	}
+	for i := range p.Stages {
+		if len(p.Stages[i]) != len(rec.Stages[i].Runs) {
+			return false
+		}
+		for j := range p.Stages[i] {
+			if p.Stages[i][j].Target != rec.Stages[i].Runs[j].Target {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func stageSucceeded(st StageRecord) bool {
+	for _, r := range st.Runs {
+		if r.State != provider.StateSuccess {
+			return false
+		}
+	}
+	return true
+}
+
+// SetStatus reads a record and fetches the current state of its builds,
+// keyed by build key. A build that cannot be fetched is left out. It never
+// triggers anything.
+func (s *Service) SetStatus(ctx context.Context, id string) (SetRecord, map[string]provider.Build, error) {
+	rec, err := s.Sets.Load(id)
+	if err != nil {
+		return rec, nil, err
+	}
+	builds := map[string]provider.Build{}
+	for _, st := range rec.Stages {
+		for _, r := range st.Runs {
+			if r.BuildKey == "" {
+				continue
+			}
+			if b, err := s.P.GetBuild(ctx, r.BuildKey); err == nil {
+				builds[r.BuildKey] = b
+			}
+		}
+	}
+	return rec, builds, nil
+}

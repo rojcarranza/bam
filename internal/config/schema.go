@@ -16,6 +16,7 @@ type ProjectFile struct {
 	DefaultServer string            `yaml:"default_server,omitempty"`
 	Projects      []string          `yaml:"projects,omitempty"`
 	Targets       map[string]Target `yaml:"targets,omitempty"`
+	Sets          map[string]Set    `yaml:"sets,omitempty"`
 }
 
 // MachineFile is the per-machine config.yaml, never committed.
@@ -24,6 +25,7 @@ type MachineFile struct {
 	DefaultServer string            `yaml:"default_server,omitempty"`
 	Servers       map[string]Server `yaml:"servers,omitempty"`
 	Targets       map[string]Target `yaml:"targets,omitempty"`
+	Sets          map[string]Set    `yaml:"sets,omitempty"`
 	Repos         map[string]Repo   `yaml:"repos,omitempty"`
 	Color         string            `yaml:"color,omitempty"`
 	Pager         string            `yaml:"pager,omitempty"`
@@ -52,6 +54,7 @@ type Repo struct {
 	Server   string            `yaml:"server,omitempty"`
 	Projects []string          `yaml:"projects,omitempty"`
 	Targets  map[string]Target `yaml:"targets,omitempty"`
+	Sets     map[string]Set    `yaml:"sets,omitempty"`
 }
 
 // StringMap decodes any YAML scalar values as strings; Bamboo variables are strings.
@@ -112,3 +115,50 @@ func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 }
 
 func (d Duration) MarshalYAML() (any, error) { return time.Duration(d).String(), nil }
+
+// Set is a named release train: stages run in order, runs inside a stage
+// run in parallel.
+type Set struct {
+	Stages  []Stage  `yaml:"stages"`
+	Timeout Duration `yaml:"timeout,omitempty"`
+}
+
+// Stage is one step of a set. A bare name is shorthand for {target: name}.
+type Stage []SetRun
+
+func (s *Stage) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.SequenceNode {
+		return fmt.Errorf("line %d: a stage is a list of presets", n.Line)
+	}
+	out := make(Stage, 0, len(n.Content))
+	for _, item := range n.Content {
+		switch item.Kind {
+		case yaml.ScalarNode:
+			out = append(out, SetRun{Target: item.Value})
+		case yaml.MappingNode:
+			// Decode does not inherit the file's KnownFields, so a typo such
+			// as env: instead of vars: is caught here.
+			for i := 0; i+1 < len(item.Content); i += 2 {
+				if k := item.Content[i]; k.Value != "target" && k.Value != "vars" {
+					return fmt.Errorf("line %d: unknown field %q in a stage run", k.Line, k.Value)
+				}
+			}
+			var r SetRun
+			if err := item.Decode(&r); err != nil {
+				return err
+			}
+			out = append(out, r)
+		default:
+			return fmt.Errorf("line %d: a stage run is a preset name or {target, vars}", item.Line)
+		}
+	}
+	*s = out
+	return nil
+}
+
+// SetRun is one preset run of a stage, with variables that override the
+// preset's defaults for this set only.
+type SetRun struct {
+	Target string    `yaml:"target"`
+	Vars   StringMap `yaml:"vars,omitempty"`
+}

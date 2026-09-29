@@ -1,0 +1,584 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/r0jjames/bam-cli/internal/config"
+	"github.com/r0jjames/bam-cli/internal/credential"
+	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/r0jjames/bam-cli/internal/provider"
+)
+
+// SetOptions are the command-line inputs to a set run.
+type SetOptions struct {
+	Vars   []string // --var name=value, in order; applies to every run
+	Server string   // --server, so every run's server is chosen as bam run would
+}
+
+// SetRunPlan is one run of a stage, resolved and ready to trigger.
+type SetRunPlan struct {
+	Target  string
+	Ref     PlanRef
+	Vars    VarSet
+	Timeout time.Duration // the preset's; zero means none
+}
+
+// SetPlan is a set with every run resolved and checked. RunSet does no
+// further resolving.
+type SetPlan struct {
+	Name     string
+	Origin   string
+	Timeout  time.Duration
+	VarNames []string // names given with --var, kept in the record for resume
+	Stages   [][]SetRunPlan
+	Warnings []string // each run's variable warnings, prefixed with its preset
+}
+
+// PlanSet resolves and checks every run of a set, so that every usage error
+// shows before the first trigger. It triggers nothing.
+func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPlan, error) {
+	set, ok, err := s.Cfg.Set(name)
+	if err != nil {
+		return SetPlan{}, err
+	}
+	if !ok {
+		return SetPlan{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+	}
+	p := SetPlan{Name: name, Origin: s.Origin, Timeout: time.Duration(set.Timeout), VarNames: varNames(o.Vars)}
+	var problems []string
+	for i, st := range set.Stages {
+		runs := make([]SetRunPlan, 0, len(st))
+		for _, r := range st {
+			rp, err := s.planRun(ctx, r, o)
+			if err != nil {
+				// Only a usage problem is one run's fault; anything else
+				// (config, auth, Bamboo down) stops the whole set at once.
+				if errs.KindOf(err) != errs.KindUsage {
+					return SetPlan{}, err
+				}
+				problems = append(problems, fmt.Sprintf("stage %d %s: %s", i+1, r.Target, describeErr(err)))
+				continue
+			}
+			for _, w := range rp.Vars.Warnings {
+				p.Warnings = append(p.Warnings, r.Target+": "+w)
+			}
+			runs = append(runs, rp)
+		}
+		p.Stages = append(p.Stages, runs)
+	}
+	if len(problems) > 0 {
+		return SetPlan{}, errs.Usagef("set %q cannot run: %d problem(s)", name, len(problems)).
+			WithWhy(strings.Join(problems, "\n")).WithTry("fix the presets or pass --var, then try again")
+	}
+	return p, nil
+}
+
+// planRun resolves one run: the preset's plan and branch, then its
+// variables with the set's vars laid over the preset's defaults.
+func (s *Service) planRun(ctx context.Context, r config.SetRun, o SetOptions) (SetRunPlan, error) {
+	t, _, err := s.Cfg.Target(r.Target)
+	if err != nil {
+		return SetRunPlan{}, err
+	}
+	server, err := s.Cfg.SelectServer(o.Server, t.Server)
+	if err != nil {
+		return SetRunPlan{}, err
+	}
+	if origin, err := credential.Origin(server.URL); err != nil || origin != s.Origin {
+		return SetRunPlan{}, errs.Configf("preset %q runs on %s, not %s", r.Target, server.URL, s.Origin).
+			WithWhy("a set runs on one server").WithTry("give every preset of the set the same server")
+	}
+	ref, err := s.ResolvePlan(ctx, r.Target, "")
+	if err != nil {
+		return SetRunPlan{}, err
+	}
+	if len(r.Vars) > 0 {
+		// A copy: the set's vars must not leak into the preset itself.
+		rt := *ref.Target
+		merged := config.StringMap{}
+		for k, v := range rt.Defaults {
+			merged[k] = v
+		}
+		for k, v := range r.Vars {
+			merged[k] = v
+		}
+		rt.Defaults = merged
+		ref.Target = &rt
+	}
+	vs, err := s.ResolveVars(ctx, ref, VarOptions{Flags: o.Vars})
+	if err != nil {
+		return SetRunPlan{}, err
+	}
+	return SetRunPlan{Target: r.Target, Ref: ref, Vars: vs, Timeout: time.Duration(t.Timeout)}, nil
+}
+
+// varNames is the distinct names of --var flags, in order.
+func varNames(flags []string) []string {
+	out := []string{}
+	for _, f := range flags {
+		if name, _, ok := strings.Cut(f, "="); ok && name != "" && !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// describeErr is an error's What and Why on one line, for a list of problems.
+func describeErr(err error) string {
+	var e *errs.Error
+	if errors.As(err, &e) {
+		if e.Why != "" {
+			return e.What + " (" + e.Why + ")"
+		}
+		return e.What
+	}
+	return err.Error()
+}
+
+// SetEventType names a step of a set run.
+type SetEventType string
+
+const (
+	SetStageStart   SetEventType = "stage_start"
+	SetRunTriggered SetEventType = "run_triggered"
+	SetRunEvent     SetEventType = "run_event" // one watch Event of a run
+	SetRunDone      SetEventType = "run_done"
+	SetStageDone    SetEventType = "stage_done"
+	SetDone         SetEventType = "set_done"  // last event of a set that finished
+	SetError        SetEventType = "set_error" // last event of a set that could not go on
+)
+
+// SetEvent is one change in a set run. Stage is zero-based; Target is empty
+// for stage and set events.
+type SetEvent struct {
+	Type   SetEventType
+	Time   time.Time
+	Set    string
+	ID     string
+	Stage  int
+	Target string
+	Build  provider.Build // run_triggered, run_event, run_done
+	Event  *Event         // run_event only: the watch event, unchanged
+	State  provider.State // run_done, stage_done, set_done
+	Err    error
+}
+
+// SetLockOptions are how a set run takes its lock.
+type SetLockOptions struct {
+	Force bool // replace a lock left behind by a process that is gone
+}
+
+// setKeep is how many records of one set are kept.
+const setKeep = 20
+
+// RunSet runs a planned set stage by stage and returns the record id. It
+// fails, with no channel, only when the set cannot start: a held lock or a
+// record that cannot be written. Ending ctx stops watching and triggering;
+// no build is ever stopped.
+func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (string, <-chan SetEvent, error) {
+	now := s.Clock.Now()
+	rec := SetRecord{Version: 1, ID: NewSetID(p.Name, now), Set: p.Name, Origin: p.Origin,
+		Repo: s.Cfg.RepoRoot, StartedAt: now.UTC(), Status: SetRunning, VarNames: p.VarNames}
+	if rec.VarNames == nil {
+		rec.VarNames = []string{}
+	}
+	for _, st := range p.Stages {
+		var sr StageRecord
+		for _, r := range st {
+			sr.Runs = append(sr.Runs, RunRecord{Target: r.Target, PlanKey: r.Ref.PlanKey})
+		}
+		rec.Stages = append(rec.Stages, sr)
+	}
+	l, err := s.Sets.Lock([]string{p.Name, rec.ID}, lock.Force, now)
+	if err != nil {
+		return "", nil, lockErr(err)
+	}
+	if err := s.Sets.Save(rec); err != nil {
+		l.Release()
+		return "", nil, recordErr(err)
+	}
+	_ = s.Sets.Prune(p.Name, setKeep)
+	return rec.ID, s.startSet(ctx, p, rec, l, 0), nil
+}
+
+func (s *Service) startSet(ctx context.Context, p SetPlan, rec SetRecord, l *SetLock, from int) <-chan SetEvent {
+	ch := make(chan SetEvent, 16)
+	go func() {
+		defer close(ch)
+		defer l.Release()
+		(&setRun{s: s, p: p, rec: rec, ch: ch}).run(ctx, from)
+	}()
+	return ch
+}
+
+func lockErr(err error) error {
+	if errs.KindOf(err) == errs.KindUsage {
+		return err
+	}
+	return errs.Configf("cannot lock the set run").WithWhy(err.Error()).Wrap(err)
+}
+
+func recordErr(err error) error {
+	return errs.Configf("cannot record the set run").WithWhy(err.Error()).Wrap(err)
+}
+
+// setRun is one execution of a set. Only the goroutine running it touches
+// rec; watchers report through channels.
+type setRun struct {
+	s   *Service
+	p   SetPlan
+	rec SetRecord
+	ch  chan<- SetEvent
+}
+
+func (r *setRun) send(ctx context.Context, e SetEvent) bool {
+	e.Time, e.Set, e.ID = r.s.Clock.Now(), r.p.Name, r.rec.ID
+	select {
+	case r.ch <- e:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// save writes the record. A failure ends the set before anything else
+// triggers: bam never triggers a build it cannot record.
+func (r *setRun) save(ctx context.Context, stage int) bool {
+	if err := r.s.Sets.Save(r.rec); err != nil {
+		r.send(ctx, SetEvent{Type: SetError, Stage: stage, Err: recordErr(err)})
+		return false
+	}
+	return true
+}
+
+func (r *setRun) finish(status SetStatus) {
+	t := r.s.Clock.Now().UTC()
+	r.rec.Status, r.rec.FinishedAt = status, &t
+	_ = r.s.Sets.Save(r.rec)
+}
+
+// run executes the stages from `from` on.
+func (r *setRun) run(parent context.Context, from int) {
+	ctx, cancel := context.WithCancel(parent)
+	defer cancel()
+	timedOut := make(chan struct{})
+	if r.p.Timeout > 0 {
+		deadline := r.s.Clock.After(r.p.Timeout)
+		go func() {
+			select {
+			case <-deadline:
+				close(timedOut)
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+	}
+	for i := from; i < len(r.p.Stages); i++ {
+		ok, recorded := r.stage(ctx, i)
+		select {
+		case <-timedOut:
+			r.finish(SetTimedOut)
+			r.send(parent, SetEvent{Type: SetError, Stage: i,
+				Err: errs.New(errs.KindTimeout, fmt.Sprintf("set %s timed out after %s", r.p.Name, r.p.Timeout)).
+					WithWhy("its builds keep running").WithTry("bam set resume " + r.rec.ID)})
+			return
+		default:
+		}
+		switch {
+		case parent.Err() != nil:
+			r.finish(SetInterrupted)
+			return
+		case !recorded:
+			r.finish(SetFailed)
+			return
+		case !ok:
+			r.finish(SetFailed)
+			r.send(ctx, SetEvent{Type: SetDone, Stage: i, State: provider.StateFailed})
+			return
+		}
+	}
+	r.finish(SetSuccessful)
+	r.send(ctx, SetEvent{Type: SetDone, Stage: len(r.p.Stages) - 1, State: provider.StateSuccess})
+}
+
+type runResult struct {
+	idx   int
+	build provider.Build
+	err   error
+}
+
+// stage runs stage i to its end. ok is whether every run succeeded;
+// recorded is false when the record could not be written, which already
+// ended the set with set_error.
+func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
+	if !r.send(ctx, SetEvent{Type: SetStageStart, Stage: i}) {
+		return false, true
+	}
+	runs := r.p.Stages[i]
+	recs := r.rec.Stages[i].Runs
+	results := make(chan runResult, len(runs))
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	// Leaving early (a record that cannot be written) must end the stage's
+	// watchers, or wg.Wait would wait for their builds to finish. Deferred
+	// after wg.Wait, so it runs first.
+	stageCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	pending := 0
+	for j, run := range runs {
+		if recs[j].State.Finished() || recs[j].Error != "" {
+			continue // resumed: its end is already known
+		}
+		key := recs[j].BuildKey
+		if key == "" {
+			if ctx.Err() != nil {
+				return false, true
+			}
+			b, err := r.s.Run(ctx, run.Ref, run.Vars)
+			if err != nil {
+				recs[j].State, recs[j].Error = provider.StateFailed, describeErr(err)
+				if !r.save(ctx, i) {
+					return false, false
+				}
+				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, State: provider.StateFailed, Err: err})
+				continue
+			}
+			key = b.Key
+			recs[j].BuildKey = key
+			if !r.save(ctx, i) {
+				return false, false
+			}
+			r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b})
+		}
+		pending++
+		wg.Add(1)
+		go func(j int, run SetRunPlan, key string) {
+			defer wg.Done()
+			results <- r.watchRun(stageCtx, i, j, run, key)
+		}(j, run, key)
+	}
+	for ; pending > 0; pending-- {
+		res := <-results
+		if ctx.Err() != nil && res.err == nil && !res.build.State.Finished() {
+			continue // interrupted: the build keeps running and its end stays unknown
+		}
+		run := runs[res.idx]
+		st := res.build.State
+		if res.err != nil {
+			st = provider.StateFailed
+			recs[res.idx].Error = describeErr(res.err)
+		}
+		recs[res.idx].State = st
+		if !r.save(ctx, i) {
+			return false, false
+		}
+		r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Build: res.build, State: st, Err: res.err})
+	}
+	if ctx.Err() != nil {
+		return false, true
+	}
+	ok = true
+	for _, rr := range recs {
+		ok = ok && rr.State == provider.StateSuccess
+	}
+	state := provider.StateSuccess
+	if !ok {
+		state = provider.StateFailed
+	}
+	r.send(ctx, SetEvent{Type: SetStageDone, Stage: i, State: state})
+	return ok, true
+}
+
+// watchRun follows one build to its end, forwarding every watch event. A
+// preset timeout ends watching with a timeout error; the build keeps running.
+func (r *setRun) watchRun(ctx context.Context, i, j int, run SetRunPlan, key string) runResult {
+	wctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	var deadline <-chan time.Time
+	if run.Timeout > 0 {
+		deadline = r.s.Clock.After(run.Timeout)
+	}
+	events := r.s.Watch(wctx, key)
+	var last provider.Build
+	for {
+		select {
+		case e, ok := <-events:
+			if !ok {
+				return runResult{idx: j, build: last}
+			}
+			ev := e
+			last = e.Build
+			r.send(ctx, SetEvent{Type: SetRunEvent, Stage: i, Target: run.Target, Build: e.Build, Event: &ev})
+			switch e.Type {
+			case EventDone:
+				return runResult{idx: j, build: e.Build}
+			case EventError:
+				return runResult{idx: j, build: last, err: e.Err}
+			}
+		case <-deadline:
+			return runResult{idx: j, build: last, err: errs.New(errs.KindTimeout,
+				fmt.Sprintf("%s timed out after %s", run.Target, run.Timeout)).WithWhy(key + " is still running")}
+		}
+	}
+}
+
+// ResumeSet continues an interrupted or timed-out set run under its own id:
+// it watches the runs that triggered and triggers the ones that did not.
+func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error) {
+	rec, err := s.Sets.Load(id)
+	if err != nil {
+		return nil, err
+	}
+	switch rec.Status {
+	case SetFailed:
+		return nil, errs.Usagef("set run %s failed; rerun --failed is not built yet", id).WithTry("bam set run " + rec.Set)
+	case SetSuccessful:
+		return nil, errs.Usagef("set run %s succeeded; nothing to resume", id)
+	}
+	if rec.Origin != s.Origin {
+		return nil, errs.Configf("set run %s ran on %s, not %s", id, rec.Origin, s.Origin).
+			WithTry("pass --server with the alias of " + rec.Origin)
+	}
+	given := varNames(o.Vars)
+	var missing []string
+	for _, n := range rec.VarNames {
+		if !slices.Contains(given, n) {
+			missing = append(missing, "--var "+n+"=...")
+		}
+	}
+	if len(missing) > 0 {
+		return nil, errs.Usagef("resume needs the variables set run %s was given", id).
+			WithWhy("bam never stores variable values").WithTry(strings.Join(missing, " "))
+	}
+	p, err := s.PlanSet(ctx, rec.Set, o)
+	if err != nil {
+		return nil, err
+	}
+	if !sameShape(p, rec) {
+		return nil, errs.Configf("set %s has changed since run %s", rec.Set, id).
+			WithWhy("its stages no longer list the same presets").WithTry("bam set run " + rec.Set)
+	}
+	p.VarNames = rec.VarNames
+	l, err := s.Sets.Lock([]string{rec.Set, rec.ID}, lock.Force, s.Clock.Now())
+	if err != nil {
+		return nil, lockErr(err)
+	}
+	rec.Status, rec.FinishedAt = SetRunning, nil
+	if err := s.Sets.Save(rec); err != nil {
+		l.Release()
+		return nil, recordErr(err)
+	}
+	from := 0
+	for from < len(rec.Stages) && stageSucceeded(rec.Stages[from]) {
+		from++
+	}
+	return s.startSet(ctx, p, rec, l, from), nil
+}
+
+// sameShape reports whether the set still lists the recorded presets, in
+// the same stages and order.
+func sameShape(p SetPlan, rec SetRecord) bool {
+	if len(p.Stages) != len(rec.Stages) {
+		return false
+	}
+	for i := range p.Stages {
+		if len(p.Stages[i]) != len(rec.Stages[i].Runs) {
+			return false
+		}
+		for j := range p.Stages[i] {
+			if p.Stages[i][j].Target != rec.Stages[i].Runs[j].Target {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func stageSucceeded(st StageRecord) bool {
+	for _, r := range st.Runs {
+		if r.State != provider.StateSuccess {
+			return false
+		}
+	}
+	return true
+}
+
+// SetStatus reads a record and fetches the current state of its builds,
+// keyed by build key. A build that cannot be fetched is left out. It never
+// triggers anything.
+func (s *Service) SetStatus(ctx context.Context, id string) (SetRecord, map[string]provider.Build, error) {
+	rec, err := s.Sets.Load(id)
+	if err != nil {
+		return rec, nil, err
+	}
+	builds := map[string]provider.Build{}
+	for _, st := range rec.Stages {
+		for _, r := range st.Runs {
+			if r.BuildKey == "" {
+				continue
+			}
+			if b, err := s.P.GetBuild(ctx, r.BuildKey); err == nil {
+				builds[r.BuildKey] = b
+			}
+		}
+	}
+	return rec, builds, nil
+}
+
+// SetInfo describes a set for bam set list and show.
+type SetInfo struct {
+	Name      string
+	Timeout   time.Duration
+	Stages    [][]SetRunInfo
+	DefinedIn []string
+}
+
+// SetRunInfo is one run of a described set with its set vars, safe to
+// display.
+type SetRunInfo struct {
+	Target string
+	Vars   []TargetVar
+}
+
+// DescribeSets returns every set, sorted by name.
+func DescribeSets(cfg *config.Config, getenv func(string) string) ([]SetInfo, error) {
+	all, err := cfg.Sets()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]SetInfo, 0, len(all))
+	for _, name := range sortedNames(all) {
+		out = append(out, describeSet(all[name], getenv))
+	}
+	return out, nil
+}
+
+// DescribeSet returns one set.
+func DescribeSet(cfg *config.Config, getenv func(string) string, name string) (SetInfo, error) {
+	s, ok, err := cfg.Set(name)
+	if err != nil {
+		return SetInfo{}, err
+	}
+	if !ok {
+		return SetInfo{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+	}
+	return describeSet(s, getenv), nil
+}
+
+func describeSet(s config.ResolvedSet, getenv func(string) string) SetInfo {
+	info := SetInfo{Name: s.Name, Timeout: time.Duration(s.Timeout), DefinedIn: s.DefinedIn}
+	for _, st := range s.Stages {
+		runs := make([]SetRunInfo, 0, len(st))
+		for _, r := range st {
+			runs = append(runs, SetRunInfo{Target: r.Target, Vars: targetVars(r.Vars, getenv)})
+		}
+		info.Stages = append(info.Stages, runs)
+	}
+	return info
+}

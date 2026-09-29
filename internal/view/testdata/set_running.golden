@@ -1,0 +1,6 @@
+release  release-20260929T101500Z
+stage 1/2
+  ✓ publish-specs  PROJ-SPEC-12  Success  1m12s
+stage 2/2
+  ▸ provision  OPS-PROV-40  Running  1m00s  [#######-------------]  33%  ~2m00s left
+  ◷ deploy     OPS-DEP-9    Queued

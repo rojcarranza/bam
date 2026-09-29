@@ -1,0 +1,144 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/stretchr/testify/require"
+)
+
+// setYAML is projectYAML plus a two-stage set "release".
+const setYAML = projectYAML + `  publish-specs:
+    plan: PROJ-BUILD
+sets:
+  release:
+    stages:
+      - [publish-specs]
+      - - target: provision-lab
+          vars: {cluster_name: alpha}
+`
+
+func setHarness(t *testing.T, final provider.State) *harness {
+	t.Helper()
+	h := newHarness(t)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte(setYAML), 0o644))
+	h.fake.TriggerResults = map[string]provider.Build{}
+	h.fake.Sequences = map[string][]provider.Build{}
+	for _, plan := range []string{"PROJ-BUILD", "PROJ-PROV12"} {
+		key := plan + "-1"
+		h.fake.TriggerResults[plan] = provider.Build{Key: key, PlanKey: plan, State: provider.StateQueued}
+		h.fake.Sequences[key] = []provider.Build{{Key: key, PlanKey: plan, State: provider.StateRunning},
+			{Key: key, PlanKey: plan, State: final, Duration: 30 * time.Second}}
+	}
+	return h
+}
+
+func TestSetRunExitCodes(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "run", "release"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "set succeeded")
+	require.Len(t, h.fake.Triggered, 2)
+
+	h = setHarness(t, provider.StateFailed)
+	require.Equal(t, 1, h.run("set", "run", "release"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "try: bam logs PROJ-BUILD-1 --failed")
+	require.Len(t, h.fake.Triggered, 1)
+}
+
+func TestSetRunDryRunTriggersNothingAndWritesNoRecord(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "run", "release", "--dry-run"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "stage 2/2")
+	require.Contains(t, h.stdout.String(), "cluster_name = alpha")
+	require.Empty(t, h.fake.Triggered)
+	_, err := os.Stat(h.env.Paths.Sets)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+func TestSetRunJSONIsNDJSON(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "run", "release", "--json"), h.stderr.String())
+	lines := strings.Split(strings.TrimSpace(h.stdout.String()), "\n")
+	for _, l := range lines {
+		require.True(t, json.Valid([]byte(l)), l)
+	}
+	require.Contains(t, lines[len(lines)-1], `"type":"set_done"`)
+}
+
+func TestSetUsageAndConfigExitCodes(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 2, h.run("set", "run", "nope"))
+	require.Equal(t, 2, h.run("set", "run", "release", "--var", "novalue"))
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte(setYAML+"  broken:\n    stages: [[missing]]\n"), 0o644))
+	require.Equal(t, 3, h.run("set", "list"))
+}
+
+func TestSetRunTimeoutExits6(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	h.fake.Sequences["PROJ-BUILD-1"] = []provider.Build{{Key: "PROJ-BUILD-1", State: provider.StateRunning}}
+	yaml := strings.Replace(setYAML, "  release:\n", "  release:\n    timeout: 1h\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte(yaml), 0o644))
+	require.Equal(t, 6, h.run("set", "run", "release"))
+	require.Contains(t, h.stderr.String(), "bam set resume release-")
+	require.Empty(t, h.fake.Stopped)
+}
+
+func TestSetRunInterruptedExits130(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.Equal(t, 130, h.runCtx(ctx, "set", "run", "release"))
+	require.Empty(t, h.fake.Triggered)
+}
+
+func TestSetListShowStatusResume(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "list"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "release  2       2")
+	require.Equal(t, 0, h.run("set", "show", "release"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "stage 2  provision-lab")
+	require.Contains(t, h.stdout.String(), "cluster_name")
+
+	// An interrupted run: stage 1 triggered, stage 2 not.
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	id := app.NewSetID("release", fixedNow)
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: id, Set: "release", Origin: workOrigin, Repo: h.root,
+		StartedAt: fixedNow, Status: app.SetInterrupted, VarNames: []string{},
+		Stages: []app.StageRecord{
+			{Runs: []app.RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-1"}}},
+			{Runs: []app.RunRecord{{Target: "provision-lab", PlanKey: "PROJ-PROV12"}}},
+		}}))
+	require.Equal(t, 0, h.run("set", "status"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), id+"  interrupted")
+	require.Contains(t, h.stdout.String(), "try: bam set resume "+id)
+	require.Equal(t, 0, h.run("set", "status", "--json"), h.stderr.String())
+	require.True(t, json.Valid(h.stdout.Bytes()))
+
+	require.Equal(t, 0, h.run("set", "resume"), h.stderr.String())
+	require.Len(t, h.fake.Triggered, 1, "only stage 2 triggers")
+	require.Equal(t, "PROJ-PROV12", h.fake.Triggered[0].PlanKey)
+	require.Equal(t, 0, h.run("set", "status", "release"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), id+"  successful")
+
+	require.Equal(t, 2, h.run("set", "resume"), "nothing left to resume")
+}
+
+func TestSetStatusWithNoRuns(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 2, h.run("set", "status"))
+	require.Contains(t, h.stderr.String(), "bam set run")
+}
+
+func TestSetCompletion(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	h.run("__complete", "set", "run", "")
+	require.Contains(t, h.stdout.String(), "release")
+}

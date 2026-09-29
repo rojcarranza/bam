@@ -130,6 +130,12 @@ func validateFiles(c *Config) error {
 		if err := checkTargetNames(c.ProjectPath, "targets", c.Project.Targets); err != nil {
 			return err
 		}
+		if err := checkSetNames(c.ProjectPath, "sets", c.Project.Sets); err != nil {
+			return err
+		}
+		if err := checkSetSecrets(c.ProjectPath, c.Project.Sets); err != nil {
+			return err
+		}
 		for _, name := range sortedKeys(c.Project.Targets) {
 			t := c.Project.Targets[name]
 			for _, v := range sortedKeys(t.Defaults) {
@@ -149,8 +155,14 @@ func validateFiles(c *Config) error {
 	if err := checkTargetNames(c.MachinePath, "targets", c.Machine.Targets); err != nil {
 		return err
 	}
+	if err := checkSetNames(c.MachinePath, "sets", c.Machine.Sets); err != nil {
+		return err
+	}
 	for _, root := range sortedKeys(c.Machine.Repos) {
 		if err := checkTargetNames(c.MachinePath, "repos."+root+".targets", c.Machine.Repos[root].Targets); err != nil {
+			return err
+		}
+		if err := checkSetNames(c.MachinePath, "repos."+root+".sets", c.Machine.Repos[root].Sets); err != nil {
 			return err
 		}
 	}
@@ -163,6 +175,38 @@ func checkTargetNames(path, where string, targets map[string]Target) error {
 			return errs.Configf("%s: %s: invalid target name %q", path, where, name).
 				WithWhy("target names are lowercase letters, digits, - and _, starting with a letter").
 				WithTry(fmt.Sprintf("rename it, for example %q", strings.ToLower(nonAlnumRe.ReplaceAllString(name, "-"))))
+		}
+	}
+	return nil
+}
+
+func checkSetNames(path, where string, sets map[string]Set) error {
+	for _, name := range sortedKeys(sets) {
+		if !ValidTargetName(name) {
+			return errs.Configf("%s: %s: invalid set name %q", path, where, name).
+				WithWhy("set names are lowercase letters, digits, - and _, starting with a letter").
+				WithTry(fmt.Sprintf("rename it, for example %q", strings.ToLower(nonAlnumRe.ReplaceAllString(name, "-"))))
+		}
+	}
+	return nil
+}
+
+// checkSetSecrets refuses a literal secret in a committed set's vars, as
+// target defaults do.
+func checkSetSecrets(path string, sets map[string]Set) error {
+	for _, name := range sortedKeys(sets) {
+		for i, st := range sets[name].Stages {
+			for _, r := range st {
+				for _, v := range sortedKeys(r.Vars) {
+					val := r.Vars[v]
+					if _, ok := EnvRef(val); ok || val == "" || !IsMaskedName(v) {
+						continue
+					}
+					return errs.Configf("%s: sets.%s stage %d %s: vars.%s holds a literal secret", path, name, i+1, r.Target, v).
+						WithWhy("variables named like password, secret, passphrase or sshkey cannot be committed").
+						WithTry(fmt.Sprintf(`use an environment reference: %s: "${%s}"`, v, EnvNameFor(v)))
+				}
+			}
 		}
 	}
 	return nil

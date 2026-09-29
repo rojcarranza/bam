@@ -1,0 +1,9 @@
+release  release-20260929T101500Z
+stage 1/2
+  ✓ publish-specs  PROJ-SPEC-12  Success  1m12s
+stage 2/2
+  ✓ provision  OPS-PROV-40  Success  1m30s
+  ✗ deploy     OPS-DEP-9    Failed   48s
+
+set failed: stage 2 (1 of 2 runs failed)
+  try: bam logs OPS-DEP-9 --failed

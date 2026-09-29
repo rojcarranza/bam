@@ -48,3 +48,21 @@ func TestFetchLogFromOffset(t *testing.T) {
 	assert.Equal(t, []string{"b", "c"}, c.Lines)
 	assert.Equal(t, 3, c.Next)
 }
+
+func TestTriggerAnswersPerPlan(t *testing.T) {
+	boom := errors.New("boom")
+	f := &Provider{
+		TriggerResult:  provider.Build{Key: "X-1"},
+		TriggerResults: map[string]provider.Build{"PROJ-A": {Key: "PROJ-A-1"}},
+		TriggerErrs:    map[string]error{"PROJ-B": boom},
+	}
+	b, err := f.Trigger(context.Background(), provider.TriggerRequest{PlanKey: "PROJ-A"})
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-A-1", b.Key)
+	_, err = f.Trigger(context.Background(), provider.TriggerRequest{PlanKey: "PROJ-B"})
+	require.ErrorIs(t, err, boom)
+	b, err = f.Trigger(context.Background(), provider.TriggerRequest{PlanKey: "PROJ-C"})
+	require.NoError(t, err)
+	require.Equal(t, "X-1", b.Key)
+	require.Len(t, f.Triggered, 3)
+}

@@ -63,6 +63,44 @@ Sync appends new variables to `defaults` with the same values and comments as `t
 
 Variable precedence, lowest to highest: plan values, target `defaults`, `--from <build>`, `--var name=value`, then what you change in the editor with `bam run --edit`.
 
+## Sets (release trains)
+
+A set runs several presets in ordered stages. Every run of a stage triggers at once; the next stage starts only when every build of the one before succeeded.
+
+```yaml
+sets:
+  release:
+    timeout: 2h                 # optional; the whole train
+    stages:
+      - [publish-specs]
+      - - provision
+        - target: deploy
+          vars:
+            env: qa
+            deploy_token: "${DEPLOY_TOKEN}"
+```
+
+A stage is a list of presets. A bare name is short for `{target: name}`; the long form adds `vars`, which override that preset's `defaults` for this set only.
+
+`sets:` is allowed wherever `targets:` is: the project file, the machine file, and a machine `repos` entry. A set defined in a higher layer replaces the lower one whole; stages are never merged.
+
+Rules, checked when the file loads:
+
+- set names follow the target name rules;
+- every stage lists at least one preset, and every preset exists;
+- a preset appears at most once per stage (it may appear again in a later stage);
+- a set runs on one server, so presets with an explicit `server` must agree;
+- in the project file, a secret-looking variable in `vars` must be an `${ENV}` reference.
+
+Variable precedence for a run of a set, lowest to highest: plan values, preset `defaults`, the set's `vars`, then `--var` on `bam set run`, which applies to every run whose plan declares that name. Every run is resolved and checked before the first trigger. A run always watches its build; the preset's `timeout` applies to that run.
+
+    bam set run release --dry-run      # every run as it would trigger
+    bam set run release                # run the train
+    bam set status                     # the newest set run in this repository
+    bam set resume                     # continue after Ctrl-C or a set timeout
+
+When a build fails, the rest of its stage still finishes, no later stage starts, and nothing is cancelled. Interrupting or timing out stops watching only; the builds keep running, and `bam set resume` picks the train up where it stopped. Resume asks again for every `--var` the run was started with, because bam never stores variable values. Records live in `$XDG_STATE_HOME/bam/sets/`; bam keeps the newest 20 per set.
+
 ## Machine file
 
     version: 1

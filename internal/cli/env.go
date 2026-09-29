@@ -30,6 +30,7 @@ type Paths struct {
 	Credentials   string
 	Capabilities  string
 	State         string
+	Sets          string // directory of set run records and locks
 }
 
 // Env is everything the CLI takes from the process. Tests build it by hand.
@@ -89,6 +90,7 @@ func SystemEnv() Env {
 			Credentials:   filepath.Join(xdg.ConfigHome, "bam", "credentials.yaml"),
 			Capabilities:  filepath.Join(xdg.CacheHome, "bam", "capabilities.json"),
 			State:         filepath.Join(xdg.StateHome, "bam", "state.json"),
+			Sets:          filepath.Join(xdg.StateHome, "bam", "sets"),
 		},
 		Clock:   app.SystemClock{},
 		Keyring: credential.SystemKeyring{},

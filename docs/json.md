@@ -42,3 +42,20 @@ A running build carries the server's duration estimate as well:
     {"type":"done","time":"...","build_key":"PROJ-BUILD-45","state":"failed","build":{...}}
 
 `state`, `stage` and `job` events carry `progress` while the server reports it. `done` and error events never do: a finished build has a duration, not an estimate.
+
+## Sets
+
+`set run --json` and `set resume --json` print NDJSON, one set event per line:
+
+    {"type":"stage_start","time":"...","set":"release","id":"release-20260929T101500Z","stage":0}
+    {"type":"run_triggered","time":"...","set":"release","id":"...","stage":0,"target":"publish-specs","build":{...}}
+    {"type":"run_event","time":"...","set":"release","id":"...","stage":0,"target":"publish-specs","build":{...},"event":{"type":"state",...}}
+    {"type":"run_done","time":"...","set":"release","id":"...","stage":0,"target":"publish-specs","build":{...},"state":"success"}
+    {"type":"stage_done","time":"...","set":"release","id":"...","stage":0,"state":"success"}
+    {"type":"set_done","time":"...","set":"release","id":"...","stage":1,"state":"failed"}
+
+`stage` counts from 0. `event` is the watch event object above, unchanged; progress-only watch events are left out. A run that could not trigger ends with `run_done` carrying `"state":"failed"` and an `error` object (`kind`, `what`, `why`, `try`). The last line is `set_done`, or `set_error` with an `error` when the set could not go on (a set timeout, or a record that could not be written). An interrupted set ends without either.
+
+`set status --json` prints the record: `id`, `set`, `origin`, `repo`, `status` (`running`, `successful`, `failed`, `interrupted`, `timed_out`), `started_at`, `finished_at`, `var_names`, and `stages[].runs[]` with `target`, `plan_key`, `build_key`, `state` and `error`. Where the build could be fetched, `state` is its live state and `build` is the build object.
+
+`set list --json` and `set show --json` print each set's `name`, `timeout_ms`, `defined_in` and `stages[][]` of `{target, vars}`; secret values are masked and `${ENV}` references are shown as written. `set run --dry-run --json` prints `name`, `origin`, `warnings` and `stages[][]` of `{target, plan_key, branch, variables}`, with the changed variables only, masked.

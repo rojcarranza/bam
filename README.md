@@ -282,10 +282,39 @@ and `bam build cancel` on the command line, stop a build.
 | read only the failed jobs' logs | `bam logs --last --failed` |
 | stop a build | `bam build cancel --last` |
 | open anything in Bamboo | `bam open PROJ-PLAN-123` |
+| run a release train of presets, stage by stage | `bam set run release` |
+| continue a train after Ctrl-C | `bam set resume` |
 
 `--revision` takes a full or short SHA and passes it to Bamboo as given; Bamboo applies it to the plan's default repository. A revision Bamboo cannot build ends as "not built", so add `--watch` to see it. If the server ignores the revision, bam stops the build it queued and exits 5.
 
 Every command has `--help`, and every read command has `--json`. The full reference is in [docs/cli](docs/cli/bam.md).
+
+## Release trains
+
+A set names several presets and runs them in ordered stages: every run of a stage at once, the next stage only when all of them succeeded.
+
+```yaml
+sets:
+  release:
+    stages:
+      - [publish-specs]
+      - [provision, {target: deploy, vars: {env: qa}}]
+```
+
+```
+$ bam set run release
+release  release-20260929T101500Z
+stage 1/2
+  ✓ publish-specs  PROJ-SPEC-12  Success  1m12s
+stage 2/2
+  ✓ provision  OPS-PROV-40  Success  1m30s
+  ✗ deploy     OPS-DEP-9    Failed   48s
+
+set failed: stage 2 (1 of 2 runs failed)
+  try: bam logs OPS-DEP-9 --failed
+```
+
+A failure never cancels a build. Ctrl-C stops watching; `bam set status` and `bam set resume` pick the train up again. See [Sets](docs/configuration.md#sets-release-trains) for the rules.
 
 ## More
 

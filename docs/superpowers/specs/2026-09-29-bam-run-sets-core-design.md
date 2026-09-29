@@ -1,6 +1,6 @@
 # bam: run sets core (release trains)
 
-**Status:** Approved design, awaiting implementation plan | **Date:** 2026-09-29
+**Status:** Implemented | **Date:** 2026-09-29
 **Product requirements:** [`docs/prd.md`](../../prd.md) §7 "Future", "Run sets"
 **Builds on:** [`2026-09-12-bam-cli-mvp-design.md`](2026-09-12-bam-cli-mvp-design.md) (config layers, targets, exit codes, JSON contract), [`2026-09-20-bam-v0.3-estimator-design.md`](2026-09-20-bam-v0.3-estimator-design.md) (watch events and progress)
 
@@ -107,7 +107,8 @@ These need Bamboo and run in `app.PlanSet` (§4.1):
 ```go
 // SetOptions are the command-line inputs to a set run.
 type SetOptions struct {
-	Vars []string // --var k=v, in the order given
+	Vars   []string // --var k=v, in the order given
+	Server string   // --server, so each run's server is chosen as bam run would
 }
 
 // SetPlan is a set with every run resolved and checked. RunSet does no
@@ -130,11 +131,11 @@ type SetRunPlan struct {
 }
 
 func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPlan, error)
-func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (<-chan SetEvent, error)
+func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (id string, events <-chan SetEvent, err error)
 func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error)
 ```
 
-`RunSet` and `ResumeSet` return an error, and no channel, only for failures before the first event: a held lock (§5.4), a record that cannot be written, or a record that cannot be resumed (§5.3).
+`RunSet` also returns the record id, which the CLI prints on an interrupt. `RunSet` and `ResumeSet` return an error, and no channel, only for failures before the first event: a held lock (§5.4), a record that cannot be written, or a record that cannot be resumed (§5.3).
 
 ### 4.2 Flow of one stage
 
@@ -316,7 +317,7 @@ set failed: stage 2 (1 of 2 runs failed)
 {"type":"run_event","time":"2026-09-29T10:16:02Z","set":"release","id":"release-20260929T101500Z","stage":1,"target":"deploy","build":{...},"event":{...}}
 ```
 
-Fields: `type`, `time`, `set`, `id`, `stage` (zero-based), `target`, `build` (the existing build object), `event` (for `run_event`: the existing watch event object, unchanged), `state`, `error` (the existing error object). The last line is `{"type":"set_done",...}` or `{"type":"set_error",...}`.
+Fields: `type`, `time`, `set`, `id`, `stage` (zero-based), `target`, `build` (the existing build object), `event` (for `run_event`: the existing watch event object, unchanged), `state`, `error` (an object: `kind`, `what`, `why`, `try`). The last line is `{"type":"set_done",...}` or `{"type":"set_error",...}`.
 
 `bam set status --json` prints the record's fields, with each run's `state` replaced by the live state and a `build` object added where a build key exists. `list` and `show` print the resolved configuration, with secret values masked.
 

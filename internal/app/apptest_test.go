@@ -104,6 +104,8 @@ func newService(t *testing.T, p *fake.Provider) *Service {
 		Origin: "https://bamboo.example.com",
 		Clock:  newClock(),
 		State:  &StateStore{Path: filepath.Join(t.TempDir(), "state.json")},
+		Sets: &SetStore{Dir: filepath.Join(t.TempDir(), "sets"),
+			Host: func() (string, error) { return "laptop", nil }, PID: func() int { return 4242 }},
 		Getenv: func(string) string { return "" },
 	}
 }

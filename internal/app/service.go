@@ -33,6 +33,7 @@ type Service struct {
 	Origin string // credential.Origin(Server.URL)
 	Clock  Clock
 	State  *StateStore
+	Sets   *SetStore
 	Getenv func(string) string
 }
 

@@ -120,6 +120,7 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 		StartedAt:  parseTime(r.BuildStartedTime),
 		FinishedAt: parseTime(r.BuildCompletedTime),
 		Duration:   durationOf(r),
+		Revision:   r.VcsRevisionKey,
 	}
 	if b.PlanKey == "" {
 		if i := strings.LastIndex(key, "-"); i > 0 {

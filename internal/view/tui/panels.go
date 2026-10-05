@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/view"
 )
@@ -179,6 +180,12 @@ func branchOrDefault(b provider.Build) string {
 // screen, because the keys do.
 func (m Model) keyLine() string {
 	if m.screen == screenForm {
+		// The f hint replaces "tab next" and "d dry-run" rather than adding
+		// to them: a key line longer than the bar's free space is dropped
+		// whole, and at 80 columns the longer line would not fit.
+		if m.form.onRevision() && m.form.fromRevision != "" && !m.form.loading {
+			return "f use " + app.BuildLabel(m.form.fromBuild) + "'s revision  enter edit  ^R run  esc cancel"
+		}
 		return "enter edit  tab next  ^R run  d dry-run  esc cancel"
 	}
 	if m.screen == screenHome {

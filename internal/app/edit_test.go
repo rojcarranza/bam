@@ -232,4 +232,7 @@ func TestEditBufferHeaderNamesTheRevision(t *testing.T) {
 	ref.Revision = ""
 	got = string(EditBuffer(ref, VarSet{}, func(string) string { return "" }, "lab", false, nil))
 	assert.NotContains(t, got, "revision")
+	ref.Revision, ref.RevisionFrom = "9b30b9aba03a4f45881629b03531006b89c1e0e7", "PROJ-BUILD-41"
+	got = string(EditBuffer(ref, VarSet{}, func(string) string { return "" }, "lab", false, nil))
+	assert.Contains(t, got, "# bam run PROJ-BUILD · default branch · revision 9b30b9a (from #41) · server lab\n")
 }

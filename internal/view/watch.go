@@ -19,7 +19,7 @@ func RunPlan(o Out, ref app.PlanRef, vs app.VarSet) {
 	}
 	fmt.Fprintf(o.W, "%-8s %s\n", "Plan", plan)
 	if ref.Revision != "" {
-		fmt.Fprintf(o.W, "%-8s %s\n", "Revision", ref.Revision)
+		fmt.Fprintf(o.W, "%-8s %s\n", "Revision", ref.RevisionLabel())
 	}
 	var parts []string
 	defaults := 0

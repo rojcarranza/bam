@@ -285,10 +285,12 @@ func resolveTargetBuildsCmd(ctx context.Context, svc *app.Service, target app.Ta
 }
 
 type formLoadedMsg struct {
-	Gen    int
-	Ref    app.PlanRef
-	Target string
-	Base   app.VarSet
+	Gen          int
+	Ref          app.PlanRef
+	Target       string
+	Base         app.VarSet
+	FromBuild    string // the build the variables came from; empty for none
+	FromRevision string // that build's commit, offered on the Revision row; empty for none
 }
 
 // openFormCmd resolves what the cursor is on into a plan reference and
@@ -324,7 +326,13 @@ func openFormCmd(ctx context.Context, svc *app.Service, planKey string, target *
 		if err != nil {
 			return errMsg{Err: err, Where: "run", Stream: streamRun, Gen: gen}
 		}
-		return formLoadedMsg{Gen: gen, Ref: ref, Target: name, Base: base}
+		// The revision is offered, never required: any error just means no
+		// hint on the Revision row.
+		var rev string
+		if base.FromBuild != "" {
+			rev, _ = svc.BuildRevision(ctx, base.FromBuild)
+		}
+		return formLoadedMsg{Gen: gen, Ref: ref, Target: name, Base: base, FromBuild: base.FromBuild, FromRevision: rev}
 	}
 }
 

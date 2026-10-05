@@ -122,6 +122,7 @@ type Build struct {
 	QueueDuration time.Duration
 	Duration      time.Duration
 	Agent         string
+	Revision      string // default repository's commit; empty when Bamboo reports none
 	Revisions     []Revision
 	Stages        []Stage
 	FailedTests   []string

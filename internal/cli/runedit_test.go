@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -223,4 +224,13 @@ func TestRunEditHeaderNamesTheRevision(t *testing.T) {
 	assert.Equal(t, 0, h.run("run", "provision-lab", "--edit", "--revision", "abc1234", "--var", "cluster_name=a", "--dry-run"))
 	require.Len(t, h.editorSeen, 1)
 	assert.Contains(t, h.editorSeen[0], "· revision abc1234 · server ")
+}
+
+func TestRunEditHeaderNamesAReusedRevision(t *testing.T) {
+	h := editHarness(t, keepBuffer)
+	h.fake.History["PROJ-PROV12"][0].Revision = "9b30b9aba03a4f45881629b03531006b89c1e0e7"
+	key := h.fake.History["PROJ-PROV12"][0].Key
+	assert.Equal(t, 0, h.run("run", "provision-lab", "--edit", "--from", key, "--revision", "from", "--var", "cluster_name=a", "--dry-run"))
+	require.Len(t, h.editorSeen, 1)
+	assert.Contains(t, h.editorSeen[0], "· revision 9b30b9a (from "+app.BuildLabel(key)+") · server ")
 }

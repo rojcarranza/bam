@@ -14,7 +14,7 @@ bam run <plan|target> [flags]
       --edit               review and change the variables in $EDITOR before running
       --from string        reuse variables of a build: number, key or last
   -h, --help               help for run
-      --revision string    commit to build instead of the newest; Bamboo applies it to the plan's default repository
+      --revision string    commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository
       --timeout duration   stop watching after this long (the build keeps running)
       --var stringArray    variable name=value (repeatable)
       --watch              follow the build until it finishes

@@ -383,6 +383,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.form.loading = false
 		m.form.ref, m.form.target, m.form.base = msg.Ref, msg.Target, msg.Base
+		m.form.fromBuild, m.form.fromRevision = msg.FromBuild, msg.FromRevision
 		m.form.fields = buildFields(msg.Base, msg.Ref)
 		m.form.cursor = 0
 		// A stray enter struck while loading (now ignored by handleFormKey,
@@ -1265,6 +1266,13 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, keys.ExpandErr):
 		return m.expandErr()
+	case key.Matches(msg, keys.Follow):
+		// f is "follow" on the log screen; in the form, on the Revision row,
+		// it takes the commit of the build the form was prefilled from.
+		if m.form.onRevision() && m.form.fromRevision != "" {
+			m.form.revision = m.form.fromRevision
+		}
+		return m, nil
 	case key.Matches(msg, keys.Enter), key.Matches(msg, keys.CycleOption):
 		if !m.form.onRevision() && len(m.form.fields[m.form.cursor].Options) > 0 {
 			m.form.cycle(1)
@@ -1298,8 +1306,7 @@ func (m Model) trigger() (tea.Model, tea.Cmd) {
 		m.form.err = err
 		return m, nil
 	}
-	ref := m.form.ref
-	ref.Revision = m.form.revision
+	ref := m.form.planRef()
 	return m, runCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.formGen)
 }
 
@@ -1331,7 +1338,7 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 // the drill-into-a-build path, so at most one watch still runs.
 func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
 	m.screen = screenColumns
-	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.revision
+	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
 	m.form = formState{}
 	m.focus = focusMain
 	m.detail = &b

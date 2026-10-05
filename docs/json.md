@@ -34,6 +34,14 @@ A running build carries the server's duration estimate as well:
 
 `plan show --json` includes a `"variables_error"` string field when the plan's variables could not be read (for example, when the Bamboo server does not expose the variables endpoint). The field is omitted entirely when reading the variables succeeds.
 
+## Run
+
+`run --json` without `--watch`, and `run --dry-run --json`, print one document:
+
+    {"key":"PROJ-BUILD-46","url":"...","plan_key":"PROJ-BUILD","branch":"","revision":"9b30b9a...","revision_from":"PROJ-BUILD-41","variables":{"env":"qa"}}
+
+`key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked.
+
 ## Events
 
     {"type":"state","time":"...","build_key":"PROJ-BUILD-45","state":"running","progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000}}

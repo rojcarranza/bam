@@ -845,3 +845,23 @@ func TestDescribeSetShowsTheMatrixAndItsRuns(t *testing.T) {
 	require.Equal(t, []string{"provision-lab[cluster_name=alpha]", "provision-lab[cluster_name=beta]"}, run.Runs)
 	require.Equal(t, []string{"publish-specs"}, info.Stages[0][0].Runs)
 }
+
+// A machine-file set may hold a literal secret in its matrix (only the
+// project file refuses one). set show and set list must mask it.
+func TestDescribeSetMasksASecretInTheMatrix(t *testing.T) {
+	svc := setService(t, fakeBamboo())
+	svc.Cfg.Project.Sets["rel"] = config.Set{Stages: []config.Stage{
+		{{Target: "publish-specs", Matrix: &config.Matrix{Product: map[string][]string{"db_password": {"hunter2"}, "env": {"qa"}}}}},
+		{{Target: "provision-lab", Matrix: &config.Matrix{Sets: []config.StringMap{{"db_password": "s3cr3t"}, {"db_password": "${PW}"}}}}},
+	}}
+	info, err := DescribeSet(svc.Cfg, func(string) string { return "" }, "rel")
+	require.NoError(t, err)
+	product, list := info.Stages[0][0], info.Stages[1][0]
+	require.Equal(t, "db_password=[********] env=[qa]", product.MatrixLine)
+	require.Equal(t, map[string][]string{"db_password": {"********"}, "env": {"qa"}}, product.Matrix)
+	require.Equal(t, []config.StringMap{{"db_password": "********"}, {"db_password": "${PW}"}}, list.Matrix)
+	require.NotContains(t, fmt.Sprint(info), "hunter2")
+	require.NotContains(t, fmt.Sprint(info), "s3cr3t")
+	require.Equal(t, "publish-specs", svc.Cfg.Project.Sets["rel"].Stages[0][0].Target)
+	require.Equal(t, "hunter2", svc.Cfg.Project.Sets["rel"].Stages[0][0].Matrix.Product["db_password"][0], "the configuration itself is untouched")
+}

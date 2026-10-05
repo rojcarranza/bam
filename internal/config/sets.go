@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
@@ -72,8 +73,19 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		if len(st) == 0 {
 			return fail("stage %d has no runs", i+1)
 		}
-		seen := map[string]bool{}
+		// Sized before anything is expanded: a mistyped product can stand
+		// for billions of runs, and building them would hang the load.
 		count := 0
+		for _, r := range st {
+			if count += r.Size(); count < 0 || r.Size() == math.MaxInt {
+				count = math.MaxInt
+			}
+		}
+		if count > maxStageRuns {
+			return fail("stage %d expands to %d runs; the limit is %d", i+1, count, maxStageRuns).
+				WithTry("split the matrix across stages, or list fewer variable sets")
+		}
+		seen := map[string]bool{}
 		for _, r := range st {
 			t, ok := targets[r.Target]
 			if !ok {
@@ -84,7 +96,6 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 					return fail("lists run %q twice in stage %d", x.Name, i+1)
 				}
 				seen[x.Name] = true
-				count++
 			}
 			if t.Server == "" {
 				continue
@@ -94,10 +105,6 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 					WithTry("a set runs on one server; make one set per server")
 			}
 			server, serverFrom = t.Server, r.Target
-		}
-		if count > maxStageRuns {
-			return fail("stage %d expands to %d runs; the limit is %d", i+1, count, maxStageRuns).
-				WithTry("split the matrix across stages, or list fewer variable sets")
 		}
 	}
 	return nil

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"math"
 	"sort"
 	"strings"
 )
@@ -83,4 +84,44 @@ func runName(target string, e StringMap) string {
 		parts[i] = k + "=" + v
 	}
 	return target + "[" + strings.Join(parts, ",") + "]"
+}
+
+// Size is how many runs Expand would return, computed without building them,
+// so an oversized product is refused cheaply. It saturates at math.MaxInt.
+func (r SetRun) Size() int {
+	switch {
+	case r.Matrix == nil:
+		return 1
+	case r.Matrix.Sets != nil:
+		return len(r.Matrix.Sets)
+	}
+	n := 1
+	for _, vs := range r.Matrix.Product {
+		if len(vs) > 0 && n > math.MaxInt/len(vs) {
+			return math.MaxInt
+		}
+		n *= len(vs)
+	}
+	return n
+}
+
+// values calls f with every variable a set run sets, its vars and every
+// matrix value, without expanding the matrix.
+func (r SetRun) values(f func(name, value string)) {
+	for k, v := range r.Vars {
+		f(k, v)
+	}
+	if r.Matrix == nil {
+		return
+	}
+	for k, vs := range r.Matrix.Product {
+		for _, v := range vs {
+			f(k, v)
+		}
+	}
+	for _, e := range r.Matrix.Sets {
+		for k, v := range e {
+			f(k, v)
+		}
+	}
 }

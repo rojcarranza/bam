@@ -71,3 +71,9 @@ func TestMatrixDecodeErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestSizeCountsRunsWithoutExpanding(t *testing.T) {
+	require.Equal(t, 1, decodeRun(t, "{target: d}").Size())
+	require.Equal(t, 6, decodeRun(t, "{target: d, matrix: {a: [1, 2, 3], b: [x, y]}}").Size())
+	require.Equal(t, 2, decodeRun(t, "{target: d, matrix: [{a: 1}, {a: 2}]}").Size())
+}

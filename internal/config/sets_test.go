@@ -124,3 +124,21 @@ func TestSetMatrixAllowsAPresetTwiceInAStage(t *testing.T) {
 	_, err = cfg.Sets()
 	require.NoError(t, err)
 }
+
+// A product of 10^10 runs must be refused from its size, not by building it:
+// building it would hang every command that loads the configuration.
+func TestSetHugeProductIsRefusedWithoutExpanding(t *testing.T) {
+	ten := "[0,1,2,3,4,5,6,7,8,9]"
+	keys := ""
+	for _, k := range []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"} {
+		keys += k + ": " + ten + ", "
+	}
+	src := "version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n" +
+		"sets: {rel: {stages: [[{target: a, matrix: {" + keys + "}}]]}}\n"
+	cfg, err := loadYAML(t, src, "")
+	if err == nil {
+		_, err = cfg.Sets()
+	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stage 1 expands to 10000000000 runs; the limit is 50")
+}

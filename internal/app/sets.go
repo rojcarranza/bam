@@ -683,7 +683,8 @@ func describeSet(s config.ResolvedSet, getenv func(string) string) SetInfo {
 		runs := make([]SetRunInfo, 0, len(st))
 		for _, r := range st {
 			info := SetRunInfo{Target: r.Target, Vars: targetVars(r.Vars, getenv)}
-			if m := r.Matrix; m != nil {
+			if r.Matrix != nil {
+				m := maskedMatrix(r.Matrix)
 				info.MatrixLine = matrixLine(m)
 				if m.Sets != nil {
 					info.Matrix = m.Sets
@@ -716,4 +717,36 @@ func matrixLine(m *config.Matrix) string {
 		parts[i] = k + "=[" + strings.Join(m.Product[k], " ") + "]"
 	}
 	return strings.Join(parts, " ")
+}
+
+// maskedMatrix is a copy of m safe to display: a secret-looking variable's
+// literal values are masked, ${ENV} references stay as written. A machine
+// file may hold literal secrets; only the project file refuses them.
+func maskedMatrix(m *config.Matrix) *config.Matrix {
+	mask := func(name, v string) string {
+		if _, ref := config.EnvRef(v); ref || !config.IsMaskedName(name) {
+			return v
+		}
+		return MaskedDisplay
+	}
+	out := &config.Matrix{}
+	if m.Sets != nil {
+		for _, e := range m.Sets {
+			c := config.StringMap{}
+			for k, v := range e {
+				c[k] = mask(k, v)
+			}
+			out.Sets = append(out.Sets, c)
+		}
+		return out
+	}
+	out.Product = map[string][]string{}
+	for k, vs := range m.Product {
+		c := make([]string, len(vs))
+		for i, v := range vs {
+			c[i] = mask(k, v)
+		}
+		out.Product[k] = c
+	}
+	return out
 }

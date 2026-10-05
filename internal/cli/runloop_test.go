@@ -264,3 +264,71 @@ func TestRunRevisionNeedsAValue(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "--revision needs a value")
 	assert.Empty(t, h.connectOpts, "no network before the check")
 }
+
+const lastCommit = "9b30b9aba03a4f45881629b03531006b89c1e0e7"
+
+func withRevision(h *harness) {
+	h.fake.History["PROJ-BUILD"][0].Revision = lastCommit
+}
+
+func TestRunRevisionFromDryRun(t *testing.T) {
+	h := newHarness(t)
+	withRevision(h)
+	assert.Equal(t, 0, h.run("run", "build", "--from", "482", "--revision", "from", "--dry-run"))
+	assert.Contains(t, h.stdout.String(), "Revision 9b30b9a (from #482)\n")
+	assert.Empty(t, h.fake.Triggered)
+
+	h = newHarness(t)
+	withRevision(h)
+	assert.Equal(t, 0, h.run("run", "build", "--from", "482", "--revision", "from", "--dry-run", "--json"))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Equal(t, lastCommit, doc["revision"])
+	assert.Equal(t, "PROJ-BUILD-482", doc["revision_from"])
+}
+
+func TestRunRevisionFromSendsTheFullCommit(t *testing.T) {
+	h := newHarness(t)
+	withRevision(h)
+	h.fake.TriggerResult = queuedBuild("PROJ-BUILD-483")
+	assert.Equal(t, 0, h.run("run", "build", "--from", "482", "--revision", "from"))
+	require.Len(t, h.fake.Triggered, 1)
+	assert.Equal(t, lastCommit, h.fake.Triggered[0].Revision)
+	assert.Contains(t, h.stdout.String(), "revision 9b30b9a is checked when the build starts: bam watch PROJ-BUILD-483")
+}
+
+// --from last is resolved once, so the variables and the commit cannot come
+// from two different builds.
+func TestRunRevisionFromLastListsBuildsOnce(t *testing.T) {
+	h := newHarness(t)
+	withRevision(h)
+	assert.Equal(t, 0, h.run("run", "build", "--from", "last", "--revision", "from", "--dry-run", "--json"))
+	assert.Equal(t, 1, h.fake.ListCalls("PROJ-BUILD"))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Equal(t, "PROJ-BUILD-482", doc["revision_from"])
+}
+
+func TestRunRevisionFromNeedsFrom(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("run", "build", "--revision", "from"))
+	assert.Contains(t, h.stderr.String(), "--revision from needs --from")
+	assert.Empty(t, h.connectOpts, "no network before the check")
+}
+
+func TestRunRevisionFromABuildWithoutARevision(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("run", "build", "--from", "482", "--revision", "from"))
+	assert.Contains(t, h.stderr.String(), "PROJ-BUILD-482 has no revision to reuse")
+	assert.Empty(t, h.fake.Triggered)
+}
+
+func TestRunJSONHasAnEmptyRevisionFromByDefault(t *testing.T) {
+	h := newHarness(t)
+	h.fake.TriggerResult = queuedBuild("PROJ-BUILD-483")
+	assert.Equal(t, 0, h.run("run", "build", "--revision", "abc1234", "--json"))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Equal(t, "abc1234", doc["revision"])
+	assert.Equal(t, "", doc["revision_from"])
+}

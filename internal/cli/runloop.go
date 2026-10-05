@@ -37,6 +37,10 @@ func addRunLoop(root *cobra.Command, r *runtime) {
 	}
 }
 
+// revisionFromBuild is the --revision value that reuses the commit of the
+// --from build instead of naming one.
+const revisionFromBuild = "from"
+
 func newRunCmd(r *runtime) *cobra.Command {
 	var vars []string
 	var from, branch, revision string
@@ -57,6 +61,9 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if cmd.Flags().Changed("revision") && revision == "" {
 				return errs.Usagef("--revision needs a value")
 			}
+			if revision == revisionFromBuild && from == "" {
+				return errs.Usagef("--revision from needs --from").WithTry("bam run " + args[0] + " --from last --revision from")
+			}
 			ctx := cmd.Context()
 			svc, _, err := r.connectFor(ctx, args[0])
 			if err != nil {
@@ -67,6 +74,19 @@ func newRunCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			ref.Revision = revision
+			// Resolved once: --from last must name the same build for the
+			// variables and for the commit.
+			if from != "" {
+				if from, err = svc.ResolveFrom(ctx, ref, from); err != nil {
+					return err
+				}
+			}
+			if revision == revisionFromBuild {
+				if ref.Revision, err = svc.BuildRevision(ctx, from); err != nil {
+					return err
+				}
+				ref.RevisionFrom = from
+			}
 			var vs app.VarSet
 			if edit {
 				base, err := svc.VarBase(ctx, ref, from)
@@ -115,20 +135,20 @@ func newRunCmd(r *runtime) *cobra.Command {
 				if r.flags.json {
 					return view.WriteJSON(r.env.Stdout, view.RunJSON(b, ref, vs))
 				}
-				view.Queued(o, b, false, ref.Revision)
+				view.Queued(o, b, false, ref.RevisionShort())
 				return nil
 			}
 			if !r.flags.json {
-				view.Queued(o, b, true, ref.Revision)
+				view.Queued(o, b, true, ref.RevisionShort())
 			}
-			return r.watchLoop(ctx, svc, b.Key, limit, ref.Revision)
+			return r.watchLoop(ctx, svc, b.Key, limit, ref.RevisionShort())
 		}),
 	}
 	f := cmd.Flags()
 	f.StringArrayVar(&vars, "var", nil, "variable name=value (repeatable)")
 	f.StringVar(&from, "from", "", "reuse variables of a build: number, key or last")
 	f.StringVar(&branch, "branch", "", "plan branch to run")
-	f.StringVar(&revision, "revision", "", "commit to build instead of the newest; Bamboo applies it to the plan's default repository")
+	f.StringVar(&revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
 	f.BoolVar(&watch, "watch", false, "follow the build until it finishes")
 	f.DurationVar(&timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
 	f.BoolVar(&dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")

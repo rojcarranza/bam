@@ -42,6 +42,7 @@ type Provider struct {
 	Triggered    []provider.TriggerRequest
 	Stopped      []string
 	getCalls     map[string]int
+	listCalls    map[string]int
 	progressCall map[string]int
 }
 
@@ -86,6 +87,12 @@ func (f *Provider) ListVariables(_ context.Context, key string) ([]provider.Vari
 }
 
 func (f *Provider) ListBuilds(_ context.Context, key string, o provider.ListOptions) ([]provider.Build, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.listCalls == nil {
+		f.listCalls = map[string]int{}
+	}
+	f.listCalls[key]++
 	var out []provider.Build
 	for _, b := range f.History[key] {
 		if o.State != "" && b.State != o.State {
@@ -97,6 +104,13 @@ func (f *Provider) ListBuilds(_ context.Context, key string, o provider.ListOpti
 		}
 	}
 	return out, nil
+}
+
+// ListCalls reports how many times ListBuilds was called for key.
+func (f *Provider) ListCalls(key string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.listCalls[key]
 }
 
 func (f *Provider) GetBuild(_ context.Context, key string) (provider.Build, error) {

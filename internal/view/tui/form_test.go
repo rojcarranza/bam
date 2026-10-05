@@ -1129,7 +1129,7 @@ func TestFormWithoutAHintSaysCommitToBuild(t *testing.T) {
 	require.Contains(t, formModel().View(), "commit to build")
 }
 
-func TestFFillsTheRevisionOnlyOnTheRevisionRow(t *testing.T) {
+func TestTheFKeyFillsTheRevisionOnlyOnTheRevisionRow(t *testing.T) {
 	m := hintedForm()
 	m, _ = send(m, mkKey("f"))
 	require.Equal(t, "", m.form.revision, "f on a variable does nothing")
@@ -1217,4 +1217,27 @@ func TestFormLoadedCarriesTheHintAndReopeningClearsIt(t *testing.T) {
 	require.Equal(t, "", m.form.revision)
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, "", m.form.fromRevision)
+}
+
+// At 80 columns the status bar must still fit the key line with the f hint;
+// a line too long for the bar is dropped whole, hiding the hint it offers.
+func TestTheFHintFitsTheStatusBarAt80Columns(t *testing.T) {
+	m := hintedForm()
+	m.form.cursor = len(m.form.fields)
+	require.Contains(t, m.statusBar(80), "f use #41's revision")
+	require.Contains(t, m.statusBar(80), "^R run")
+}
+
+// A failed read of the build's revision (here: the build is gone) is not an
+// error: the form opens on the build's variables, without a hint.
+func TestOpenFormCmdWithAFailedRevisionReadHasNoHint(t *testing.T) {
+	svc := testService()
+	f := svc.P.(*fake.Provider)
+	f.History = map[string][]provider.Build{}
+	f.BuildVars = map[string]map[string]string{"PROJ-PROV-41": {}}
+	msg := openFormCmd(t.Context(), svc, "PROJ-PROV", nil, "PROJ-PROV-41", 1)()
+	loaded, ok := msg.(formLoadedMsg)
+	require.True(t, ok, "%#v", msg)
+	require.Equal(t, "PROJ-PROV-41", loaded.FromBuild)
+	require.Equal(t, "", loaded.FromRevision)
 }

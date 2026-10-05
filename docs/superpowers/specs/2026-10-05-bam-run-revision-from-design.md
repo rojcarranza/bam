@@ -1,6 +1,6 @@
 # bam: reuse a build's revision (`--revision from`)
 
-**Status:** Approved | **Date:** 2026-10-05
+**Status:** Implemented | **Date:** 2026-10-05
 **Product requirements:** [`docs/prd.md`](../../prd.md) "Then (v0.3)"
 **Builds on:** [`2026-09-24-bam-v0.3-run-revision-design.md`](2026-09-24-bam-v0.3-run-revision-design.md) (this is its §11 "later work"), [`2026-09-12-bam-cli-mvp-design.md`](2026-09-12-bam-cli-mvp-design.md) §2.2 (`--from`) and §7 (JSON contract)
 

@@ -90,6 +90,18 @@ func TestSmoke(t *testing.T) {
 		if code != 0 || !strings.Contains(out, `"revision": "`+*revision) {
 			t.Fatalf("build show --last does not report revision %s", *revision)
 		}
+		// The build just run is a custom build, so --from last picks it.
+		code, out, _ = run("run", plan, "--from", "last", "--revision", "from", "--dry-run", "--json")
+		if code != 0 {
+			t.Fatalf("run --revision from --dry-run exited %d", code)
+		}
+		var doc struct {
+			Revision     string `json:"revision"`
+			RevisionFrom string `json:"revision_from"`
+		}
+		if err := json.Unmarshal([]byte(out), &doc); err != nil || doc.RevisionFrom == "" || !strings.HasPrefix(doc.Revision, *revision) {
+			t.Fatalf("run --revision from did not reuse revision %s: %s", *revision, out)
+		}
 	}
 }
 

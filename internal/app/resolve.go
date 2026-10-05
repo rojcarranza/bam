@@ -26,11 +26,35 @@ func IsBuildKey(s string) bool { return buildKeyRe.MatchString(s) }
 
 // PlanRef is a resolved plan, and the branch plan to act on.
 type PlanRef struct {
-	PlanKey   string // branch plan key when a branch is chosen, else MasterKey
-	MasterKey string
-	Branch    string // branch short name; empty for the default branch
-	Revision  string // commit to build, set by the caller for one run; ResolvePlan never sets it
-	Target    *config.ResolvedTarget
+	PlanKey      string // branch plan key when a branch is chosen, else MasterKey
+	MasterKey    string
+	Branch       string // branch short name; empty for the default branch
+	Revision     string // commit to build, set by the caller for one run; ResolvePlan never sets it
+	RevisionFrom string // build key Revision was taken from; empty when it was typed
+	Target       *config.ResolvedTarget
+}
+
+// RevisionShort is the revision as text output prints it: as typed, or, when
+// it was taken from a build, its first seven characters, as build show does.
+func (r PlanRef) RevisionShort() string {
+	if r.RevisionFrom == "" {
+		return r.Revision
+	}
+	return provider.Revision{Revision: r.Revision}.Short()
+}
+
+// RevisionLabel is RevisionShort with the build it came from, like a
+// variable's "from #N" source.
+func (r PlanRef) RevisionLabel() string {
+	if r.RevisionFrom == "" {
+		return r.Revision
+	}
+	return r.RevisionShort() + " (from " + BuildLabel(r.RevisionFrom) + ")"
+}
+
+// BuildLabel is a build key's short form, "#41" for PROJ-BUILD-41.
+func BuildLabel(key string) string {
+	return "#" + key[strings.LastIndex(key, "-")+1:]
 }
 
 // ResolvePlan turns a target name or plan key into a PlanRef. branch

@@ -141,3 +141,16 @@ func TestBuildKeepsLastBuildRecordFromAnotherOrigin(t *testing.T) {
 	require.True(t, ok, "the record from the other origin must survive")
 	assert.Equal(t, "https://other.example.com", rec.Origin)
 }
+
+func TestRevisionLabels(t *testing.T) {
+	typed := PlanRef{Revision: "abc1234ffff"}
+	assert.Equal(t, "abc1234ffff", typed.RevisionShort(), "a typed revision prints as given")
+	assert.Equal(t, "abc1234ffff", typed.RevisionLabel())
+
+	reused := PlanRef{Revision: "9b30b9aba03a4f45881629b03531006b89c1e0e7", RevisionFrom: "PROJ-BUILD-41"}
+	assert.Equal(t, "9b30b9a", reused.RevisionShort())
+	assert.Equal(t, "9b30b9a (from #41)", reused.RevisionLabel())
+
+	assert.Equal(t, "", PlanRef{}.RevisionLabel())
+	assert.Equal(t, "#41", BuildLabel("PROJ-BUILD12-41"))
+}

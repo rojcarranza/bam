@@ -171,7 +171,7 @@ func (s *Service) VarBase(ctx context.Context, ref PlanRef, from string) (VarSet
 			return VarSet{}, err
 		}
 		set.FromBuild = key
-		label := "from #" + key[strings.LastIndex(key, "-")+1:]
+		label := "from " + BuildLabel(key)
 		for _, name := range sortedNames(bv) {
 			val := bv[name]
 			if set.DeclaredKnown && !declaredNames[name] && !inTarget(name) {

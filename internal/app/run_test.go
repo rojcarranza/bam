@@ -249,3 +249,31 @@ func TestRunWithoutRevisionDoesNotStopOnUnsupported(t *testing.T) {
 	require.Error(t, err)
 	assert.Empty(t, p.Stopped)
 }
+
+func TestBuildRevision(t *testing.T) {
+	p := fakeBamboo()
+	p.History["PROJ-BUILD"][0].Revision = "9b30b9aba03a4f45881629b03531006b89c1e0e7"
+	s := newService(t, p)
+
+	rev, err := s.BuildRevision(bg, "PROJ-BUILD-482")
+	require.NoError(t, err)
+	assert.Equal(t, "9b30b9aba03a4f45881629b03531006b89c1e0e7", rev)
+}
+
+func TestBuildRevisionOfABuildWithoutOne(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	rev, err := s.BuildRevision(bg, "PROJ-BUILD-482")
+	assert.Equal(t, "", rev)
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+	assert.Equal(t, "PROJ-BUILD-482 has no revision to reuse", e.What)
+	assert.Equal(t, "pass a commit with --revision", e.Try)
+}
+
+func TestBuildRevisionPassesAReadErrorThrough(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	_, err := s.BuildRevision(bg, "PROJ-BUILD-999")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, errs.ErrNotFound))
+}

@@ -202,3 +202,17 @@ func diff(prev *provider.Build, cur provider.Build) []Event {
 	}
 	return out
 }
+
+// BuildRevision is the commit of key's default repository, for reusing it
+// with a new run. A build that never started has none, which is the caller's
+// input to fix, not a Bamboo fault.
+func (s *Service) BuildRevision(ctx context.Context, key string) (string, error) {
+	b, err := s.P.GetBuild(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	if b.Revision == "" {
+		return "", errs.Usagef("%s has no revision to reuse", key).WithTry("pass a commit with --revision")
+	}
+	return b.Revision, nil
+}

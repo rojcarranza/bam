@@ -65,7 +65,7 @@ RestartBuild(ctx context.Context, buildKey string) (Build, error)
 func (s *Service) Restart(ctx context.Context, key string) (provider.Build, error)
 ```
 
-1. Read the build (`s.Build`). Remember its state and `FinishedAt`.
+1. Read the build. Remember its state and `FinishedAt`. A build that is not finished, or that succeeded, is not restarted: `Restart` returns it as it is, and the caller watches it without counting a rerun.
 2. `P.RestartBuild(ctx, key)`. Errors are returned as they are.
 3. Poll `s.Build` on `s.Clock`, every 2 seconds, for at most 2 minutes, until the build is not finished, or is finished with a `FinishedAt` other than the remembered one. Return that build.
 4. If the 2 minutes pass first: an error of kind bamboo, What `Bamboo did not restart PROJ-PLAN-9`, Why `the build still shows its earlier result`, Try `bam open PROJ-PLAN-9`.
@@ -173,7 +173,7 @@ Test first. No test sleeps or touches the network.
 
 ### 8.2 Unit tests
 
-- **`provider/bamboo`**: `PUT` to the right path with `executeAllStages=true`; the answer maps to the build; 404/405 without a build message is `ErrUnsupported` and records `Rerun: "no"`; success records `"yes"`; a 400 with a message is a bamboo error naming it. Hand-written fixtures `queue_restart.json`, `queue_restart_refused.json`; `TestRecordedRestart*` checks them against the recordings when present.
+- **`provider/bamboo`**: `PUT` to the right path with `executeAllStages=true`; the answer maps to the build; 405/501 is `ErrUnsupported` and records `Rerun: "no"`; 404 is `ErrNotFound`; any 2xx counts as accepted, whatever its body; success records `"yes"`; a 400 with a message is a bamboo error naming it. Hand-written fixtures `queue_restart.json`, `queue_restart_refused.json`; `TestRecordedRestart*` checks them against the recordings when present.
 - **`app` `Restart`**: returns once the old result is gone (old result twice, then queued); a build finishing again with a new `FinishedAt` counts as restarted; never requeued gives the error after 2 minutes of fake time, with the polls on the fake clock; `RestartBuild` errors pass through; `--last` untouched.
 - **`app` `RerunSet`**: refuses `successful`, `interrupted`, `timed_out`; the shared resume checks; restarts only the failed runs of the failed stage and leaves succeeded runs alone; triggers a run with no build key; `reruns` saved before the restart call; continues to later stages; a restart error fails the run and stops the train; the record ends `successful` or `failed`; `ResumeSet`'s new message for `failed`.
 - **`cli`** (harness): `--failed` required (exit 2, no network); newest failed record picked with no argument; text block with `rerun 1`; NDJSON `rerun` field; exit 1 when the train still fails; `set status --json` has `reruns`.

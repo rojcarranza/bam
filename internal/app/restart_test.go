@@ -28,8 +28,9 @@ func restartBamboo(seq ...provider.Build) *fake.Provider {
 func TestRestartWaitsForTheOldResultToGo(t *testing.T) {
 	p := restartBamboo(oldResult(), oldResult(), oldResult(), provider.Build{Key: "PROJ-BUILD-9", State: provider.StateQueued})
 	s := newService(t, p)
-	b, err := s.Restart(bg, "PROJ-BUILD-9")
+	b, restarted, err := s.Restart(bg, "PROJ-BUILD-9")
 	require.NoError(t, err)
+	assert.True(t, restarted)
 	assert.Equal(t, provider.StateQueued, b.State)
 	assert.Equal(t, []string{"PROJ-BUILD-9"}, p.Restarted)
 	assert.Equal(t, []time.Duration{2 * time.Second, 2 * time.Second}, s.Clock.(*fakeClock).Waits())
@@ -37,14 +38,14 @@ func TestRestartWaitsForTheOldResultToGo(t *testing.T) {
 
 func TestRestartCountsANewFinishAsRestarted(t *testing.T) {
 	again := provider.Build{Key: "PROJ-BUILD-9", State: provider.StateSuccess, FinishedAt: failedAt.Add(time.Minute)}
-	b, err := newService(t, restartBamboo(oldResult(), again)).Restart(bg, "PROJ-BUILD-9")
+	b, _, err := newService(t, restartBamboo(oldResult(), again)).Restart(bg, "PROJ-BUILD-9")
 	require.NoError(t, err)
 	assert.Equal(t, provider.StateSuccess, b.State)
 }
 
 func TestRestartGivesUpAfterTwoMinutes(t *testing.T) {
 	s := newService(t, restartBamboo(oldResult()))
-	_, err := s.Restart(bg, "PROJ-BUILD-9")
+	_, _, err := s.Restart(bg, "PROJ-BUILD-9")
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, errs.KindBamboo, e.Kind)
@@ -61,14 +62,14 @@ func TestRestartGivesUpAfterTwoMinutes(t *testing.T) {
 func TestRestartPassesARefusalThrough(t *testing.T) {
 	p := restartBamboo(oldResult())
 	p.RestartErr = errs.Bamboof("Bamboo would not restart PROJ-BUILD-9")
-	_, err := newService(t, p).Restart(bg, "PROJ-BUILD-9")
+	_, _, err := newService(t, p).Restart(bg, "PROJ-BUILD-9")
 	require.ErrorContains(t, err, "would not restart")
 	assert.Equal(t, 1, p.GetCalls("PROJ-BUILD-9"), "no polling after a refusal")
 }
 
 func TestRestartLeavesTheLastBuildAlone(t *testing.T) {
 	s := newService(t, restartBamboo(oldResult(), provider.Build{Key: "PROJ-BUILD-9", State: provider.StateQueued}))
-	_, err := s.Restart(bg, "PROJ-BUILD-9")
+	_, _, err := s.Restart(bg, "PROJ-BUILD-9")
 	require.NoError(t, err)
 	_, ok, _ := s.State.Last(s.Cfg.RepoRoot)
 	assert.False(t, ok, "a restart is not a trigger")
@@ -78,7 +79,20 @@ func TestRestartWithAnEndedContextRestartsNothing(t *testing.T) {
 	p := restartBamboo(oldResult())
 	ctx, cancel := context.WithCancel(bg)
 	cancel()
-	_, err := newService(t, p).Restart(ctx, "PROJ-BUILD-9")
+	_, _, err := newService(t, p).Restart(ctx, "PROJ-BUILD-9")
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, p.Restarted)
+}
+
+// A build that is not finished, or that succeeded, is not restarted: Bamboo
+// would refuse, and there is nothing to retry. The caller watches it.
+func TestRestartLeavesABuildThatDidNotFail(t *testing.T) {
+	for _, st := range []provider.State{provider.StateRunning, provider.StateQueued, provider.StateSuccess} {
+		p := restartBamboo(provider.Build{Key: "PROJ-BUILD-9", State: st})
+		b, restarted, err := newService(t, p).Restart(bg, "PROJ-BUILD-9")
+		require.NoError(t, err, st)
+		assert.False(t, restarted, st)
+		assert.Equal(t, st, b.State)
+		assert.Empty(t, p.Restarted, st)
+	}
 }

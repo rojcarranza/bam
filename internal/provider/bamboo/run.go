@@ -151,9 +151,12 @@ func (c *Client) RestartBuild(ctx context.Context, key string) (provider.Build, 
 		}
 		return provider.Build{}, err
 	}
+	// Any 2xx means Bamboo took the restart; Service.Restart's poll is what
+	// confirms it. The answer's shape is not relied on: a body without a
+	// build key still names the same build.
 	var q queueDTO
-	if err := json.Unmarshal(body, &q); err != nil || q.BuildResultKey == "" {
-		return provider.Build{}, errs.Bamboof("unexpected response when restarting %s", key).Wrap(err)
+	if json.Unmarshal(body, &q) != nil || q.BuildResultKey == "" {
+		q = queueDTO{BuildResultKey: key}
 	}
 	if caps.Rerun == "" {
 		c.learn(ctx, func(cp *Capabilities) { cp.Rerun = "yes" })

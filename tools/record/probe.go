@@ -290,11 +290,14 @@ func (r *recorder) probeRerun(plan string) error {
 		return err
 	}
 	if state == "Failed" {
-		if err := r.restart(queued.Key, "queue_restart.json"); err != nil {
+		accepted, err := r.restart(queued.Key, "queue_restart.json")
+		if err != nil {
 			return err
 		}
-		if err := r.recordRestart(queued.Key); err != nil {
-			return err
+		if accepted {
+			if err := r.recordRestart(queued.Key); err != nil {
+				return err
+			}
 		}
 	} else {
 		fmt.Printf("%s ended %s/%s; a restart needs a failed build, so pass a plan that fails\n", queued.Key, life, state)
@@ -314,15 +317,17 @@ func (r *recorder) probeRerun(plan string) error {
 		fmt.Printf("%s has no successful build; not recording a refusal\n", plan)
 		return nil
 	}
-	return r.restart(list.Results.Result[0].Key, "queue_restart_refused.json")
+	_, err = r.restart(list.Results.Result[0].Key, "queue_restart_refused.json")
+	return err
 }
 
 // restart sends PUT queue/{key} and records the answer as file, or, when
-// Bamboo refuses, its status and message as file.status.
-func (r *recorder) restart(key, file string) error {
+// Bamboo refuses, its status and message as file.status. accepted says
+// whether Bamboo took the restart.
+func (r *recorder) restart(key, file string) (accepted bool, err error) {
 	body, status, err := r.call(http.MethodPut, "/rest/api/latest/queue/"+key, url.Values{"executeAllStages": {"true"}})
 	if err != nil {
-		return fmt.Errorf("restart %s: %w", key, err)
+		return false, fmt.Errorf("restart %s: %w", key, err)
 	}
 	if status/100 != 2 {
 		fmt.Printf("%-28s %d (recorded as .status): Bamboo refused the restart\n", file, status)
@@ -330,10 +335,10 @@ func (r *recorder) restart(key, file string) error {
 		if len(snippet) > 300 {
 			snippet = snippet[:300]
 		}
-		return os.WriteFile(filepath.Join(r.out, file+".status"), []byte(fmt.Sprintf("%d\n%s\n", status, snippet)), 0o644)
+		return false, os.WriteFile(filepath.Join(r.out, file+".status"), []byte(fmt.Sprintf("%d\n%s\n", status, snippet)), 0o644)
 	}
 	fmt.Printf("%-28s %d\n", file, status)
-	return writeScrubbed(r.out, file, body, r.scrub)
+	return true, writeScrubbed(r.out, file, body, r.scrub)
 }
 
 // recordRestart records result_restart_N.json at once and at each change of

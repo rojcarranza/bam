@@ -383,3 +383,23 @@ func TestRecordedRestart(t *testing.T) {
 		assert.NotEmpty(t, b.State, rel)
 	}
 }
+
+// Bamboo's restart answer is not recorded yet: any 2xx means the restart
+// was accepted, whatever its body, and Service.Restart's poll confirms it.
+func TestRestartBuildAcceptsAnAnswerWithoutABuild(t *testing.T) {
+	for name, rt := range map[string]*route{
+		"no content":   {status: 204},
+		"other object": {body: `{"message":"restarted"}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _ := newTestServer(t, map[string]*route{"PUT /rest/api/latest/queue/PROJ-BUILD-45": rt})
+			saved := knownCaps(c, Capabilities{})
+			b, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
+			require.NoError(t, err)
+			assert.Equal(t, "PROJ-BUILD-45", b.Key)
+			assert.Equal(t, "PROJ-BUILD", b.PlanKey)
+			assert.Equal(t, provider.StateQueued, b.State)
+			assert.Equal(t, "yes", (*saved)[len(*saved)-1].Rerun)
+		})
+	}
+}

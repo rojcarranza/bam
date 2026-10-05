@@ -711,3 +711,23 @@ func TestRerunRefusals(t *testing.T) {
 		})
 	}
 }
+
+// A failed run whose build actually succeeded (its watch failed, say) is
+// taken as it is: no restart, no rerun counted, and the train goes on.
+func TestRerunAdoptsABuildThatSucceededAfterAll(t *testing.T) {
+	fp := trainBamboo(nil)
+	fp.Sequences["PROJ-PROV12-1"] = []provider.Build{{Key: "PROJ-PROV12-1", State: provider.StateSuccess}}
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	stages := failedRecord()
+	stages[1].Runs[0].Error = "polling failed"
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: stages})
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Empty(t, fp.Restarted)
+	require.NotContains(t, kinds(evs), "run_triggered:1:provision-lab")
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, SetSuccessful, got.Status)
+	require.Equal(t, 0, got.Stages[1].Runs[0].Reruns)
+}

@@ -352,7 +352,7 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 			if !r.save(ctx, i) {
 				return false, false
 			}
-			b, err := r.s.Restart(ctx, key)
+			b, restarted, err := r.s.Restart(ctx, key)
 			if err != nil {
 				if ctx.Err() != nil {
 					return false, true
@@ -365,7 +365,16 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 					State: provider.StateFailed, Err: err})
 				continue
 			}
-			r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b, Rerun: recs[j].Reruns})
+			if restarted {
+				r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b, Rerun: recs[j].Reruns})
+			} else {
+				// Running or succeeded after all: nothing was restarted, so
+				// nothing counts; the build is watched as it is.
+				recs[j].Reruns--
+				if !r.save(ctx, i) {
+					return false, false
+				}
+			}
 		}
 		if key == "" {
 			if ctx.Err() != nil {

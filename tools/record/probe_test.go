@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,4 +65,20 @@ func TestVerboseQueueParamIgnoresTheDeploymentQueue(t *testing.T) {
 
 	s.Verbose = append(s.Verbose, "POST queue/{projectKey : ([^-/]+)}-{buildKey}: verboseLogs")
 	assert.Equal(t, "verboseLogs", verboseQueueParam(s))
+}
+
+// A refused restart is recorded as .status and reported as not accepted, so
+// probeRerun does not wait minutes for a restart that never happened.
+func TestRestartReportsARefusal(t *testing.T) {
+	r := testRecorder(t, map[string]string{})
+	accepted, err := r.restart("PROJ-BUILD-45", "queue_restart.json")
+	require.NoError(t, err)
+	require.False(t, accepted)
+	_, statErr := os.Stat(filepath.Join(r.out, "queue_restart.json.status"))
+	require.NoError(t, statErr)
+
+	r = testRecorder(t, map[string]string{"/rest/api/latest/queue/PROJ-BUILD-45": `{"buildResultKey":"PROJ-BUILD-45"}`})
+	accepted, err = r.restart("PROJ-BUILD-45", "queue_restart.json")
+	require.NoError(t, err)
+	require.True(t, accepted)
 }

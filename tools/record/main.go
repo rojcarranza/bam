@@ -22,6 +22,10 @@
 //	                trigger the plan with a custom revision, its short
 //	                form, an unknown revision, and a verbose-logs parameter
 //	                if the WADL has one, waiting for each build to finish
+//	-probe-rerun    trigger the plan, and if the build fails restart it with
+//	                PUT queue/{key}, recording the answer and every state
+//	                change until it finishes; then record how Bamboo refuses
+//	                to restart a successful build
 package main
 
 import (
@@ -194,6 +198,7 @@ func run() error {
 		trigger     = flag.Bool("trigger", false, "also trigger a build, stop it, and record both")
 		asKey       = flag.String("as", "LAB", "placeholder project key the recorded project is renamed to")
 		probe       = flag.Bool("probe-run", false, "probe custom revision and verbose logs support; triggers the plan up to three times")
+		probeRerun  = flag.Bool("probe-rerun", false, "probe build restart (PUT queue/{key}); triggers the plan once and restarts it if it failed")
 	)
 	flag.Parse()
 
@@ -260,6 +265,12 @@ func run() error {
 	// the base recordings come from, so it records its own files only.
 	if *probe {
 		if err := r.probeRun(plan); err != nil {
+			return err
+		}
+		return r.finish()
+	}
+	if *probeRerun {
+		if err := r.probeRerun(plan); err != nil {
 			return err
 		}
 		return r.finish()

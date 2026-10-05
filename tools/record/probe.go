@@ -269,3 +269,117 @@ func (r *recorder) probeTrigger(plan, name string, extra url.Values, want string
 	fmt.Println()
 	return nil
 }
+
+// probeRerun triggers plan and waits for the build. If it failed, it
+// restarts it with PUT queue/{key} and records the answer, then the result
+// at each change of state until it finishes again. Last, it restarts the
+// newest successful build of plan, to record how Bamboo refuses.
+func (r *recorder) probeRerun(plan string) error {
+	body, status, err := r.call(http.MethodPost, "/rest/api/latest/queue/"+plan, url.Values{"executeAllStages": {"true"}})
+	if err != nil || status/100 != 2 {
+		return fmt.Errorf("trigger %s: status %d: %v", plan, status, err)
+	}
+	var queued struct {
+		Key string `json:"buildResultKey"`
+	}
+	if err := json.Unmarshal(body, &queued); err != nil || queued.Key == "" {
+		return errors.New("queue answer has no buildResultKey")
+	}
+	life, state, err := r.waitFinished(queued.Key)
+	if err != nil {
+		return err
+	}
+	if state == "Failed" {
+		if err := r.restart(queued.Key, "queue_restart.json"); err != nil {
+			return err
+		}
+		if err := r.recordRestart(queued.Key); err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("%s ended %s/%s; a restart needs a failed build, so pass a plan that fails\n", queued.Key, life, state)
+	}
+	ok, status, err := r.call(http.MethodGet, "/rest/api/latest/result/"+plan, url.Values{"buildstate": {"Successful"}, "max-result": {"1"}})
+	if err != nil || status != 200 {
+		return fmt.Errorf("successful builds of %s: status %d: %v", plan, status, err)
+	}
+	var list struct {
+		Results struct {
+			Result []struct {
+				Key string `json:"buildResultKey"`
+			} `json:"result"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(ok, &list); err != nil || len(list.Results.Result) == 0 {
+		fmt.Printf("%s has no successful build; not recording a refusal\n", plan)
+		return nil
+	}
+	return r.restart(list.Results.Result[0].Key, "queue_restart_refused.json")
+}
+
+// restart sends PUT queue/{key} and records the answer as file, or, when
+// Bamboo refuses, its status and message as file.status.
+func (r *recorder) restart(key, file string) error {
+	body, status, err := r.call(http.MethodPut, "/rest/api/latest/queue/"+key, url.Values{"executeAllStages": {"true"}})
+	if err != nil {
+		return fmt.Errorf("restart %s: %w", key, err)
+	}
+	if status/100 != 2 {
+		fmt.Printf("%-28s %d (recorded as .status): Bamboo refused the restart\n", file, status)
+		snippet := r.scrub.Scrub(body)
+		if len(snippet) > 300 {
+			snippet = snippet[:300]
+		}
+		return os.WriteFile(filepath.Join(r.out, file+".status"), []byte(fmt.Sprintf("%d\n%s\n", status, snippet)), 0o644)
+	}
+	fmt.Printf("%-28s %d\n", file, status)
+	return writeScrubbed(r.out, file, body, r.scrub)
+}
+
+// recordRestart records result_restart_N.json at once and at each change of
+// lifeCycleState/buildState, until the build finishes again or 5 minutes pass.
+func (r *recorder) recordRestart(key string) error {
+	expand := url.Values{"expand": {"stages.stage.results.result,vcsRevisions"}}
+	last, n := "", 0
+	for i := 0; i < 150; i++ {
+		body, status, err := r.call(http.MethodGet, "/rest/api/latest/result/"+key, expand)
+		if err == nil && status == 200 {
+			life, state := resultStates(body)
+			if now := life + "/" + state; now != last {
+				if err := r.record(fmt.Sprintf("result_restart_%d.json", n), http.MethodGet, "/rest/api/latest/result/"+key, expand); err != nil {
+					return err
+				}
+				last, n = now, n+1
+				if i > 0 && life == "Finished" {
+					return nil
+				}
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return fmt.Errorf("%s did not finish again within 5 minutes", key)
+}
+
+// waitFinished polls key until it is Finished or NotBuilt.
+func (r *recorder) waitFinished(key string) (life, state string, err error) {
+	for i := 0; i < 150; i++ {
+		time.Sleep(2 * time.Second)
+		body, status, err := r.call(http.MethodGet, "/rest/api/latest/result/"+key, nil)
+		if err == nil && status == 200 {
+			life, state = resultStates(body)
+			if life == "Finished" || life == "NotBuilt" {
+				return life, state, nil
+			}
+		}
+	}
+	return "", "", fmt.Errorf("%s did not finish within 5 minutes", key)
+}
+
+func resultStates(body []byte) (life, state string) {
+	var res struct {
+		Life  string `json:"lifeCycleState"`
+		State string `json:"buildState"`
+	}
+	_ = json.Unmarshal(body, &res)
+	return res.Life, res.State
+}

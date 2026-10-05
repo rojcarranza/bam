@@ -1,6 +1,6 @@
 # bam: `bam set rerun --failed`
 
-**Status:** Approved | **Date:** 2026-10-05
+**Status:** Implemented | **Date:** 2026-10-05
 **Product requirements:** [`docs/prd.md`](../../prd.md) §7 "Future", "Run sets"
 **Builds on:** [`2026-09-29-bam-run-sets-core-design.md`](2026-09-29-bam-run-sets-core-design.md) (the record §5.1, resume §5.3, lock §5.4, events §4.3, output §7), [`2026-09-12-bam-cli-mvp-design.md`](2026-09-12-bam-cli-mvp-design.md) §7 (JSON contract), §9 (capabilities)
 

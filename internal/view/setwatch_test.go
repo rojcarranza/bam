@@ -70,6 +70,7 @@ func TestSetLinesOneLinePerChange(t *testing.T) {
 	require.Contains(t, out, "2026-09-29T10:15:00Z stage 2 deploy OPS-DEP-9 failed 48s\n")
 	require.Contains(t, out, "set failed: stage 2 (1 of 2 runs failed)\n")
 	require.Contains(t, out, "  try: bam logs OPS-DEP-9 --failed\n")
+	require.Contains(t, out, "  try: bam set rerun --failed release-20260929T101500Z\n")
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		if strings.HasPrefix(line, "2026") {
 			require.Regexp(t, `^\S+ stage \d \S+ `, line, "every change names its stage and preset")
@@ -137,4 +138,33 @@ func TestSetNDJSONEndsWithSetDoneAndSkipsProgress(t *testing.T) {
 	var last map[string]any
 	require.NoError(t, json.Unmarshal([]byte(lines[len(lines)-1]), &last))
 	require.Equal(t, "set_done", last["type"])
+}
+
+func TestSetLinesNamesARerun(t *testing.T) {
+	o, buf := testOut(false)
+	l := NewSetLines(o)
+	e := setEv(app.SetRunTriggered, 1, "deploy", provider.Build{Key: "OPS-DEP-9", State: provider.StateQueued}, "")
+	e.Rerun = 1
+	l.Event(e)
+	require.Equal(t, "2026-09-29T10:15:00Z stage 2 deploy OPS-DEP-9 rerun 1\n", buf.String())
+}
+
+func TestSetLiveStartsFromTheRecordAndMarksARerun(t *testing.T) {
+	o, buf := testOut(true)
+	o.Width = 80
+	l := NewSetLive(o, setPlan())
+	l.Seed(app.SetRecord{ID: "release-20260929T101500Z", Stages: []app.StageRecord{
+		{Runs: []app.RunRecord{{Target: "publish-specs", BuildKey: "PROJ-SPEC-12", State: provider.StateSuccess}}},
+		{Runs: []app.RunRecord{{Target: "provision", BuildKey: "OPS-PROV-40", State: provider.StateSuccess},
+			{Target: "deploy", BuildKey: "OPS-DEP-9", State: provider.StateFailed}}},
+	}})
+	l.Event(setEv(app.SetStageStart, 1, "", provider.Build{}, ""))
+	out := lastFrame(buf.String())
+	require.Regexp(t, `publish-specs\s+PROJ-SPEC-12\s+Success`, out, "not pending: the record knows it")
+	require.Regexp(t, `deploy\s+OPS-DEP-9\s+Failed`, out)
+
+	e := setEv(app.SetRunTriggered, 1, "deploy", provider.Build{Key: "OPS-DEP-9", State: provider.StateQueued}, "")
+	e.Rerun = 1
+	l.Event(e)
+	require.Regexp(t, `deploy\s+OPS-DEP-9\s+\S+ \(rerun 1\)`, lastFrame(buf.String()))
 }

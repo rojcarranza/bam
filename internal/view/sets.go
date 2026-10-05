@@ -94,7 +94,7 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) e
 			if b, ok := builds[r.BuildKey]; ok {
 				state = b.State
 			}
-			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.Target, dashIfEmpty(r.BuildKey), stateTitle(state), r.Error})
+			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.Target, dashIfEmpty(r.BuildKey), rerunTitle(state, r.Reruns), r.Error})
 		}
 		if err := RenderRows(o, t); err != nil {
 			return err
@@ -102,6 +102,9 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) e
 	}
 	if rec.Status == app.SetInterrupted || rec.Status == app.SetTimedOut {
 		fmt.Fprintf(o.W, "try: bam set resume %s\n", rec.ID)
+	}
+	if rec.Status == app.SetFailed {
+		fmt.Fprintf(o.W, "try: bam set rerun --failed %s\n", rec.ID)
 	}
 	return nil
 }
@@ -119,6 +122,14 @@ func stateTitle(s provider.State) string {
 		return "pending"
 	}
 	return style.Title(s)
+}
+
+// rerunTitle is a run's state title, marked when bam restarted its build.
+func rerunTitle(s provider.State, reruns int) string {
+	if reruns > 0 {
+		return fmt.Sprintf("%s (rerun %d)", stateTitle(s), reruns)
+	}
+	return stateTitle(s)
 }
 
 type SetDoc struct {
@@ -168,6 +179,7 @@ type SetRunRecordDoc struct {
 	PlanKey  string    `json:"plan_key"`
 	BuildKey string    `json:"build_key"`
 	State    string    `json:"state"`
+	Reruns   int       `json:"reruns"`
 	Error    string    `json:"error,omitempty"`
 	Build    *BuildDoc `json:"build,omitempty"`
 }
@@ -189,6 +201,7 @@ type SetEventDoc struct {
 	Build  *BuildDoc `json:"build,omitempty"`
 	Event  *EventDoc `json:"event,omitempty"`
 	State  string    `json:"state,omitempty"`
+	Rerun  int       `json:"rerun"`
 	Error  *ErrorDoc `json:"error,omitempty"`
 }
 
@@ -245,7 +258,7 @@ func SetRecordJSON(rec app.SetRecord, builds map[string]provider.Build) SetRecor
 	for _, st := range rec.Stages {
 		sd := SetStageDoc{Runs: []SetRunRecordDoc{}}
 		for _, r := range st.Runs {
-			rd := SetRunRecordDoc{Target: r.Target, PlanKey: r.PlanKey, BuildKey: r.BuildKey, State: string(r.State), Error: r.Error}
+			rd := SetRunRecordDoc{Target: r.Target, PlanKey: r.PlanKey, BuildKey: r.BuildKey, State: string(r.State), Reruns: r.Reruns, Error: r.Error}
 			if b, ok := builds[r.BuildKey]; ok {
 				bd := BuildJSON(b)
 				rd.Build, rd.State = &bd, string(b.State)
@@ -270,7 +283,7 @@ func errorDoc(err error) *ErrorDoc {
 
 func SetEventJSON(e app.SetEvent) SetEventDoc {
 	d := SetEventDoc{Type: string(e.Type), Time: e.Time.UTC().Format(time.RFC3339), Set: e.Set, ID: e.ID,
-		Stage: e.Stage, Target: e.Target, State: string(e.State), Error: errorDoc(e.Err)}
+		Stage: e.Stage, Target: e.Target, State: string(e.State), Rerun: e.Rerun, Error: errorDoc(e.Err)}
 	if e.Build.Key != "" {
 		b := BuildJSON(e.Build)
 		d.Build = &b

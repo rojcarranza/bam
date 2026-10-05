@@ -73,15 +73,19 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 			return fail("stage %d has no runs", i+1)
 		}
 		seen := map[string]bool{}
+		count := 0
 		for _, r := range st {
 			t, ok := targets[r.Target]
 			if !ok {
 				return fail("names unknown preset %q in stage %d", r.Target, i+1).WithTry("bam target list")
 			}
-			if seen[r.Target] {
-				return fail("lists preset %q twice in stage %d", r.Target, i+1)
+			for _, x := range r.Expand() {
+				if seen[x.Name] {
+					return fail("lists run %q twice in stage %d", x.Name, i+1)
+				}
+				seen[x.Name] = true
+				count++
 			}
-			seen[r.Target] = true
 			if t.Server == "" {
 				continue
 			}
@@ -90,6 +94,10 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 					WithTry("a set runs on one server; make one set per server")
 			}
 			server, serverFrom = t.Server, r.Target
+		}
+		if count > maxStageRuns {
+			return fail("stage %d expands to %d runs; the limit is %d", i+1, count, maxStageRuns).
+				WithTry("split the matrix across stages, or list fewer variable sets")
 		}
 	}
 	return nil

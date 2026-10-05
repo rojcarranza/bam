@@ -197,14 +197,16 @@ func checkSetSecrets(path string, sets map[string]Set) error {
 	for _, name := range sortedKeys(sets) {
 		for i, st := range sets[name].Stages {
 			for _, r := range st {
-				for _, v := range sortedKeys(r.Vars) {
-					val := r.Vars[v]
-					if _, ok := EnvRef(val); ok || val == "" || !IsMaskedName(v) {
-						continue
+				for _, x := range r.Expand() {
+					for _, v := range sortedKeys(x.Vars) {
+						val := x.Vars[v]
+						if _, ok := EnvRef(val); ok || val == "" || !IsMaskedName(v) {
+							continue
+						}
+						return errs.Configf("%s: sets.%s stage %d %s: vars.%s holds a literal secret", path, name, i+1, r.Target, v).
+							WithWhy("variables named like password, secret, passphrase or sshkey cannot be committed").
+							WithTry(fmt.Sprintf(`use an environment reference: %s: "${%s}"`, v, EnvNameFor(v)))
 					}
-					return errs.Configf("%s: sets.%s stage %d %s: vars.%s holds a literal secret", path, name, i+1, r.Target, v).
-						WithWhy("variables named like password, secret, passphrase or sshkey cannot be committed").
-						WithTry(fmt.Sprintf(`use an environment reference: %s: "${%s}"`, v, EnvNameFor(v)))
 				}
 			}
 		}

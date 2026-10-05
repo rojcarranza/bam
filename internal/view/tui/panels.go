@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/view"
 )
@@ -179,7 +180,11 @@ func branchOrDefault(b provider.Build) string {
 // screen, because the keys do.
 func (m Model) keyLine() string {
 	if m.screen == screenForm {
-		return "enter edit  tab next  ^R run  d dry-run  esc cancel"
+		line := "enter edit  tab next  ^R run  d dry-run  esc cancel"
+		if m.form.onRevision() && m.form.fromRevision != "" && !m.form.loading {
+			line = "f use " + app.BuildLabel(m.form.fromBuild) + "'s revision  " + line
+		}
+		return line
 	}
 	if m.screen == screenHome {
 		return "enter open  / filter  s sort  : cmd  R run  ?help  q quit"

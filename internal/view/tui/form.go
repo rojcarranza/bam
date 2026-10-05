@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
 // formField is one variable in the run form.
@@ -25,16 +26,34 @@ type formField struct {
 // formState is the run form: what was fetched once, and what the user has
 // done to it since.
 type formState struct {
-	ref      app.PlanRef
-	target   string // the preset's name; empty for a bare plan
-	base     app.VarSet
-	fields   []formField
-	revision string // commit to build; empty builds the newest. Not a variable.
-	cursor   int
-	editing  bool
-	input    textinput.Model
-	err      error // a form-level error that ctrl-R refuses on
-	loading  bool
+	ref          app.PlanRef
+	target       string // the preset's name; empty for a bare plan
+	base         app.VarSet
+	fields       []formField
+	revision     string // commit to build; empty builds the newest. Not a variable.
+	fromBuild    string // build the form was prefilled from; empty for none
+	fromRevision string // its commit, offered on the Revision row by f
+	cursor       int
+	editing      bool
+	input        textinput.Model
+	err          error // a form-level error that ctrl-R refuses on
+	loading      bool
+}
+
+// revisionReused says whether the Revision row holds the offered commit of
+// the build the form came from, unchanged.
+func (f formState) revisionReused() bool {
+	return f.fromRevision != "" && f.revision == f.fromRevision
+}
+
+// planRef is what ctrl-R runs: the loaded plan with the Revision row.
+func (f formState) planRef() app.PlanRef {
+	ref := f.ref
+	ref.Revision = f.revision
+	if f.revisionReused() {
+		ref.RevisionFrom = f.fromBuild
+	}
+	return ref
 }
 
 // buildFields turns a fetched VarSet into the form's rows, adding any name the
@@ -173,9 +192,16 @@ func (m Model) formBody(width, height int) string {
 		lines = append(lines, strings.TrimRight(line, " "))
 	}
 
-	rev := m.form.revision
-	if rev == "" {
+	rev, note := m.form.revision, "commit to build"
+	switch {
+	case rev == "" && m.form.fromRevision != "":
 		rev = dimStyle.Render("newest")
+		note = app.BuildLabel(m.form.fromBuild) + " built " + provider.Revision{Revision: m.form.fromRevision}.Short()
+	case rev == "":
+		rev = dimStyle.Render("newest")
+	case m.form.revisionReused():
+		rev = provider.Revision{Revision: rev}.Short()
+		note = "from " + app.BuildLabel(m.form.fromBuild)
 	}
 	if m.form.editing && m.form.onRevision() {
 		rev = m.form.input.View()
@@ -183,7 +209,7 @@ func (m Model) formBody(width, height int) string {
 	revLine := m.cursorFor(true, m.form.onRevision()) +
 		lipgloss.NewStyle().Width(nameW).Render("revision") +
 		lipgloss.NewStyle().Width(valueW).Render(truncate(rev, valueW)) +
-		dimStyle.Render(truncate("commit to build", width-nameW-valueW-4))
+		dimStyle.Render(truncate(note, width-nameW-valueW-4))
 	lines = append(lines, strings.TrimRight(revLine, " "))
 
 	lines = append(lines, "", dimStyle.Render(fmt.Sprintf("%d of %d changed from the plan's values",

@@ -254,6 +254,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `ctrl-R` | run (in the form) |
 | | `d` | dry-run: show what would be sent (in the form) |
 | | `space` | cycle an options field (in the form) |
+| | `f` | use the build's revision (in the form, on the revision row) |
 | | `C` | cancel the selected build (asks first) |
 | Go | `o` | open the selection's Bamboo URL in the browser |
 | | `y` | copy the selection's Bamboo URL |

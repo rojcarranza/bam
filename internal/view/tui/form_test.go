@@ -1108,3 +1108,113 @@ func TestAMaskedReadbackIsNeverSentBack(t *testing.T) {
 	require.NotContains(t, f.stripUntypedMasks(vs).Changed(), "ssh_key",
 		"******** must never overwrite the real secret")
 }
+
+const hintCommit = "9b30b9aba03a4f45881629b03531006b89c1e0e7"
+
+func hintedForm() Model {
+	m := formModel()
+	m.form.fromBuild, m.form.fromRevision = "PROJ-PROV12-41", hintCommit
+	return m
+}
+
+func TestFormOffersTheBuildsRevision(t *testing.T) {
+	m := hintedForm()
+	v := m.View()
+	require.Contains(t, v, "newest")
+	require.Contains(t, v, "#41 built 9b30b9a")
+	require.Equal(t, "", m.form.revision, "offered, not filled")
+}
+
+func TestFormWithoutAHintSaysCommitToBuild(t *testing.T) {
+	require.Contains(t, formModel().View(), "commit to build")
+}
+
+func TestFFillsTheRevisionOnlyOnTheRevisionRow(t *testing.T) {
+	m := hintedForm()
+	m, _ = send(m, mkKey("f"))
+	require.Equal(t, "", m.form.revision, "f on a variable does nothing")
+
+	m.form.cursor = len(m.form.fields)
+	m, _ = send(m, mkKey("f"))
+	require.Equal(t, hintCommit, m.form.revision)
+	require.Contains(t, m.View(), "from #41")
+
+	m = formModel()
+	m.form.cursor = len(m.form.fields)
+	m, _ = send(m, mkKey("f"))
+	require.Equal(t, "", m.form.revision, "no hint, nothing to use")
+}
+
+func TestTheKeyLineOffersFOnlyOnTheRevisionRowWithAHint(t *testing.T) {
+	m := hintedForm()
+	require.NotContains(t, m.keyLine(), "f use")
+	m.form.cursor = len(m.form.fields)
+	require.Contains(t, m.keyLine(), "f use #41's revision")
+	m = formModel()
+	m.form.cursor = len(m.form.fields)
+	require.NotContains(t, m.keyLine(), "f use")
+}
+
+func TestCtrlRSendsAReusedRevisionWithItsBuild(t *testing.T) {
+	m := hintedForm()
+	m.form.cursor = len(m.form.fields)
+	m, _ = send(m, mkKey("f"))
+	m.revalidate()
+	want := sampleRef()
+	want.Revision, want.RevisionFrom = hintCommit, "PROJ-PROV12-41"
+	require.Equal(t, want, m.form.planRef())
+	_, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.NotNil(t, cmd)
+	cmd()
+	f := m.svc.P.(*fake.Provider)
+	require.Len(t, f.Triggered, 1)
+	require.Equal(t, hintCommit, f.Triggered[0].Revision)
+}
+
+// Typing over a reused revision makes it a typed one: no from #N label.
+func TestEditingAReusedRevisionDropsItsBuild(t *testing.T) {
+	m := hintedForm()
+	m.form.cursor = len(m.form.fields)
+	m, _ = send(m, mkKey("f"))
+	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, tea.KeyMsg{Type: tea.KeyBackspace})
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, hintCommit[:len(hintCommit)-1], m.form.revision)
+	require.Equal(t, "", m.form.planRef().RevisionFrom)
+}
+
+func TestOpenFormCmdReadsTheBuildsRevision(t *testing.T) {
+	svc := testService()
+	f := svc.P.(*fake.Provider)
+	f.History = map[string][]provider.Build{"PROJ-PROV": {{Key: "PROJ-PROV-41", Number: 41, Reason: "Manual run by jdoe", Revision: hintCommit}}}
+	f.BuildVars = map[string]map[string]string{"PROJ-PROV-41": {}}
+	msg := openFormCmd(t.Context(), svc, "PROJ-PROV", nil, "PROJ-PROV-41", 1)()
+	loaded, ok := msg.(formLoadedMsg)
+	require.True(t, ok, "%#v", msg)
+	require.Equal(t, "PROJ-PROV-41", loaded.FromBuild)
+	require.Equal(t, hintCommit, loaded.FromRevision)
+}
+
+// The hint is a convenience: a build with no revision (or a failed read)
+// opens the form normally, without a hint and without an error.
+func TestOpenFormCmdWithoutARevisionHasNoHint(t *testing.T) {
+	svc := testService()
+	f := svc.P.(*fake.Provider)
+	f.History = map[string][]provider.Build{"PROJ-PROV": {{Key: "PROJ-PROV-41", Number: 41, Reason: "Manual run by jdoe"}}}
+	f.BuildVars = map[string]map[string]string{"PROJ-PROV-41": {}}
+	msg := openFormCmd(t.Context(), svc, "PROJ-PROV", nil, "PROJ-PROV-41", 1)()
+	loaded, ok := msg.(formLoadedMsg)
+	require.True(t, ok, "%#v", msg)
+	require.Equal(t, "", loaded.FromRevision)
+}
+
+func TestFormLoadedCarriesTheHintAndReopeningClearsIt(t *testing.T) {
+	m := formModel()
+	m.form.loading = true
+	m, _ = send(m, formLoadedMsg{Gen: m.formGen, Ref: sampleRef(), Target: "provision-lab", Base: sampleBase(),
+		FromBuild: "PROJ-PROV12-41", FromRevision: hintCommit})
+	require.Equal(t, hintCommit, m.form.fromRevision)
+	require.Equal(t, "", m.form.revision)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, "", m.form.fromRevision)
+}

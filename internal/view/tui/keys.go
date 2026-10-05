@@ -121,6 +121,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"RUN", "ctrl-R", "run (in the form)"},
 		{"RUN", "d", "dry-run: show what would be sent (in the form)"},
 		{"RUN", "space", "cycle an options field (in the form)"},
+		{"RUN", "f", "use the build's revision (in the form, on the revision row)"},
 		{"RUN", "C", "cancel the selected build (asks first)"},
 		{"GO", "o", "open the selection's Bamboo URL in the browser"},
 		{"GO", "y", "copy the selection's Bamboo URL"},

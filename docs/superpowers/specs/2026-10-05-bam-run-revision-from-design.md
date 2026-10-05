@@ -113,9 +113,9 @@ The `--revision` help text gains: `, or "from" to reuse the commit of the --from
 ## 6. Terminal UI
 
 - `formLoadedMsg` gains `FromRevision string`. After `VarBase`, when `base.FromBuild` is set, `openFormCmd` calls `svc.BuildRevision(ctx, base.FromBuild)`. Any error leaves `FromRevision` empty and is not shown; the hint is a convenience, like the variable prefill.
-- `formState` gains `fromRevision` and `fromBuild`. The Revision row, while empty and with a hint, reads `newest · #41 built 9b30b9a` in the dim style. Without a hint it reads `newest` as today.
-- A new binding `UseRevision` (`f`, `f`, `use the build's revision`) acts only in the form, only on the Revision row, and only with a hint: it sets `revision` to the full commit. The footer lists `f use #41's revision` under the same conditions. Elsewhere in the form `f` does nothing. It is listed in the `?` help under RUN.
-- A filled row shows the short form followed by `from #41` while the value equals the hint; typing over or clearing it works as today. Reopening the form starts empty again.
+- `formState` gains `fromRevision` and `fromBuild`. The Revision row, while empty and with a hint, shows `newest` (dim) with `#41 built 9b30b9a` in its note column, where it otherwise reads `commit to build`. Without a hint it reads as today.
+- `f`, with the cursor on the Revision row and a hint present, sets `revision` to the full commit; elsewhere in the form it does nothing. `f` is the existing "follow" binding of the log screen: keys already act per screen, and `TestNoKeyIsBoundTwice` forbids a second binding on the same key. The status bar's key line starts with `f use #41's revision` under the same conditions, and the `?` help lists `f` under RUN as `use the build's revision (in the form, on the revision row)`.
+- A filled row shows the short form, with `from #41` in the note column, while the value equals the hint; typing over or clearing it works as today. Reopening the form starts empty again.
 - `ctrl-R` sets `ref.Revision` from the row and `ref.RevisionFrom` to the build key when the row equals the hint, so the run's output and errors read as on the command line.
 
 ## 7. Errors and exit codes

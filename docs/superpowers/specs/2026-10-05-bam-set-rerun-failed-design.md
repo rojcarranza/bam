@@ -51,7 +51,7 @@ RestartBuild(ctx context.Context, buildKey string) (Build, error)
 `provider/bamboo`:
 
 - `RestartBuild` sends `PUT queue/{key}` with `executeAllStages=true`, and maps the answer as `Trigger` does.
-- 404 or 405 with no Bamboo message about the build (the endpoint is missing) returns an error wrapping `errs.ErrUnsupported`, What `this Bamboo cannot restart a build over REST`, and records the new capability `Rerun: "no"`. A success records `Rerun: "yes"`. The capability lives in `Capabilities` beside `Stop`, cached per origin like the others.
+- 405 or 501 (the method is missing) returns an error wrapping `errs.ErrUnsupported`, What `this Bamboo cannot restart a build over REST`, and records the new capability `Rerun: "no"`. 404 is a missing build, as for `StopBuild`: an error wrapping `errs.ErrNotFound`. A success records `Rerun: "yes"`. The capability lives in `Capabilities` beside `Stop`, cached per origin like the others.
 - Any other 4xx is an error of kind bamboo, What `Bamboo would not restart PROJ-PLAN-9`, Why Bamboo's message.
 - `bam doctor` lists the capability like `stop builds`: `rerun builds`, `confirmed by an earlier rerun`, `not supported` or `not known yet`. Doctor does not probe it, because a probe would restart a build.
 
@@ -80,7 +80,7 @@ func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock Se
 
 Before the first event, as `ResumeSet` does (§5.3 of the run sets design), returning an error and no channel:
 
-1. Load the record. Only `failed` can be rerun. `successful` is a usage error, `set run <id> succeeded; nothing to rerun`. `interrupted` and `timed_out` are usage errors, `set run <id> was <status>, not failed`, Try `bam set resume <id>`. `running` is left to the lock.
+1. Load the record. Only `failed` can be rerun. `successful` is a usage error, `set run <id> succeeded; nothing to rerun`. Every other status (`interrupted`, `timed_out`, `running`) is a usage error, `set run <id> was <status>, not failed`, Try `bam set resume <id>`.
 2. The same checks as resume, shared with it: the origin, every name in `var_names` given again with `--var`, `PlanSet`, the same shape, and both lock files.
 3. Set the status to `running`, clear `finished_at`, save.
 
@@ -122,20 +122,20 @@ bam set rerun [set|id] --failed [--var k=v]... [--force]
 The set block of the run sets design §7.1, with a restarted run marked:
 
 ```
-release  release-20261005T091500Z  rerun
+release  release-20261005T091500Z
 stage 1/3
   ✓ publish-specs  PROJ-SPEC-12  Successful  1m12s
 stage 2/3
   ✓ provision      OPS-PROV-40   Successful  3m02s
-  ● deploy         OPS-DEP-9     Running     rerun 1   ████░░ 62%
+  ● deploy         OPS-DEP-9     Running (rerun 1)   ████░░ 62%
 stage 3/3
   · smoke          pending
 ```
 
-- The header names the command (`rerun`), as the run id alone would not say the train was retried.
-- A restarted run shows `rerun N` after its state. Its state glyph is the usual one from `view/style`; no new glyph.
+- The live block starts from the record, for `rerun` and for `resume` alike: runs that already have a build show its key and recorded state instead of `pending`.
+- A restarted run shows `(rerun N)` after its state title, in the live block and in `bam set status`. Its state glyph is the usual one from `view/style`; no new glyph.
 - Without a terminal, the restart prints `stage 2 deploy OPS-DEP-9 rerun 1`.
-- On failure, the `try:` lines are as in §7.1 of the run sets design, plus `bam set rerun --failed <id>` once.
+- Every failed set's summary, from `run`, `resume` or `rerun`, ends with one `try: bam set rerun --failed <id>` after the per-run `try:` lines of §7.1 of the run sets design.
 
 ### 6.2 JSON
 

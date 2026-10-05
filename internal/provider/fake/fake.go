@@ -33,7 +33,11 @@ type Provider struct {
 	TriggerResults map[string]provider.Build
 	TriggerErrs    map[string]error
 	StopErr        error
-	StopErrs       []error                        // returned by StopBuild in order, one per call; after them StopErr applies
+	StopErrs       []error // returned by StopBuild in order, one per call; after them StopErr applies
+	RestartResult  provider.Build
+	RestartErr     error
+	RestartResults map[string]provider.Build // by build key; RestartResult and RestartErr apply when a key is missing
+	RestartErrs    map[string]error
 	LogErrs        []error                        // returned by FetchLog in order, one per call; nil entries succeed
 	Progressions   map[string][]provider.Progress // by build key; BuildProgress walks it and repeats the last entry
 	ProgressErr    error
@@ -41,6 +45,7 @@ type Provider struct {
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
 	Stopped      []string
+	Restarted    []string
 	getCalls     map[string]int
 	listCalls    map[string]int
 	progressCall map[string]int
@@ -202,6 +207,27 @@ func (f *Provider) StopBuild(_ context.Context, key string) error {
 		return err
 	}
 	return f.StopErr
+}
+
+// RestartBuild records the key. With nothing scripted it answers the build
+// as queued under the same key, as Bamboo does.
+func (f *Provider) RestartBuild(_ context.Context, key string) (provider.Build, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Restarted = append(f.Restarted, key)
+	if err, ok := f.RestartErrs[key]; ok {
+		return provider.Build{}, err
+	}
+	if b, ok := f.RestartResults[key]; ok {
+		return b, nil
+	}
+	if f.RestartErr != nil {
+		return provider.Build{}, f.RestartErr
+	}
+	if f.RestartResult.Key != "" {
+		return f.RestartResult, nil
+	}
+	return provider.Build{Key: key, State: provider.StateQueued}, nil
 }
 
 func (f *Provider) FetchLog(_ context.Context, key string, o provider.LogOptions) (provider.LogChunk, error) {

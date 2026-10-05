@@ -18,6 +18,9 @@ type Provider interface {
 	BuildVariables(ctx context.Context, buildKey string) (map[string]string, error)
 	Trigger(ctx context.Context, req TriggerRequest) (Build, error)
 	StopBuild(ctx context.Context, buildKey string) error
+	// RestartBuild asks Bamboo to run a finished build's failed jobs again,
+	// in the same build. It returns the queued build.
+	RestartBuild(ctx context.Context, buildKey string) (Build, error)
 	FetchLog(ctx context.Context, jobResultKey string, o LogOptions) (LogChunk, error)
 	URL(key string) string
 }

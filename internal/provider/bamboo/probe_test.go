@@ -24,7 +24,7 @@ func TestProbeHappyPath(t *testing.T) {
 		byName[r.Name] = r
 		names = append(names, r.Name)
 	}
-	assert.Equal(t, []string{"server version", "plan variables", "build variables", "logs", "duration estimate", "failed tests", "stop builds"}, names)
+	assert.Equal(t, []string{"server version", "plan variables", "build variables", "logs", "duration estimate", "failed tests", "stop builds", "rerun builds"}, names)
 	assert.Equal(t, ProbeOK, byName["server version"].Status)
 	assert.Equal(t, "9.6.2", byName["server version"].Detail)
 	assert.Equal(t, ProbeOK, byName["plan variables"].Status)
@@ -33,6 +33,7 @@ func TestProbeHappyPath(t *testing.T) {
 	assert.Equal(t, ProbeOK, byName["duration estimate"].Status)
 	assert.Equal(t, ProbeOK, byName["failed tests"].Status)
 	assert.Equal(t, ProbeSkipped, byName["stop builds"].Status)
+	assert.Equal(t, ProbeSkipped, byName["rerun builds"].Status)
 }
 
 func TestProbeReportsUnsupportedAndErrors(t *testing.T) {

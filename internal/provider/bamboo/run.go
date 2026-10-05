@@ -123,6 +123,49 @@ func (c *Client) dequeue(ctx context.Context, key string) error {
 	return err
 }
 
+// RestartBuild asks Bamboo to run a finished build's failed jobs again, in
+// the same build (PUT queue/{key}). Whether the server can is learned the
+// first time, like stopping a build.
+func (c *Client) RestartBuild(ctx context.Context, key string) (provider.Build, error) {
+	caps := c.fresh(ctx)
+	unsupported := errs.Bamboof("this Bamboo cannot restart a build over REST").Wrap(errs.ErrUnsupported)
+	if caps.Rerun == "no" {
+		return provider.Build{}, unsupported
+	}
+	body, err := c.do(ctx, request{
+		method: http.MethodPut,
+		path:   api + "/queue/" + url.PathEscape(key),
+		query:  url.Values{"executeAllStages": {"true"}},
+	})
+	switch {
+	case err == nil:
+	case statusOf(err) == http.StatusMethodNotAllowed || statusOf(err) == http.StatusNotImplemented:
+		c.learn(ctx, func(cp *Capabilities) { cp.Rerun = "no" })
+		return provider.Build{}, unsupported
+	case errors.Is(err, errs.ErrNotFound):
+		return provider.Build{}, c.notFoundAs(err, "build", key, "bam build show "+key)
+	default:
+		var e *errs.Error
+		if errors.As(err, &e) && e.Kind == errs.KindBamboo {
+			e.What = "Bamboo would not restart " + key
+		}
+		return provider.Build{}, err
+	}
+	var q queueDTO
+	if err := json.Unmarshal(body, &q); err != nil || q.BuildResultKey == "" {
+		return provider.Build{}, errs.Bamboof("unexpected response when restarting %s", key).Wrap(err)
+	}
+	if caps.Rerun == "" {
+		c.learn(ctx, func(cp *Capabilities) { cp.Rerun = "yes" })
+	}
+	planKey := q.PlanKey
+	if planKey == "" {
+		planKey = key[:strings.LastIndex(key, "-")]
+	}
+	return provider.Build{Key: q.BuildResultKey, URL: c.URL(q.BuildResultKey), PlanKey: planKey,
+		Number: q.BuildNumber, State: provider.StateQueued, Reason: plainReason(q.TriggerReason)}, nil
+}
+
 // stopJobs removes every unfinished job of a build from the queue. It
 // reports whether at least one job was stopped.
 func (c *Client) stopJobs(ctx context.Context, key string) (bool, error) {

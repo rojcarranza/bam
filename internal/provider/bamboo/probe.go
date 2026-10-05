@@ -27,12 +27,13 @@ type ProbeResult struct {
 }
 
 // Probe re-checks every optional capability against planKey and its latest
-// builds, and rewrites the cache. Build stop is never probed: it has side
-// effects, so it is learned the first time bam build cancel runs.
+// builds, and rewrites the cache. Build stop and restart are never probed:
+// they have side effects, so they are learned the first time bam build
+// cancel and bam set rerun --failed run.
 func (c *Client) Probe(ctx context.Context, planKey string) []ProbeResult {
 	c.mu.Lock()
-	stop := c.caps.Stop
-	c.caps = Capabilities{Stop: stop}
+	stop, rerun := c.caps.Stop, c.caps.Rerun
+	c.caps = Capabilities{Stop: stop, Rerun: rerun}
 	c.versionChecked = true
 	c.mu.Unlock()
 
@@ -121,6 +122,14 @@ func (c *Client) Probe(ctx context.Context, planKey string) []ProbeResult {
 		add("stop builds", errs.ErrUnsupported, "", "bam build cancel is unavailable")
 	default:
 		skip("stop builds", "learned the first time bam build cancel runs")
+	}
+	switch rerun {
+	case "yes":
+		add("rerun builds", nil, "confirmed by an earlier rerun", "")
+	case "no":
+		add("rerun builds", errs.ErrUnsupported, "", "bam set rerun --failed is unavailable")
+	default:
+		skip("rerun builds", "learned the first time bam set rerun --failed runs")
 	}
 	return out
 }

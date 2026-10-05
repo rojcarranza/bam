@@ -2,6 +2,7 @@ package bamboo
 
 import (
 	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -306,5 +307,79 @@ func TestRecordedBuildRevision(t *testing.T) {
 			require.NotEmpty(t, b.Revisions, f)
 			assert.Equal(t, b.Revisions[0].Revision, b.Revision, f)
 		})
+	}
+}
+
+func TestRestartBuild(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{"PUT /rest/api/latest/queue/PROJ-BUILD-45": {fixture: "queue_restart.json"}})
+	saved := knownCaps(c, Capabilities{})
+	b, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BUILD-45", b.Key)
+	assert.Equal(t, 45, b.Number)
+	assert.Equal(t, provider.StateQueued, b.State)
+	r := rec.all()[0]
+	assert.Equal(t, http.MethodPut, r.Method)
+	assert.Equal(t, "true", r.URL.Query().Get("executeAllStages"))
+	assert.Equal(t, "yes", (*saved)[len(*saved)-1].Rerun)
+}
+
+func TestRestartBuildUnsupported(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"PUT /rest/api/latest/queue/PROJ-BUILD-45": {status: 405}})
+	saved := knownCaps(c, Capabilities{})
+	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
+	assert.True(t, errors.Is(err, errs.ErrUnsupported))
+	assert.Contains(t, err.Error(), "cannot restart a build over REST")
+	assert.Equal(t, "no", (*saved)[len(*saved)-1].Rerun)
+}
+
+func TestRestartBuildKnownUnsupportedSendsNothing(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{})
+	knownCaps(c, Capabilities{Rerun: "no"})
+	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
+	assert.True(t, errors.Is(err, errs.ErrUnsupported))
+	assert.Empty(t, rec.all())
+}
+
+func TestRestartBuildRefusedNamesTheBuild(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"PUT /rest/api/latest/queue/PROJ-BUILD-45": {status: 400,
+		body: `{"message":"Build PROJ-BUILD-45 cannot be restarted"}`}})
+	knownCaps(c, Capabilities{})
+	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindBamboo, e.Kind)
+	assert.Equal(t, "Bamboo would not restart PROJ-BUILD-45", e.What)
+	assert.Equal(t, "Build PROJ-BUILD-45 cannot be restarted", e.Why)
+	assert.False(t, errors.Is(err, errs.ErrUnsupported))
+}
+
+func TestRestartBuildOfAMissingBuild(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"PUT /rest/api/latest/queue/PROJ-BUILD-45": {status: 404, body: `{"message":"not found"}`}})
+	knownCaps(c, Capabilities{})
+	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
+	assert.True(t, errors.Is(err, errs.ErrNotFound))
+}
+
+// TestRecordedRestart checks the hand-written shapes against what the
+// recorder's -probe-rerun recorded. It skips until that probe has run.
+func TestRecordedRestart(t *testing.T) {
+	const answer = "recorded/queue_restart.json"
+	if _, err := os.Stat(filepath.Join("testdata", answer)); err != nil {
+		t.Skipf("%s not recorded", answer)
+	}
+	c, _ := newTestServer(t, map[string]*route{"PUT /rest/api/latest/queue/REC-PLAN-1": {fixture: answer}})
+	knownCaps(c, Capabilities{})
+	b, err := c.RestartBuild(ctx, "REC-PLAN-1")
+	require.NoError(t, err)
+	assert.NotEmpty(t, b.Key)
+
+	results, _ := filepath.Glob(filepath.Join("testdata", "recorded", "result_restart_*.json"))
+	for _, f := range results {
+		rel, _ := filepath.Rel("testdata", f)
+		c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/result/REC-PLAN-1?expand=" + buildExpand: {fixture: rel}})
+		b, err := c.GetBuild(ctx, "REC-PLAN-1")
+		require.NoError(t, err, rel)
+		assert.NotEmpty(t, b.State, rel)
 	}
 }

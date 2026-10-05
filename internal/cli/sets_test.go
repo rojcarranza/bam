@@ -205,3 +205,49 @@ func TestSetRerunWithNoFailedRun(t *testing.T) {
 	require.Contains(t, h.stderr.String(), "no failed run of release to rerun")
 	require.Contains(t, h.stderr.String(), "bam set status release")
 }
+
+const matrixYAML = projectYAML + `  publish-specs:
+    plan: PROJ-BUILD
+sets:
+  regions:
+    stages:
+      - - target: provision-lab
+          matrix:
+            cluster_name: [alpha, beta]
+`
+
+func TestSetMatrixRunsEveryEntry(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte(matrixYAML), 0o644))
+	require.Equal(t, 0, h.run("set", "show", "regions"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "provision-lab[cluster_name=beta]")
+	require.Equal(t, 0, h.run("set", "run", "regions"), h.stderr.String())
+	require.Len(t, h.fake.Triggered, 2)
+	require.Contains(t, h.stdout.String(), "provision-lab[cluster_name=alpha]")
+	require.Equal(t, 0, h.run("set", "status", "--json"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), `"name": "provision-lab[cluster_name=beta]"`)
+}
+
+// On a terminal, resuming a matrix run draws one row per recorded run name,
+// not one per preset left pending next to them.
+func TestSetResumeOfAMatrixDrawsOneRowPerRun(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte(matrixYAML), 0o644))
+	h.tty = true
+	h.vars["NO_COLOR"], h.vars["TERM"] = "1", "dumb"
+	h.fake.TriggerResults = map[string]provider.Build{}
+	h.fake.Sequences["PROJ-PROV12-1"] = []provider.Build{{Key: "PROJ-PROV12-1", PlanKey: "PROJ-PROV12", State: provider.StateSuccess}}
+	h.fake.TriggerResult = provider.Build{Key: "PROJ-PROV12-1", PlanKey: "PROJ-PROV12", State: provider.StateQueued}
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: app.NewSetID("regions", fixedNow), Set: "regions", Origin: workOrigin,
+		Repo: h.root, StartedAt: fixedNow, Status: app.SetInterrupted, VarNames: []string{},
+		Stages: []app.StageRecord{{Runs: []app.RunRecord{
+			{Target: "provision-lab", Name: "provision-lab[cluster_name=alpha]", PlanKey: "PROJ-PROV12"},
+			{Target: "provision-lab", Name: "provision-lab[cluster_name=beta]", PlanKey: "PROJ-PROV12"},
+		}}}}))
+	require.Equal(t, 0, h.run("set", "resume"), h.stderr.String())
+	frames := strings.Split(h.stdout.String(), "\x1b[J")
+	last := frames[len(frames)-1]
+	require.Contains(t, last, "provision-lab[cluster_name=alpha]")
+	require.NotRegexp(t, `provision-lab\s+–\s+pending`, last)
+}

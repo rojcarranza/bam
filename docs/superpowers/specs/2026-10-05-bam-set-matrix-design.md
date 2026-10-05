@@ -1,6 +1,6 @@
 # bam: matrix runs in sets
 
-**Status:** Approved | **Date:** 2026-10-05
+**Status:** Implemented | **Date:** 2026-10-05
 **Product requirements:** [`docs/prd.md`](../../prd.md) §2 problem 3 ("No parallelism"), §7 "Future", "Run sets"
 **Builds on:** [`2026-09-29-bam-run-sets-core-design.md`](2026-09-29-bam-run-sets-core-design.md) (configuration §3, record §5.1, events §4.3, output §7), [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md)
 

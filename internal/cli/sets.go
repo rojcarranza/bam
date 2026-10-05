@@ -259,7 +259,7 @@ func planFromRecord(rec app.SetRecord) app.SetPlan {
 	for _, st := range rec.Stages {
 		var runs []app.SetRunPlan
 		for _, run := range st.Runs {
-			runs = append(runs, app.SetRunPlan{Target: run.Target, Ref: app.PlanRef{PlanKey: run.PlanKey}})
+			runs = append(runs, app.SetRunPlan{Name: run.RunName(), Target: run.Target, Ref: app.PlanRef{PlanKey: run.PlanKey}})
 		}
 		p.Stages = append(p.Stages, runs)
 	}

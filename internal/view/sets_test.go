@@ -46,9 +46,9 @@ func TestSetJSONFieldNames(t *testing.T) {
 	data, err := json.Marshal(SetJSON(setInfo()))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"name":"release","timeout_ms":7200000,"defined_in":["/src/app/.bam.yaml"],
-	  "stages":[[{"target":"publish-specs","vars":{}}],
-	            [{"target":"provision","vars":{}},
-	             {"target":"deploy","vars":{"deploy_token":"${DEPLOY_TOKEN}","env":"qa","ssh_password":"********"}}]]}`, string(data))
+	  "stages":[[{"target":"publish-specs","vars":{},"runs":["publish-specs"]}],
+	            [{"target":"provision","vars":{},"runs":["provision"]},
+	             {"target":"deploy","vars":{"deploy_token":"${DEPLOY_TOKEN}","env":"qa","ssh_password":"********"},"runs":["deploy"]}]]}`, string(data))
 }
 
 func TestSetEventJSONFieldNames(t *testing.T) {
@@ -146,4 +146,52 @@ func TestSetStatusViewShowsReruns(t *testing.T) {
 	data, err := json.Marshal(SetRecordJSON(rec, nil))
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"reruns":2`)
+}
+
+func matrixInfo() app.SetInfo {
+	return app.SetInfo{Name: "regions", DefinedIn: []string{"/repo/.bam.yaml"}, Stages: [][]app.SetRunInfo{{
+		{Target: "deploy", Matrix: map[string][]string{"env": {"qa", "prod"}, "region": {"eu"}}, MatrixLine: "env=[qa prod] region=[eu]",
+			Runs: []string{"deploy[env=prod,region=eu]", "deploy[env=qa,region=eu]"}},
+		{Target: "smoke", Matrix: []map[string]string{{"env": "qa"}}, MatrixLine: "1 variable set", Runs: []string{"smoke[env=qa]"}},
+	}}}
+}
+
+func TestSetsListCountsExpandedRuns(t *testing.T) {
+	o, buf := testOut(false)
+	require.NoError(t, Sets(o, []app.SetInfo{matrixInfo()}))
+	require.Regexp(t, `regions\s+1\s+3\s`, buf.String())
+}
+
+func TestSetDetailShowsMatricesAndRuns(t *testing.T) {
+	o, buf := testOut(false)
+	require.NoError(t, SetDetail(o, matrixInfo()))
+	out := buf.String()
+	require.Contains(t, out, "deploy  matrix env=[qa prod] region=[eu]")
+	require.Contains(t, out, "smoke  matrix 1 variable set")
+	require.Contains(t, out, "    deploy[env=qa,region=eu]\n")
+}
+
+func TestSetJSONCarriesMatrixAndRuns(t *testing.T) {
+	data, err := json.Marshal(SetJSON(matrixInfo()))
+	require.NoError(t, err)
+	s := string(data)
+	require.Contains(t, s, `"matrix":{"env":["qa","prod"],"region":["eu"]}`)
+	require.Contains(t, s, `"matrix":[{"env":"qa"}]`)
+	require.Contains(t, s, `"runs":["smoke[env=qa]"]`)
+}
+
+func TestSetRecordAndEventJSONCarryNames(t *testing.T) {
+	rec := app.SetRecord{ID: "r", Set: "regions", Status: app.SetFailed, Stages: []app.StageRecord{{Runs: []app.RunRecord{
+		{Target: "deploy", Name: "deploy[env=qa]", BuildKey: "OPS-DEP-1", State: provider.StateFailed},
+		{Target: "smoke", BuildKey: "OPS-SMK-1", State: provider.StateSuccess},
+	}}}}
+	data, _ := json.Marshal(SetRecordJSON(rec, nil))
+	require.Contains(t, string(data), `"name":"deploy[env=qa]"`)
+	require.Contains(t, string(data), `"name":"smoke"`, "an old record's run is named after its preset")
+	o, buf := testOut(false)
+	require.NoError(t, SetStatusView(o, rec, nil))
+	require.Regexp(t, `deploy\[env=qa\]\s+OPS-DEP-1`, buf.String())
+
+	ev, _ := json.Marshal(SetEventJSON(app.SetEvent{Type: app.SetRunDone, Time: setAt, Target: "deploy", Run: "deploy[env=qa]"}))
+	require.Contains(t, string(ev), `"run":"deploy[env=qa]"`)
 }

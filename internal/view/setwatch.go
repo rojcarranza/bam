@@ -39,7 +39,7 @@ func newBoard(p app.SetPlan) *setBoard {
 	for _, st := range p.Stages {
 		rows := make([]*setRow, 0, len(st))
 		for _, r := range st {
-			rows = append(rows, &setRow{target: r.Target})
+			rows = append(rows, &setRow{target: planRunName(r)})
 		}
 		b.stages = append(b.stages, rows)
 	}
@@ -67,19 +67,19 @@ func (b *setBoard) apply(e app.SetEvent, now time.Time) {
 	}
 	switch e.Type {
 	case app.SetRunTriggered:
-		r := b.row(e.Stage, e.Target)
+		r := b.row(e.Stage, runOf(e))
 		r.build, r.err = e.Build, nil
 		if e.Rerun > 0 {
 			r.rerun = e.Rerun
 		}
 	case app.SetRunEvent:
-		r := b.row(e.Stage, e.Target)
+		r := b.row(e.Stage, runOf(e))
 		r.build = e.Build
 		if e.Event != nil {
 			r.prog, r.at = e.Event.Progress, now
 		}
 	case app.SetRunDone:
-		r := b.row(e.Stage, e.Target)
+		r := b.row(e.Stage, runOf(e))
 		if e.Build.Key != "" {
 			r.build = e.Build
 		}
@@ -156,7 +156,7 @@ func (l *SetLive) Seed(rec app.SetRecord) {
 			if run.BuildKey == "" && run.Error == "" {
 				continue
 			}
-			r := l.b.row(i, run.Target)
+			r := l.b.row(i, run.RunName())
 			r.build = provider.Build{Key: run.BuildKey, State: run.State}
 			r.rerun = run.Reruns
 			if run.Error != "" {
@@ -229,7 +229,7 @@ func NewSetLines(o Out) *SetLines { return &SetLines{o: o, b: &setBoard{}} }
 func (l *SetLines) Event(e app.SetEvent) {
 	l.b.apply(e, e.Time)
 	ts := e.Time.UTC().Format(time.RFC3339)
-	head := fmt.Sprintf("%s stage %d %s", ts, e.Stage+1, e.Target)
+	head := fmt.Sprintf("%s stage %d %s", ts, e.Stage+1, runOf(e))
 	switch e.Type {
 	case app.SetRunTriggered:
 		if e.Rerun > 0 {
@@ -275,3 +275,19 @@ func (n *SetNDJSON) Event(e app.SetEvent) {
 }
 
 func (n *SetNDJSON) Tick() {}
+
+// runOf is the run an event is about: its name, or for events from before
+// run names existed, its preset.
+func runOf(e app.SetEvent) string {
+	if e.Run != "" {
+		return e.Run
+	}
+	return e.Target
+}
+
+func planRunName(r app.SetRunPlan) string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.Target
+}

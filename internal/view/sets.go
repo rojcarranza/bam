@@ -20,7 +20,9 @@ func Sets(o Out, ss []app.SetInfo) error {
 	for _, s := range ss {
 		runs := 0
 		for _, st := range s.Stages {
-			runs += len(st)
+			for _, r := range st {
+				runs += max(len(r.Runs), 1)
+			}
 		}
 		t.Rows = append(t.Rows, []string{s.Name, strconv.Itoa(len(s.Stages)), strconv.Itoa(runs), s.DefinedIn[len(s.DefinedIn)-1]})
 	}
@@ -41,6 +43,15 @@ func SetDetail(o Out, s app.SetInfo) error {
 			names[j] = r.Target
 		}
 		fmt.Fprintf(o.W, "stage %d  %s\n", i+1, strings.Join(names, ", "))
+		for _, r := range st {
+			if r.MatrixLine == "" {
+				continue
+			}
+			fmt.Fprintf(o.W, "  %s  matrix %s\n", r.Target, r.MatrixLine)
+			for _, n := range r.Runs {
+				fmt.Fprintf(o.W, "    %s\n", n)
+			}
+		}
 		t := Table{Indent: "    ", Headers: []string{"", "", ""}}
 		for _, r := range st {
 			for _, v := range r.Vars {
@@ -62,7 +73,7 @@ func SetDryRun(o Out, p app.SetPlan) error {
 	for i, st := range p.Stages {
 		fmt.Fprintf(o.W, "stage %d/%d\n", i+1, len(p.Stages))
 		for _, r := range st {
-			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", r.Target, r.Ref.PlanKey, branchLabel(r.Ref.Branch))
+			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", planRunName(r), r.Ref.PlanKey, branchLabel(r.Ref.Branch))
 			for _, n := range sortedChanged(r.Vars) {
 				v, _ := r.Vars.Get(n)
 				fmt.Fprintf(o.W, "      %s = %s\n", n, v.Display())
@@ -94,7 +105,7 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) e
 			if b, ok := builds[r.BuildKey]; ok {
 				state = b.State
 			}
-			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.Target, dashIfEmpty(r.BuildKey), rerunTitle(state, r.Reruns), r.Error})
+			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.RunName(), dashIfEmpty(r.BuildKey), rerunTitle(state, r.Reruns), r.Error})
 		}
 		if err := RenderRows(o, t); err != nil {
 			return err
@@ -142,6 +153,8 @@ type SetDoc struct {
 type SetRunDoc struct {
 	Target string            `json:"target"`
 	Vars   map[string]string `json:"vars"`
+	Matrix any               `json:"matrix,omitempty"`
+	Runs   []string          `json:"runs"`
 }
 
 type SetPlanDoc struct {
@@ -153,6 +166,7 @@ type SetPlanDoc struct {
 
 type SetRunPlanDoc struct {
 	Target    string            `json:"target"`
+	Name      string            `json:"name"`
 	PlanKey   string            `json:"plan_key"`
 	Branch    string            `json:"branch"`
 	Variables map[string]string `json:"variables"`
@@ -176,6 +190,7 @@ type SetStageDoc struct {
 
 type SetRunRecordDoc struct {
 	Target   string    `json:"target"`
+	Name     string    `json:"name"`
 	PlanKey  string    `json:"plan_key"`
 	BuildKey string    `json:"build_key"`
 	State    string    `json:"state"`
@@ -198,6 +213,7 @@ type SetEventDoc struct {
 	ID     string    `json:"id"`
 	Stage  int       `json:"stage"`
 	Target string    `json:"target,omitempty"`
+	Run    string    `json:"run,omitempty"`
 	Build  *BuildDoc `json:"build,omitempty"`
 	Event  *EventDoc `json:"event,omitempty"`
 	State  string    `json:"state,omitempty"`
@@ -227,7 +243,11 @@ func SetJSON(s app.SetInfo) SetDoc {
 	for _, st := range s.Stages {
 		runs := []SetRunDoc{}
 		for _, r := range st {
-			runs = append(runs, SetRunDoc{Target: r.Target, Vars: varsDoc(r.Vars)})
+			rd := SetRunDoc{Target: r.Target, Vars: varsDoc(r.Vars), Matrix: r.Matrix, Runs: r.Runs}
+			if len(rd.Runs) == 0 {
+				rd.Runs = []string{r.Target}
+			}
+			runs = append(runs, rd)
 		}
 		d.Stages = append(d.Stages, runs)
 	}
@@ -240,7 +260,7 @@ func SetPlanJSON(p app.SetPlan) SetPlanDoc {
 		runs := []SetRunPlanDoc{}
 		for _, r := range st {
 			run := RunJSON(provider.Build{}, r.Ref, r.Vars)
-			runs = append(runs, SetRunPlanDoc{Target: r.Target, PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables})
+			runs = append(runs, SetRunPlanDoc{Target: r.Target, Name: planRunName(r), PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables})
 		}
 		d.Stages = append(d.Stages, runs)
 	}
@@ -258,7 +278,7 @@ func SetRecordJSON(rec app.SetRecord, builds map[string]provider.Build) SetRecor
 	for _, st := range rec.Stages {
 		sd := SetStageDoc{Runs: []SetRunRecordDoc{}}
 		for _, r := range st.Runs {
-			rd := SetRunRecordDoc{Target: r.Target, PlanKey: r.PlanKey, BuildKey: r.BuildKey, State: string(r.State), Reruns: r.Reruns, Error: r.Error}
+			rd := SetRunRecordDoc{Target: r.Target, Name: r.RunName(), PlanKey: r.PlanKey, BuildKey: r.BuildKey, State: string(r.State), Reruns: r.Reruns, Error: r.Error}
 			if b, ok := builds[r.BuildKey]; ok {
 				bd := BuildJSON(b)
 				rd.Build, rd.State = &bd, string(b.State)
@@ -283,7 +303,7 @@ func errorDoc(err error) *ErrorDoc {
 
 func SetEventJSON(e app.SetEvent) SetEventDoc {
 	d := SetEventDoc{Type: string(e.Type), Time: e.Time.UTC().Format(time.RFC3339), Set: e.Set, ID: e.ID,
-		Stage: e.Stage, Target: e.Target, State: string(e.State), Rerun: e.Rerun, Error: errorDoc(e.Err)}
+		Stage: e.Stage, Target: e.Target, Run: e.Run, State: string(e.State), Rerun: e.Rerun, Error: errorDoc(e.Err)}
 	if e.Build.Key != "" {
 		b := BuildJSON(e.Build)
 		d.Build = &b

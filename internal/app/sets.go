@@ -166,6 +166,7 @@ type SetEvent struct {
 	Build  provider.Build // run_triggered, run_event, run_done
 	Event  *Event         // run_event only: the watch event, unchanged
 	State  provider.State // run_done, stage_done, set_done
+	Rerun  int            // run_triggered of a restart: the run's reruns; 0 otherwise
 	Err    error
 }
 
@@ -204,15 +205,15 @@ func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (s
 		return "", nil, recordErr(err)
 	}
 	_ = s.Sets.Prune(p.Name, setKeep)
-	return rec.ID, s.startSet(ctx, p, rec, l, 0), nil
+	return rec.ID, s.startSet(ctx, p, rec, l, 0, nil), nil
 }
 
-func (s *Service) startSet(ctx context.Context, p SetPlan, rec SetRecord, l *SetLock, from int) <-chan SetEvent {
+func (s *Service) startSet(ctx context.Context, p SetPlan, rec SetRecord, l *SetLock, from int, restart map[int]bool) <-chan SetEvent {
 	ch := make(chan SetEvent, 16)
 	go func() {
 		defer close(ch)
 		defer l.Release()
-		(&setRun{s: s, p: p, rec: rec, ch: ch}).run(ctx, from)
+		(&setRun{s: s, p: p, rec: rec, ch: ch, restartStage: from, restart: restart}).run(ctx, from)
 	}()
 	return ch
 }
@@ -235,6 +236,10 @@ type setRun struct {
 	p   SetPlan
 	rec SetRecord
 	ch  chan<- SetEvent
+	// restart holds the runs of stage restartStage that Bamboo restarts
+	// instead of bam triggering them (bam set rerun --failed).
+	restartStage int
+	restart      map[int]bool
 }
 
 func (r *setRun) send(ctx context.Context, e SetEvent) bool {
@@ -336,6 +341,32 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 			continue // resumed: its end is already known
 		}
 		key := recs[j].BuildKey
+		if key != "" && i == r.restartStage && r.restart[j] {
+			delete(r.restart, j)
+			if ctx.Err() != nil {
+				return false, true
+			}
+			// Counted and saved first: bam never restarts a build it has
+			// not recorded.
+			recs[j].Reruns++
+			if !r.save(ctx, i) {
+				return false, false
+			}
+			b, err := r.s.Restart(ctx, key)
+			if err != nil {
+				if ctx.Err() != nil {
+					return false, true
+				}
+				recs[j].State, recs[j].Error = provider.StateFailed, describeErr(err)
+				if !r.save(ctx, i) {
+					return false, false
+				}
+				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Build: provider.Build{Key: key},
+					State: provider.StateFailed, Err: err})
+				continue
+			}
+			r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b, Rerun: recs[j].Reruns})
+		}
 		if key == "" {
 			if ctx.Err() != nil {
 				return false, true
@@ -437,12 +468,71 @@ func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock S
 	}
 	switch rec.Status {
 	case SetFailed:
-		return nil, errs.Usagef("set run %s failed; rerun --failed is not built yet", id).WithTry("bam set run " + rec.Set)
+		return nil, errs.Usagef("set run %s failed; resume continues interrupted runs", id).
+			WithTry("bam set rerun --failed " + id)
 	case SetSuccessful:
 		return nil, errs.Usagef("set run %s succeeded; nothing to resume", id)
 	}
+	p, l, err := s.continueSet(ctx, rec, o, lock, "resume")
+	if err != nil {
+		return nil, err
+	}
+	rec.Status, rec.FinishedAt = SetRunning, nil
+	if err := s.Sets.Save(rec); err != nil {
+		l.Release()
+		return nil, recordErr(err)
+	}
+	return s.startSet(ctx, p, rec, l, firstUnfinished(rec), nil), nil
+}
+
+// RerunSet retries a failed set run under its own id. In the stage that
+// failed, Bamboo restarts each failed build and a run that never triggered
+// is triggered; once that stage succeeds the later stages run as on resume.
+// Runs that succeeded are left alone.
+func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error) {
+	rec, err := s.Sets.Load(id)
+	if err != nil {
+		return nil, err
+	}
+	switch rec.Status {
+	case SetFailed:
+	case SetSuccessful:
+		return nil, errs.Usagef("set run %s succeeded; nothing to rerun", id)
+	default:
+		return nil, errs.Usagef("set run %s was %s, not failed", id, strings.ReplaceAll(string(rec.Status), "_", " ")).
+			WithTry("bam set resume " + id)
+	}
+	p, l, err := s.continueSet(ctx, rec, o, lock, "rerun")
+	if err != nil {
+		return nil, err
+	}
+	from := firstUnfinished(rec)
+	restart := map[int]bool{}
+	if from < len(rec.Stages) {
+		runs := rec.Stages[from].Runs
+		for j := range runs {
+			if runs[j].State == provider.StateSuccess {
+				continue
+			}
+			if runs[j].BuildKey != "" {
+				restart[j] = true
+			}
+			runs[j].State, runs[j].Error = "", ""
+		}
+	}
+	rec.Status, rec.FinishedAt = SetRunning, nil
+	if err := s.Sets.Save(rec); err != nil {
+		l.Release()
+		return nil, recordErr(err)
+	}
+	return s.startSet(ctx, p, rec, l, from, restart), nil
+}
+
+// continueSet makes the checks resume and rerun share before they act on a
+// recorded set run, and takes its locks. verb names the command in errors.
+func (s *Service) continueSet(ctx context.Context, rec SetRecord, o SetOptions, lock SetLockOptions, verb string) (SetPlan, *SetLock, error) {
 	if rec.Origin != s.Origin {
-		return nil, errs.Configf("set run %s ran on %s, not %s", id, rec.Origin, s.Origin).
+		return SetPlan{}, nil, errs.Configf("set run %s ran on %s, not %s", rec.ID, rec.Origin, s.Origin).
 			WithTry("pass --server with the alias of " + rec.Origin)
 	}
 	given := varNames(o.Vars)
@@ -453,32 +543,33 @@ func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock S
 		}
 	}
 	if len(missing) > 0 {
-		return nil, errs.Usagef("resume needs the variables set run %s was given", id).
+		return SetPlan{}, nil, errs.Usagef("%s needs the variables set run %s was given", verb, rec.ID).
 			WithWhy("bam never stores variable values").WithTry(strings.Join(missing, " "))
 	}
 	p, err := s.PlanSet(ctx, rec.Set, o)
 	if err != nil {
-		return nil, err
+		return SetPlan{}, nil, err
 	}
 	if !sameShape(p, rec) {
-		return nil, errs.Configf("set %s has changed since run %s", rec.Set, id).
+		return SetPlan{}, nil, errs.Configf("set %s has changed since run %s", rec.Set, rec.ID).
 			WithWhy("its stages no longer list the same presets").WithTry("bam set run " + rec.Set)
 	}
 	p.VarNames = rec.VarNames
 	l, err := s.Sets.Lock([]string{rec.Set, rec.ID}, lock.Force, s.Clock.Now())
 	if err != nil {
-		return nil, lockErr(err)
+		return SetPlan{}, nil, lockErr(err)
 	}
-	rec.Status, rec.FinishedAt = SetRunning, nil
-	if err := s.Sets.Save(rec); err != nil {
-		l.Release()
-		return nil, recordErr(err)
-	}
+	return p, l, nil
+}
+
+// firstUnfinished is the index of the first stage whose runs did not all
+// succeed; len(rec.Stages) when every stage did.
+func firstUnfinished(rec SetRecord) int {
 	from := 0
 	for from < len(rec.Stages) && stageSucceeded(rec.Stages[from]) {
 		from++
 	}
-	return s.startSet(ctx, p, rec, l, from), nil
+	return from
 }
 
 // sameShape reports whether the set still lists the recorded presets, in

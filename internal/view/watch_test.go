@@ -171,3 +171,13 @@ func TestRunPlanLabelsAnEditedValue(t *testing.T) {
 		"Plan     PROJ-PROV\n"+
 		"Vars     cluster_name=beta (edit)  token=******** (env)\n", buf.String())
 }
+
+func TestRunPlanLabelsAReusedRevision(t *testing.T) {
+	o, buf := testOut(true)
+	RunPlan(o, app.PlanRef{PlanKey: "PROJ-BUILD", MasterKey: "PROJ-BUILD",
+		Revision: "9b30b9aba03a4f45881629b03531006b89c1e0e7", RevisionFrom: "PROJ-BUILD-41"}, app.VarSet{})
+	assert.Equal(t, ""+
+		"Plan     PROJ-BUILD\n"+
+		"Revision 9b30b9a (from #41)\n"+
+		"Vars     none\n", buf.String())
+}

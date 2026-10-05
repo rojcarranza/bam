@@ -53,7 +53,7 @@ func TestRunJSONMasksSecrets(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, WriteNDJSON(&buf, doc))
 	assert.NotContains(t, buf.String(), "hunter2")
-	assert.Equal(t, `{"key":"PROJ-BUILD-45","url":"https://bamboo.example.com/browse/PROJ-BUILD-45","plan_key":"PROJ-BUILD12","branch":"develop","revision":"","variables":{"db_password":"********","env":"staging"}}`+"\n", buf.String())
+	assert.Equal(t, `{"key":"PROJ-BUILD-45","url":"https://bamboo.example.com/browse/PROJ-BUILD-45","plan_key":"PROJ-BUILD12","branch":"develop","revision":"","revision_from":"","variables":{"db_password":"********","env":"staging"}}`+"\n", buf.String())
 }
 
 func TestRunJSONCarriesTheRevision(t *testing.T) {
@@ -87,4 +87,15 @@ func TestTargetAndVarsJSONMask(t *testing.T) {
 
 	rows := VarRowsJSON(app.PlanVarsResult{Rows: []app.VarRow{{Name: "db_password", Value: "x", LastUsed: "y", Masked: true}}})
 	assert.Equal(t, []VariableDoc{{Name: "db_password", Value: "********", Masked: true, Source: "plan", LastUsed: "********"}}, rows)
+}
+
+func TestRunJSONNamesTheBuildARevisionCameFrom(t *testing.T) {
+	d := RunJSON(provider.Build{Key: "PROJ-BUILD-46"}, app.PlanRef{PlanKey: "PROJ-BUILD",
+		Revision: "9b30b9aba03a4f45881629b03531006b89c1e0e7", RevisionFrom: "PROJ-BUILD-41"}, app.VarSet{})
+	assert.Equal(t, "9b30b9aba03a4f45881629b03531006b89c1e0e7", d.Revision, "the full commit, as sent")
+	assert.Equal(t, "PROJ-BUILD-41", d.RevisionFrom)
+
+	raw, err := json.Marshal(RunJSON(provider.Build{}, app.PlanRef{PlanKey: "PROJ-BUILD"}, app.VarSet{}))
+	require.NoError(t, err)
+	assert.Contains(t, string(raw), `"revision":"","revision_from":""`)
 }

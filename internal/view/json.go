@@ -115,12 +115,13 @@ type TargetDoc struct {
 }
 
 type RunDoc struct {
-	Key       string            `json:"key"`
-	URL       string            `json:"url"`
-	PlanKey   string            `json:"plan_key"`
-	Branch    string            `json:"branch"`
-	Revision  string            `json:"revision"`
-	Variables map[string]string `json:"variables"`
+	Key          string            `json:"key"`
+	URL          string            `json:"url"`
+	PlanKey      string            `json:"plan_key"`
+	Branch       string            `json:"branch"`
+	Revision     string            `json:"revision"`
+	RevisionFrom string            `json:"revision_from"`
+	Variables    map[string]string `json:"variables"`
 }
 
 type EventDoc struct {
@@ -232,7 +233,7 @@ func TargetJSON(t app.TargetInfo) TargetDoc {
 }
 
 func RunJSON(b provider.Build, ref app.PlanRef, vs app.VarSet) RunDoc {
-	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, Variables: map[string]string{}}
+	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, RevisionFrom: ref.RevisionFrom, Variables: map[string]string{}}
 	changed := vs.Changed()
 	names := make([]string, 0, len(changed))
 	for n := range changed {

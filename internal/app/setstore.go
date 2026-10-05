@@ -50,6 +50,7 @@ type StageRecord struct {
 // RunRecord is one run of a stage. BuildKey is empty until it triggered.
 type RunRecord struct {
 	Target   string         `json:"target"`
+	Name     string         `json:"name,omitempty"` // run name, preset[k=v,…] for a matrix run; empty in records written before names
 	PlanKey  string         `json:"plan_key"`
 	BuildKey string         `json:"build_key"`
 	State    provider.State `json:"state"`
@@ -236,4 +237,13 @@ func (l *SetLock) Release() {
 		_ = os.Remove(p)
 	}
 	l.paths = nil
+}
+
+// RunName is the run's name; a record written before run names existed
+// names a run after its preset.
+func (r RunRecord) RunName() string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.Target
 }

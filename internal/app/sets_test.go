@@ -731,3 +731,117 @@ func TestRerunAdoptsABuildThatSucceededAfterAll(t *testing.T) {
 	require.Equal(t, SetSuccessful, got.Status)
 	require.Equal(t, 0, got.Stages[1].Runs[0].Reruns)
 }
+
+// matrixService is setService with release's second stage expanded over
+// cluster_name: alpha and beta.
+func matrixService(t *testing.T, p *fake.Provider) *Service {
+	svc := setService(t, p)
+	svc.Cfg.Project.Sets["release"] = config.Set{Stages: []config.Stage{
+		{{Target: "publish-specs"}},
+		{{Target: "provision-lab", Vars: config.StringMap{"compute_nodes": "4"},
+			Matrix: &config.Matrix{Sets: []config.StringMap{{"cluster_name": "alpha"}, {"cluster_name": "beta"}}}}},
+	}}
+	return svc
+}
+
+func TestPlanSetExpandsAMatrix(t *testing.T) {
+	svc := matrixService(t, fakeBamboo())
+	svc.Getenv = func(string) string { return "x" }
+	p, err := svc.PlanSet(context.Background(), "release", SetOptions{})
+	require.NoError(t, err)
+	require.Len(t, p.Stages[1], 2)
+	require.Equal(t, "provision-lab[cluster_name=alpha]", p.Stages[1][0].Name)
+	require.Equal(t, "provision-lab", p.Stages[1][0].Target)
+	require.Equal(t, "publish-specs", p.Stages[0][0].Name, "a run without a matrix is named after its preset")
+	v, _ := p.Stages[1][1].Vars.Get("cluster_name")
+	require.Equal(t, "beta", v.Value)
+}
+
+func TestPlanSetMatrixPrecedence(t *testing.T) {
+	svc := matrixService(t, fakeBamboo())
+	svc.Getenv = func(string) string { return "x" }
+	p, err := svc.PlanSet(context.Background(), "release", SetOptions{Vars: []string{"cluster_name=gamma"}})
+	require.NoError(t, err)
+	for _, r := range p.Stages[1] {
+		v, _ := r.Vars.Get("cluster_name")
+		require.Equal(t, "gamma", v.Value, "--var beats the matrix")
+		n, _ := r.Vars.Get("compute_nodes")
+		require.Equal(t, "4", n.Value, "the set run's vars still apply")
+	}
+}
+
+func TestRunSetMatrixRecordsAndReportsEveryRun(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateSuccess, "PROJ-PROV12": provider.StateSuccess})
+	svc := matrixService(t, fp)
+	id, evs := runSet(t, svc)
+	require.Len(t, fp.Triggered, 3)
+	rec, _ := svc.Sets.Load(id)
+	require.Equal(t, "provision-lab[cluster_name=alpha]", rec.Stages[1].Runs[0].Name)
+	require.Equal(t, "provision-lab[cluster_name=beta]", rec.Stages[1].Runs[1].Name)
+	var runs []string
+	for _, e := range evs {
+		if e.Type == SetRunTriggered {
+			runs = append(runs, e.Run)
+		}
+	}
+	require.Equal(t, []string{"publish-specs", "provision-lab[cluster_name=alpha]", "provision-lab[cluster_name=beta]"}, runs)
+}
+
+func TestRerunRestartsOnlyTheFailedMatrixRun(t *testing.T) {
+	fp := trainBamboo(nil)
+	restartable(fp, "PROJ-PROV12-2", provider.StateSuccess)
+	svc := matrixService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: []StageRecord{
+		{Runs: []RunRecord{{Target: "publish-specs", Name: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-1", State: provider.StateSuccess}}},
+		{Runs: []RunRecord{
+			{Target: "provision-lab", Name: "provision-lab[cluster_name=alpha]", PlanKey: "PROJ-PROV12", BuildKey: "PROJ-PROV12-1", State: provider.StateSuccess},
+			{Target: "provision-lab", Name: "provision-lab[cluster_name=beta]", PlanKey: "PROJ-PROV12", BuildKey: "PROJ-PROV12-2", State: provider.StateFailed},
+		}},
+	}})
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	drain(ch)
+	require.Equal(t, []string{"PROJ-PROV12-2"}, fp.Restarted)
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, SetSuccessful, got.Status)
+}
+
+func TestResumeAnOldRecordWithoutNames(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateSuccess, "PROJ-PROV12": provider.StateSuccess})
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Stages: twoStages("PROJ-BUILD-1")})
+	require.Empty(t, rec.Stages[0].Runs[0].Name, "written before run names existed")
+	ch, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Equal(t, provider.StateSuccess, evs[len(evs)-1].State)
+}
+
+func TestResumeRefusesAChangedMatrix(t *testing.T) {
+	svc := matrixService(t, trainBamboo(nil))
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Stages: []StageRecord{
+		{Runs: []RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-1"}}},
+		{Runs: []RunRecord{
+			{Target: "provision-lab", Name: "provision-lab[cluster_name=alpha]", PlanKey: "PROJ-PROV12"},
+			{Target: "provision-lab", Name: "provision-lab[cluster_name=gamma]", PlanKey: "PROJ-PROV12"},
+		}},
+	}})
+	_, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.Equal(t, errs.KindConfig, errs.KindOf(err))
+	require.Contains(t, err.Error(), "changed since")
+}
+
+func TestDescribeSetShowsTheMatrixAndItsRuns(t *testing.T) {
+	svc := matrixService(t, fakeBamboo())
+	info, err := DescribeSet(svc.Cfg, func(string) string { return "" }, "release")
+	require.NoError(t, err)
+	run := info.Stages[1][0]
+	require.NotNil(t, run.Matrix)
+	require.Equal(t, "2 variable sets", run.MatrixLine)
+	require.Empty(t, info.Stages[0][0].MatrixLine)
+	require.Equal(t, []string{"provision-lab[cluster_name=alpha]", "provision-lab[cluster_name=beta]"}, run.Runs)
+	require.Equal(t, []string{"publish-specs"}, info.Stages[0][0].Runs)
+}

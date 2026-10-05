@@ -1,0 +1,23 @@
+{
+  "key": "PROJ-BUILD-46",
+  "planResultKey": {"key": "PROJ-BUILD-46", "entityKey": {"key": "PROJ-BUILD"}, "resultNumber": 46},
+  "buildResultKey": "PROJ-BUILD-46",
+  "buildNumber": 46,
+  "lifeCycleState": "Finished",
+  "buildState": "Successful",
+  "state": "Successful",
+  "finished": true,
+  "notRunYet": false,
+  "onceOff": true,
+  "buildStartedTime": "2026-09-24T17:20:01.000Z",
+  "buildCompletedTime": "2026-09-24T17:20:41.000Z",
+  "buildDuration": 40000,
+  "buildDurationInSeconds": 40,
+  "buildReason": "Custom build by <a href=\"https://bamboo.example.com/browse/user/jdoe\">jdoe</a>&nbsp;with revision <a href=\"https://bamboo.example.com/browse/PROJ-BUILD-46#changesSummary\">9b30b9aba03a4f45881629b03531006b89c1e0e7</a>",
+  "plan": {"key": "PROJ-BUILD", "shortName": "Publish"},
+  "vcsRevisionKey": "9b30b9aba03a4f45881629b03531006b89c1e0e7",
+  "vcsRevisions": {"size": 1, "vcsRevision": [{"repositoryId": 1, "repositoryName": "app", "vcsRevisionKey": "9b30b9aba03a4f45881629b03531006b89c1e0e7"}]},
+  "stages": {"size": 1, "stage": [{"name": "Publish", "state": "Successful", "lifeCycleState": "Finished",
+    "results": {"size": 1, "result": [{"buildResultKey": "PROJ-BUILD-JOB1-46", "key": "PROJ-BUILD-JOB1-46", "state": "Successful", "lifeCycleState": "Finished",
+      "plan": {"shortName": "Publish"}}]}}]}
+}

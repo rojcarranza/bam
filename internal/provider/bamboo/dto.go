@@ -53,6 +53,7 @@ type resultDTO struct {
 	BuildDurationInSeconds int64         `json:"buildDurationInSeconds"`
 	BuildReason            string        `json:"buildReason"`
 	ReasonSummary          string        `json:"reasonSummary"`
+	VcsRevisionKey         string        `json:"vcsRevisionKey"`
 	Plan                   resultPlanDTO `json:"plan"`
 	Labels                 struct {
 		Label []struct {

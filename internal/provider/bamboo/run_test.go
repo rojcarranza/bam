@@ -251,6 +251,7 @@ func TestRecordedInvalidRevisionIsNotBuilt(t *testing.T) {
 			require.NoError(t, err, f)
 			assert.Equal(t, provider.StateNotBuilt, b.State, f)
 			assert.Empty(t, b.Revisions, f)
+			assert.Equal(t, "", b.Revision, f)
 		})
 	}
 }
@@ -269,4 +270,41 @@ func TestStopBuildWithNoStoppableJobReportsNotFound(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "queued or running build PROJ-BUILD-45")
+}
+
+func TestBuildCarriesTheDefaultRepositoryRevision(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/PROJ-BUILD-46?expand=" + buildExpand: {fixture: "result_revision.json"},
+	})
+	b, err := c.GetBuild(ctx, "PROJ-BUILD-46")
+	require.NoError(t, err)
+	assert.Equal(t, "9b30b9aba03a4f45881629b03531006b89c1e0e7", b.Revision)
+}
+
+func TestBuildWithoutARevisionHasNone(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/PROJ-BUILD-47?expand=" + buildExpand: {fixture: "result_revision_not_built.json"},
+	})
+	b, err := c.GetBuild(ctx, "PROJ-BUILD-47")
+	require.NoError(t, err)
+	assert.Equal(t, "", b.Revision)
+}
+
+// TestRecordedBuildRevision: Bamboo 12.1.8 reports the default repository's
+// commit at the top level, equal to the first vcsRevisions entry.
+func TestRecordedBuildRevision(t *testing.T) {
+	for _, f := range []string{"result_revision.json", "recorded/result_revision.json", "recorded/result_revision_short.json", "recorded/result_detail.json"} {
+		t.Run(f, func(t *testing.T) {
+			if _, err := os.Stat(filepath.Join("testdata", f)); err != nil {
+				t.Skipf("%s not recorded", f)
+			}
+			c, _ := newTestServer(t, map[string]*route{
+				"GET /rest/api/latest/result/REC-PLAN-1?expand=" + buildExpand: {fixture: f},
+			})
+			b, err := c.GetBuild(ctx, "REC-PLAN-1")
+			require.NoError(t, err, f)
+			require.NotEmpty(t, b.Revisions, f)
+			assert.Equal(t, b.Revisions[0].Revision, b.Revision, f)
+		})
+	}
 }

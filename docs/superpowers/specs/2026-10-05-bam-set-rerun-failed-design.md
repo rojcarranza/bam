@@ -60,14 +60,16 @@ RestartBuild(ctx context.Context, buildKey string) (Build, error)
 ### 4.2 `app`: restarting and waiting
 
 ```go
-// Restart restarts a finished build in Bamboo and waits until Bamboo has
+// Restart restarts a failed build in Bamboo and waits until Bamboo has
 // requeued it, so a Watch that follows does not see the old result.
-func (s *Service) Restart(ctx context.Context, key string) (provider.Build, error)
+// restarted is false when nothing was restarted: the build was not finished,
+// or it had succeeded. The caller then watches it as it is.
+func (s *Service) Restart(ctx context.Context, key string) (b provider.Build, restarted bool, err error)
 ```
 
 1. Read the build. Remember its state and `FinishedAt`. A build that is not finished, or that succeeded, is not restarted: `Restart` returns it as it is, and the caller watches it without counting a rerun.
 2. `P.RestartBuild(ctx, key)`. Errors are returned as they are.
-3. Poll `s.Build` on `s.Clock`, every 2 seconds, for at most 2 minutes, until the build is not finished, or is finished with a `FinishedAt` other than the remembered one. Return that build.
+3. Poll the build on `s.Clock`, every 2 seconds, for at most 2 minutes, until the build is not finished, or is finished with a `FinishedAt` other than the remembered one. Return that build with `restarted` true.
 4. If the 2 minutes pass first: an error of kind bamboo, What `Bamboo did not restart PROJ-PLAN-9`, Why `the build still shows its earlier result`, Try `bam open PROJ-PLAN-9`.
 
 `Restart` does not record the build as the repository's last build: it is not a new trigger. It never prints.
@@ -86,7 +88,7 @@ Before the first event, as `ResumeSet` does (§5.3 of the run sets design), retu
 
 Then, in the first stage whose runs did not all succeed:
 
-- A run with a build key and a state other than `Successful` is restarted: `Restart`, then watched as any run is. Its `reruns` count goes up by one, and the record is saved before the restart call, so bam never restarts a build it has not recorded.
+- A run with a build key and a state other than `Successful` is restarted: `Restart`, then watched as any run is. Its `reruns` count goes up by one, and the record is saved before the restart call, so bam never restarts a build it has not recorded. When `Restart` reports that nothing was restarted (the build is still running, or succeeded after all), the count goes back down, no `run_triggered` is sent, and the build is watched as it is.
 - A run with no build key (its trigger failed) is triggered fresh from the `PlanSet` resolution, exactly as resume triggers it, and its `error` is cleared.
 - A run that succeeded is left alone and counts as done.
 

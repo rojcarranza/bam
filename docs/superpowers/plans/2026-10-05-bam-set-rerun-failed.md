@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-bam-set-rerun-failed-design.md`
 
+> Amended after the whole-branch review (commit `73786a8`): `Service.Restart` returns `(provider.Build, bool, error)` and leaves a build that is not finished, or that succeeded, unrestarted. Tasks 2 and 3 show the shipped code.
+
 ## Global Constraints
 
 - Placeholders only: `bamboo.example.com`, `PROJ`, `OPS`, `LAB`, `jdoe`. Recordings are scrubbed by the recorder.
@@ -308,7 +310,7 @@ git commit -m "feat: restart a failed build in Bamboo"
 
 **Interfaces:**
 - Consumes: `Provider.RestartBuild` (Task 1); fake `Sequences`, `Restarted`, `RestartErr`, `GetCalls`.
-- Produces: `func (s *Service) Restart(ctx context.Context, key string) (provider.Build, error)`; constants `restartPoll = 2 * time.Second`, `restartWait = 2 * time.Minute`.
+- Produces: `func (s *Service) Restart(ctx context.Context, key string) (b provider.Build, restarted bool, err error)` — `restarted` is false when the build was not finished or had succeeded, so nothing was restarted and the caller just watches it; constants `restartPoll = 2 * time.Second`, `restartWait = 2 * time.Minute`.
 
 - [ ] **Step 1: Failing tests** — create `internal/app/restart_test.go`:
 
@@ -343,8 +345,9 @@ func restartBamboo(seq ...provider.Build) *fake.Provider {
 func TestRestartWaitsForTheOldResultToGo(t *testing.T) {
 	p := restartBamboo(oldResult(), oldResult(), oldResult(), provider.Build{Key: "PROJ-BUILD-9", State: provider.StateQueued})
 	s := newService(t, p)
-	b, err := s.Restart(bg, "PROJ-BUILD-9")
+	b, restarted, err := s.Restart(bg, "PROJ-BUILD-9")
 	require.NoError(t, err)
+	assert.True(t, restarted)
 	assert.Equal(t, provider.StateQueued, b.State)
 	assert.Equal(t, []string{"PROJ-BUILD-9"}, p.Restarted)
 	assert.Equal(t, []time.Duration{2 * time.Second, 2 * time.Second}, s.Clock.(*fakeClock).Waits())
@@ -352,14 +355,14 @@ func TestRestartWaitsForTheOldResultToGo(t *testing.T) {
 
 func TestRestartCountsANewFinishAsRestarted(t *testing.T) {
 	again := provider.Build{Key: "PROJ-BUILD-9", State: provider.StateSuccess, FinishedAt: failedAt.Add(time.Minute)}
-	b, err := newService(t, restartBamboo(oldResult(), again)).Restart(bg, "PROJ-BUILD-9")
+	b, _, err := newService(t, restartBamboo(oldResult(), again)).Restart(bg, "PROJ-BUILD-9")
 	require.NoError(t, err)
 	assert.Equal(t, provider.StateSuccess, b.State)
 }
 
 func TestRestartGivesUpAfterTwoMinutes(t *testing.T) {
 	s := newService(t, restartBamboo(oldResult()))
-	_, err := s.Restart(bg, "PROJ-BUILD-9")
+	_, _, err := s.Restart(bg, "PROJ-BUILD-9")
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, errs.KindBamboo, e.Kind)
@@ -376,14 +379,14 @@ func TestRestartGivesUpAfterTwoMinutes(t *testing.T) {
 func TestRestartPassesARefusalThrough(t *testing.T) {
 	p := restartBamboo(oldResult())
 	p.RestartErr = errs.Bamboof("Bamboo would not restart PROJ-BUILD-9")
-	_, err := newService(t, p).Restart(bg, "PROJ-BUILD-9")
+	_, _, err := newService(t, p).Restart(bg, "PROJ-BUILD-9")
 	require.ErrorContains(t, err, "would not restart")
 	assert.Equal(t, 1, p.GetCalls("PROJ-BUILD-9"), "no polling after a refusal")
 }
 
 func TestRestartLeavesTheLastBuildAlone(t *testing.T) {
 	s := newService(t, restartBamboo(oldResult(), provider.Build{Key: "PROJ-BUILD-9", State: provider.StateQueued}))
-	_, err := s.Restart(bg, "PROJ-BUILD-9")
+	_, _, err := s.Restart(bg, "PROJ-BUILD-9")
 	require.NoError(t, err)
 	_, ok, _ := s.State.Last(s.Cfg.RepoRoot)
 	assert.False(t, ok, "a restart is not a trigger")
@@ -393,9 +396,22 @@ func TestRestartWithAnEndedContextRestartsNothing(t *testing.T) {
 	p := restartBamboo(oldResult())
 	ctx, cancel := context.WithCancel(bg)
 	cancel()
-	_, err := newService(t, p).Restart(ctx, "PROJ-BUILD-9")
+	_, _, err := newService(t, p).Restart(ctx, "PROJ-BUILD-9")
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, p.Restarted)
+}
+
+// A build that is not finished, or that succeeded, is not restarted: Bamboo
+// would refuse, and there is nothing to retry. The caller watches it.
+func TestRestartLeavesABuildThatDidNotFail(t *testing.T) {
+	for _, st := range []provider.State{provider.StateRunning, provider.StateQueued, provider.StateSuccess} {
+		p := restartBamboo(provider.Build{Key: "PROJ-BUILD-9", State: st})
+		b, restarted, err := newService(t, p).Restart(bg, "PROJ-BUILD-9")
+		require.NoError(t, err, st)
+		assert.False(t, restarted, st)
+		assert.Equal(t, st, b.State)
+		assert.Empty(t, p.Restarted, st)
+	}
 }
 ```
 
@@ -426,34 +442,39 @@ const (
 
 // Restart asks Bamboo to run a finished build's failed jobs again and waits
 // until Bamboo has requeued it: until then the build still reads as its old
-// result, and a Watch started on it would end at once. It is not a trigger,
-// so the repository's last build is left alone.
-func (s *Service) Restart(ctx context.Context, key string) (provider.Build, error) {
+// result, and a Watch started on it would end at once. A build that is still
+// running, or that succeeded, is not restarted (Bamboo would refuse, and
+// there is nothing to retry): restarted is false and the caller just watches
+// it. It is not a trigger, so the repository's last build is left alone.
+func (s *Service) Restart(ctx context.Context, key string) (b provider.Build, restarted bool, err error) {
 	if err := ctx.Err(); err != nil {
-		return provider.Build{}, err
+		return provider.Build{}, false, err
 	}
 	before, err := s.P.GetBuild(ctx, key)
 	if err != nil {
-		return provider.Build{}, err
+		return provider.Build{}, false, err
+	}
+	if !before.State.Finished() || before.State == provider.StateSuccess {
+		return before, false, nil
 	}
 	if _, err := s.P.RestartBuild(ctx, key); err != nil {
-		return provider.Build{}, err
+		return provider.Build{}, false, err
 	}
 	for waited := time.Duration(0); ; waited += restartPoll {
 		b, err := s.P.GetBuild(ctx, key)
 		if err != nil {
-			return provider.Build{}, err
+			return provider.Build{}, false, err
 		}
 		if !b.State.Finished() || !b.FinishedAt.Equal(before.FinishedAt) {
-			return b, nil
+			return b, true, nil
 		}
 		if waited >= restartWait {
-			return provider.Build{}, errs.Bamboof("Bamboo did not restart %s", key).
+			return provider.Build{}, false, errs.Bamboof("Bamboo did not restart %s", key).
 				WithWhy("the build still shows its earlier result").WithTry("bam open " + key)
 		}
 		select {
 		case <-ctx.Done():
-			return provider.Build{}, ctx.Err()
+			return provider.Build{}, false, ctx.Err()
 		case <-s.Clock.After(restartPoll):
 		}
 	}
@@ -482,7 +503,7 @@ git commit -m "feat: wait for Bamboo to requeue a restarted build"
 - Test: `internal/app/sets_test.go`
 
 **Interfaces:**
-- Consumes: `Service.Restart` (Task 2); fake `Restarted`, `RestartErr`.
+- Consumes: `Service.Restart` (Task 2), including its `restarted` result; fake `Restarted`, `RestartErr`.
 - Produces: `RunRecord.Reruns int` (`json:"reruns"`); `SetEvent.Rerun int`; `func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error)`.
 
 - [ ] **Step 1: Failing tests** — in `internal/app/sets_test.go`, change the `"failed"` row of `TestResumeRefusals` to:
@@ -718,7 +739,7 @@ with
 			if !r.save(ctx, i) {
 				return false, false
 			}
-			b, err := r.s.Restart(ctx, key)
+			b, restarted, err := r.s.Restart(ctx, key)
 			if err != nil {
 				if ctx.Err() != nil {
 					return false, true
@@ -731,7 +752,16 @@ with
 					State: provider.StateFailed, Err: err})
 				continue
 			}
-			r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b, Rerun: recs[j].Reruns})
+			if restarted {
+				r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b, Rerun: recs[j].Reruns})
+			} else {
+				// Running or succeeded after all: nothing was restarted, so
+				// nothing counts; the build is watched as it is.
+				recs[j].Reruns--
+				if !r.save(ctx, i) {
+					return false, false
+				}
+			}
 		}
 		if key == "" {
 ```

@@ -432,7 +432,7 @@ func TestResumeRefusals(t *testing.T) {
 		kind errs.Kind
 		want string
 	}{
-		"failed":       {SetRecord{Status: SetFailed, Stages: twoStages("")}, errs.KindUsage, "rerun --failed is not built yet"},
+		"failed":       {SetRecord{Status: SetFailed, Stages: twoStages("")}, errs.KindUsage, "bam set rerun --failed"},
 		"successful":   {SetRecord{Status: SetSuccessful, Stages: twoStages("")}, errs.KindUsage, "nothing to resume"},
 		"missing var":  {SetRecord{Stages: twoStages(""), VarNames: []string{"env"}}, errs.KindUsage, "--var env="},
 		"changed set":  {SetRecord{Stages: twoStages("")[:1]}, errs.KindConfig, "changed since"},
@@ -555,4 +555,179 @@ func TestRunSetRecordFailureMidStageEndsTheSet(t *testing.T) {
 	}
 	require.Equal(t, SetError, last.Type)
 	require.Empty(t, fp.Stopped)
+}
+
+// failedRecord is release with stage 1 done and stage 2's run failed as
+// PROJ-PROV12-1.
+func failedRecord() []StageRecord {
+	return []StageRecord{
+		{Runs: []RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-1", State: provider.StateSuccess}}},
+		{Runs: []RunRecord{{Target: "provision-lab", PlanKey: "PROJ-PROV12", BuildKey: "PROJ-PROV12-1", State: provider.StateFailed}}},
+	}
+}
+
+// restartable lets key restart: Restart reads the old failed result, then
+// the build is queued, then it ends in final.
+func restartable(p *fake.Provider, key string, final provider.State) {
+	p.Sequences[key] = []provider.Build{
+		{Key: key, State: provider.StateFailed},
+		{Key: key, State: provider.StateQueued},
+		{Key: key, State: final},
+	}
+}
+
+func TestRerunRestartsTheFailedRunAndFinishesTheTrain(t *testing.T) {
+	fp := trainBamboo(nil)
+	restartable(fp, "PROJ-PROV12-1", provider.StateSuccess)
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: failedRecord()})
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Equal(t, []string{"PROJ-PROV12-1"}, fp.Restarted)
+	require.Empty(t, fp.Triggered, "a restart is not a trigger, and stage 1 is left alone")
+	require.Equal(t, []string{
+		"stage_start:1:", "run_triggered:1:provision-lab", "run_done:1:provision-lab", "stage_done:1:", "set_done:1:",
+	}, kinds(evs))
+	for _, e := range evs {
+		require.Equal(t, rec.ID, e.ID, "rerun keeps the id")
+		if e.Type == SetRunTriggered {
+			require.Equal(t, 1, e.Rerun)
+		}
+	}
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, SetSuccessful, got.Status)
+	require.Equal(t, 1, got.Stages[1].Runs[0].Reruns)
+	require.Equal(t, provider.StateSuccess, got.Stages[1].Runs[0].State)
+	require.Equal(t, "PROJ-PROV12-1", got.Stages[1].Runs[0].BuildKey, "the same build")
+	require.Equal(t, provider.StateSuccess, got.Stages[0].Runs[0].State)
+}
+
+func TestRerunContinuesIntoTheStagesThatNeverRan(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-PROV12": provider.StateSuccess})
+	restartable(fp, "PROJ-BUILD-1", provider.StateSuccess)
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	stages := twoStages("PROJ-BUILD-1")
+	stages[0].Runs[0].State = provider.StateFailed
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: stages})
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Equal(t, []string{"PROJ-BUILD-1"}, fp.Restarted)
+	require.Len(t, fp.Triggered, 1)
+	require.Equal(t, "PROJ-PROV12", fp.Triggered[0].PlanKey)
+	require.Equal(t, provider.StateSuccess, evs[len(evs)-1].State)
+}
+
+func TestRerunTriggersARunThatNeverTriggered(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-PROV12": provider.StateSuccess})
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	stages := failedRecord()
+	stages[1].Runs[0].BuildKey, stages[1].Runs[0].Error = "", "queue full"
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: stages})
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	drain(ch)
+	require.Empty(t, fp.Restarted)
+	require.Len(t, fp.Triggered, 1)
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, SetSuccessful, got.Status)
+	require.Equal(t, 0, got.Stages[1].Runs[0].Reruns, "a fresh trigger is not a rerun")
+	require.Equal(t, "", got.Stages[1].Runs[0].Error)
+}
+
+// restartSpy notes how many reruns the record held when Bamboo was asked.
+type restartSpy struct {
+	*fake.Provider
+	load func() SetRecord
+	seen []int
+}
+
+func (r *restartSpy) RestartBuild(ctx context.Context, key string) (provider.Build, error) {
+	r.seen = append(r.seen, r.load().Stages[1].Runs[0].Reruns)
+	return r.Provider.RestartBuild(ctx, key)
+}
+
+func TestRerunSavesTheCountBeforeRestarting(t *testing.T) {
+	fp := trainBamboo(nil)
+	restartable(fp, "PROJ-PROV12-1", provider.StateSuccess)
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: failedRecord()})
+	spy := &restartSpy{Provider: fp, load: func() SetRecord { r, _ := svc.Sets.Load(rec.ID); return r }}
+	svc.P = spy
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	drain(ch)
+	require.Equal(t, []int{1}, spy.seen)
+}
+
+func TestRerunThatCannotRestartFailsTheRun(t *testing.T) {
+	fp := trainBamboo(nil)
+	fp.Sequences["PROJ-PROV12-1"] = []provider.Build{{Key: "PROJ-PROV12-1", State: provider.StateFailed}}
+	fp.RestartErr = errs.Bamboof("this Bamboo cannot restart a build over REST").Wrap(errs.ErrUnsupported)
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: failedRecord()})
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	last := evs[len(evs)-1]
+	require.Equal(t, SetDone, last.Type)
+	require.Equal(t, provider.StateFailed, last.State)
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, SetFailed, got.Status)
+	require.Contains(t, got.Stages[1].Runs[0].Error, "cannot restart")
+	require.Equal(t, 1, got.Stages[1].Runs[0].Reruns)
+	require.Equal(t, "PROJ-PROV12-1", got.Stages[1].Runs[0].BuildKey)
+}
+
+func TestRerunRefusals(t *testing.T) {
+	for name, tc := range map[string]struct {
+		rec  SetRecord
+		kind errs.Kind
+		want string
+	}{
+		"successful":  {SetRecord{Status: SetSuccessful, Stages: failedRecord()}, errs.KindUsage, "nothing to rerun"},
+		"interrupted": {SetRecord{Status: SetInterrupted, Stages: failedRecord()}, errs.KindUsage, "bam set resume"},
+		"timed out":   {SetRecord{Status: SetTimedOut, Stages: failedRecord()}, errs.KindUsage, "was timed out, not failed"},
+		"missing var": {SetRecord{Status: SetFailed, Stages: failedRecord(), VarNames: []string{"env"}}, errs.KindUsage, "--var env="},
+		"changed set": {SetRecord{Status: SetFailed, Stages: failedRecord()[:1]}, errs.KindConfig, "changed since"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fp := trainBamboo(nil)
+			svc := setService(t, fp)
+			svc.Getenv = func(string) string { return "x" }
+			rec := saveRecord(t, svc, tc.rec)
+			_, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+			require.Error(t, err)
+			require.Equal(t, tc.kind, errs.KindOf(err), "%v", err)
+			require.Contains(t, err.Error()+" "+errTry(err), tc.want)
+			require.Empty(t, fp.Restarted)
+			require.Empty(t, fp.Triggered)
+		})
+	}
+}
+
+// A failed run whose build actually succeeded (its watch failed, say) is
+// taken as it is: no restart, no rerun counted, and the train goes on.
+func TestRerunAdoptsABuildThatSucceededAfterAll(t *testing.T) {
+	fp := trainBamboo(nil)
+	fp.Sequences["PROJ-PROV12-1"] = []provider.Build{{Key: "PROJ-PROV12-1", State: provider.StateSuccess}}
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	stages := failedRecord()
+	stages[1].Runs[0].Error = "polling failed"
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: stages})
+	ch, err := svc.RerunSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	evs := drain(ch)
+	require.Empty(t, fp.Restarted)
+	require.NotContains(t, kinds(evs), "run_triggered:1:provision-lab")
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, SetSuccessful, got.Status)
+	require.Equal(t, 0, got.Stages[1].Runs[0].Reruns)
 }

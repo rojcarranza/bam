@@ -20,6 +20,7 @@ type Capabilities struct {
 	FailedTests string    `json:"failed_tests,omitempty"` // yes | no
 	Log         string    `json:"log,omitempty"`          // entries | download
 	Stop        string    `json:"stop,omitempty"`         // yes | no
+	Rerun       string    `json:"rerun,omitempty"`        // yes | no
 	Progress    string    `json:"progress,omitempty"`     // yes | no
 }
 

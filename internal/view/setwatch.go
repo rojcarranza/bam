@@ -24,6 +24,7 @@ type setRow struct {
 	prog   provider.Progress
 	at     time.Time // when prog arrived
 	err    error
+	rerun  int // how many times its build was restarted
 }
 
 // setBoard is what a renderer knows about the set so far.
@@ -66,7 +67,11 @@ func (b *setBoard) apply(e app.SetEvent, now time.Time) {
 	}
 	switch e.Type {
 	case app.SetRunTriggered:
-		b.row(e.Stage, e.Target).build = e.Build
+		r := b.row(e.Stage, e.Target)
+		r.build, r.err = e.Build, nil
+		if e.Rerun > 0 {
+			r.rerun = e.Rerun
+		}
 	case app.SetRunEvent:
 		r := b.row(e.Stage, e.Target)
 		r.build = e.Build
@@ -99,6 +104,7 @@ func (b *setBoard) summary(o Out) {
 	}
 	if b.final.Stage >= len(b.stages) {
 		fmt.Fprintln(o.W, style.Colored(o.Style, provider.StateFailed, "set failed"))
+		fmt.Fprintf(o.W, "  try: bam set rerun --failed %s\n", b.id)
 		return
 	}
 	st := b.stages[b.final.Stage]
@@ -118,6 +124,7 @@ func (b *setBoard) summary(o Out) {
 			fmt.Fprintf(o.W, "  try: bam logs %s --failed\n", r.build.Key)
 		}
 	}
+	fmt.Fprintf(o.W, "  try: bam set rerun --failed %s\n", b.id)
 }
 
 func errWhat(err error) string {
@@ -139,6 +146,25 @@ type SetLive struct {
 // NewSetLive starts from the plan, so stages that have not started show
 // their presets as pending.
 func NewSetLive(o Out, p app.SetPlan) *SetLive { return &SetLive{o: o, b: newBoard(p)} }
+
+// Seed fills in what a record already knows, so a resumed or rerun set shows
+// the runs that already have a build instead of pending ones.
+func (l *SetLive) Seed(rec app.SetRecord) {
+	l.b.id = rec.ID
+	for i, st := range rec.Stages {
+		for _, run := range st.Runs {
+			if run.BuildKey == "" && run.Error == "" {
+				continue
+			}
+			r := l.b.row(i, run.Target)
+			r.build = provider.Build{Key: run.BuildKey, State: run.State}
+			r.rerun = run.Reruns
+			if run.Error != "" {
+				r.err = errors.New(run.Error)
+			}
+		}
+	}
+}
 
 func (l *SetLive) Event(e app.SetEvent) {
 	if l.done {
@@ -180,7 +206,7 @@ func (l *SetLive) draw() {
 			if state == provider.StateRunning {
 				bar = Bar(l.o, advance(r.prog, l.o.Now().Sub(r.at)))
 			}
-			t.Rows = append(t.Rows, []string{runGlyph(l.o, state) + " " + r.target, dashIfEmpty(r.build.Key), stateTitle(state), dur, bar})
+			t.Rows = append(t.Rows, []string{runGlyph(l.o, state) + " " + r.target, dashIfEmpty(r.build.Key), rerunTitle(state, r.rerun), dur, bar})
 		}
 		_ = RenderRows(o, t)
 	}
@@ -206,6 +232,10 @@ func (l *SetLines) Event(e app.SetEvent) {
 	head := fmt.Sprintf("%s stage %d %s", ts, e.Stage+1, e.Target)
 	switch e.Type {
 	case app.SetRunTriggered:
+		if e.Rerun > 0 {
+			fmt.Fprintf(l.o.W, "%s %s rerun %d\n", head, e.Build.Key, e.Rerun)
+			return
+		}
 		fmt.Fprintf(l.o.W, "%s %s triggered\n", head, e.Build.Key)
 	case app.SetRunEvent:
 		if e.Event != nil && e.Event.Type == app.EventState {

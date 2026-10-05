@@ -20,7 +20,7 @@ func init() { commandSets = append(commandSets, addSets) }
 
 func addSets(root *cobra.Command, r *runtime) {
 	subgroup(root, "set", "Release trains: presets run in ordered stages", groupRun).
-		AddCommand(newSetListCmd(r), newSetShowCmd(r), newSetRunCmd(r), newSetStatusCmd(r), newSetResumeCmd(r))
+		AddCommand(newSetListCmd(r), newSetShowCmd(r), newSetRunCmd(r), newSetStatusCmd(r), newSetResumeCmd(r), newSetRerunCmd(r))
 }
 
 func (r *runtime) setStore() *app.SetStore {
@@ -125,7 +125,7 @@ stopped. Interrupting stops watching only; continue with bam set resume.`,
 			if err != nil {
 				return err
 			}
-			return r.setLoop(ctx, id, p, events)
+			return r.setLoop(ctx, id, p, nil, events)
 		}),
 	}
 	f := cmd.Flags()
@@ -142,7 +142,7 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			rec, err := r.findSetRun(args, nil)
+			rec, err := r.findSetRun(args, nil, nil)
 			if err != nil {
 				return err
 			}
@@ -176,7 +176,7 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			rec, err := r.findSetRun(args, resumable)
+			rec, err := r.findSetRun(args, resumable, nil)
 			if err != nil {
 				return err
 			}
@@ -188,13 +188,64 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return r.setLoop(ctx, rec.ID, planFromRecord(rec), events)
+			return r.setLoop(ctx, rec.ID, planFromRecord(rec), &rec, events)
 		}),
 	}
 	f := cmd.Flags()
 	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
 	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
 	return cmd
+}
+
+func newSetRerunCmd(r *runtime) *cobra.Command {
+	var vars []string
+	var force, failed bool
+	cmd := &cobra.Command{
+		Use:   "rerun [set|id] --failed",
+		Short: "Retry the failed runs of a set run, then finish the train",
+		Long: `Retry a failed set run under its own id. In the stage that failed, Bamboo
+restarts each failed build: its failed jobs run again, with the same variables
+and commit, under the same build key. A run that never triggered is triggered.
+When that stage succeeds, the later stages run. Runs that succeeded are left
+alone, and no build is ever stopped.`,
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: r.completeSets(true),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			// Checked before any config or network: --failed is what keeps a
+			// future bare rerun (every run again) from changing meaning.
+			if !failed {
+				return errs.Usagef("rerun needs --failed").WithTry("bam set rerun --failed")
+			}
+			ctx := cmd.Context()
+			rec, err := r.findSetRun(args, isFailedRun, noFailedRun)
+			if err != nil {
+				return err
+			}
+			svc, err := r.connectOrigin(ctx, rec.Origin)
+			if err != nil {
+				return err
+			}
+			events, err := svc.RerunSet(ctx, rec.ID, app.SetOptions{Vars: vars, Server: r.flags.server}, app.SetLockOptions{Force: force})
+			if err != nil {
+				return err
+			}
+			return r.setLoop(ctx, rec.ID, planFromRecord(rec), &rec, events)
+		}),
+	}
+	f := cmd.Flags()
+	f.BoolVar(&failed, "failed", false, "retry the runs that failed (required)")
+	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
+	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
+	return cmd
+}
+
+func isFailedRun(rec app.SetRecord) bool { return rec.Status == app.SetFailed }
+
+func noFailedRun(arg string) error {
+	if arg == "" {
+		return errs.Usagef("no failed set run to rerun in this repository").WithTry("bam set status")
+	}
+	return errs.Usagef("no failed run of %s to rerun", arg).WithTry("bam set status " + arg)
 }
 
 func resumable(rec app.SetRecord) bool {
@@ -263,8 +314,9 @@ func (r *runtime) connectMatching(cfg *config.Config, origin string) (*app.Servi
 }
 
 // findSetRun resolves [set|id]: a record id, else this repository's newest
-// record of that set, else its newest record of any set; match filters.
-func (r *runtime) findSetRun(args []string, match func(app.SetRecord) bool) (app.SetRecord, error) {
+// record of that set, else its newest record of any set; match filters, and
+// missing, when set, words the error when nothing matches.
+func (r *runtime) findSetRun(args []string, match func(app.SetRecord) bool, missing func(arg string) error) (app.SetRecord, error) {
 	cfg, err := r.config()
 	if err != nil {
 		return app.SetRecord{}, err
@@ -288,6 +340,9 @@ func (r *runtime) findSetRun(args []string, match func(app.SetRecord) bool) (app
 		return app.SetRecord{}, err
 	}
 	if !ok {
+		if missing != nil {
+			return app.SetRecord{}, missing(arg)
+		}
 		what := "no set runs in this repository"
 		if match != nil {
 			what = "no set run to resume in this repository"
@@ -302,7 +357,7 @@ func (r *runtime) findSetRun(args []string, match func(app.SetRecord) bool) (app
 
 // setLoop renders a set run until it ends. An interrupt or timeout stops
 // watching only; the builds keep running and the run can be resumed.
-func (r *runtime) setLoop(ctx context.Context, id string, p app.SetPlan, events <-chan app.SetEvent) error {
+func (r *runtime) setLoop(ctx context.Context, id string, p app.SetPlan, seed *app.SetRecord, events <-chan app.SetEvent) error {
 	var rend view.SetRenderer
 	var tick <-chan time.Time
 	if r.flags.json {
@@ -313,7 +368,11 @@ func (r *runtime) setLoop(ctx context.Context, id string, p app.SetPlan, events 
 			return err
 		}
 		if o.TTY {
-			rend = view.NewSetLive(o, p)
+			live := view.NewSetLive(o, p)
+			if seed != nil {
+				live.Seed(*seed)
+			}
+			rend = live
 			t := time.NewTicker(time.Second)
 			defer t.Stop()
 			tick = t.C

@@ -286,6 +286,7 @@ and `bam build cancel` on the command line, stop a build.
 | open anything in Bamboo | `bam open PROJ-PLAN-123` |
 | run a release train of presets, stage by stage | `bam set run release` |
 | continue a train after Ctrl-C | `bam set resume` |
+| retry a failed train's failed runs, then finish it | `bam set rerun --failed` |
 
 `--revision` takes a full or short SHA and passes it to Bamboo as given; Bamboo applies it to the plan's default repository. A revision Bamboo cannot build ends as "not built", so add `--watch` to see it. If the server ignores the revision, bam stops the build it queued and exits 5. `--revision from` reuses the commit of the `--from` build, together with its variables.
 
@@ -316,7 +317,7 @@ set failed: stage 2 (1 of 2 runs failed)
   try: bam logs OPS-DEP-9 --failed
 ```
 
-A failure never cancels a build. Ctrl-C stops watching; `bam set status` and `bam set resume` pick the train up again. See [Sets](docs/configuration.md#sets-release-trains) for the rules.
+A failure never cancels a build. Ctrl-C stops watching; `bam set status` and `bam set resume` pick the train up again. After a failure, `bam set rerun --failed` has Bamboo restart the failed builds (only their failed jobs run again, with the same variables and commit) and then finishes the train. See [Sets](docs/configuration.md#sets-release-trains) for the rules.
 
 ## More
 

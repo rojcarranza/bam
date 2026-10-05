@@ -53,6 +53,7 @@ type RunRecord struct {
 	PlanKey  string         `json:"plan_key"`
 	BuildKey string         `json:"build_key"`
 	State    provider.State `json:"state"`
+	Reruns   int            `json:"reruns"` // how many times bam restarted this run's build
 	Error    string         `json:"error,omitempty"`
 }
 

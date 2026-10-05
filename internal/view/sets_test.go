@@ -70,7 +70,7 @@ func TestSetEventJSONFieldNames(t *testing.T) {
 	e.Build = provider.Build{}
 	data, _ = json.Marshal(SetEventJSON(e))
 	require.JSONEq(t, `{"type":"run_done","time":"2026-09-29T10:16:00Z","set":"release","id":"release-20260929T101500Z",
-	  "stage":1,"target":"deploy","state":"failed","error":{"kind":"bamboo","what":"queue full","try":"bam doctor"}}`, string(data))
+	  "stage":1,"target":"deploy","state":"failed","rerun":0,"error":{"kind":"bamboo","what":"queue full","try":"bam doctor"}}`, string(data))
 
 	inner := app.Event{Type: app.EventState, Time: e.Time, Build: provider.Build{Key: "OPS-DEP-9"}, State: provider.StateRunning}
 	data, _ = json.Marshal(SetEventJSON(app.SetEvent{Type: app.SetRunEvent, Time: e.Time, Target: "deploy", Event: &inner, Build: inner.Build}))
@@ -125,4 +125,25 @@ func TestSetDryRunShowsEveryStageMasked(t *testing.T) {
 	require.NotContains(t, string(data), "hunter2")
 	require.Contains(t, string(data), `"plan_key":"OPS-PROV12"`)
 	require.True(t, strings.Contains(string(data), `"warnings":[]`))
+}
+
+func TestSetEventJSONCarriesTheRerun(t *testing.T) {
+	e := app.SetEvent{Type: app.SetRunTriggered, Time: time.Date(2026, 9, 29, 10, 16, 0, 0, time.UTC),
+		Stage: 1, Target: "deploy", Build: provider.Build{Key: "OPS-DEP-9"}, Rerun: 2}
+	data, err := json.Marshal(SetEventJSON(e))
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"rerun":2`)
+}
+
+func TestSetStatusViewShowsReruns(t *testing.T) {
+	rec := app.SetRecord{ID: "release-20260929T101500Z", Set: "release", Status: app.SetFailed,
+		Stages: []app.StageRecord{{Runs: []app.RunRecord{
+			{Target: "deploy", PlanKey: "OPS-DEP", BuildKey: "OPS-DEP-9", State: provider.StateFailed, Reruns: 2}}}}}
+	o, buf := testOut(false)
+	require.NoError(t, SetStatusView(o, rec, nil))
+	require.Regexp(t, `deploy\s+OPS-DEP-9\s+Failed \(rerun 2\)`, buf.String())
+	require.Contains(t, buf.String(), "try: bam set rerun --failed release-20260929T101500Z\n")
+	data, err := json.Marshal(SetRecordJSON(rec, nil))
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"reruns":2`)
 }

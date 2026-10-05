@@ -27,11 +27,12 @@ import (
 )
 
 var (
-	serverAlias = flag.String("server", "", "server alias (default: the one bam would use in this directory)")
-	targetName  = flag.String("target", "", "configured target to take the plan key from")
-	planKey     = flag.String("plan", "", "plan key that is safe to run (wins over -target)")
-	revision    = flag.String("revision", "", "an older commit of the plan's repository; runs the plan at it and checks the build used it")
-	setPlans    = flag.String("set-plans", "", "comma-separated plan keys that are safe to run; TestSetSmoke runs them as a set, one stage each")
+	serverAlias  = flag.String("server", "", "server alias (default: the one bam would use in this directory)")
+	targetName   = flag.String("target", "", "configured target to take the plan key from")
+	planKey      = flag.String("plan", "", "plan key that is safe to run (wins over -target)")
+	revision     = flag.String("revision", "", "an older commit of the plan's repository; runs the plan at it and checks the build used it")
+	setPlans     = flag.String("set-plans", "", "comma-separated plan keys that are safe to run; TestSetSmoke runs them as a set, one stage each")
+	setRerunPlan = flag.String("set-rerun-plan", "", "plan key whose build fails, safe to run; TestSetRerunSmoke runs it as a set and reruns it")
 )
 
 func TestSmoke(t *testing.T) {
@@ -200,5 +201,53 @@ func TestSetSmoke(t *testing.T) {
 	want := map[int]string{0: "successful", 1: "failed"}[setCode]
 	if rec.Status != want || len(rec.Stages) == 0 || rec.Stages[0].Runs[0].BuildKey == "" {
 		t.Fatalf("record %+v; want status %s and a first build key", rec, want)
+	}
+}
+
+func TestSetRerunSmoke(t *testing.T) {
+	if *setRerunPlan == "" {
+		t.Skip("pass -set-rerun-plan KEY (a plan whose build fails), e.g. make e2e ARGS='-run TestSetRerunSmoke -set-rerun-plan LAB-FLAKY'")
+	}
+	opts, err := toolcfg.SystemOptions()
+	if err != nil {
+		t.Fatalf("resolve paths: %v", err)
+	}
+	cfg, err := toolcfg.Load(opts)
+	if err != nil {
+		t.Fatalf("read bam config: %v", err)
+	}
+	server, err := cfg.ServerFor(*serverAlias, "")
+	if err != nil {
+		t.Fatalf("server: %v", err)
+	}
+	dir := t.TempDir()
+	yaml := fmt.Sprintf("version: 1\ntargets:\n  flaky: {plan: %s}\nsets:\n  e2e-rerun:\n    timeout: 40m\n    stages: [[flaky]]\n", *setRerunPlan)
+	if err := os.WriteFile(filepath.Join(dir, ".bam.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run := bam(t, server.URL, server.Token, dir)
+
+	if code, _, _ := run("set", "run", "e2e-rerun"); code != 1 {
+		t.Skipf("set run exited %d; the plan did not fail, so there is nothing to rerun", code)
+	}
+	_, before, _ := run("set", "status", "--json")
+	code, _, _ := run("set", "rerun", "--failed", "--json")
+	if code != 0 && code != 1 {
+		t.Fatalf("set rerun --failed exited %d; want 0 or 1 (the set result)", code)
+	}
+	_, after, _ := run("set", "status", "--json")
+	var b, a struct {
+		Stages []struct {
+			Runs []struct {
+				BuildKey string `json:"build_key"`
+				Reruns   int    `json:"reruns"`
+			} `json:"runs"`
+		} `json:"stages"`
+	}
+	if json.Unmarshal([]byte(before), &b) != nil || json.Unmarshal([]byte(after), &a) != nil {
+		t.Fatalf("set status --json is not JSON")
+	}
+	if a.Stages[0].Runs[0].Reruns != 1 || a.Stages[0].Runs[0].BuildKey != b.Stages[0].Runs[0].BuildKey {
+		t.Fatalf("want the same build rerun once: before %+v, after %+v", b.Stages[0].Runs[0], a.Stages[0].Runs[0])
 	}
 }

@@ -244,7 +244,7 @@ If a write fails before a trigger, the set ends with `set_error` and that trigge
 
 `ResumeSet(id)`:
 
-1. Loads the record. Only `interrupted` and `timed_out` can be resumed. `failed` is a usage error: "set run failed; rerun --failed is not built yet", with a try line of `bam set run <set>`. `successful` is a usage error: "nothing to resume". `running` is handled by the lock (§5.4).
+1. Loads the record. Only `interrupted` and `timed_out` can be resumed. `failed` is a usage error: "set run <id> failed; resume continues interrupted runs", with a try line of `bam set rerun --failed <id>`. `successful` is a usage error: "nothing to resume". `running` is handled by the lock (§5.4).
 2. Checks that the current server's origin equals the record's origin, and that the set's stages in the configuration still list the same presets, in the same stages and order, as the record. Otherwise a config error, with a try line of `bam set run <set>`.
 3. Checks that every name in `var_names` is given again with `--var`. A missing one is a usage error naming it; values are never stored.
 4. Runs `PlanSet` again to resolve the variables of the runs that have not triggered.
@@ -384,7 +384,7 @@ No test sleeps or touches the network outside the e2e suite; `go test -race ./..
 
 Each of these is later work with its own spec:
 
-- `bam set rerun --failed` (it will read the §5.1 record).
+- `bam set rerun --failed`: done, see [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md).
 - Matrix expansion and batch files.
 - Plan statistics and set-level history views.
 - The terminal UI run-sets panel (it will consume §4.3 events).

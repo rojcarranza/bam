@@ -142,3 +142,66 @@ func TestSetCompletion(t *testing.T) {
 	h.run("__complete", "set", "run", "")
 	require.Contains(t, h.stdout.String(), "release")
 }
+
+// failedSetRecord saves a failed run of release: stage 1 done, stage 2's
+// provision-lab failed as PROJ-PROV12-1.
+func failedSetRecord(t *testing.T, h *harness) string {
+	t.Helper()
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	id := app.NewSetID("release", fixedNow)
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: id, Set: "release", Origin: workOrigin, Repo: h.root,
+		StartedAt: fixedNow, Status: app.SetFailed, VarNames: []string{},
+		Stages: []app.StageRecord{
+			{Runs: []app.RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-1", State: provider.StateSuccess}}},
+			{Runs: []app.RunRecord{{Target: "provision-lab", PlanKey: "PROJ-PROV12", BuildKey: "PROJ-PROV12-1", State: provider.StateFailed}}},
+		}}))
+	return id
+}
+
+// restartsTo makes PROJ-PROV12-1 restart and end in final.
+func restartsTo(h *harness, final provider.State) {
+	b := func(s provider.State) provider.Build {
+		return provider.Build{Key: "PROJ-PROV12-1", PlanKey: "PROJ-PROV12", State: s, Duration: 30 * time.Second}
+	}
+	h.fake.Sequences["PROJ-PROV12-1"] = []provider.Build{b(provider.StateFailed), b(provider.StateQueued), b(final)}
+}
+
+func TestSetRerunFailed(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	id := failedSetRecord(t, h)
+	restartsTo(h, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "rerun", "--failed"), h.stderr.String())
+	require.Equal(t, []string{"PROJ-PROV12-1"}, h.fake.Restarted)
+	require.Empty(t, h.fake.Triggered)
+	require.Contains(t, h.stdout.String(), "provision-lab PROJ-PROV12-1 rerun 1")
+	require.Contains(t, h.stdout.String(), "set succeeded")
+
+	require.Equal(t, 0, h.run("set", "status", id, "--json"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), `"reruns": 1`)
+
+	require.Equal(t, 2, h.run("set", "rerun", "--failed", id))
+	require.Contains(t, h.stderr.String(), "nothing to rerun")
+}
+
+func TestSetRerunStillFailingExits1(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	failedSetRecord(t, h)
+	restartsTo(h, provider.StateFailed)
+	require.Equal(t, 1, h.run("set", "rerun", "--failed", "--json"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), `"type":"run_triggered"`)
+	require.Contains(t, h.stdout.String(), `"rerun":1`)
+}
+
+func TestSetRerunNeedsFailed(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 2, h.run("set", "rerun"))
+	require.Contains(t, h.stderr.String(), "rerun needs --failed")
+	require.Empty(t, h.connectOpts, "no network before the check")
+}
+
+func TestSetRerunWithNoFailedRun(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 2, h.run("set", "rerun", "--failed", "release"))
+	require.Contains(t, h.stderr.String(), "no failed run of release to rerun")
+	require.Contains(t, h.stderr.String(), "bam set status release")
+}

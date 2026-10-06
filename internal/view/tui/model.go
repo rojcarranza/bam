@@ -41,6 +41,7 @@ const (
 	focusBuilds
 	focusPresets
 	focusMain
+	focusSets // Home's sets table; not in the panels' tab order
 )
 
 // overlay is the modal on top, if any. At most one is open.
@@ -105,6 +106,7 @@ type Model struct {
 	plans   listState[provider.Plan]
 	builds  listState[provider.Build]
 	presets listState[app.TargetInfo]
+	sets    listState[setItem]
 	picker  listState[pickerItem]
 
 	confirm  confirmState
@@ -123,6 +125,7 @@ type Model struct {
 	connGen, detailGen           int
 	pickerGen, presetsGen        int
 	cancelGen                    int
+	setsGen                      int
 
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
@@ -146,6 +149,9 @@ type Model struct {
 
 	home homeState
 
+	train   trainState
+	setView setScreen
+
 	formFrom screen // where esc from the run form returns
 }
 
@@ -160,6 +166,7 @@ func New(d Deps) Model {
 		plans:   newList(planMatchText),
 		builds:  newList(func(b provider.Build) string { return b.Key + " " + b.Branch + " " + b.Reason }),
 		presets: newList(func(t app.TargetInfo) string { return t.Name + " " + t.Plan + " " + t.Branch }),
+		sets:    newList(func(s setItem) string { return s.Info.Name }),
 		picker:  newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
 		now:     time.Now,
 		input:   textinput.New(),
@@ -227,6 +234,8 @@ func (m Model) currentStream(s stream, gen int) bool {
 		return gen == m.formGen
 	case streamCancel:
 		return gen == m.cancelGen
+	case streamSets:
+		return gen == m.setsGen
 	}
 	return true
 }
@@ -425,6 +434,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail = &b
 		m.progress = msg.Progress
 		m.clampTree()
+		return m, nil
+	case setsLoadedMsg:
+		if msg.Gen != m.setsGen {
+			return m, nil
+		}
+		m.sets.loading = false
+		m.sets.setItems(msg.Items)
+		m.sortSets()
 		return m, nil
 	case watchEventMsg:
 		if msg.Gen != m.watchGen {
@@ -635,6 +652,8 @@ func (m *Model) applyFilter(q string) {
 		m.builds.setQuery(q)
 	case focusPresets:
 		m.presets.setQuery(q)
+	case focusSets:
+		m.sets.setQuery(q)
 	}
 }
 
@@ -853,6 +872,8 @@ func (m *Model) moveFocused(delta int) {
 		m.builds.move(delta)
 	case focusPresets:
 		m.presets.move(delta)
+	case focusSets:
+		m.sets.move(delta)
 	case focusMain:
 		m.treeCursor += delta
 		m.clampTree()
@@ -867,6 +888,8 @@ func (m *Model) jumpFocused(top bool) {
 		jump(&m.builds, top)
 	case focusPresets:
 		jump(&m.presets, top)
+	case focusSets:
+		jump(&m.sets, top)
 	case focusMain:
 		m.treeCursor = 0
 		if !top {
@@ -1462,7 +1485,9 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	case m.screen == screenHome:
 		// Home is the top: esc clears the active table's filter and
 		// otherwise does nothing.
-		if m.home.view == homePresets && m.presets.query != "" {
+		if m.home.view == homeSets && m.sets.query != "" {
+			m.sets.setQuery("")
+		} else if m.home.view == homePresets && m.presets.query != "" {
 			m.presets.setQuery("")
 		} else if m.home.view == homePlans && m.plans.query != "" {
 			m.plans.setQuery("")

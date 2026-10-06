@@ -1,0 +1,24 @@
+ bam · lab · 9.6.4 · jdoe · 2 sets · sort set↑
+  SET      STAGES  RUNS  LAST RUN                                          AGE
+▸ release       2     3  ✗ failed                                          12m
+  nightly       1     1  –                                                 –
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+lab · 9.6.4 · jdoe     enter open  / filter  s sort  : cmd  R run  ?help  q quit

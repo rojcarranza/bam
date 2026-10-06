@@ -62,7 +62,7 @@ func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
 	require.Equal(t, homePlans, m.home.view)
 
 	m, _ = runCmdLine(homeModel(), "frobnicate")
-	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets project server sort quit`)
+	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets sets project server sort quit`)
 	require.Equal(t, inputNone, m.inputFor)
 }
 

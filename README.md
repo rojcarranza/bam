@@ -287,6 +287,7 @@ and `bam build cancel` on the command line, stop a build.
 | build a chosen commit instead of the newest | `bam run provision-lab --revision abc1234` |
 | rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |
 | see recent builds | `bam build list provision-lab` |
+| is this plan flaky? | `bam plan stats provision-lab` |
 | follow a running build | `bam watch --last` |
 | read only the failed jobs' logs | `bam logs --last --failed` |
 | stop a build | `bam build cancel --last` |

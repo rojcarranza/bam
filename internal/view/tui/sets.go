@@ -216,11 +216,9 @@ func (m Model) handleSetsKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 }
 
 // trainState is replaced in a later step; until then no train runs.
-type trainState struct{ set string }
+type trainState struct {
+	set   string
+	board *app.SetBoard
+}
 
 func (t trainState) running() bool { return false }
-
-// openSet is replaced in a later step.
-func (m Model) openSet() (tea.Model, tea.Cmd) { return m, nil }
-
-type setScreen struct{ info app.SetInfo }

@@ -20,6 +20,7 @@ type keyMap struct {
 	Run, Trigger, DryRun         key.Binding
 	CycleOption                  key.Binding
 	Cancel                       key.Binding
+	Resume, RerunFailed          key.Binding
 	Server, Project, Branch      key.Binding
 	Sort, Help, Quit             key.Binding
 	Command                      key.Binding
@@ -72,6 +73,8 @@ func defaultKeys() keyMap {
 		// space never opens a text field; it only steps an options field.
 		CycleOption: b("space", "space", "cycle an options field"),
 		Cancel:      b("C", "C", "cancel the build"),
+		Resume:      b("U", "U", "resume the set run"),
+		RerunFailed: b("F", "F", "rerun the failed runs"),
 		Open:        b("o", "o", "open in the browser"),
 		Copy:        b("y", "y", "copy the URL"),
 		Server:      b("S", "S", "switch server"),
@@ -92,7 +95,7 @@ func allBindings(k keyMap) []key.Binding {
 		k.Panel1, k.Panel2, k.Panel3, k.Enter, k.Back,
 		k.Logs, k.AllLogs, k.Follow, k.Filter, k.NextMatch, k.PrevMatch,
 		k.Refresh, k.ExpandErr, k.Open, k.Copy, k.Run, k.Trigger, k.DryRun,
-		k.CycleOption, k.Cancel, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
+		k.CycleOption, k.Cancel, k.Resume, k.RerunFailed, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
 		k.Command,
 	}
 }
@@ -123,6 +126,8 @@ func (k keyMap) helpRows() []helpRow {
 		{"RUN", "space", "cycle an options field (in the form)"},
 		{"RUN", "f", "use the build's revision (in the form, on the revision row)"},
 		{"RUN", "C", "cancel the selected build (asks first)"},
+		{"RUN", "U", "resume the set's interrupted run (set screen)"},
+		{"RUN", "F", "rerun the set's failed runs (set screen)"},
 		{"GO", "o", "open the selection's Bamboo URL in the browser"},
 		{"GO", "y", "copy the selection's Bamboo URL"},
 		{"GO", "S", "switch server"},

@@ -31,6 +31,8 @@ const (
 	screenLogs
 	screenForm
 	screenHome // the plans table bam opens on (home spec §2)
+	screenSet  // one run set: its stages and runs
+	screenSetVars
 )
 
 // focus is which panel takes keys. Main is the right-hand panel.
@@ -125,7 +127,7 @@ type Model struct {
 	connGen, detailGen           int
 	pickerGen, presetsGen        int
 	cancelGen                    int
-	setsGen                      int
+	setsGen, setGen              int
 
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
@@ -151,6 +153,7 @@ type Model struct {
 
 	train   trainState
 	setView setScreen
+	fromSet bool // the panels were opened from a set screen run; esc returns there
 
 	formFrom screen // where esc from the run form returns
 }
@@ -443,6 +446,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sets.setItems(msg.Items)
 		m.sortSets()
 		return m, nil
+	case setLoadedMsg:
+		return m.handleSetLoaded(msg)
 	case watchEventMsg:
 		if msg.Gen != m.watchGen {
 			return m, nil
@@ -514,6 +519,9 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.screen == screenLogs {
 		return m.handleLogKey(msg)
+	}
+	if m.screen == screenSet {
+		return m.handleSetKey(msg)
 	}
 	if m.screen == screenHome {
 		if next, cmd, handled := m.handleHomeKey(msg); handled {
@@ -1138,6 +1146,9 @@ func (m Model) selectionURL() string {
 	if m.screen == screenLogs && m.logs.url != "" {
 		return m.logs.url
 	}
+	if m.screen == screenSet {
+		return m.setSelectionURL()
+	}
 	switch m.focus {
 	case focusPlans:
 		if p, ok := m.plans.selected(); ok {
@@ -1493,6 +1504,13 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 			m.plans.setQuery("")
 		}
 		return m, nil
+	case m.screen == screenColumns && m.fromSet:
+		m.fromSet = false
+		m.stopWatch()
+		m.screen = screenSet
+		return m, nil
+	case m.screen == screenSet:
+		return m.showSets()
 	case m.focus != focusPlans:
 		m.focus = m.focus.parent()
 		return m, nil
@@ -1532,6 +1550,8 @@ func (m Model) View() string {
 		return m.overlayView(m.formView())
 	case screenHome:
 		return m.homeView()
+	case screenSet:
+		return m.overlayView(m.setScreenView())
 	}
 	return m.columnsView()
 }

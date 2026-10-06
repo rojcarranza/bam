@@ -1,0 +1,24 @@
+ release · never run
+ stage 1/2
+ ▸ smoke                          –                 pending
+ stage 2/2
+   build[env=qa]                  –                 pending
+   build[env=prod]                –                 pending
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+lab · 9.6.4 · jdoe                       enter build  R run  r refresh  esc back

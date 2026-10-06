@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -105,4 +106,29 @@ func TestWatchUsesHistoryWhenUnsupported(t *testing.T) {
 	require.True(t, sawHistory)
 	require.Equal(t, 1, p.ListCalls("PROJ-BUILD"))
 	require.Equal(t, 1, p.ProgressCalls("PROJ-BUILD-10"), "Bamboo asked once, then never again")
+}
+
+// failingList fails ListBuilds and counts the attempts.
+type failingList struct {
+	*fake.Provider
+	calls int
+}
+
+func (f *failingList) ListBuilds(context.Context, string, provider.ListOptions) ([]provider.Build, error) {
+	f.calls++
+	return nil, errs.Bamboof("you may not read the results of PROJ-BUILD")
+}
+
+// A history read that fails is not repeated on every poll: the miss is kept
+// like a plan with too little history.
+func TestAFailedHistoryReadIsNotRepeated(t *testing.T) {
+	spy := &failingList{Provider: historyBamboo()}
+	s := newService(t, spy.Provider)
+	s.P = spy
+	for i := 0; i < 3; i++ {
+		pr, err := s.Progress(bg, runningFor(s, time.Minute))
+		require.NoError(t, err)
+		require.False(t, pr.Valid)
+	}
+	require.Equal(t, 1, spy.calls)
 }

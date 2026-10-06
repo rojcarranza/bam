@@ -34,6 +34,13 @@ func (s *Service) historyMedian(ctx context.Context, planKey string) (time.Durat
 	s.estimates.mu.Unlock()
 	builds, err := s.P.ListBuilds(ctx, planKey, provider.ListOptions{Limit: historySample, State: provider.StateSuccess})
 	if err != nil {
+		// A plan whose history cannot be read (no permission, a server
+		// error) is kept as "no estimate", or a watch would repeat the read
+		// on every poll. An interrupt says nothing about the plan, so it is
+		// not kept.
+		if ctx.Err() == nil {
+			s.keepMedian(planKey, 0)
+		}
 		return 0, err
 	}
 	var ds []time.Duration
@@ -47,13 +54,17 @@ func (s *Service) historyMedian(ctx context.Context, planKey string) (time.Durat
 		sort.Slice(ds, func(i, j int) bool { return ds[i] < ds[j] })
 		med = ds[(len(ds)-1)/2]
 	}
+	s.keepMedian(planKey, med)
+	return med, nil
+}
+
+func (s *Service) keepMedian(planKey string, med time.Duration) {
 	s.estimates.mu.Lock()
+	defer s.estimates.mu.Unlock()
 	if s.estimates.m == nil {
 		s.estimates.m = map[string]time.Duration{}
 	}
 	s.estimates.m[planKey] = med
-	s.estimates.mu.Unlock()
-	return med, nil
 }
 
 // historyProgress estimates a running build from its plan branch's history,

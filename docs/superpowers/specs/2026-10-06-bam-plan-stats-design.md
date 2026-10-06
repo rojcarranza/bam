@@ -1,6 +1,6 @@
 # bam: plan statistics (`bam plan stats`)
 
-**Status:** Draft | **Date:** 2026-10-06
+**Status:** Approved | **Date:** 2026-10-06
 **Product requirements:** [`docs/prd.md`](../../prd.md) §7 "Future", "Run sets" (plan statistics)
 **Builds on:** [`2026-09-12-bam-cli-mvp-design.md`](2026-09-12-bam-cli-mvp-design.md) §2.2 (argument resolution), §7 (JSON contract)
 

@@ -161,3 +161,22 @@ func TestResumeWithAMissingFileFlagKeepsTheRecoveryHint(t *testing.T) {
 	require.Contains(t, err.Error(), "is gone: "+missing)
 	require.Contains(t, errTry(err), "--file")
 }
+
+// A train file without name: is named after its file. Moving it under
+// another file name must not stop its run from resuming: the record's name
+// stands in. Only a file whose own name: says another set is refused.
+func TestResumeFromARenamedFileWithoutAName(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateSuccess, "PROJ-PROV12": provider.StateSuccess})
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	path := writeTrain(t, t.TempDir(), hotfixBody)
+	rec := fileRecord(t, svc, path)
+	renamed := filepath.Join(t.TempDir(), "moved.yaml")
+	require.NoError(t, os.Rename(path, renamed))
+	ch, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{File: renamed}, SetLockOptions{})
+	require.NoError(t, err)
+	drain(ch)
+	got, _ := svc.Sets.Load(rec.ID)
+	require.Equal(t, "hotfix", got.Set)
+	require.Equal(t, renamed, got.File)
+}

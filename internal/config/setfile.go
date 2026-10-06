@@ -20,7 +20,12 @@ type setFile struct {
 // LoadSetFile reads one set from a train file and checks it as a configured
 // set is checked, against the merged presets. Literal secrets are refused,
 // as in the project file: a train file is shared like .bam.yaml.
-func (c *Config) LoadSetFile(path string) (ResolvedSet, error) {
+func (c *Config) LoadSetFile(path string) (ResolvedSet, error) { return c.LoadSetFileNamed(path, "") }
+
+// LoadSetFileNamed is LoadSetFile with the name a file without name: takes:
+// fallback when it is set (the recorded name of a run being resumed, whose
+// file may have been renamed), else the file name.
+func (c *Config) LoadSetFileNamed(path, fallback string) (ResolvedSet, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ResolvedSet{}, errs.Configf("cannot read the train file %s", path).WithWhy(err.Error()).Wrap(err)
@@ -33,6 +38,9 @@ func (c *Config) LoadSetFile(path string) (ResolvedSet, error) {
 		return ResolvedSet{}, err
 	}
 	name := f.Name
+	if name == "" {
+		name = fallback
+	}
 	if name == "" {
 		base := filepath.Base(path)
 		name = strings.TrimSuffix(base, filepath.Ext(base))

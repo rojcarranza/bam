@@ -109,3 +109,41 @@ func TestResumeAFileSetWhoseStagesChanged(t *testing.T) {
 	require.Equal(t, errs.KindConfig, errs.KindOf(err))
 	require.Contains(t, err.Error(), "changed since")
 }
+
+// --file is for a train file's run; a configured set's run must not quietly
+// take its definition from a file.
+func TestResumeAConfiguredSetRefusesFile(t *testing.T) {
+	svc := setService(t, fakeBamboo())
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Stages: twoStages("PROJ-BUILD-1")})
+	path := writeTrain(t, t.TempDir(), "name: release\n"+hotfixBody)
+	_, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{File: path}, SetLockOptions{})
+	require.Equal(t, errs.KindUsage, errs.KindOf(err))
+	require.Contains(t, err.Error(), "is a configured set")
+}
+
+// Resuming from a moved file remembers where it is now.
+func TestResumeFromAMovedFileRemembersTheNewPath(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateSuccess, "PROJ-PROV12": provider.StateSuccess})
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	path := writeTrain(t, t.TempDir(), hotfixBody)
+	rec := fileRecord(t, svc, path)
+	require.NoError(t, os.Remove(path))
+	moved := writeTrain(t, t.TempDir(), hotfixBody)
+	ch, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{File: moved}, SetLockOptions{})
+	require.NoError(t, err)
+	drain(ch)
+	got, err := svc.Sets.Load(rec.ID)
+	require.NoError(t, err)
+	require.Equal(t, moved, got.File)
+}
+
+func TestAChangedFileSetSuggestsRunningTheFile(t *testing.T) {
+	svc := setService(t, fakeBamboo())
+	svc.Getenv = func(string) string { return "x" }
+	path := writeTrain(t, t.TempDir(), "stages:\n  - [publish-specs]\n")
+	rec := fileRecord(t, svc, path)
+	_, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
+	require.Contains(t, errTry(err), "bam set run -f "+path)
+}

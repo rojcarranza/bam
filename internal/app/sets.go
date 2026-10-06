@@ -506,6 +506,9 @@ func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock S
 	if err != nil {
 		return nil, err
 	}
+	if rec.File != "" {
+		rec.File = p.File // resumed from a moved file: remember where it is now
+	}
 	rec.Status, rec.FinishedAt = SetRunning, nil
 	if err := s.Sets.Save(rec); err != nil {
 		l.Release()
@@ -549,6 +552,9 @@ func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock Se
 			runs[j].State, runs[j].Error = "", ""
 		}
 	}
+	if rec.File != "" {
+		rec.File = p.File // resumed from a moved file: remember where it is now
+	}
 	rec.Status, rec.FinishedAt = SetRunning, nil
 	if err := s.Sets.Save(rec); err != nil {
 		l.Release()
@@ -575,6 +581,10 @@ func (s *Service) continueSet(ctx context.Context, rec SetRecord, o SetOptions, 
 		return SetPlan{}, nil, errs.Usagef("%s needs the variables set run %s was given", verb, rec.ID).
 			WithWhy("bam never stores variable values").WithTry(strings.Join(missing, " "))
 	}
+	if rec.File == "" && o.File != "" {
+		return SetPlan{}, nil, errs.Usagef("set run %s is a configured set; --file is for the runs of train files", rec.ID).
+			WithTry("bam set " + verb + " " + rec.ID)
+	}
 	again := "bam set " + verb + " " + rec.ID
 	if verb == "rerun" {
 		again = "bam set rerun --failed " + rec.ID
@@ -596,7 +606,7 @@ func (s *Service) continueSet(ctx context.Context, rec SetRecord, o SetOptions, 
 	}
 	if !sameShape(p, rec) {
 		return SetPlan{}, nil, errs.Configf("set %s has changed since run %s", rec.Set, rec.ID).
-			WithWhy("its stages no longer list the same presets").WithTry("bam set run " + rec.Set)
+			WithWhy("its stages no longer list the same presets").WithTry(runAgain(p, rec.Set))
 	}
 	p.VarNames = rec.VarNames
 	l, err := s.Sets.Lock([]string{rec.Set, rec.ID}, lock.Force, s.Clock.Now())
@@ -786,4 +796,12 @@ func maskedMatrix(m *config.Matrix) *config.Matrix {
 // LatestSetRun is this repository's newest record of set.
 func (s *Service) LatestSetRun(set string) (SetRecord, bool, error) {
 	return s.Sets.Latest(s.Cfg.RepoRoot, set, nil)
+}
+
+// runAgain is how to start a set over: by name, or from its train file.
+func runAgain(p SetPlan, set string) string {
+	if p.File != "" {
+		return "bam set run -f " + p.File
+	}
+	return "bam set run " + set
 }

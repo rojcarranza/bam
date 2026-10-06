@@ -28,8 +28,8 @@ func subgroup(root *cobra.Command, name, short, group string) *cobra.Command {
 
 func addBrowse(root *cobra.Command, r *runtime) {
 	subgroup(root, "project", "Bamboo projects", groupBrowse).AddCommand(newProjectListCmd(r))
-	subgroup(root, "plan", "Plans: list, show, variables, branches", groupBrowse).
-		AddCommand(newPlanListCmd(r), newPlanShowCmd(r), newPlanVarsCmd(r), newPlanBranchesCmd(r))
+	subgroup(root, "plan", "Plans: list, show, variables, branches, stats", groupBrowse).
+		AddCommand(newPlanListCmd(r), newPlanShowCmd(r), newPlanVarsCmd(r), newPlanBranchesCmd(r), newPlanStatsCmd(r))
 	subgroup(root, "build", "Builds: list, show, run, watch, logs, cancel", groupRun).
 		AddCommand(newBuildListCmd(r), newBuildShowCmd(r))
 }
@@ -316,6 +316,49 @@ func parseState(s string) (provider.State, error) {
 		names = append(names, string(st))
 	}
 	return "", errs.Usagef("--state must be one of %s, not %q", strings.Join(names, ", "), s)
+}
+
+func newPlanStatsCmd(r *runtime) *cobra.Command {
+	var branch string
+	var last int
+	cmd := &cobra.Command{
+		Use:               "stats <plan>",
+		Short:             "Success rate, durations and failing jobs over a plan's last builds",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: r.completeTargets,
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			// Checked before any config or network.
+			if last < 1 || last > 100 {
+				return errs.Usagef("--last takes 1 to 100, not %d", last)
+			}
+			ctx := cmd.Context()
+			svc, _, err := r.connectFor(ctx, args[0])
+			if err != nil {
+				return err
+			}
+			ref, err := svc.ResolvePlan(ctx, args[0], branch)
+			if err != nil {
+				return err
+			}
+			st, err := svc.PlanStats(ctx, ref, last)
+			if err != nil {
+				return err
+			}
+			view.PrintWarnings(r.env.Stderr, st.Warnings)
+			if r.flags.json {
+				return view.WriteJSON(r.env.Stdout, view.PlanStatsJSON(st))
+			}
+			o, err := r.out()
+			if err != nil {
+				return err
+			}
+			return view.PlanStatsView(o, st)
+		}),
+	}
+	f := cmd.Flags()
+	f.IntVar(&last, "last", 20, "how many of the newest builds to read (1 to 100)")
+	f.StringVar(&branch, "branch", "", "plan branch to read")
+	return cmd
 }
 
 func newBuildListCmd(r *runtime) *cobra.Command {

@@ -42,6 +42,20 @@ A running build carries the server's duration estimate as well:
 
 `key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked.
 
+## Plan statistics
+
+`plan stats --json` prints one document over the plan's last builds (`--last`, default 20):
+
+    {"plan_key":"PROJ-DEPLOY","branch":"","builds":20,"first":381,"last":400,
+     "from":"2026-09-30T08:00:00Z","to":"2026-10-06T08:00:00Z",
+     "passed":16,"failed":4,"other":{"stopped":1},"success_rate":0.8,
+     "duration":{"median_ms":250000,"p90_ms":362000,"max_ms":580000,"max_build":388,"of":16},
+     "streak":{"state":"success","count":3},
+     "failing_jobs":[{"name":"Integration tests","failures":3,"last_build":397}],
+     "warnings":[]}
+
+Queued and running builds are not counted. `other` counts stopped, not built and skipped builds by state; `success_rate` is passed ÷ (passed + failed). `duration` is over passed builds only, and the median and p90 are real build durations. `success_rate`, `duration` and `streak` are `null` when there is nothing to compute them from, and `from`/`to` when no build was read. A failed build whose jobs could not be read counts under the job name `(unknown)` and adds a warning.
+
 ## Events
 
     {"type":"state","time":"...","build_key":"PROJ-BUILD-45","state":"running","progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000}}

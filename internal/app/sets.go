@@ -22,6 +22,11 @@ type SetOptions struct {
 	Vars   []string // --var name=value, in order; applies to every run
 	Server string   // --server, so every run's server is chosen as bam run would
 	File   string   // a train file to read the set from instead of the configuration
+
+	// recordedName is the set a resumed train file run was recorded under;
+	// a file without name: takes it, so renaming the file does not orphan
+	// the run.
+	recordedName string
 }
 
 // SetRunPlan is one run of a stage, resolved and ready to trigger.
@@ -54,7 +59,7 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 		if err != nil {
 			return SetPlan{}, errs.Configf("cannot resolve %s", o.File).WithWhy(err.Error())
 		}
-		if set, err = s.Cfg.LoadSetFile(abs); err != nil {
+		if set, err = s.Cfg.LoadSetFileNamed(abs, o.recordedName); err != nil {
 			return SetPlan{}, err
 		}
 		o.File, name = abs, set.Name
@@ -590,6 +595,7 @@ func (s *Service) continueSet(ctx context.Context, rec SetRecord, o SetOptions, 
 		again = "bam set rerun --failed " + rec.ID
 	}
 	if rec.File != "" {
+		o.recordedName = rec.Set
 		if o.File == "" {
 			o.File = rec.File
 		}

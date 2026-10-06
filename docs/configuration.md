@@ -143,7 +143,7 @@ stages:
     bam set run -f hotfix-2041.yaml --dry-run
     bam set run -f hotfix-2041.yaml
 
-The file holds one set in the shape of an entry under `sets:`, plus an optional `name:`. Its presets come from your configuration, and every check of a configured set applies; a literal secret is refused, as in the project file. Its runs are recorded under its name, so `bam set status`, `bam set resume` and `bam set rerun --failed` work as for any set. Resume and rerun read the file again from where it was run; if it has moved, pass `--file` with its new path.
+The file holds one set in the shape of an entry under `sets:`, plus an optional `name:`. Its presets come from your configuration, and every check of a configured set applies; a literal secret is refused, as in the project file. Its runs are recorded under its name, so `bam set status`, `bam set resume` and `bam set rerun --failed` work as for any set. Resume and rerun read the file again from where it was run; if it has moved, pass `--file` with its new path. A moved file keeps its run's name even under another file name, unless its own `name:` says otherwise.
 
 ## Machine file
 

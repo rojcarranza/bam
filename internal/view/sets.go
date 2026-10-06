@@ -97,6 +97,9 @@ func sortedChanged(vs app.VarSet) []string {
 // SetStatusView is bam set status: the record with each build's live state.
 func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) error {
 	fmt.Fprintf(o.W, "%s  %s  %s\n", style.Bold(o.Style, rec.Set), rec.ID, rec.Status)
+	if rec.File != "" {
+		fmt.Fprintf(o.W, "file %s\n", rec.File)
+	}
 	for i, st := range rec.Stages {
 		fmt.Fprintf(o.W, "stage %d/%d\n", i+1, len(rec.Stages))
 		t := Table{Indent: "  ", Headers: []string{"", "", "", ""}}
@@ -175,6 +178,7 @@ type SetRunPlanDoc struct {
 type SetRecordDoc struct {
 	ID         string        `json:"id"`
 	Set        string        `json:"set"`
+	File       string        `json:"file,omitempty"`
 	Origin     string        `json:"origin"`
 	Repo       string        `json:"repo"`
 	Status     string        `json:"status"`
@@ -270,7 +274,7 @@ func SetPlanJSON(p app.SetPlan) SetPlanDoc {
 // SetRecordJSON is bam set status --json: each run's state is the live one
 // where the build could be fetched.
 func SetRecordJSON(rec app.SetRecord, builds map[string]provider.Build) SetRecordDoc {
-	d := SetRecordDoc{ID: rec.ID, Set: rec.Set, Origin: rec.Origin, Repo: rec.Repo, Status: string(rec.Status),
+	d := SetRecordDoc{ID: rec.ID, Set: rec.Set, File: rec.File, Origin: rec.Origin, Repo: rec.Repo, Status: string(rec.Status),
 		StartedAt: rec.StartedAt.UTC().Format(time.RFC3339), VarNames: nonNil(rec.VarNames), Stages: []SetStageDoc{}}
 	if rec.FinishedAt != nil {
 		d.FinishedAt = timePtr(*rec.FinishedAt)

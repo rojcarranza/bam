@@ -90,23 +90,40 @@ func newSetShowCmd(r *runtime) *cobra.Command {
 
 func newSetRunCmd(r *runtime) *cobra.Command {
 	var vars []string
+	var file string
 	var dryRun, force bool
 	cmd := &cobra.Command{
-		Use:   "run <set>",
+		Use:   "run [set] [-f FILE]",
 		Short: "Run a set: each stage starts when every build of the one before succeeded",
 		Long: `Run a set: each stage starts when every build of the one before succeeded.
 
 A failed build ends the set once its stage has finished; no build is ever
 stopped. Interrupting stops watching only; continue with bam set resume.`,
-		Args:              cobra.ExactArgs(1),
+		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			name := ""
+			if len(args) == 1 {
+				name = args[0]
+			}
+			switch {
+			case name != "" && file != "":
+				return errs.Usagef("give a set name or -f, not both")
+			case name == "" && file == "":
+				return errs.Usagef("give a set name or -f FILE").WithTry("bam set list")
+			}
 			ctx := cmd.Context()
-			svc, err := r.connectSet(ctx, args[0])
+			var svc *app.Service
+			var err error
+			if file != "" {
+				svc, err = r.connectSetFile(ctx, file)
+			} else {
+				svc, err = r.connectSet(ctx, name)
+			}
 			if err != nil {
 				return err
 			}
-			p, err := svc.PlanSet(ctx, args[0], app.SetOptions{Vars: vars, Server: r.flags.server})
+			p, err := svc.PlanSet(ctx, name, app.SetOptions{Vars: vars, Server: r.flags.server, File: file})
 			if err != nil {
 				return err
 			}
@@ -130,6 +147,7 @@ stopped. Interrupting stops watching only; continue with bam set resume.`,
 	}
 	f := cmd.Flags()
 	f.StringArrayVar(&vars, "var", nil, "variable name=value for every run that declares it (repeatable)")
+	f.StringVarP(&file, "file", "f", "", "run the set defined in this train file instead of a configured set")
 	f.BoolVar(&dryRun, "dry-run", false, "resolve and check every run, trigger nothing")
 	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
 	return cmd
@@ -168,6 +186,7 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 
 func newSetResumeCmd(r *runtime) *cobra.Command {
 	var vars []string
+	var file string
 	var force bool
 	cmd := &cobra.Command{
 		Use:               "resume [set|id]",
@@ -184,7 +203,7 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			events, err := svc.ResumeSet(ctx, rec.ID, app.SetOptions{Vars: vars, Server: r.flags.server}, app.SetLockOptions{Force: force})
+			events, err := svc.ResumeSet(ctx, rec.ID, app.SetOptions{Vars: vars, Server: r.flags.server, File: file}, app.SetLockOptions{Force: force})
 			if err != nil {
 				return err
 			}
@@ -193,12 +212,14 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
+	f.StringVar(&file, "file", "", "the train file of a file set, when it has moved since the run")
 	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
 	return cmd
 }
 
 func newSetRerunCmd(r *runtime) *cobra.Command {
 	var vars []string
+	var file string
 	var force, failed bool
 	cmd := &cobra.Command{
 		Use:   "rerun [set|id] --failed",
@@ -225,7 +246,7 @@ alone, and no build is ever stopped.`,
 			if err != nil {
 				return err
 			}
-			events, err := svc.RerunSet(ctx, rec.ID, app.SetOptions{Vars: vars, Server: r.flags.server}, app.SetLockOptions{Force: force})
+			events, err := svc.RerunSet(ctx, rec.ID, app.SetOptions{Vars: vars, Server: r.flags.server, File: file}, app.SetLockOptions{Force: force})
 			if err != nil {
 				return err
 			}
@@ -235,6 +256,7 @@ alone, and no build is ever stopped.`,
 	f := cmd.Flags()
 	f.BoolVar(&failed, "failed", false, "retry the runs that failed (required)")
 	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
+	f.StringVar(&file, "file", "", "the train file of a file set, when it has moved since the run")
 	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
 	return cmd
 }
@@ -264,6 +286,25 @@ func planFromRecord(rec app.SetRecord) app.SetPlan {
 		p.Stages = append(p.Stages, runs)
 	}
 	return p
+}
+
+// connectSetFile connects to the server of a train file's first preset, as
+// connectSet does for a configured set.
+func (r *runtime) connectSetFile(ctx context.Context, path string) (*app.Service, error) {
+	cfg, err := r.config()
+	if err != nil {
+		return nil, err
+	}
+	s, err := cfg.LoadSetFile(path)
+	if err != nil {
+		return nil, err
+	}
+	t, _, err := cfg.Target(s.Stages[0][0].Target)
+	if err != nil {
+		return nil, err
+	}
+	svc, _, err := r.connect(ctx, t.Server)
+	return svc, err
 }
 
 // connectSet connects to the server of the set's first preset. PlanSet then

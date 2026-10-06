@@ -251,3 +251,54 @@ func TestSetResumeOfAMatrixDrawsOneRowPerRun(t *testing.T) {
 	require.Contains(t, last, "provision-lab[cluster_name=alpha]")
 	require.NotRegexp(t, `provision-lab\s+–\s+pending`, last)
 }
+
+const hotfixFile = "stages:\n  - [publish-specs]\n  - [{target: provision-lab, vars: {cluster_name: alpha}}]\n"
+
+func trainPath(t *testing.T, h *harness) string {
+	t.Helper()
+	p := filepath.Join(h.root, "hotfix.yaml")
+	require.NoError(t, os.WriteFile(p, []byte(hotfixFile), 0o644))
+	return p
+}
+
+func TestSetRunFromAFile(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	p := trainPath(t, h)
+	require.Equal(t, 0, h.run("set", "run", "-f", p, "--dry-run"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "hotfix")
+	require.Empty(t, h.fake.Triggered)
+
+	require.Equal(t, 0, h.run("set", "run", "-f", p), h.stderr.String())
+	require.Len(t, h.fake.Triggered, 2)
+	require.Equal(t, 0, h.run("set", "status", "hotfix", "--json"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), `"file": "`+p+`"`)
+	require.Equal(t, 0, h.run("set", "status", "hotfix"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "file "+p)
+}
+
+func TestSetRunNameAndFileTogether(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	p := trainPath(t, h)
+	require.Equal(t, 2, h.run("set", "run", "release", "-f", p))
+	require.Contains(t, h.stderr.String(), "a set name or -f, not both")
+	require.Equal(t, 2, h.run("set", "run"))
+	require.Contains(t, h.stderr.String(), "a set name or -f")
+	require.Empty(t, h.connectOpts, "no network before the check")
+}
+
+func TestSetResumeOfAFileSetWithFile(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	p := trainPath(t, h)
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	id := app.NewSetID("hotfix", fixedNow)
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: id, Set: "hotfix", File: filepath.Join(h.root, "gone.yaml"),
+		Origin: workOrigin, Repo: h.root, StartedAt: fixedNow, Status: app.SetInterrupted, VarNames: []string{},
+		Stages: []app.StageRecord{
+			{Runs: []app.RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-1"}}},
+			{Runs: []app.RunRecord{{Target: "provision-lab", PlanKey: "PROJ-PROV12"}}},
+		}}))
+	require.Equal(t, 3, h.run("set", "resume", id))
+	require.Contains(t, h.stderr.String(), "is gone")
+	require.Equal(t, 0, h.run("set", "resume", id, "--file", p), h.stderr.String())
+	require.Len(t, h.fake.Triggered, 1)
+}

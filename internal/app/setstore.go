@@ -33,6 +33,7 @@ type SetRecord struct {
 	Version    int           `json:"version"`
 	ID         string        `json:"id"`
 	Set        string        `json:"set"`
+	File       string        `json:"file,omitempty"` // the train file's absolute path; empty for a configured set
 	Origin     string        `json:"origin"`
 	Repo       string        `json:"repo"`
 	StartedAt  time.Time     `json:"started_at"`

@@ -589,10 +589,14 @@ func (s *Service) continueSet(ctx context.Context, rec SetRecord, o SetOptions, 
 	if verb == "rerun" {
 		again = "bam set rerun --failed " + rec.ID
 	}
-	if rec.File != "" && o.File == "" {
-		o.File = rec.File
-		if _, err := os.Stat(rec.File); err != nil {
-			return SetPlan{}, nil, errs.Configf("the train file of set run %s is gone: %s", rec.ID, rec.File).
+	if rec.File != "" {
+		if o.File == "" {
+			o.File = rec.File
+		}
+		// The recorded path or the one given with --file: either way, a
+		// missing file gets the same way out.
+		if _, err := os.Stat(o.File); err != nil {
+			return SetPlan{}, nil, errs.Configf("the train file of set run %s is gone: %s", rec.ID, o.File).
 				WithTry(again + " --file <its new path>")
 		}
 	}

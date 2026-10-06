@@ -147,3 +147,17 @@ func TestAChangedFileSetSuggestsRunningTheFile(t *testing.T) {
 	_, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{}, SetLockOptions{})
 	require.Contains(t, errTry(err), "bam set run -f "+path)
 }
+
+// A --file that does not exist either gets the same recovery hint as a
+// recorded file that is gone.
+func TestResumeWithAMissingFileFlagKeepsTheRecoveryHint(t *testing.T) {
+	svc := setService(t, fakeBamboo())
+	svc.Getenv = func(string) string { return "x" }
+	path := writeTrain(t, t.TempDir(), hotfixBody)
+	rec := fileRecord(t, svc, path)
+	missing := filepath.Join(t.TempDir(), "nope.yaml")
+	_, err := svc.ResumeSet(context.Background(), rec.ID, SetOptions{File: missing}, SetLockOptions{})
+	require.Equal(t, errs.KindConfig, errs.KindOf(err))
+	require.Contains(t, err.Error(), "is gone: "+missing)
+	require.Contains(t, errTry(err), "--file")
+}

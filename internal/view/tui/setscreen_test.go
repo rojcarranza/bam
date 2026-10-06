@@ -88,3 +88,21 @@ func TestSetScreenPollsWhileHeldElsewhere(t *testing.T) {
 	m.setView.elsewhere = ""
 	require.Nil(t, m.setPollCmd(), "no polling when nothing is held elsewhere")
 }
+
+// Leaving a set's build any other way than esc forgets that it came from the
+// set: esc later must not jump back to a set screen the user left long ago.
+func TestLeavingASetBuildOtherwiseForgetsTheSet(t *testing.T) {
+	m := setScreenModel(t, failedRec(), "")
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.fromSet)
+	next, _ := m.runCommandLine("plans")
+	m = next.(Model)
+	require.False(t, m.fromSet, ":plans leaves the set behind")
+
+	m = setScreenModel(t, failedRec(), "")
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("enter"))
+	next, _ = m.switchServer("lab")
+	require.False(t, next.(Model).fromSet, "switching server leaves the set behind")
+}

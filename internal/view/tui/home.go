@@ -355,6 +355,7 @@ func (m Model) homeFocus() focus {
 // goHome shows Home again.
 func (m Model) goHome() (tea.Model, tea.Cmd) {
 	m.screen = screenHome
+	m.fromSet = false // Home leaves a set's build behind; esc must not return to it
 	m.focus = m.homeFocus()
 	// restartHomeTick has a pointer receiver and mutates m; calling it inline
 	// as a return operand would rely on Go's unspecified evaluation order

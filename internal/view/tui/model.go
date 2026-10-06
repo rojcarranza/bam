@@ -457,14 +457,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Gen != m.train.gen {
 			return m, nil
 		}
+		// The train wrote its record as it ended: re-read it so the set
+		// screen and the sets table show the run that just finished.
+		set := m.train.set
 		m.train.end()
-		return m, nil
+		if m.setView.info.Name != set {
+			return m, m.loadSets()
+		}
+		m.setGen++
+		return m, tea.Batch(loadSetCmd(m.svc, set, m.setGen), m.loadSets())
 	case setPollMsg:
 		if msg.Gen != m.setGen || m.screen != screenSet {
 			return m, nil
 		}
 		m.setGen++
 		return m, loadSetCmd(m.svc, m.setView.info.Name, m.setGen)
+	case trainStartedMsg:
+		return m.handleTrainStarted(msg)
+	case setDryMsg:
+		return m.handleSetDry(msg)
 	case setLoadedMsg:
 		return m.handleSetLoaded(msg)
 	case watchEventMsg:
@@ -869,6 +880,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 			})
 	}
 	m.leaveBuild()
+	m.fromSet = false
 	m.server, m.svc = alias, nil
 	m.buildsPlan = ""
 	// The project filter names a project of the server being left; keeping it

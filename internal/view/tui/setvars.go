@@ -45,6 +45,7 @@ func (t *trainState) end() {
 		t.cancel()
 	}
 	t.cancel, t.ch = nil, nil
+	t.gen++ // its late messages are stale now
 }
 
 type setVarRow struct {
@@ -60,6 +61,8 @@ type setVarsState struct {
 	editName bool // a new row: its name first, then its value
 	input    textinput.Model
 	err      error
+	busy     bool // a start or dry run is in flight; ctrl-R and d wait for it
+	gen      int  // the prompt's start and dry-run generation
 }
 
 // flags is the rows as --var flags, in order, skipping rows with no name.
@@ -103,7 +106,7 @@ func setEventCmd(ch <-chan app.SetEvent, gen int) tea.Cmd {
 // openSetVars opens the prompt for a. Resume and rerun ask again for every
 // name the record was started with; with none, they act at once.
 func (m Model) openSetVars(a setAction) (tea.Model, tea.Cmd) {
-	m.setVars = setVarsState{action: a, input: textinput.New()}
+	m.setVars = setVarsState{action: a, input: textinput.New(), gen: m.setVars.gen}
 	if a != setActionRun && m.setView.rec != nil {
 		for _, n := range m.setView.rec.VarNames {
 			m.setVars.rows = append(m.setVars.rows, setVarRow{Name: n, Required: true})
@@ -128,6 +131,7 @@ func (m Model) handleSetVarsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if v.editName {
 				r.Name, v.editName = strings.TrimSpace(v.input.Value()), false
 				v.input.SetValue(r.Value)
+				v.input.EchoMode = echoFor(r.Name)
 				return m, nil
 			}
 			r.Value, v.editing = v.input.Value(), false
@@ -160,8 +164,10 @@ func (m Model) handleSetVarsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if v.cursor < len(v.rows) {
 			v.editing, v.editName = true, v.rows[v.cursor].Name == ""
 			v.input.SetValue("")
+			v.input.EchoMode = textinput.EchoNormal
 			if !v.editName {
 				v.input.SetValue(v.rows[v.cursor].Value)
+				v.input.EchoMode = echoFor(v.rows[v.cursor].Name)
 			}
 			v.input.Focus()
 			return m, textinput.Blink
@@ -182,18 +188,41 @@ func (m Model) handleSetVarsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// setDryRun plans the set with the rows and shows every run, masked.
+// setDryMsg carries a planned dry run back to Update.
+type setDryMsg struct {
+	Gen   int
+	Lines []string
+	Err   error
+}
+
+// setDryRun plans the set with the rows in a command, since planning talks
+// to Bamboo, and shows every run, masked, when it comes back.
 func (m Model) setDryRun() (tea.Model, tea.Cmd) {
-	if m.svc == nil {
+	if m.svc == nil || m.setVars.busy {
 		return m, nil
 	}
-	p, err := m.svc.PlanSet(m.baseCtx(), m.setView.info.Name, app.SetOptions{Vars: m.setVars.flags(), Server: m.server})
-	if err != nil {
-		m.setVars.err = err
+	m.setVars.gen++
+	gen, svc, ctx := m.setVars.gen, m.svc, m.baseCtx()
+	set, o := m.setView.info.Name, app.SetOptions{Vars: m.setVars.flags(), Server: m.server}
+	return m, func() tea.Msg {
+		p, err := svc.PlanSet(ctx, set, o)
+		if err != nil {
+			return setDryMsg{Gen: gen, Err: err}
+		}
+		return setDryMsg{Gen: gen, Lines: setDryRunText(p)}
+	}
+}
+
+func (m Model) handleSetDry(msg setDryMsg) (tea.Model, tea.Cmd) {
+	if msg.Gen != m.setVars.gen || m.screen != screenSetVars {
+		return m, nil
+	}
+	if msg.Err != nil {
+		m.setVars.err = msg.Err
 		return m, nil
 	}
 	m.setVars.err = nil
-	m.setDry = setDryRunText(p)
+	m.setDry = msg.Lines
 	m.overlay = overlayDryRun
 	return m, nil
 }
@@ -220,10 +249,21 @@ func setDryRunText(p app.SetPlan) []string {
 	return out
 }
 
-// startTrain starts the action with the rows as --var flags. An error before
-// the first event stays in the prompt; nothing triggered.
+// trainStartedMsg carries a started train, or why it could not start, back
+// to Update.
+type trainStartedMsg struct {
+	Gen    int
+	Ch     <-chan app.SetEvent
+	Cancel context.CancelFunc
+	Err    error
+}
+
+// startTrain starts the action with the rows as --var flags, in a command:
+// planning and locking the set talk to Bamboo and the disk, and Update must
+// not wait on them. An error before the first event comes back to the
+// prompt; nothing triggered.
 func (m Model) startTrain() (tea.Model, tea.Cmd) {
-	if m.svc == nil {
+	if m.svc == nil || m.setVars.busy {
 		return m, nil
 	}
 	if why := m.refuseSetAction(); why != "" {
@@ -231,28 +271,57 @@ func (m Model) startTrain() (tea.Model, tea.Cmd) {
 		m.screen = screenSet
 		return m, nil
 	}
-	ctx, cancel := context.WithCancel(m.baseCtx())
+	m.setVars.gen++
+	m.setVars.busy = true
+	m.status = "starting " + m.setView.info.Name + "…"
+	gen, svc, base := m.setVars.gen, m.svc, m.baseCtx()
+	action, set := m.setVars.action, m.setView.info.Name
 	o := app.SetOptions{Vars: m.setVars.flags(), Server: m.server}
-	var (
-		ch  <-chan app.SetEvent
-		err error
-	)
-	switch m.setVars.action {
-	case setActionRun:
-		var p app.SetPlan
-		if p, err = m.svc.PlanSet(ctx, m.setView.info.Name, o); err == nil {
-			_, ch, err = m.svc.RunSet(ctx, p, app.SetLockOptions{})
-		}
-	case setActionResume:
-		ch, err = m.svc.ResumeSet(ctx, m.setView.rec.ID, o, app.SetLockOptions{})
-	case setActionRerun:
-		ch, err = m.svc.RerunSet(ctx, m.setView.rec.ID, o, app.SetLockOptions{})
+	id := ""
+	if m.setView.rec != nil {
+		id = m.setView.rec.ID
 	}
-	if err != nil {
-		cancel()
-		m.setVars.err = err
+	return m, func() tea.Msg {
+		ctx, cancel := context.WithCancel(base)
+		var (
+			ch  <-chan app.SetEvent
+			err error
+		)
+		switch action {
+		case setActionRun:
+			var p app.SetPlan
+			if p, err = svc.PlanSet(ctx, set, o); err == nil {
+				_, ch, err = svc.RunSet(ctx, p, app.SetLockOptions{})
+			}
+		case setActionResume:
+			ch, err = svc.ResumeSet(ctx, id, o, app.SetLockOptions{})
+		case setActionRerun:
+			ch, err = svc.RerunSet(ctx, id, o, app.SetLockOptions{})
+		}
+		if err != nil {
+			cancel()
+			return trainStartedMsg{Gen: gen, Err: err}
+		}
+		return trainStartedMsg{Gen: gen, Ch: ch, Cancel: cancel}
+	}
+}
+
+// handleTrainStarted installs the started train, or puts its error back in
+// the prompt. A start the user has walked away from is still a running
+// train: it is installed all the same, so it can be watched and quit.
+func (m Model) handleTrainStarted(msg trainStartedMsg) (tea.Model, tea.Cmd) {
+	if msg.Gen != m.setVars.gen {
+		if msg.Cancel != nil {
+			msg.Cancel() // superseded: end it rather than leak it
+		}
+		return m, nil
+	}
+	m.setVars.busy = false
+	if msg.Err != nil {
+		m.status = ""
+		m.setVars.err = msg.Err
 		if m.screen != screenSetVars {
-			m.err = err
+			m.err = msg.Err
 		}
 		return m, nil
 	}
@@ -260,12 +329,14 @@ func (m Model) startTrain() (tea.Model, tea.Cmd) {
 	if m.setVars.action != setActionRun && m.setView.rec != nil {
 		board.Seed(*m.setView.rec)
 	}
-	m.train = trainState{set: m.setView.info.Name, cancel: cancel, ch: ch, board: board, gen: m.train.gen + 1}
+	m.train = trainState{set: m.setView.info.Name, cancel: msg.Cancel, ch: msg.Ch, board: board, gen: m.train.gen + 1}
 	m.setView.board = board
-	m.setVars = setVarsState{}
-	m.screen = screenSet
-	m.status = strings.ToLower(m.train.set) + " started"
-	return m, setEventCmd(ch, m.train.gen)
+	m.setVars = setVarsState{gen: m.setVars.gen}
+	if m.screen == screenSetVars {
+		m.screen = screenSet
+	}
+	m.status = m.train.set + " started"
+	return m, setEventCmd(msg.Ch, m.train.gen)
 }
 
 // handleSetEvent moves the train's board on and reads the next event. The
@@ -298,6 +369,9 @@ func (m Model) setVarsView() string {
 			cur = "▸ "
 		}
 		name, val := r.Name, r.Value
+		if val != "" && app.IsSecretName(r.Name) {
+			val = app.MaskedDisplay
+		}
 		if v.editing && i == v.cursor {
 			if v.editName {
 				name = v.input.View()
@@ -338,4 +412,13 @@ func sortedVarNames(m map[string]string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// echoFor is how the prompt's input shows a value of name: hidden for a
+// secret-looking name, as the run form hides one.
+func echoFor(name string) textinput.EchoMode {
+	if app.IsSecretName(name) {
+		return textinput.EchoPassword
+	}
+	return textinput.EchoNormal
 }

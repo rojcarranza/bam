@@ -405,7 +405,7 @@ func reloadBuildCmd(ctx context.Context, svc *app.Service, key string, gen int) 
 			return errMsg{Err: err, Where: "build", Stream: streamDetail, Gen: gen}
 		}
 		// A missing estimate is decoration lost, never a failed refresh.
-		pr, _ := svc.Progress(ctx, key)
+		pr, _ := svc.Progress(ctx, b)
 		return buildLoadedMsg{Gen: gen, Build: b, Progress: pr}
 	}
 }

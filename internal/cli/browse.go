@@ -430,7 +430,7 @@ func runningProgress(ctx context.Context, svc *app.Service, builds []provider.Bu
 		if b.State != provider.StateRunning {
 			continue
 		}
-		if p, err := svc.Progress(ctx, b.Key); err == nil && p.Valid {
+		if p, err := svc.Progress(ctx, b); err == nil && p.Valid {
 			out[b.Key] = p
 		}
 	}
@@ -475,7 +475,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			// A missing estimate is decoration lost, never a failed read.
-			pr, _ := svc.Progress(cmd.Context(), key)
+			pr, _ := svc.Progress(cmd.Context(), b)
 			if r.flags.json {
 				return view.WriteJSON(r.env.Stdout, view.BuildJSONWithProgress(b, pr))
 			}

@@ -35,6 +35,8 @@ type Service struct {
 	State  *StateStore
 	Sets   *SetStore
 	Getenv func(string) string
+
+	estimates estimateCache // medians of plan histories, for servers without progress
 }
 
 // ProjectKeys is the projects that scope navigation on this server
@@ -61,14 +63,16 @@ func (s *Service) Build(ctx context.Context, key string) (provider.Build, error)
 	return b, err
 }
 
-// Progress returns how far a running build has got. A server that cannot
-// report progress, or a build that is not running, yields a zero Progress and
-// no error; only a real transport failure is returned.
-func (s *Service) Progress(ctx context.Context, key string) (provider.Progress, error) {
-	p, err := s.P.BuildProgress(ctx, key)
+// Progress returns how far a running build has got: Bamboo's estimate, or,
+// when the server reports no progress, one from the plan's recent
+// successful builds. A build that is not running, or one with no estimate
+// to be had, yields a zero Progress and no error; only a real transport
+// failure is returned.
+func (s *Service) Progress(ctx context.Context, b provider.Build) (provider.Progress, error) {
+	p, err := s.P.BuildProgress(ctx, b.Key)
 	if err != nil {
 		if errors.Is(err, errs.ErrUnsupported) {
-			return provider.Progress{}, nil
+			return s.historyProgress(ctx, b), nil
 		}
 		return provider.Progress{}, err
 	}

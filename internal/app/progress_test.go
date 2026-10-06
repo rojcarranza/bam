@@ -84,7 +84,7 @@ func TestServiceProgressSwallowsUnsupported(t *testing.T) {
 	p.ProgressErr = errs.Bamboof("nope").Wrap(errs.ErrUnsupported)
 	s := newService(t, p)
 
-	got, err := s.Progress(bg, "PROJ-P-1")
+	got, err := s.Progress(bg, provider.Build{Key: "PROJ-P-1"})
 
 	require.NoError(t, err)
 	assert.Equal(t, provider.Progress{}, got)
@@ -95,7 +95,7 @@ func TestServiceProgressReturnsTransportErrors(t *testing.T) {
 	p.ProgressErr = errs.Bamboof("boom")
 	s := newService(t, p)
 
-	_, err := s.Progress(bg, "PROJ-P-1")
+	_, err := s.Progress(bg, provider.Build{Key: "PROJ-P-1"})
 
 	require.Error(t, err)
 }
@@ -105,7 +105,7 @@ func TestServiceProgressReturnsTheServerValue(t *testing.T) {
 	p.Progressions = map[string][]provider.Progress{"PROJ-P-1": {runningProgress(0.5)}}
 	s := newService(t, p)
 
-	got, err := s.Progress(bg, "PROJ-P-1")
+	got, err := s.Progress(bg, provider.Build{Key: "PROJ-P-1"})
 
 	require.NoError(t, err)
 	assert.Equal(t, runningProgress(0.5), got)

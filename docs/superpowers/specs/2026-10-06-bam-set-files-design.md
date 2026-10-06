@@ -38,7 +38,7 @@ stages:
 
 - Top-level keys: `name`, `timeout`, `stages`. Any other key is a config error naming it, as unknown keys in `.bam.yaml` are.
 - `stages` follows the configuration's set schema exactly (run sets design §3.1, matrix design §3.1).
-- The name must match the set name pattern `^[a-z][a-z0-9_-]*$`. Without `name:`, the file name without its extension is used; when that does not match, the error says to add `name:`.
+- The name must match the set name pattern `^[a-z][a-z0-9_-]*$`. Without `name:`, the file name without its extension is used when the set is run; when that does not match, the error says to add `name:`. On resume and rerun, a file without `name:` takes the recorded set's name instead (§5), so renaming the file does not orphan its run.
 - The checks of a configured set apply (run sets design §3.3, matrix design §3.3): presets exist after the targets merge, run names are unique per stage, at most 50 runs per stage, one server, durations parse. Every error is a config error (exit 3) naming the file.
 - A literal secret in the file's `vars` or matrix values is a config error, as in the project file: use an `${ENV}` reference.
 
@@ -62,7 +62,7 @@ bam set rerun  [set|id] --failed [--file FILE] [--var k=v]... [--force]
 Resume and rerun of a record with a file:
 
 1. Read the file at `--file`, else at the recorded path. A file that is gone is a config error: `the train file of set run <id> is gone: <path>`, Try `bam set resume <id> --file <new path>`.
-2. The file's set name must equal the record's set: otherwise a config error, `<path> defines set <x>, not <y>`.
+2. A file without `name:` takes the record's set name, whatever the file is called now. A file whose own `name:` names another set is a config error, `<path> defines set <x>, not <y>`.
 3. The existing shape check applies: a file whose stages no longer list the same runs is `set <name> has changed since run <id>`.
 4. The rest is unchanged: var names given again, the lock, and the run.
 

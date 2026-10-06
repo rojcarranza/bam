@@ -465,13 +465,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.loadSets()
 		}
 		m.setGen++
-		return m, tea.Batch(loadSetCmd(m.svc, set, m.setGen), m.loadSets())
+		return m, tea.Batch(loadSetCmd(m.baseCtx(), m.svc, set, m.setGen), m.loadSets())
 	case setPollMsg:
 		if msg.Gen != m.setGen || m.screen != screenSet {
 			return m, nil
 		}
 		m.setGen++
-		return m, loadSetCmd(m.svc, m.setView.info.Name, m.setGen)
+		return m, loadSetCmd(m.baseCtx(), m.svc, m.setView.info.Name, m.setGen)
+	case switchServerMsg:
+		return m.switchServer(msg.Alias)
 	case trainStartedMsg:
 		return m.handleTrainStarted(msg)
 	case setDryMsg:
@@ -875,8 +877,15 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 		set := m.train.set
 		return m.ask(set+" is running in this window. Switch server and stop watching it? Its builds keep running.",
 			func(m Model) (tea.Model, tea.Cmd) {
+				// As quitting does: end the train, wait for it to write its
+				// record and release its lock, then switch.
+				ch := m.train.ch
 				m.train.end()
-				return m.switchServer(alias)
+				return m, func() tea.Msg {
+					for range ch {
+					}
+					return switchServerMsg{Alias: alias}
+				}
 			})
 	}
 	m.leaveBuild()
@@ -1559,6 +1568,10 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	}
 	return m.goHome()
 }
+
+// switchServerMsg finishes a server switch once a train that was running
+// has ended.
+type switchServerMsg struct{ Alias string }
 
 // quit cancels the watch on the way out. Cancelling a watch never stops the
 // build; only bam build cancel does. A train running in this window is asked

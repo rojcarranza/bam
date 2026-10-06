@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -105,4 +107,37 @@ func TestLeavingASetBuildOtherwiseForgetsTheSet(t *testing.T) {
 	m, _ = send(m, mkKey("enter"))
 	next, _ = m.switchServer("lab")
 	require.False(t, next.(Model).fromSet, "switching server leaves the set behind")
+}
+
+func TestSOnTheSetScreenOpensTheServerPicker(t *testing.T) {
+	m := setScreenModel(t, failedRec(), "")
+	m, _ = send(m, mkKey("S"))
+	require.Equal(t, overlayServers, m.overlay)
+}
+
+// Refreshing reads each recorded build's current state from Bamboo, so a
+// set run elsewhere shows its builds moving.
+func TestSetRefreshReadsLiveBuildStates(t *testing.T) {
+	m := setsModel(t)
+	rec := app.SetRecord{Version: 1, ID: app.NewSetID("release", goldenNow), Set: "release", Repo: "/repo",
+		Status: app.SetRunning, StartedAt: goldenNow, VarNames: []string{}, Stages: []app.StageRecord{
+			{Runs: []app.RunRecord{{Target: "smoke", Name: "smoke", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-44", State: provider.StateQueued}}},
+		}}
+	require.NoError(t, m.svc.Sets.Save(rec))
+	msg := loadSetCmd(t.Context(), m.svc, "release", 1)().(setLoadedMsg)
+	require.NotNil(t, msg.Rec)
+	require.Equal(t, provider.StateFailed, msg.Rec.Stages[0].Runs[0].State, "the live state from Bamboo, not the recorded one")
+}
+
+// A set record that cannot be read is an error in the status bar, not a
+// silent "never run".
+func TestSetsLoadReportsAnUnreadableRecord(t *testing.T) {
+	m := setsModel(t)
+	file := filepath.Join(t.TempDir(), "not-a-dir")
+	require.NoError(t, os.WriteFile(file, nil, 0o644))
+	m.svc.Sets.Dir = file
+	m.deps.Sets = func() ([]app.SetInfo, error) { return setInfos(), nil }
+	msg := loadSetsCmd(m.deps, m.svc, 1)()
+	_, isErr := msg.(errMsg)
+	require.True(t, isErr, "%#v", msg)
 }

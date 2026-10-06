@@ -202,6 +202,7 @@ func (m Model) setDryRun() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.setVars.gen++
+	m.setVars.busy = true
 	gen, svc, ctx := m.setVars.gen, m.svc, m.baseCtx()
 	set, o := m.setView.info.Name, app.SetOptions{Vars: m.setVars.flags(), Server: m.server}
 	return m, func() tea.Msg {
@@ -214,7 +215,11 @@ func (m Model) setDryRun() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleSetDry(msg setDryMsg) (tea.Model, tea.Cmd) {
-	if msg.Gen != m.setVars.gen || m.screen != screenSetVars {
+	if msg.Gen != m.setVars.gen {
+		return m, nil
+	}
+	m.setVars.busy = false
+	if m.screen != screenSetVars {
 		return m, nil
 	}
 	if msg.Err != nil {
@@ -253,6 +258,9 @@ func setDryRunText(p app.SetPlan) []string {
 // to Update.
 type trainStartedMsg struct {
 	Gen    int
+	Set    string
+	Info   app.SetInfo
+	Seed   *app.SetRecord // the record a resume or rerun continues; nil for a new run
 	Ch     <-chan app.SetEvent
 	Cancel context.CancelFunc
 	Err    error
@@ -277,9 +285,14 @@ func (m Model) startTrain() (tea.Model, tea.Cmd) {
 	gen, svc, base := m.setVars.gen, m.svc, m.baseCtx()
 	action, set := m.setVars.action, m.setView.info.Name
 	o := app.SetOptions{Vars: m.setVars.flags(), Server: m.server}
-	id := ""
+	id, info := "", m.setView.info
+	var seed *app.SetRecord
 	if m.setView.rec != nil {
 		id = m.setView.rec.ID
+		if action != setActionRun {
+			rec := *m.setView.rec
+			seed = &rec
+		}
 	}
 	return m, func() tea.Msg {
 		ctx, cancel := context.WithCancel(base)
@@ -300,24 +313,25 @@ func (m Model) startTrain() (tea.Model, tea.Cmd) {
 		}
 		if err != nil {
 			cancel()
-			return trainStartedMsg{Gen: gen, Err: err}
+			return trainStartedMsg{Gen: gen, Set: set, Err: err}
 		}
-		return trainStartedMsg{Gen: gen, Ch: ch, Cancel: cancel}
+		return trainStartedMsg{Gen: gen, Set: set, Info: info, Seed: seed, Ch: ch, Cancel: cancel}
 	}
 }
 
 // handleTrainStarted installs the started train, or puts its error back in
-// the prompt. A start the user has walked away from is still a running
-// train: it is installed all the same, so it can be watched and quit.
+// the prompt. A train that started is installed even when the user has left
+// the prompt meanwhile: it holds the set's lock and may have triggered
+// builds, so this window must watch it and be able to end it.
 func (m Model) handleTrainStarted(msg trainStartedMsg) (tea.Model, tea.Cmd) {
-	if msg.Gen != m.setVars.gen {
-		if msg.Cancel != nil {
-			msg.Cancel() // superseded: end it rather than leak it
-		}
-		return m, nil
+	current := msg.Gen == m.setVars.gen
+	if current {
+		m.setVars.busy = false
 	}
-	m.setVars.busy = false
 	if msg.Err != nil {
+		if !current {
+			return m, nil // the user left; nothing started
+		}
 		m.status = ""
 		m.setVars.err = msg.Err
 		if m.screen != screenSetVars {
@@ -325,15 +339,26 @@ func (m Model) handleTrainStarted(msg trainStartedMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	board := app.NewSetBoard(planOf(m.setView.info))
-	if m.setVars.action != setActionRun && m.setView.rec != nil {
-		board.Seed(*m.setView.rec)
+	if m.train.running() {
+		// One train per window: a second that slipped through ends at once,
+		// as an interrupt; its record stays resumable.
+		msg.Cancel()
+		m.status = m.train.set + " is running in this window; " + msg.Set + " was not started"
+		return m, nil
 	}
-	m.train = trainState{set: m.setView.info.Name, cancel: msg.Cancel, ch: msg.Ch, board: board, gen: m.train.gen + 1}
-	m.setView.board = board
-	m.setVars = setVarsState{gen: m.setVars.gen}
-	if m.screen == screenSetVars {
-		m.screen = screenSet
+	board := app.NewSetBoard(planOf(msg.Info))
+	if msg.Seed != nil {
+		board.Seed(*msg.Seed)
+	}
+	m.train = trainState{set: msg.Set, cancel: msg.Cancel, ch: msg.Ch, board: board, gen: m.train.gen + 1}
+	if m.setView.info.Name == msg.Set {
+		m.setView.board = board
+	}
+	if current {
+		m.setVars = setVarsState{gen: m.setVars.gen}
+		if m.screen == screenSetVars {
+			m.screen = screenSet
+		}
 	}
 	m.status = m.train.set + " started"
 	return m, setEventCmd(msg.Ch, m.train.gen)

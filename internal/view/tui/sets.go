@@ -41,7 +41,11 @@ func loadSetsCmd(d Deps, svc *app.Service, gen int) tea.Cmd {
 		for _, in := range infos {
 			it := setItem{Info: in}
 			if svc != nil && svc.Sets != nil {
-				if rec, ok, err := svc.LatestSetRun(in.Name); err == nil && ok {
+				rec, ok, err := svc.LatestSetRun(in.Name)
+				if err != nil {
+					return errMsg{Err: err, Where: "sets", Stream: streamSets, Gen: gen}
+				}
+				if ok {
 					it.Last = &rec
 				}
 			}

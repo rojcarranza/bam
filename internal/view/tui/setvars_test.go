@@ -285,3 +285,46 @@ func stopTrain(t *testing.T, tr trainState) {
 		}
 	})
 }
+
+// Leaving the prompt while a start is in flight must not drop the train: it
+// has the lock and may have triggered builds, so it is installed and watched.
+func TestAStartedTrainIsKeptWhenThePromptWasLeft(t *testing.T) {
+	m := trainModel(t)
+	m, _ = send(m, mkKey("R"))
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, mkKey("esc")) // leave the prompt before the start lands
+	m, _ = send(m, cmd())
+	require.True(t, m.train.running(), "the started train is still this window's")
+	stopTrain(t, m.train)
+}
+
+// Switching server after yes waits for the train to finish its own ending,
+// as quitting does, before the switch happens.
+func TestSwitchServerWaitsForTheTrainToEnd(t *testing.T) {
+	m := trainModel(t)
+	ch := make(chan app.SetEvent, 1)
+	ch <- app.SetEvent{Type: app.SetRunEvent}
+	m.train = trainState{set: "release", ch: ch, board: app.NewSetBoard(app.SetPlan{}), gen: 1, cancel: func() { close(ch) }}
+	next, _ := m.switchServer("other")
+	m = next.(Model)
+	m, cmd := send(m, mkKey("y"))
+	require.Equal(t, "lab", m.server, "not switched before the train ended")
+	msg := cmd()
+	require.Empty(t, ch, "the train was drained")
+	m, _ = send(m, msg)
+	require.Equal(t, "other", m.server)
+}
+
+func TestTheDryRunMarksThePromptBusy(t *testing.T) {
+	m := trainModel(t)
+	m, _ = send(m, mkKey("R"))
+	m, cmd := send(m, mkKey("d"))
+	require.NotNil(t, cmd)
+	require.True(t, m.setVars.busy)
+	_, again := send(m, mkKey("d"))
+	require.Nil(t, again, "no second plan while one is in flight")
+	_, start := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.Nil(t, start, "no start while a plan is in flight")
+	m, _ = send(m, cmd())
+	require.False(t, m.setVars.busy)
+}

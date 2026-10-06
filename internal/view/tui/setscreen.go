@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -47,13 +48,24 @@ func planOf(info app.SetInfo) app.SetPlan {
 	return p
 }
 
-func loadSetCmd(svc *app.Service, set string, gen int) tea.Cmd {
+func loadSetCmd(ctx context.Context, svc *app.Service, set string, gen int) tea.Cmd {
 	return func() tea.Msg {
 		msg := setLoadedMsg{Gen: gen}
 		if svc == nil || svc.Sets == nil {
 			return msg
 		}
 		if rec, ok, err := svc.LatestSetRun(set); err == nil && ok {
+			// The record holds each build's state when it was last written;
+			// Bamboo has the state now, which a set run elsewhere moves on.
+			if _, builds, err := svc.SetStatus(ctx, rec.ID); err == nil {
+				for i := range rec.Stages {
+					for j, r := range rec.Stages[i].Runs {
+						if b, ok := builds[r.BuildKey]; ok {
+							rec.Stages[i].Runs[j].State = b.State
+						}
+					}
+				}
+			}
 			msg.Rec = &rec
 		}
 		if pid, host, since, held := svc.Sets.Holder(set); held {
@@ -73,7 +85,7 @@ func (m Model) openSet() (tea.Model, tea.Cmd) {
 	m.home.tickGen++
 	m.setView = setScreen{info: it.Info, rec: it.Last, board: m.boardFor(it.Info, it.Last)}
 	m.setGen++
-	return m, loadSetCmd(m.svc, it.Info.Name, m.setGen)
+	return m, loadSetCmd(m.baseCtx(), m.svc, it.Info.Name, m.setGen)
 }
 
 // boardFor is the live board when this window runs the set, else a board
@@ -150,7 +162,7 @@ func (m Model) handleSetKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.copySelection()
 	case key.Matches(msg, keys.Refresh):
 		m.setGen++
-		return m, loadSetCmd(m.svc, m.setView.info.Name, m.setGen)
+		return m, loadSetCmd(m.baseCtx(), m.svc, m.setView.info.Name, m.setGen)
 	case key.Matches(msg, keys.Run), key.Matches(msg, keys.Resume), key.Matches(msg, keys.RerunFailed):
 		if why := m.refuseSetAction(); why != "" {
 			m.status = why
@@ -165,6 +177,8 @@ func (m Model) handleSetKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.RerunFailed) && rerun:
 			return m.openSetVars(setActionRerun)
 		}
+	case key.Matches(msg, keys.Server):
+		return m.openServerPicker()
 	case key.Matches(msg, keys.Help):
 		return m.openHelp()
 	case key.Matches(msg, keys.ExpandErr):

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -19,6 +21,7 @@ import (
 type SetOptions struct {
 	Vars   []string // --var name=value, in order; applies to every run
 	Server string   // --server, so every run's server is chosen as bam run would
+	File   string   // a train file to read the set from instead of the configuration
 }
 
 // SetRunPlan is one run of a stage, resolved and ready to trigger.
@@ -39,19 +42,33 @@ type SetPlan struct {
 	VarNames []string // names given with --var, kept in the record for resume
 	Stages   [][]SetRunPlan
 	Warnings []string // each run's variable warnings, prefixed with its preset
+	File     string   // the train file the set came from; empty for a configured set
 }
 
 // PlanSet resolves and checks every run of a set, so that every usage error
 // shows before the first trigger. It triggers nothing.
 func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPlan, error) {
-	set, ok, err := s.Cfg.Set(name)
-	if err != nil {
-		return SetPlan{}, err
+	var set config.ResolvedSet
+	if o.File != "" {
+		abs, err := filepath.Abs(o.File)
+		if err != nil {
+			return SetPlan{}, errs.Configf("cannot resolve %s", o.File).WithWhy(err.Error())
+		}
+		if set, err = s.Cfg.LoadSetFile(abs); err != nil {
+			return SetPlan{}, err
+		}
+		o.File, name = abs, set.Name
+	} else {
+		var ok bool
+		var err error
+		if set, ok, err = s.Cfg.Set(name); err != nil {
+			return SetPlan{}, err
+		}
+		if !ok {
+			return SetPlan{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+		}
 	}
-	if !ok {
-		return SetPlan{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
-	}
-	p := SetPlan{Name: name, Origin: s.Origin, Timeout: time.Duration(set.Timeout), VarNames: varNames(o.Vars)}
+	p := SetPlan{Name: name, Origin: s.Origin, Timeout: time.Duration(set.Timeout), VarNames: varNames(o.Vars), File: o.File}
 	var problems []string
 	for i, st := range set.Stages {
 		runs := make([]SetRunPlan, 0, len(st))
@@ -187,7 +204,7 @@ const setKeep = 20
 // no build is ever stopped.
 func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (string, <-chan SetEvent, error) {
 	now := s.Clock.Now()
-	rec := SetRecord{Version: 1, ID: NewSetID(p.Name, now), Set: p.Name, Origin: p.Origin,
+	rec := SetRecord{Version: 1, ID: NewSetID(p.Name, now), Set: p.Name, File: p.File, Origin: p.Origin,
 		Repo: s.Cfg.RepoRoot, StartedAt: now.UTC(), Status: SetRunning, VarNames: p.VarNames}
 	if rec.VarNames == nil {
 		rec.VarNames = []string{}
@@ -558,9 +575,24 @@ func (s *Service) continueSet(ctx context.Context, rec SetRecord, o SetOptions, 
 		return SetPlan{}, nil, errs.Usagef("%s needs the variables set run %s was given", verb, rec.ID).
 			WithWhy("bam never stores variable values").WithTry(strings.Join(missing, " "))
 	}
+	again := "bam set " + verb + " " + rec.ID
+	if verb == "rerun" {
+		again = "bam set rerun --failed " + rec.ID
+	}
+	if rec.File != "" && o.File == "" {
+		o.File = rec.File
+		if _, err := os.Stat(rec.File); err != nil {
+			return SetPlan{}, nil, errs.Configf("the train file of set run %s is gone: %s", rec.ID, rec.File).
+				WithTry(again + " --file <its new path>")
+		}
+	}
 	p, err := s.PlanSet(ctx, rec.Set, o)
 	if err != nil {
 		return SetPlan{}, nil, err
+	}
+	if rec.File != "" && p.Name != rec.Set {
+		return SetPlan{}, nil, errs.Configf("%s defines set %s, not %s", p.File, p.Name, rec.Set).
+			WithTry(again + " --file <the train file of " + rec.Set + ">")
 	}
 	if !sameShape(p, rec) {
 		return SetPlan{}, nil, errs.Configf("set %s has changed since run %s", rec.Set, rec.ID).

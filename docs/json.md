@@ -28,7 +28,7 @@ A running build carries the server's duration estimate as well:
 
     "progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000,"stage":"Deploy"}
 
-`percent` is a number between 0 and 1, `average_ms` the plan's average build duration, and `stage` the stage running now. The whole `progress` object is absent when the build is not running, or when the Bamboo server does not report progress. `stage` is absent when the server does not name one.
+`percent` is a number between 0 and 1, `average_ms` the plan's average build duration, and `stage` the stage running now. The whole `progress` object is absent when the build is not running, or when the Bamboo server does not report progress. `stage` is absent when the server does not name one. `source` says where the estimate comes from: `bamboo`, or `history` when the server reports no progress and bam estimates from the median of the plan branch's last 10 successful builds (at least 3).
 
 ## Plan
 

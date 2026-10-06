@@ -1,6 +1,6 @@
 # bam: a local duration estimate when Bamboo has none
 
-**Status:** Approved | **Date:** 2026-10-07
+**Status:** Implemented | **Date:** 2026-10-07
 **Product requirements:** [`docs/prd.md`](../../prd.md) §7 "Future" (local duration estimator)
 **Builds on:** [`2026-09-20-bam-v0.3-estimator-design.md`](2026-09-20-bam-v0.3-estimator-design.md) (§2 rejected alternative, §5 progress on every poll, §8 JSON)
 

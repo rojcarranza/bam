@@ -1,0 +1,61 @@
+package config
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/r0jjames/bam-cli/internal/errs"
+)
+
+// setFile is a train file: one set, with an optional name.
+type setFile struct {
+	Name    string   `yaml:"name,omitempty"`
+	Timeout Duration `yaml:"timeout,omitempty"`
+	Stages  []Stage  `yaml:"stages"`
+}
+
+// LoadSetFile reads one set from a train file and checks it as a configured
+// set is checked, against the merged presets. Literal secrets are refused,
+// as in the project file: a train file is shared like .bam.yaml.
+func (c *Config) LoadSetFile(path string) (ResolvedSet, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ResolvedSet{}, errs.Configf("cannot read the train file %s", path).WithWhy(err.Error()).Wrap(err)
+	}
+	if len(bytes.TrimSpace(data)) == 0 {
+		return ResolvedSet{}, errs.Configf("%s is empty", path).WithTry("add stages: [[<preset>]]")
+	}
+	var f setFile
+	if err := decodeStrict(data, path, &f); err != nil {
+		return ResolvedSet{}, err
+	}
+	name := f.Name
+	if name == "" {
+		base := filepath.Base(path)
+		name = strings.TrimSuffix(base, filepath.Ext(base))
+		if !ValidTargetName(name) {
+			return ResolvedSet{}, errs.Configf("%s: the file name %q is not a set name", path, name).
+				WithTry(fmt.Sprintf("add name: <name> to %s; names match ^[a-z][a-z0-9_-]*$", path))
+		}
+	}
+	if !ValidTargetName(name) {
+		return ResolvedSet{}, errs.Configf("%s: invalid set name %q", path, name).
+			WithTry("names match ^[a-z][a-z0-9_-]*$")
+	}
+	set := Set{Stages: f.Stages, Timeout: f.Timeout}
+	if err := checkSetSecrets(path, map[string]Set{name: set}); err != nil {
+		return ResolvedSet{}, err
+	}
+	targets, err := c.Targets()
+	if err != nil {
+		return ResolvedSet{}, err
+	}
+	rs := ResolvedSet{Name: name, Set: set, DefinedIn: []string{path}}
+	if err := validateSet(rs, targets); err != nil {
+		return ResolvedSet{}, err
+	}
+	return rs, nil
+}

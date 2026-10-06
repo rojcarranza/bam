@@ -126,6 +126,25 @@ sets:
 - Run names must be unique in their stage, so a preset may appear twice in a stage when its matrices differ. A stage expands to at most 50 runs.
 - Every run of the stage is watched; the stage succeeds only if all of them do. `bam set resume` and `bam set rerun --failed` act on each run on its own.
 
+### Train files
+
+A one-off train does not have to live in `.bam.yaml`. Put one set in a file of its own and run it with `-f`:
+
+```yaml
+name: hotfix-2041            # optional; default: the file name, hotfix-2041.yaml → hotfix-2041
+timeout: 1h
+stages:
+  - [publish-specs]
+  - - target: deploy
+      vars: {deploy_token: "${DEPLOY_TOKEN}"}
+      matrix: [{env: qa}, {env: prod}]
+```
+
+    bam set run -f hotfix-2041.yaml --dry-run
+    bam set run -f hotfix-2041.yaml
+
+The file holds one set in the shape of an entry under `sets:`, plus an optional `name:`. Its presets come from your configuration, and every check of a configured set applies; a literal secret is refused, as in the project file. Its runs are recorded under its name, so `bam set status`, `bam set resume` and `bam set rerun --failed` work as for any set. Resume and rerun read the file again from where it was run; if it has moved, pass `--file` with its new path.
+
 ## Machine file
 
     version: 1

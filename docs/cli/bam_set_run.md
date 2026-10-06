@@ -10,13 +10,14 @@ A failed build ends the set once its stage has finished; no build is ever
 stopped. Interrupting stops watching only; continue with bam set resume.
 
 ```
-bam set run <set> [flags]
+bam set run [set] [-f FILE] [flags]
 ```
 
 ### Options
 
 ```
       --dry-run           resolve and check every run, trigger nothing
+  -f, --file string       run the set defined in this train file instead of a configured set
       --force             take over the lock of a set run whose process is gone
   -h, --help              help for run
       --var stringArray   variable name=value for every run that declares it (repeatable)

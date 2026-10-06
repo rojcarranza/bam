@@ -75,11 +75,14 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		}
 		// Sized before anything is expanded: a mistyped product can stand
 		// for billions of runs, and building them would hang the load.
-		count := 0
+		var count int64
 		for _, r := range st {
-			if count += r.Size(); count < 0 || r.Size() == math.MaxInt {
-				count = math.MaxInt
+			n := r.Size()
+			if n > math.MaxInt64-count {
+				count = math.MaxInt64
+				break
 			}
+			count += n
 		}
 		if count > maxStageRuns {
 			return fail("stage %d expands to %d runs; the limit is %d", i+1, count, maxStageRuns).

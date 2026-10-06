@@ -87,41 +87,43 @@ func runName(target string, e StringMap) string {
 }
 
 // Size is how many runs Expand would return, computed without building them,
-// so an oversized product is refused cheaply. It saturates at math.MaxInt.
-func (r SetRun) Size() int {
+// so an oversized product is refused cheaply. It saturates at math.MaxInt64.
+func (r SetRun) Size() int64 {
 	switch {
 	case r.Matrix == nil:
 		return 1
 	case r.Matrix.Sets != nil:
-		return len(r.Matrix.Sets)
+		return int64(len(r.Matrix.Sets))
 	}
-	n := 1
+	n := int64(1)
 	for _, vs := range r.Matrix.Product {
-		if len(vs) > 0 && n > math.MaxInt/len(vs) {
-			return math.MaxInt
+		l := int64(len(vs))
+		if l > 0 && n > math.MaxInt64/l {
+			return math.MaxInt64
 		}
-		n *= len(vs)
+		n *= l
 	}
 	return n
 }
 
 // values calls f with every variable a set run sets, its vars and every
-// matrix value, without expanding the matrix.
+// matrix value, without expanding the matrix. Keys go in sorted order, so
+// callers see the same sequence on every run.
 func (r SetRun) values(f func(name, value string)) {
-	for k, v := range r.Vars {
-		f(k, v)
+	for _, k := range sortedKeys(r.Vars) {
+		f(k, r.Vars[k])
 	}
 	if r.Matrix == nil {
 		return
 	}
-	for k, vs := range r.Matrix.Product {
-		for _, v := range vs {
+	for _, k := range sortedKeys(r.Matrix.Product) {
+		for _, v := range r.Matrix.Product[k] {
 			f(k, v)
 		}
 	}
 	for _, e := range r.Matrix.Sets {
-		for k, v := range e {
-			f(k, v)
+		for _, k := range sortedKeys(e) {
+			f(k, e[k])
 		}
 	}
 }

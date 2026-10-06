@@ -142,3 +142,15 @@ func TestSetHugeProductIsRefusedWithoutExpanding(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stage 1 expands to 10000000000 runs; the limit is 50")
 }
+
+// With several literal secrets, the error always names the first variable in
+// sorted order, so the message is the same on every run.
+func TestSetLiteralSecretErrorIsDeterministic(t *testing.T) {
+	src := "version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n" +
+		"sets: {rel: {stages: [[{target: a, vars: {z_password: x, m_secret: y}, matrix: [{b_passphrase: p, a_password: q}]}]]}}\n"
+	for i := 0; i < 30; i++ {
+		_, err := loadYAML(t, src, "")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "vars.a_password holds a literal secret")
+	}
+}

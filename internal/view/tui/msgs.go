@@ -62,6 +62,7 @@ const (
 	streamDetail
 	streamPicker
 	streamPresets
+	streamSets
 	streamRun
 	streamCancel
 )

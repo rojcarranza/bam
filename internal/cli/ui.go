@@ -70,6 +70,13 @@ func (r *runtime) openUI(ctx context.Context) error {
 			}
 			return app.DescribeTargets(fresh, r.env.Getenv)
 		},
+		Sets: func() ([]app.SetInfo, error) {
+			fresh, err := r.loadConfig()
+			if err != nil {
+				return nil, err
+			}
+			return app.DescribeSets(fresh, r.env.Getenv)
+		},
 		Open:      r.env.OpenBrowser,
 		Getenv:    r.env.Getenv,
 		Clipboard: r.env.Stdout,

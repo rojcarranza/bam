@@ -431,6 +431,9 @@ func (f formState) stripUntypedMasks(vs app.VarSet) app.VarSet {
 // dryRunBody is exactly what a trigger would send, with secrets masked. It
 // reaches no server: the values are already in hand.
 func (m Model) dryRunBody(width int) string {
+	if m.screen == screenSetVars {
+		return strings.Join(m.setDry, "\n")
+	}
 	getenv := m.deps.Getenv
 	if getenv == nil {
 		getenv = func(string) string { return "" }

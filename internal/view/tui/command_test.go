@@ -62,7 +62,7 @@ func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
 	require.Equal(t, homePlans, m.home.view)
 
 	m, _ = runCmdLine(homeModel(), "frobnicate")
-	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets project server sort quit`)
+	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets sets project server sort quit`)
 	require.Equal(t, inputNone, m.inputFor)
 }
 
@@ -136,7 +136,7 @@ func TestTabCompletesAUniqueCandidate(t *testing.T) {
 }
 
 func TestHelpListsTheCommands(t *testing.T) {
-	m := goldenModel(120, 44)
+	m := goldenModel(120, 50) // tall enough for the whole help overlay
 	m, _ = send(m, mkKey("?"))
 	v := m.View()
 	for _, r := range commandHelpRows() {

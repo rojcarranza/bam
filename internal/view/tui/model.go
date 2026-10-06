@@ -31,6 +31,8 @@ const (
 	screenLogs
 	screenForm
 	screenHome // the plans table bam opens on (home spec §2)
+	screenSet  // one run set: its stages and runs
+	screenSetVars
 )
 
 // focus is which panel takes keys. Main is the right-hand panel.
@@ -41,6 +43,7 @@ const (
 	focusBuilds
 	focusPresets
 	focusMain
+	focusSets // Home's sets table; not in the panels' tab order
 )
 
 // overlay is the modal on top, if any. At most one is open.
@@ -105,6 +108,7 @@ type Model struct {
 	plans   listState[provider.Plan]
 	builds  listState[provider.Build]
 	presets listState[app.TargetInfo]
+	sets    listState[setItem]
 	picker  listState[pickerItem]
 
 	confirm  confirmState
@@ -123,6 +127,7 @@ type Model struct {
 	connGen, detailGen           int
 	pickerGen, presetsGen        int
 	cancelGen                    int
+	setsGen, setGen              int
 
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
@@ -146,6 +151,12 @@ type Model struct {
 
 	home homeState
 
+	train   trainState
+	setView setScreen
+	setVars setVarsState
+	setDry  []string // the set dry run the overlay shows on the vars prompt
+	fromSet bool     // the panels were opened from a set screen run; esc returns there
+
 	formFrom screen // where esc from the run form returns
 }
 
@@ -160,6 +171,7 @@ func New(d Deps) Model {
 		plans:   newList(planMatchText),
 		builds:  newList(func(b provider.Build) string { return b.Key + " " + b.Branch + " " + b.Reason }),
 		presets: newList(func(t app.TargetInfo) string { return t.Name + " " + t.Plan + " " + t.Branch }),
+		sets:    newList(func(s setItem) string { return s.Info.Name }),
 		picker:  newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
 		now:     time.Now,
 		input:   textinput.New(),
@@ -227,6 +239,8 @@ func (m Model) currentStream(s stream, gen int) bool {
 		return gen == m.formGen
 	case streamCancel:
 		return gen == m.cancelGen
+	case streamSets:
+		return gen == m.setsGen
 	}
 	return true
 }
@@ -426,6 +440,46 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progress = msg.Progress
 		m.clampTree()
 		return m, nil
+	case setsLoadedMsg:
+		if msg.Gen != m.setsGen {
+			return m, nil
+		}
+		m.sets.loading = false
+		m.sets.setItems(msg.Items)
+		m.sortSets()
+		return m, nil
+	case setEventMsg:
+		if msg.Gen != m.train.gen {
+			return m, nil
+		}
+		return m.handleSetEvent(msg.Event)
+	case setClosedMsg:
+		if msg.Gen != m.train.gen {
+			return m, nil
+		}
+		// The train wrote its record as it ended: re-read it so the set
+		// screen and the sets table show the run that just finished.
+		set := m.train.set
+		m.train.end()
+		if m.setView.info.Name != set {
+			return m, m.loadSets()
+		}
+		m.setGen++
+		return m, tea.Batch(loadSetCmd(m.baseCtx(), m.svc, set, m.setGen), m.loadSets())
+	case setPollMsg:
+		if msg.Gen != m.setGen || m.screen != screenSet {
+			return m, nil
+		}
+		m.setGen++
+		return m, loadSetCmd(m.baseCtx(), m.svc, m.setView.info.Name, m.setGen)
+	case switchServerMsg:
+		return m.switchServer(msg.Alias)
+	case trainStartedMsg:
+		return m.handleTrainStarted(msg)
+	case setDryMsg:
+		return m.handleSetDry(msg)
+	case setLoadedMsg:
+		return m.handleSetLoaded(msg)
 	case watchEventMsg:
 		if msg.Gen != m.watchGen {
 			return m, nil
@@ -497,6 +551,12 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.screen == screenLogs {
 		return m.handleLogKey(msg)
+	}
+	if m.screen == screenSet {
+		return m.handleSetKey(msg)
+	}
+	if m.screen == screenSetVars {
+		return m.handleSetVarsKey(msg)
 	}
 	if m.screen == screenHome {
 		if next, cmd, handled := m.handleHomeKey(msg); handled {
@@ -635,6 +695,8 @@ func (m *Model) applyFilter(q string) {
 		m.builds.setQuery(q)
 	case focusPresets:
 		m.presets.setQuery(q)
+	case focusSets:
+		m.sets.setQuery(q)
 	}
 }
 
@@ -811,7 +873,23 @@ func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
 // switchServer drops everything that belonged to the old server: its build,
 // its watch, its panels. Nothing keyed to one origin is shown under another.
 func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
+	if m.train.running() {
+		set := m.train.set
+		return m.ask(set+" is running in this window. Switch server and stop watching it? Its builds keep running.",
+			func(m Model) (tea.Model, tea.Cmd) {
+				// As quitting does: end the train, wait for it to write its
+				// record and release its lock, then switch.
+				ch := m.train.ch
+				m.train.end()
+				return m, func() tea.Msg {
+					for range ch {
+					}
+					return switchServerMsg{Alias: alias}
+				}
+			})
+	}
 	m.leaveBuild()
+	m.fromSet = false
 	m.server, m.svc = alias, nil
 	m.buildsPlan = ""
 	// The project filter names a project of the server being left; keeping it
@@ -853,6 +931,8 @@ func (m *Model) moveFocused(delta int) {
 		m.builds.move(delta)
 	case focusPresets:
 		m.presets.move(delta)
+	case focusSets:
+		m.sets.move(delta)
 	case focusMain:
 		m.treeCursor += delta
 		m.clampTree()
@@ -867,6 +947,8 @@ func (m *Model) jumpFocused(top bool) {
 		jump(&m.builds, top)
 	case focusPresets:
 		jump(&m.presets, top)
+	case focusSets:
+		jump(&m.sets, top)
 	case focusMain:
 		m.treeCursor = 0
 		if !top {
@@ -1114,6 +1196,9 @@ type copiedMsg struct{}
 func (m Model) selectionURL() string {
 	if m.screen == screenLogs && m.logs.url != "" {
 		return m.logs.url
+	}
+	if m.screen == screenSet {
+		return m.setSelectionURL()
 	}
 	switch m.focus {
 	case focusPlans:
@@ -1462,12 +1547,21 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	case m.screen == screenHome:
 		// Home is the top: esc clears the active table's filter and
 		// otherwise does nothing.
-		if m.home.view == homePresets && m.presets.query != "" {
+		if m.home.view == homeSets && m.sets.query != "" {
+			m.sets.setQuery("")
+		} else if m.home.view == homePresets && m.presets.query != "" {
 			m.presets.setQuery("")
 		} else if m.home.view == homePlans && m.plans.query != "" {
 			m.plans.setQuery("")
 		}
 		return m, nil
+	case m.screen == screenColumns && m.fromSet:
+		m.fromSet = false
+		m.stopWatch()
+		m.screen = screenSet
+		return m, nil
+	case m.screen == screenSet:
+		return m.showSets()
 	case m.focus != focusPlans:
 		m.focus = m.focus.parent()
 		return m, nil
@@ -1475,9 +1569,32 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	return m.goHome()
 }
 
+// switchServerMsg finishes a server switch once a train that was running
+// has ended.
+type switchServerMsg struct{ Alias string }
+
 // quit cancels the watch on the way out. Cancelling a watch never stops the
-// build; only bam build cancel does.
+// build; only bam build cancel does. A train running in this window is asked
+// about first: quitting ends its watching and leaves its record interrupted.
 func (m Model) quit() (tea.Model, tea.Cmd) {
+	if m.train.running() {
+		set := m.train.set
+		return m.ask(set+" is running in this window. Quit and stop watching it? Its builds keep running; continue with U or bam set resume.",
+			func(m Model) (tea.Model, tea.Cmd) {
+				// End the train's context, then wait for its channel to
+				// close: by then it has written its record interrupted and
+				// released its lock, so nothing is left half-done on disk.
+				ch := m.train.ch
+				m.train.end()
+				m.stopWatch()
+				m.stopFollow()
+				return m, func() tea.Msg {
+					for range ch {
+					}
+					return tea.Quit()
+				}
+			})
+	}
 	m.stopWatch()
 	m.stopFollow()
 	return m, tea.Quit
@@ -1507,6 +1624,10 @@ func (m Model) View() string {
 		return m.overlayView(m.formView())
 	case screenHome:
 		return m.homeView()
+	case screenSet:
+		return m.overlayView(m.setScreenView())
+	case screenSetVars:
+		return m.overlayView(m.setVarsView())
 	}
 	return m.columnsView()
 }

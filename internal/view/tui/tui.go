@@ -25,6 +25,7 @@ type Deps struct {
 	Initial   string // alias to open with
 	Connect   func(ctx context.Context, alias string) (*app.Service, error)
 	Targets   func() ([]app.TargetInfo, error)
+	Sets      func() ([]app.SetInfo, error) // re-read on every load, as Targets is
 	Open      func(url string) error
 	Getenv    func(name string) string // for ${ENV} references in a preset
 	Clipboard io.Writer

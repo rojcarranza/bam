@@ -22,6 +22,7 @@ type homeState struct {
 	view       homeView                  // which table Home shows
 	sort       homeSort                  // the plans table's order
 	presetSort homeSort                  // the presets table's order
+	setSort    homeSort                  // the sets table's order
 	live       map[string]provider.Build // builds the UI watches or started, by plan key
 	loadedAt   time.Time                 // the last load in which every project succeeded
 	stale      bool                      // the last load, or part of it, failed
@@ -39,6 +40,7 @@ type homeView int
 const (
 	homePlans homeView = iota
 	homePresets
+	homeSets
 )
 
 // homeCol is a sortable column. The presets table reuses the values: key is
@@ -56,6 +58,7 @@ const (
 var homeColNames = map[homeView][]string{
 	homePlans:   {"key", "name", "state", "age"},
 	homePresets: {"target", "plan", "state", "age"},
+	homeSets:    {"set", "state", "age"},
 }
 
 // homeSort is a column and a direction. desc reverses the column's natural
@@ -340,6 +343,9 @@ func cut(s string, w int) string {
 // points at it, so the shared key handling (movement, /, R, o, y) acts on
 // the table's rows.
 func (m Model) homeFocus() focus {
+	if m.home.view == homeSets {
+		return focusSets
+	}
 	if m.home.view == homePresets {
 		return focusPresets
 	}
@@ -349,6 +355,7 @@ func (m Model) homeFocus() focus {
 // goHome shows Home again.
 func (m Model) goHome() (tea.Model, tea.Cmd) {
 	m.screen = screenHome
+	m.fromSet = false // Home leaves a set's build behind; esc must not return to it
 	m.focus = m.homeFocus()
 	// restartHomeTick has a pointer receiver and mutates m; calling it inline
 	// as a return operand would rely on Go's unspecified evaluation order
@@ -475,6 +482,11 @@ func (m Model) presetTable(width, height int) []string {
 // Home. It reports handled=false for every other key, which then goes
 // through handleKey's shared switch with focus on Home's list.
 func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
+	if m.home.view == homeSets {
+		if next, cmd, handled := m.handleSetsKey(msg); handled {
+			return next, cmd, true
+		}
+	}
 	switch {
 	case key.Matches(msg, keys.Enter):
 		next, cmd := m.drillFromHome(focusBuilds)
@@ -524,6 +536,9 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 
 // currentHomeSort is the order of the table Home is currently showing.
 func (m Model) currentHomeSort() homeSort {
+	if m.home.view == homeSets {
+		return m.home.setSort
+	}
 	if m.home.view == homePresets {
 		return m.home.presetSort
 	}
@@ -532,6 +547,14 @@ func (m Model) currentHomeSort() homeSort {
 
 // setHomeSort re-sorts the active table and keeps the cursor on its row.
 func (m *Model) setHomeSort(s homeSort) {
+	if m.home.view == homeSets {
+		if int(s.col) >= len(homeColNames[homeSets]) {
+			s.col = 0 // the sets table has three columns, not four
+		}
+		m.home.setSort = s
+		m.sortSets()
+		return
+	}
 	if m.home.view == homePresets {
 		m.home.presetSort = s
 		m.sortPresets()
@@ -609,8 +632,15 @@ func (m Model) homeHeader() string {
 	if m.home.view == homePresets {
 		count, sortLabel, query = countOf(m.presets.len(), "preset"), m.home.presetSort.label(homePresets), m.presets.query
 	}
+	if m.home.view == homeSets {
+		count, sortLabel, query = countOf(m.sets.len(), "set"), m.home.setSort.label(homeSets), m.sets.query
+	}
 	parts := []string{"bam", m.server, m.info.Version, m.user.Name, "project " + project,
 		count, "sort " + sortLabel}
+	if m.home.view == homeSets {
+		// Sets are not filtered by project.
+		parts = append(parts[:4], count, "sort "+sortLabel)
+	}
 	if query != "" {
 		parts = append(parts, "filter /"+query)
 	}
@@ -643,6 +673,9 @@ func (m Model) homeView() string {
 	lines := m.planTable(m.width, body)
 	if m.home.view == homePresets {
 		lines = m.presetTable(m.width, body)
+	}
+	if m.home.view == homeSets {
+		lines = m.setTable(m.width, body)
 	}
 	if len(lines) > body {
 		lines = lines[:body]

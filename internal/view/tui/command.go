@@ -31,6 +31,10 @@ func commands() []command {
 			next, cmd := m.showPresets()
 			return next, cmd, nil
 		}},
+		{"sets", "", "the sets table", func(m Model, _ string) (tea.Model, tea.Cmd, error) {
+			next, cmd := m.showSets()
+			return next, cmd, nil
+		}},
 		{"project", "project", "filter by project, or all", Model.commandProject},
 		{"server", "server", "switch server", Model.commandServer},
 		{"sort", "column", "sort the table; -column reverses", Model.commandSort},

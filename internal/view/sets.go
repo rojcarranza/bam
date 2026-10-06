@@ -73,7 +73,7 @@ func SetDryRun(o Out, p app.SetPlan) error {
 	for i, st := range p.Stages {
 		fmt.Fprintf(o.W, "stage %d/%d\n", i+1, len(p.Stages))
 		for _, r := range st {
-			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", planRunName(r), r.Ref.PlanKey, branchLabel(r.Ref.Branch))
+			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", app.PlanRunName(r), r.Ref.PlanKey, branchLabel(r.Ref.Branch))
 			for _, n := range sortedChanged(r.Vars) {
 				v, _ := r.Vars.Get(n)
 				fmt.Fprintf(o.W, "      %s = %s\n", n, v.Display())
@@ -260,7 +260,7 @@ func SetPlanJSON(p app.SetPlan) SetPlanDoc {
 		runs := []SetRunPlanDoc{}
 		for _, r := range st {
 			run := RunJSON(provider.Build{}, r.Ref, r.Vars)
-			runs = append(runs, SetRunPlanDoc{Target: r.Target, Name: planRunName(r), PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables})
+			runs = append(runs, SetRunPlanDoc{Target: r.Target, Name: app.PlanRunName(r), PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables})
 		}
 		d.Stages = append(d.Stages, runs)
 	}

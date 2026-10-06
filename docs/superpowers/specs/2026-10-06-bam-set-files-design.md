@@ -1,6 +1,6 @@
 # bam: run a set from a file (`bam set run -f`)
 
-**Status:** Draft | **Date:** 2026-10-06
+**Status:** Approved | **Date:** 2026-10-06
 **Product requirements:** [`docs/prd.md`](../../prd.md) §7 "Future", "Run sets" (batch files)
 **Builds on:** [`2026-09-29-bam-run-sets-core-design.md`](2026-09-29-bam-run-sets-core-design.md) (configuration §3, record §5, resume §5.3), [`2026-10-05-bam-set-matrix-design.md`](2026-10-05-bam-set-matrix-design.md), [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md)
 

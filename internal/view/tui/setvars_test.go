@@ -154,3 +154,45 @@ func TestRunFromTheSetsTable(t *testing.T) {
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenSet, m.screen, "esc from the prompt lands on the set screen")
 }
+
+func TestQuitWhileATrainRunsAsks(t *testing.T) {
+	m := trainModel(t)
+	block := make(chan app.SetEvent) // a train that never ends on its own
+	stopped := false
+	m.train = trainState{set: "release", ch: block, board: app.NewSetBoard(app.SetPlan{Name: "release"}),
+		cancel: func() { stopped = true }, gen: 1}
+	m, cmd := send(m, mkKey("q"))
+	require.Equal(t, overlayConfirm, m.overlay)
+	require.Contains(t, m.confirm.Prompt, "release is running in this window")
+	require.Nil(t, cmd, "nothing quits before the answer")
+	m, cmd = send(m, mkKey("y"))
+	require.True(t, stopped, "yes ends the train's watching")
+	require.NotNil(t, cmd)
+	require.Empty(t, m.svc.P.(*fake.Provider).Stopped, "no build is stopped")
+}
+
+func TestSwitchServerWhileATrainRunsAsks(t *testing.T) {
+	m := trainModel(t)
+	m.train = trainState{set: "release", ch: make(chan app.SetEvent), board: app.NewSetBoard(app.SetPlan{}), cancel: func() {}, gen: 1}
+	m, _ = send(m, mkKey("esc"))
+	next, _ := m.switchServer("other")
+	require.Equal(t, overlayConfirm, next.(Model).overlay)
+}
+
+// Quitting waits for the train to finish its own ending (the record written
+// interrupted, the lock released) before the UI exits: it drains the train's
+// events until the channel closes.
+func TestQuitWaitsForTheTrainToEnd(t *testing.T) {
+	m := trainModel(t)
+	ch := make(chan app.SetEvent, 2)
+	ch <- app.SetEvent{Type: app.SetRunEvent}
+	ch <- app.SetEvent{Type: app.SetRunEvent}
+	m.train = trainState{set: "release", ch: ch, board: app.NewSetBoard(app.SetPlan{}), gen: 1,
+		cancel: func() { close(ch) }}
+	m, _ = send(m, mkKey("q"))
+	_, cmd := send(m, mkKey("y"))
+	require.NotNil(t, cmd)
+	msg := cmd()
+	require.IsType(t, tea.QuitMsg{}, msg)
+	require.Empty(t, ch, "every pending event was drained before quitting")
+}

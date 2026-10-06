@@ -229,6 +229,10 @@ lab · 9.6.4 · jdoe           ?help  : cmd  tab focus  l logs  o open  q quit
 set `BAM_NO_TUI=1`, or pipe bam's output — on a pipe, on a dumb terminal, or
 without a terminal, bare `bam` prints help exactly as before.
 
+### Run sets
+
+`:sets` lists the run sets with their last run. `enter` opens a set: its stages and runs, live while it runs. `R` runs it (a prompt takes optional variables, `d` previews the dry run, `ctrl-R` starts it), `U` resumes an interrupted run, `F` reruns the failed runs; resume and rerun ask again for the variables the run was started with. The train keeps running while you browse, one per window; `q` asks first and leaves it interrupted, to continue with `U` or `bam set resume`. A set run by another bam is shown and re-read every few seconds.
+
 ### Keys
 
 | | Keys | Does |
@@ -244,7 +248,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :project :server :sort :q |
 | View | `l` | logs for the selection (failed jobs by default) |
-| | `a` | all logs, not only failed |
+| | `a` | all logs, not only failed; in the set vars prompt, add a variable |
 | | `f` | follow (log screen) |
 | | `/` | filter the focused list, or search the log |
 | | `n` `N` | next / previous match, or next failure |
@@ -256,6 +260,9 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `space` | cycle an options field (in the form) |
 | | `f` | use the build's revision (in the form, on the revision row) |
 | | `C` | cancel the selected build (asks first) |
+| | `U` | resume the set's interrupted run (set screen) |
+| | `F` | rerun the set's failed runs (set screen) |
+| | `x` | remove a variable row (set vars prompt) |
 | Go | `o` | open the selection's Bamboo URL in the browser |
 | | `y` | copy the selection's Bamboo URL |
 | | `S` | switch server |

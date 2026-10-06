@@ -459,6 +459,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.train.end()
 		return m, nil
+	case setPollMsg:
+		if msg.Gen != m.setGen || m.screen != screenSet {
+			return m, nil
+		}
+		m.setGen++
+		return m, loadSetCmd(m.svc, m.setView.info.Name, m.setGen)
 	case setLoadedMsg:
 		return m.handleSetLoaded(msg)
 	case watchEventMsg:
@@ -854,6 +860,14 @@ func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
 // switchServer drops everything that belonged to the old server: its build,
 // its watch, its panels. Nothing keyed to one origin is shown under another.
 func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
+	if m.train.running() {
+		set := m.train.set
+		return m.ask(set+" is running in this window. Switch server and stop watching it? Its builds keep running.",
+			func(m Model) (tea.Model, tea.Cmd) {
+				m.train.end()
+				return m.switchServer(alias)
+			})
+	}
 	m.leaveBuild()
 	m.server, m.svc = alias, nil
 	m.buildsPlan = ""
@@ -1535,8 +1549,27 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 }
 
 // quit cancels the watch on the way out. Cancelling a watch never stops the
-// build; only bam build cancel does.
+// build; only bam build cancel does. A train running in this window is asked
+// about first: quitting ends its watching and leaves its record interrupted.
 func (m Model) quit() (tea.Model, tea.Cmd) {
+	if m.train.running() {
+		set := m.train.set
+		return m.ask(set+" is running in this window. Quit and stop watching it? Its builds keep running; continue with U or bam set resume.",
+			func(m Model) (tea.Model, tea.Cmd) {
+				// End the train's context, then wait for its channel to
+				// close: by then it has written its record interrupted and
+				// released its lock, so nothing is left half-done on disk.
+				ch := m.train.ch
+				m.train.end()
+				m.stopWatch()
+				m.stopFollow()
+				return m, func() tea.Msg {
+					for range ch {
+					}
+					return tea.Quit()
+				}
+			})
+	}
 	m.stopWatch()
 	m.stopFollow()
 	return m, tea.Quit

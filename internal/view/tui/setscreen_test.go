@@ -80,3 +80,11 @@ func TestSetScreenKeyLineFitsAt80Columns(t *testing.T) {
 	require.Contains(t, m.statusBar(80), "F rerun failed")
 	require.Contains(t, m.statusBar(80), "R run")
 }
+
+func TestSetScreenPollsWhileHeldElsewhere(t *testing.T) {
+	m := setScreenModel(t, &app.SetRecord{ID: "release-1", Set: "release", Status: app.SetRunning}, "pid 77 on desk, since 09:15")
+	cmd := m.setPollCmd()
+	require.NotNil(t, cmd, "a set held elsewhere is re-read")
+	m.setView.elsewhere = ""
+	require.Nil(t, m.setPollCmd(), "no polling when nothing is held elsewhere")
+}

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -94,7 +95,7 @@ func (m Model) handleSetLoaded(msg setLoadedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.setView.rec, m.setView.elsewhere = msg.Rec, msg.Elsewhere
 	m.setView.board = m.boardFor(m.setView.info, msg.Rec)
-	return m, nil
+	return m, m.setPollCmd()
 }
 
 // setRows is every run of the board, stage after stage.
@@ -270,4 +271,19 @@ func (m Model) setSelectionURL() string {
 		return m.svc.P.URL(rows[m.setView.cursor].Build.Key)
 	}
 	return ""
+}
+
+// setPollEvery is how often the set screen re-reads a set held by another bam.
+const setPollEvery = 5 * time.Second
+
+type setPollMsg struct{ Gen int }
+
+// setPollCmd re-reads the set in setPollEvery while another bam holds it,
+// or nil when nothing needs polling.
+func (m Model) setPollCmd() tea.Cmd {
+	if m.setView.elsewhere == "" || m.screen != screenSet {
+		return nil
+	}
+	gen := m.setGen
+	return tea.Tick(setPollEvery, func(time.Time) tea.Msg { return setPollMsg{Gen: gen} })
 }

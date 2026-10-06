@@ -1,6 +1,6 @@
 # bam: run sets in the terminal UI
 
-**Status:** Draft | **Date:** 2026-10-06
+**Status:** Approved | **Date:** 2026-10-06
 **Product requirements:** [`docs/prd.md`](../../prd.md) §7 "Future", "Run sets" (the run-sets panel)
 **Builds on:** [`2026-09-29-bam-run-sets-core-design.md`](2026-09-29-bam-run-sets-core-design.md) (events §4.3, record §5, lock §5.4), [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md), [`2026-10-05-bam-set-matrix-design.md`](2026-10-05-bam-set-matrix-design.md), [`2026-09-23-bam-v0.3-tui-home-design.md`](2026-09-23-bam-v0.3-tui-home-design.md) (Home, `:` commands)
 

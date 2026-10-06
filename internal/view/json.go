@@ -61,6 +61,7 @@ type ProgressDoc struct {
 	ElapsedMS   int64   `json:"elapsed_ms"`
 	RemainingMS int64   `json:"remaining_ms"`
 	Stage       string  `json:"stage,omitempty"`
+	Source      string  `json:"source,omitempty"`
 }
 
 type LastBuildDoc struct {
@@ -253,7 +254,7 @@ func progressDoc(p provider.Progress) *ProgressDoc {
 		return nil
 	}
 	return &ProgressDoc{Percent: p.Percent, AverageMS: ms(p.Average), ElapsedMS: ms(p.Elapsed),
-		RemainingMS: ms(p.Remaining), Stage: p.Stage}
+		RemainingMS: ms(p.Remaining), Stage: p.Stage, Source: p.Source}
 }
 
 func EventJSON(e app.Event) EventDoc {

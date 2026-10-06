@@ -26,9 +26,9 @@ Within a major version fields are only added, never renamed, retyped or removed.
 
 A running build carries the server's duration estimate as well:
 
-    "progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000,"stage":"Deploy"}
+    "progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000,"stage":"Deploy","source":"bamboo"}
 
-`percent` is a number between 0 and 1, `average_ms` the plan's average build duration, and `stage` the stage running now. The whole `progress` object is absent when the build is not running, or when the Bamboo server does not report progress. `stage` is absent when the server does not name one.
+`percent` is a number between 0 and 1, `average_ms` the plan's average build duration, and `stage` the stage running now. The whole `progress` object is absent when the build is not running, or when no estimate can be had: Bamboo answers without a valid estimate, or it reports no progress and the plan branch's history gives none (fewer than 3 successful builds, or the history could not be read). `stage` is absent when the server does not name one. `source` says where the estimate comes from: `bamboo`, or `history` when the server reports no progress and bam estimates from the median of the plan branch's last 10 successful builds (at least 3).
 
 ## Plan
 
@@ -58,12 +58,12 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 ## Events
 
-    {"type":"state","time":"...","build_key":"PROJ-BUILD-45","state":"running","progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000}}
+    {"type":"state","time":"...","build_key":"PROJ-BUILD-45","state":"running","progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000,"source":"bamboo"}}
     {"type":"stage","time":"...","build_key":"PROJ-BUILD-45","name":"Test","state":"running"}
     {"type":"job","time":"...","build_key":"PROJ-BUILD-45","name":"Integration","key":"PROJ-BUILD-INT-45","state":"failed"}
     {"type":"done","time":"...","build_key":"PROJ-BUILD-45","state":"failed","build":{...}}
 
-`state`, `stage` and `job` events carry `progress` while the server reports it. `done` and error events never do: a finished build has a duration, not an estimate.
+`state`, `stage` and `job` events carry `progress` while an estimate is available, from Bamboo or from the plan's history, with its `source`. `done` and error events never do: a finished build has a duration, not an estimate.
 
 ## Sets
 

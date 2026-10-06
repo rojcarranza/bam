@@ -30,6 +30,7 @@ func TestBuildProgressMapsRunningStatus(t *testing.T) {
 		Remaining: 81 * time.Second,
 		Percent:   0.55,
 		Stage:     "Deploy",
+		Source:    "bamboo",
 	}, p)
 }
 

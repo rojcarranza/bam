@@ -99,3 +99,15 @@ func TestRunJSONNamesTheBuildARevisionCameFrom(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(raw), `"revision":"","revision_from":""`)
 }
+
+func TestProgressJSONNamesItsSource(t *testing.T) {
+	b := provider.Build{Key: "PROJ-BUILD-45", State: provider.StateRunning}
+	data, err := json.Marshal(BuildJSONWithProgress(b, provider.Progress{Valid: true, Average: time.Minute, Elapsed: 30 * time.Second,
+		Remaining: 30 * time.Second, Percent: 0.5, Source: "history"}))
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"source":"history"`)
+
+	data, err = json.Marshal(BuildJSONWithProgress(b, provider.Progress{}))
+	require.NoError(t, err)
+	require.NotContains(t, string(data), `"source"`)
+}

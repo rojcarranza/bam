@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -83,4 +84,18 @@ func TestBuildListAsksOnlyAboutRunningBuilds(t *testing.T) {
 
 	assert.NotContains(t, h.stdout.String(), "ETA")
 	assert.Equal(t, 0, h.fake.ProgressCalls("PROJ-BUILD-482"), "a finished build has no estimate to ask for")
+}
+
+// A server without progress still gets a bar, from the plan's history.
+func TestBuildShowEstimatesFromHistory(t *testing.T) {
+	h := newHarness(t)
+	h.fake.ProgressErr = errs.Bamboof("this Bamboo does not report build progress").Wrap(errs.ErrUnsupported)
+	ok := func(n int, d time.Duration) provider.Build {
+		return provider.Build{Key: fmt.Sprintf("PROJ-BUILD-%d", n), PlanKey: "PROJ-BUILD", Number: n, State: provider.StateSuccess, Duration: d}
+	}
+	running := provider.Build{Key: "PROJ-BUILD-490", URL: workOrigin + "/browse/PROJ-BUILD-490", PlanKey: "PROJ-BUILD", Number: 490,
+		State: provider.StateRunning, StartedAt: fixedNow.Add(-time.Minute)}
+	h.fake.History["PROJ-BUILD"] = []provider.Build{running, ok(489, 4*time.Minute), ok(488, 4*time.Minute), ok(487, 4*time.Minute)}
+	require.Equal(t, 0, h.run("build", "show", "PROJ-BUILD-490", "--json"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), `"source": "history"`)
 }

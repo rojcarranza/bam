@@ -43,6 +43,7 @@ func mapProgress(s statusDTO) provider.Progress {
 		Average: time.Duration(s.Progress.AverageBuildDuration) * time.Millisecond,
 		Elapsed: time.Duration(s.Progress.BuildTime) * time.Millisecond,
 		Stage:   s.CurrentStage,
+		Source:  "bamboo",
 	}
 	if p.Elapsed < p.Average {
 		p.Remaining = p.Average - p.Elapsed

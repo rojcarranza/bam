@@ -150,6 +150,7 @@ type Progress struct {
 	Remaining time.Duration // Average - Elapsed, floored at zero
 	Percent   float64       // 0..1, clamped; 1 once Elapsed >= Average
 	Stage     string        // the stage running now; may be empty
+	Source    string        // "bamboo" or "history"; empty without an estimate
 }
 
 type ListOptions struct {

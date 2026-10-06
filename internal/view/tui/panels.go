@@ -188,6 +188,9 @@ func (m Model) keyLine() string {
 		}
 		return "enter edit  tab next  ^R run  d dry-run  esc cancel"
 	}
+	if m.screen == screenSetVars {
+		return "enter edit  a add  x remove  d dry-run  ^R " + strings.ToLower(m.setVars.action.verb()) + "  esc cancel"
+	}
 	if m.screen == screenSet {
 		// o and y work here too but stay in ? help: with them the longest
 		// line does not fit an 80-column bar, which drops the line whole.

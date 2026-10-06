@@ -271,14 +271,3 @@ func (m Model) setSelectionURL() string {
 	}
 	return ""
 }
-
-type setAction int
-
-const (
-	setActionRun setAction = iota
-	setActionResume
-	setActionRerun
-)
-
-// openSetVars is replaced in a later step.
-func (m Model) openSetVars(a setAction) (tea.Model, tea.Cmd) { return m, nil }

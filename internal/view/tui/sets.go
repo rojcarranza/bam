@@ -198,14 +198,17 @@ func (m Model) handleSetsKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		next, cmd := m.openSet()
 		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Run):
-		it, ok := m.sets.selected()
-		if !ok {
+		if _, ok := m.sets.selected(); !ok {
 			return m, nil, true
 		}
-		next, cmd := m.openSet()
+		next, load := m.openSet()
 		nm := next.(Model)
-		nm.setView.info = it.Info
-		return nm, cmd, true
+		if why := nm.refuseSetAction(); why != "" {
+			nm.status = why
+			return nm, load, true
+		}
+		next, cmd := nm.openSetVars(setActionRun)
+		return next.(Model), tea.Batch(load, cmd), true
 	case key.Matches(msg, keys.Refresh):
 		return m, m.loadSets(), true
 	case key.Matches(msg, keys.Panel1), key.Matches(msg, keys.Panel2), key.Matches(msg, keys.Panel3),
@@ -214,11 +217,3 @@ func (m Model) handleSetsKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	}
 	return m, nil, false
 }
-
-// trainState is replaced in a later step; until then no train runs.
-type trainState struct {
-	set   string
-	board *app.SetBoard
-}
-
-func (t trainState) running() bool { return false }

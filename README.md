@@ -242,7 +242,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `esc` | back one level, close an overlay; from Plans to Home |
 | Home | `enter` | open the panels on the row's plan |
 | | `s` | next sort column |
-| | `:` | command bar: :plans :presets :project :server :sort :q |
+| | `:` | command bar: :plans :presets :sets :project :server :sort :q |
 | View | `l` | logs for the selection (failed jobs by default) |
 | | `a` | all logs, not only failed |
 | | `f` | follow (log screen) |

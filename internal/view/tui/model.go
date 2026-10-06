@@ -153,7 +153,9 @@ type Model struct {
 
 	train   trainState
 	setView setScreen
-	fromSet bool // the panels were opened from a set screen run; esc returns there
+	setVars setVarsState
+	setDry  []string // the set dry run the overlay shows on the vars prompt
+	fromSet bool     // the panels were opened from a set screen run; esc returns there
 
 	formFrom screen // where esc from the run form returns
 }
@@ -446,6 +448,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sets.setItems(msg.Items)
 		m.sortSets()
 		return m, nil
+	case setEventMsg:
+		if msg.Gen != m.train.gen {
+			return m, nil
+		}
+		return m.handleSetEvent(msg.Event)
+	case setClosedMsg:
+		if msg.Gen != m.train.gen {
+			return m, nil
+		}
+		m.train.end()
+		return m, nil
 	case setLoadedMsg:
 		return m.handleSetLoaded(msg)
 	case watchEventMsg:
@@ -522,6 +535,9 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.screen == screenSet {
 		return m.handleSetKey(msg)
+	}
+	if m.screen == screenSetVars {
+		return m.handleSetVarsKey(msg)
 	}
 	if m.screen == screenHome {
 		if next, cmd, handled := m.handleHomeKey(msg); handled {
@@ -1552,6 +1568,8 @@ func (m Model) View() string {
 		return m.homeView()
 	case screenSet:
 		return m.overlayView(m.setScreenView())
+	case screenSetVars:
+		return m.overlayView(m.setVarsView())
 	}
 	return m.columnsView()
 }

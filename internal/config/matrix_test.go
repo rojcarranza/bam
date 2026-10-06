@@ -79,6 +79,7 @@ func TestSizeCountsRunsWithoutExpanding(t *testing.T) {
 }
 
 func TestSizeIsInt64(t *testing.T) {
-	var n int64 = decodeRun(t, "{target: d, matrix: {a: [1, 2], b: [x, y, z]}}").Size()
+	n := decodeRun(t, "{target: d, matrix: {a: [1, 2], b: [x, y, z]}}").Size()
+	require.IsType(t, int64(0), n, "sized as int64, so 32-bit builds cannot overflow")
 	require.Equal(t, int64(6), n)
 }

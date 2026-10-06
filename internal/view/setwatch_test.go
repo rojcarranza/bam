@@ -168,3 +168,34 @@ func TestSetLiveStartsFromTheRecordAndMarksARerun(t *testing.T) {
 	l.Event(e)
 	require.Regexp(t, `deploy\s+OPS-DEP-9\s+\S+ \(rerun 1\)`, lastFrame(buf.String()))
 }
+
+func matrixPlan() app.SetPlan {
+	return app.SetPlan{Name: "regions", Stages: [][]app.SetRunPlan{{
+		{Name: "deploy[env=qa]", Target: "deploy", Ref: app.PlanRef{PlanKey: "OPS-DEP"}},
+		{Name: "deploy[env=prod]", Target: "deploy", Ref: app.PlanRef{PlanKey: "OPS-DEP"}},
+	}}}
+}
+
+func TestSetLiveKeysMatrixRunsByName(t *testing.T) {
+	o, buf := testOut(true)
+	o.Width = 100
+	l := NewSetLive(o, matrixPlan())
+	for _, e := range []app.SetEvent{
+		{Type: app.SetRunTriggered, Time: setAt, Target: "deploy", Run: "deploy[env=qa]", Build: provider.Build{Key: "OPS-DEP-1", State: provider.StateQueued}},
+		{Type: app.SetRunTriggered, Time: setAt, Target: "deploy", Run: "deploy[env=prod]", Build: provider.Build{Key: "OPS-DEP-2", State: provider.StateQueued}},
+		{Type: app.SetRunDone, Time: setAt, Target: "deploy", Run: "deploy[env=prod]", Build: provider.Build{Key: "OPS-DEP-2"}, State: provider.StateFailed},
+	} {
+		l.Event(e)
+	}
+	out := lastFrame(buf.String())
+	require.Regexp(t, `deploy\[env=qa\]\s+OPS-DEP-1`, out)
+	require.Regexp(t, `deploy\[env=prod\]\s+OPS-DEP-2\s+Failed`, out)
+	require.Equal(t, 2, strings.Count(out, "deploy["), "two rows, not one per preset")
+}
+
+func TestSetLinesNameTheMatrixRun(t *testing.T) {
+	o, buf := testOut(false)
+	l := NewSetLines(o)
+	l.Event(app.SetEvent{Type: app.SetRunTriggered, Time: setAt, Target: "deploy", Run: "deploy[env=qa]", Build: provider.Build{Key: "OPS-DEP-1"}})
+	require.Equal(t, "2026-09-29T10:15:00Z stage 1 deploy[env=qa] OPS-DEP-1 triggered\n", buf.String())
+}

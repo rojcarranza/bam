@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
@@ -72,16 +73,33 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		if len(st) == 0 {
 			return fail("stage %d has no runs", i+1)
 		}
+		// Sized before anything is expanded: a mistyped product can stand
+		// for billions of runs, and building them would hang the load.
+		var count int64
+		for _, r := range st {
+			n := r.Size()
+			if n > math.MaxInt64-count {
+				count = math.MaxInt64
+				break
+			}
+			count += n
+		}
+		if count > maxStageRuns {
+			return fail("stage %d expands to %d runs; the limit is %d", i+1, count, maxStageRuns).
+				WithTry("split the matrix across stages, or list fewer variable sets")
+		}
 		seen := map[string]bool{}
 		for _, r := range st {
 			t, ok := targets[r.Target]
 			if !ok {
 				return fail("names unknown preset %q in stage %d", r.Target, i+1).WithTry("bam target list")
 			}
-			if seen[r.Target] {
-				return fail("lists preset %q twice in stage %d", r.Target, i+1)
+			for _, x := range r.Expand() {
+				if seen[x.Name] {
+					return fail("lists run %q twice in stage %d", x.Name, i+1)
+				}
+				seen[x.Name] = true
 			}
-			seen[r.Target] = true
 			if t.Server == "" {
 				continue
 			}

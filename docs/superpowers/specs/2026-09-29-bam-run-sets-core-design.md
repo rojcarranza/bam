@@ -385,7 +385,7 @@ No test sleeps or touches the network outside the e2e suite; `go test -race ./..
 Each of these is later work with its own spec:
 
 - `bam set rerun --failed`: done, see [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md).
-- Matrix expansion and batch files.
+- Matrix expansion: done, see [`2026-10-05-bam-set-matrix-design.md`](2026-10-05-bam-set-matrix-design.md). Batch files remain later work.
 - Plan statistics and set-level history views.
 - The terminal UI run-sets panel (it will consume §4.3 events).
 - An ad hoc command-line form of a set.

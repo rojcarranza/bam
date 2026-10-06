@@ -74,10 +74,14 @@ func TestSetConfigErrors(t *testing.T) {
 	base := "version: 1\nservers: {work: {url: https://bamboo.example.com}, lab: {url: https://bamboo.lab.example}}\n" +
 		"targets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B, server: work}\n  c: {plan: PROJ-C, server: lab}\n"
 	for name, tc := range map[string]struct{ sets, want string }{
-		"unknown preset": {"sets: {rel: {stages: [[nope]]}}", `unknown preset "nope"`},
-		"no stages":      {"sets: {rel: {stages: []}}", "has no stages"},
-		"empty stage":    {"sets: {rel: {stages: [[a], []]}}", "stage 2 has no runs"},
-		"duplicate":      {"sets: {rel: {stages: [[a, a]]}}", `preset "a" twice in stage 1`},
+		"unknown preset":   {"sets: {rel: {stages: [[nope]]}}", `unknown preset "nope"`},
+		"no stages":        {"sets: {rel: {stages: []}}", "has no stages"},
+		"empty stage":      {"sets: {rel: {stages: [[a], []]}}", "stage 2 has no runs"},
+		"duplicate":        {"sets: {rel: {stages: [[a, a]]}}", `run "a" twice in stage 1`},
+		"duplicate matrix": {"sets: {rel: {stages: [[{target: a, matrix: [{env: qa}, {env: qa}]}]]}}", `run "a[env=qa]" twice in stage 1`},
+		"too many runs":    {"sets: {rel: {stages: [[{target: a, matrix: {x: [1,2,3,4,5,6,7,8], y: [1,2,3,4,5,6,7,8]}}]]}}", "stage 1 expands to 64 runs; the limit is 50"},
+		"matrix secret":    {"sets: {rel: {stages: [[{target: a, matrix: [{db_password: hunter2}]}]]}}", "holds a literal secret"},
+
 		"servers":        {"sets: {rel: {stages: [[b], [c]]}}", `servers "work" and "lab"`},
 		"bad name":       {"sets: {Rel: {stages: [[a]]}}", `invalid set name "Rel"`},
 		"bad timeout":    {"sets: {rel: {timeout: soon, stages: [[a]]}}", "not a duration"},
@@ -111,4 +115,42 @@ func TestSetsInTheReposEntry(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Equal(t, []string{cfg.MachinePath + " (repos)"}, s.DefinedIn)
+}
+
+func TestSetMatrixAllowsAPresetTwiceInAStage(t *testing.T) {
+	cfg, err := loadYAML(t, "version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n"+
+		"sets: {rel: {stages: [[{target: a, matrix: [{env: qa}]}, {target: a, matrix: [{env: prod}]}]]}}\n", "")
+	require.NoError(t, err)
+	_, err = cfg.Sets()
+	require.NoError(t, err)
+}
+
+// A product of 10^10 runs must be refused from its size, not by building it:
+// building it would hang every command that loads the configuration.
+func TestSetHugeProductIsRefusedWithoutExpanding(t *testing.T) {
+	ten := "[0,1,2,3,4,5,6,7,8,9]"
+	keys := ""
+	for _, k := range []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"} {
+		keys += k + ": " + ten + ", "
+	}
+	src := "version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n" +
+		"sets: {rel: {stages: [[{target: a, matrix: {" + keys + "}}]]}}\n"
+	cfg, err := loadYAML(t, src, "")
+	if err == nil {
+		_, err = cfg.Sets()
+	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stage 1 expands to 10000000000 runs; the limit is 50")
+}
+
+// With several literal secrets, the error always names the first variable in
+// sorted order, so the message is the same on every run.
+func TestSetLiteralSecretErrorIsDeterministic(t *testing.T) {
+	src := "version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n" +
+		"sets: {rel: {stages: [[{target: a, vars: {z_password: x, m_secret: y}, matrix: [{b_passphrase: p, a_password: q}]}]]}}\n"
+	for i := 0; i < 30; i++ {
+		_, err := loadYAML(t, src, "")
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "vars.a_password holds a literal secret")
+	}
 }

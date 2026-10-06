@@ -23,6 +23,7 @@ type SetOptions struct {
 
 // SetRunPlan is one run of a stage, resolved and ready to trigger.
 type SetRunPlan struct {
+	Name    string // the run's name: the preset, or preset[k=v,…]
 	Target  string
 	Ref     PlanRef
 	Vars    VarSet
@@ -54,21 +55,22 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 	var problems []string
 	for i, st := range set.Stages {
 		runs := make([]SetRunPlan, 0, len(st))
-		for _, r := range st {
-			rp, err := s.planRun(ctx, r, o)
-			if err != nil {
-				// Only a usage problem is one run's fault; anything else
-				// (config, auth, Bamboo down) stops the whole set at once.
-				if errs.KindOf(err) != errs.KindUsage {
-					return SetPlan{}, err
+		for _, sr := range st {
+			for _, x := range sr.Expand() {
+				rp, err := s.planRun(ctx, config.SetRun{Target: x.Target, Vars: x.Vars}, o)
+				if err != nil {
+					if errs.KindOf(err) != errs.KindUsage {
+						return SetPlan{}, err
+					}
+					problems = append(problems, fmt.Sprintf("stage %d %s: %s", i+1, x.Name, describeErr(err)))
+					continue
 				}
-				problems = append(problems, fmt.Sprintf("stage %d %s: %s", i+1, r.Target, describeErr(err)))
-				continue
+				rp.Name = x.Name
+				for _, w := range rp.Vars.Warnings {
+					p.Warnings = append(p.Warnings, x.Name+": "+w)
+				}
+				runs = append(runs, rp)
 			}
-			for _, w := range rp.Vars.Warnings {
-				p.Warnings = append(p.Warnings, r.Target+": "+w)
-			}
-			runs = append(runs, rp)
 		}
 		p.Stages = append(p.Stages, runs)
 	}
@@ -163,6 +165,7 @@ type SetEvent struct {
 	ID     string
 	Stage  int
 	Target string
+	Run    string         // run name; empty for stage and set events
 	Build  provider.Build // run_triggered, run_event, run_done
 	Event  *Event         // run_event only: the watch event, unchanged
 	State  provider.State // run_done, stage_done, set_done
@@ -192,7 +195,7 @@ func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (s
 	for _, st := range p.Stages {
 		var sr StageRecord
 		for _, r := range st {
-			sr.Runs = append(sr.Runs, RunRecord{Target: r.Target, PlanKey: r.Ref.PlanKey})
+			sr.Runs = append(sr.Runs, RunRecord{Target: r.Target, Name: r.Name, PlanKey: r.Ref.PlanKey})
 		}
 		rec.Stages = append(rec.Stages, sr)
 	}
@@ -361,12 +364,12 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 				if !r.save(ctx, i) {
 					return false, false
 				}
-				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Build: provider.Build{Key: key},
+				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, Build: provider.Build{Key: key},
 					State: provider.StateFailed, Err: err})
 				continue
 			}
 			if restarted {
-				r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b, Rerun: recs[j].Reruns})
+				r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Run: run.Name, Build: b, Rerun: recs[j].Reruns})
 			} else {
 				// Running or succeeded after all: nothing was restarted, so
 				// nothing counts; the build is watched as it is.
@@ -386,7 +389,7 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 				if !r.save(ctx, i) {
 					return false, false
 				}
-				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, State: provider.StateFailed, Err: err})
+				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, State: provider.StateFailed, Err: err})
 				continue
 			}
 			key = b.Key
@@ -394,7 +397,7 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 			if !r.save(ctx, i) {
 				return false, false
 			}
-			r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Build: b})
+			r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Run: run.Name, Build: b})
 		}
 		pending++
 		wg.Add(1)
@@ -418,7 +421,7 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 		if !r.save(ctx, i) {
 			return false, false
 		}
-		r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Build: res.build, State: st, Err: res.err})
+		r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, Build: res.build, State: st, Err: res.err})
 	}
 	if ctx.Err() != nil {
 		return false, true
@@ -454,7 +457,7 @@ func (r *setRun) watchRun(ctx context.Context, i, j int, run SetRunPlan, key str
 			}
 			ev := e
 			last = e.Build
-			r.send(ctx, SetEvent{Type: SetRunEvent, Stage: i, Target: run.Target, Build: e.Build, Event: &ev})
+			r.send(ctx, SetEvent{Type: SetRunEvent, Stage: i, Target: run.Target, Run: run.Name, Build: e.Build, Event: &ev})
 			switch e.Type {
 			case EventDone:
 				return runResult{idx: j, build: e.Build}
@@ -592,7 +595,7 @@ func sameShape(p SetPlan, rec SetRecord) bool {
 			return false
 		}
 		for j := range p.Stages[i] {
-			if p.Stages[i][j].Target != rec.Stages[i].Runs[j].Target {
+			if p.Stages[i][j].Name != rec.Stages[i].Runs[j].RunName() {
 				return false
 			}
 		}
@@ -642,8 +645,11 @@ type SetInfo struct {
 // SetRunInfo is one run of a described set with its set vars, safe to
 // display.
 type SetRunInfo struct {
-	Target string
-	Vars   []TargetVar
+	Target     string
+	Vars       []TargetVar
+	Matrix     any      // the configured matrix for JSON: map of value lists, or list of variable maps; nil without one
+	MatrixLine string   // the matrix on one line, for text; empty without one
+	Runs       []string // the run names it expands to
 }
 
 // DescribeSets returns every set, sorted by name.
@@ -676,9 +682,71 @@ func describeSet(s config.ResolvedSet, getenv func(string) string) SetInfo {
 	for _, st := range s.Stages {
 		runs := make([]SetRunInfo, 0, len(st))
 		for _, r := range st {
-			runs = append(runs, SetRunInfo{Target: r.Target, Vars: targetVars(r.Vars, getenv)})
+			info := SetRunInfo{Target: r.Target, Vars: targetVars(r.Vars, getenv)}
+			if r.Matrix != nil {
+				m := maskedMatrix(r.Matrix)
+				info.MatrixLine = matrixLine(m)
+				if m.Sets != nil {
+					info.Matrix = m.Sets
+				} else {
+					info.Matrix = m.Product
+				}
+			}
+			for _, x := range r.Expand() {
+				info.Runs = append(info.Runs, x.Name)
+			}
+			runs = append(runs, info)
 		}
 		info.Stages = append(info.Stages, runs)
 	}
 	return info
+}
+
+// matrixLine is a matrix on one line: a product's value lists, or how many
+// variable sets a list holds.
+func matrixLine(m *config.Matrix) string {
+	if m.Sets != nil {
+		if len(m.Sets) == 1 {
+			return "1 variable set"
+		}
+		return fmt.Sprintf("%d variable sets", len(m.Sets))
+	}
+	keys := sortedNames(m.Product)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		parts[i] = k + "=[" + strings.Join(m.Product[k], " ") + "]"
+	}
+	return strings.Join(parts, " ")
+}
+
+// maskedMatrix is a copy of m safe to display: a secret-looking variable's
+// literal values are masked, ${ENV} references stay as written. A machine
+// file may hold literal secrets; only the project file refuses them.
+func maskedMatrix(m *config.Matrix) *config.Matrix {
+	mask := func(name, v string) string {
+		if _, ref := config.EnvRef(v); ref || !config.IsMaskedName(name) {
+			return v
+		}
+		return MaskedDisplay
+	}
+	out := &config.Matrix{}
+	if m.Sets != nil {
+		for _, e := range m.Sets {
+			c := config.StringMap{}
+			for k, v := range e {
+				c[k] = mask(k, v)
+			}
+			out.Sets = append(out.Sets, c)
+		}
+		return out
+	}
+	out.Product = map[string][]string{}
+	for k, vs := range m.Product {
+		c := make([]string, len(vs))
+		for i, v := range vs {
+			c[i] = mask(k, v)
+		}
+		out.Product[k] = c
+	}
+	return out
 }

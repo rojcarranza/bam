@@ -101,6 +101,31 @@ Variable precedence for a run of a set, lowest to highest: plan values, preset `
 
 When a build fails, the rest of its stage still finishes, no later stage starts, and nothing is cancelled. Interrupting or timing out stops watching only; the builds keep running, and `bam set resume` picks the train up where it stopped. Resume asks again for every `--var` the run was started with, because bam never stores variable values. Records live in `$XDG_STATE_HOME/bam/sets/`; bam keeps the newest 20 per set.
 
+### Matrix
+
+A `matrix` on a set run expands one preset into several runs of the same stage, one per variable set. Two forms:
+
+```yaml
+sets:
+  regions:
+    stages:
+      - - target: deploy
+          vars: {deploy_token: "${DEPLOY_TOKEN}"}
+          matrix:                 # map of lists: every combination
+            env: [qa, staging]
+            region: [eu, us]
+      - - target: smoke
+          matrix:                 # list of maps: exactly these variable sets
+            - {env: qa}
+            - {env: prod, region: us}
+```
+
+- A product runs its variables in sorted order, values as written, the last variable changing fastest. A list runs its entries in order.
+- Each run is named after its preset and its own matrix values, sorted: `deploy[env=qa,region=eu]`. Names appear in every output and in the record; a secret-looking key's literal value shows as `********`, an `${ENV}` reference as written.
+- Precedence, lowest to highest: plan values, preset `defaults`, the set run's `vars`, the matrix values, then `--var`.
+- Run names must be unique in their stage, so a preset may appear twice in a stage when its matrices differ. A stage expands to at most 50 runs.
+- Every run of the stage is watched; the stage succeeds only if all of them do. `bam set resume` and `bam set rerun --failed` act on each run on its own.
+
 ## Machine file
 
     version: 1

@@ -164,6 +164,9 @@ func TestSetSmoke(t *testing.T) {
 		fmt.Fprintf(&yaml, "  run%d: {plan: %s}\n", i+1, strings.TrimSpace(plan))
 		stages = append(stages, fmt.Sprintf("[run%d]", i+1))
 	}
+	// The first stage is a matrix: two runs of the first plan with a
+	// variable it ignores, so the set exercises named matrix runs.
+	stages[0] = "[{target: run1, matrix: [{bam_e2e: a}, {bam_e2e: b}]}]"
 	fmt.Fprintf(&yaml, "sets:\n  e2e-train:\n    timeout: 40m\n    stages: [%s]\n", strings.Join(stages, ", "))
 	if err := os.WriteFile(filepath.Join(dir, ".bam.yaml"), []byte(yaml.String()), 0o644); err != nil {
 		t.Fatal(err)
@@ -191,12 +194,17 @@ func TestSetSmoke(t *testing.T) {
 		Status string `json:"status"`
 		Stages []struct {
 			Runs []struct {
+				Name     string `json:"name"`
 				BuildKey string `json:"build_key"`
 			} `json:"runs"`
 		} `json:"stages"`
 	}
 	if err := json.Unmarshal([]byte(out), &rec); err != nil {
 		t.Fatalf("set status --json: %v", err)
+	}
+	if len(rec.Stages) == 0 || len(rec.Stages[0].Runs) != 2 ||
+		rec.Stages[0].Runs[0].Name != "run1[bam_e2e=a]" || rec.Stages[0].Runs[1].Name != "run1[bam_e2e=b]" {
+		t.Fatalf("stage 1 is not the two matrix runs: %+v", rec.Stages)
 	}
 	want := map[int]string{0: "successful", 1: "failed"}[setCode]
 	if rec.Status != want || len(rec.Stages) == 0 || rec.Stages[0].Runs[0].BuildKey == "" {

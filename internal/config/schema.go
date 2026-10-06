@@ -139,7 +139,7 @@ func (s *Stage) UnmarshalYAML(n *yaml.Node) error {
 			// Decode does not inherit the file's KnownFields, so a typo such
 			// as env: instead of vars: is caught here.
 			for i := 0; i+1 < len(item.Content); i += 2 {
-				if k := item.Content[i]; k.Value != "target" && k.Value != "vars" {
+				if k := item.Content[i]; k.Value != "target" && k.Value != "vars" && k.Value != "matrix" {
 					return fmt.Errorf("line %d: unknown field %q in a stage run", k.Line, k.Value)
 				}
 			}
@@ -149,7 +149,7 @@ func (s *Stage) UnmarshalYAML(n *yaml.Node) error {
 			}
 			out = append(out, r)
 		default:
-			return fmt.Errorf("line %d: a stage run is a preset name or {target, vars}", item.Line)
+			return fmt.Errorf("line %d: a stage run is a preset name or {target, vars, matrix}", item.Line)
 		}
 	}
 	*s = out
@@ -161,4 +161,49 @@ func (s *Stage) UnmarshalYAML(n *yaml.Node) error {
 type SetRun struct {
 	Target string    `yaml:"target"`
 	Vars   StringMap `yaml:"vars,omitempty"`
+	Matrix *Matrix   `yaml:"matrix,omitempty"`
+}
+
+// Matrix expands one set run into several. Exactly one form is set:
+// Product, a map of value lists (every combination), or Sets, a list of
+// variable maps (each one run).
+type Matrix struct {
+	Product map[string][]string
+	Sets    []StringMap
+}
+
+func (m *Matrix) UnmarshalYAML(n *yaml.Node) error {
+	switch n.Kind {
+	case yaml.MappingNode:
+		var p StringListMap
+		if err := n.Decode(&p); err != nil {
+			return err
+		}
+		if len(p) == 0 {
+			return fmt.Errorf("line %d: a matrix needs at least one variable", n.Line)
+		}
+		for k, vs := range p {
+			if len(vs) == 0 {
+				return fmt.Errorf("line %d: matrix variable %q has no values", n.Line, k)
+			}
+		}
+		m.Product = p
+	case yaml.SequenceNode:
+		if len(n.Content) == 0 {
+			return fmt.Errorf("line %d: a matrix needs at least one variable set", n.Line)
+		}
+		for _, item := range n.Content {
+			if item.Kind != yaml.MappingNode {
+				return fmt.Errorf("line %d: a matrix entry is a map of variables", item.Line)
+			}
+			var vs StringMap
+			if err := item.Decode(&vs); err != nil {
+				return err
+			}
+			m.Sets = append(m.Sets, vs)
+		}
+	default:
+		return fmt.Errorf("line %d: a matrix is a map of value lists or a list of variable maps", n.Line)
+	}
+	return nil
 }

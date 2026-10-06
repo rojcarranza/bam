@@ -191,3 +191,17 @@ func TestPlanStatsStopsOnAnEndedContext(t *testing.T) {
 	_, err := s.PlanStats(ctx, statsRef(), 20)
 	require.ErrorIs(t, err, context.Canceled)
 }
+
+// Skipped is a terminal state even though Finished() leaves it out (a build
+// can be skipped before it starts): stats count it under other.
+func TestPlanStatsCountsSkippedBuilds(t *testing.T) {
+	s, _ := statsService(t, sb(2, provider.StateSkipped, 0), sb(1, provider.StateSuccess, time.Minute))
+	st, err := s.PlanStats(bg, statsRef(), 20)
+	require.NoError(t, err)
+	require.Equal(t, map[provider.State]int{provider.StateSkipped: 1}, st.Other)
+
+	s, _ = statsService(t, sb(1, provider.StateSkipped, 0))
+	st, err = s.PlanStats(bg, statsRef(), 20)
+	require.NoError(t, err)
+	require.Equal(t, 1, st.Other[provider.StateSkipped], "a window of only skipped builds still has finished builds")
+}

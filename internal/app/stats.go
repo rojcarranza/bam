@@ -87,7 +87,7 @@ func (s *Service) PlanStats(ctx context.Context, ref PlanRef, n int) (PlanStats,
 		if !start.IsZero() && (st.From.IsZero() || start.Before(st.From)) {
 			st.From = start
 		}
-		if !b.State.Finished() {
+		if !settled(b.State) {
 			continue
 		}
 		if b.FinishedAt.After(st.To) {
@@ -208,4 +208,11 @@ func (s *Service) failingJobs(ctx context.Context, failed []provider.Build) ([]J
 		return a.Name < b.Name
 	})
 	return out, warnings
+}
+
+// settled is whether a build's state is its last for statistics: finished,
+// or skipped, which Finished leaves out because a skipped build can be
+// skipped before it ever starts, but which never changes again either.
+func settled(s provider.State) bool {
+	return s.Finished() || s == provider.StateSkipped
 }

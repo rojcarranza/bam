@@ -1,11 +1,11 @@
 package tui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"path/filepath"
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"

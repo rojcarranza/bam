@@ -20,7 +20,11 @@ func PlanStatsView(o Out, s app.PlanStats) error {
 	}
 	head := s.PlanKey
 	if s.Branch != "" {
-		head = fmt.Sprintf("%s  branch %s (%s)", s.PlanKey, s.Branch, s.PlanKey)
+		master := s.MasterKey
+		if master == "" {
+			master = s.PlanKey
+		}
+		head = fmt.Sprintf("%s  branch %s (%s)", master, s.Branch, s.PlanKey)
 	}
 	fmt.Fprintf(o.W, "%s  last %d builds (#%d–#%d, %s)\n", style.Bold(o.Style, head), s.Builds, s.First, s.Last, span(s.To.Sub(s.From)))
 

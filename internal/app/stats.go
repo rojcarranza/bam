@@ -19,8 +19,9 @@ const UnknownJob = "(unknown)"
 // PlanStats is what a plan's last builds say about it.
 type PlanStats struct {
 	PlanKey, Branch string
-	Builds          int // builds read
-	First, Last     int // build numbers; 0 without builds
+	MasterKey       string // the plan; PlanKey is its branch plan when a branch is chosen
+	Builds          int    // builds read
+	First, Last     int    // build numbers; 0 without builds
 	From, To        time.Time
 	Passed, Failed  int
 	Other           map[provider.State]int // stopped, not built, skipped
@@ -64,7 +65,7 @@ func (s *Service) PlanStats(ctx context.Context, ref PlanRef, n int) (PlanStats,
 	if err != nil {
 		return PlanStats{}, err
 	}
-	st := PlanStats{PlanKey: ref.PlanKey, Branch: ref.Branch, Builds: len(builds), Other: map[provider.State]int{}}
+	st := PlanStats{PlanKey: ref.PlanKey, MasterKey: ref.MasterKey, Branch: ref.Branch, Builds: len(builds), Other: map[provider.State]int{}}
 	type dur struct {
 		d time.Duration
 		n int
@@ -123,6 +124,11 @@ func (s *Service) PlanStats(ctx context.Context, ref PlanRef, n int) (PlanStats,
 		}
 	}
 	st.FailingJobs, st.Warnings = s.failingJobs(ctx, failed)
+	// An interrupt during the reads is an interrupt: its failed reads are
+	// not "could not read" warnings, and partial figures are not stats.
+	if err := ctx.Err(); err != nil {
+		return PlanStats{}, err
+	}
 	return st, nil
 }
 
@@ -137,8 +143,13 @@ func (s *Service) failingJobs(ctx context.Context, failed []provider.Build) ([]J
 	sem := make(chan struct{}, statsReaders)
 	var wg sync.WaitGroup
 	for i, b := range failed {
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			wg.Wait()
+			return nil, nil
+		}
 		wg.Add(1)
-		sem <- struct{}{}
 		go func(i int, key string) {
 			defer wg.Done()
 			defer func() { <-sem }()

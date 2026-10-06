@@ -174,3 +174,20 @@ func (f *failingGet) GetBuild(ctx context.Context, key string) (provider.Build, 
 	}
 	return f.Provider.GetBuild(ctx, key)
 }
+
+func TestPlanStatsKeepsTheMasterKey(t *testing.T) {
+	s, _ := statsService(t, sb(1, provider.StateSuccess, time.Minute))
+	st, err := s.PlanStats(bg, PlanRef{PlanKey: "PROJ-BUILD", MasterKey: "PROJ-BUILD", Branch: ""}, 20)
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-BUILD", st.MasterKey)
+}
+
+// An interrupt while the failed builds are read is an interrupt, not a run
+// of "could not read" warnings and an exit 0.
+func TestPlanStatsStopsOnAnEndedContext(t *testing.T) {
+	s, _ := statsService(t, sb(2, provider.StateFailed, time.Minute, "Unit"), sb(1, provider.StateSuccess, time.Minute))
+	ctx, cancel := context.WithCancel(bg)
+	cancel()
+	_, err := s.PlanStats(ctx, statsRef(), 20)
+	require.ErrorIs(t, err, context.Canceled)
+}

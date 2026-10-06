@@ -67,3 +67,13 @@ func TestPlanStatsJSON(t *testing.T) {
 	  "failing_jobs":[{"name":"Integration tests","failures":3,"last_build":397},{"name":"Deploy","failures":1,"last_build":384}],
 	  "warnings":[]}`, string(data))
 }
+
+// On a branch the header names the plan, the branch, then the branch plan's
+// key — not the branch key twice.
+func TestPlanStatsBranchHeader(t *testing.T) {
+	s := fullStats()
+	s.MasterKey, s.PlanKey, s.Branch = "PROJ-DEPLOY", "PROJ-DEPLOY12", "develop"
+	o, buf := testOut(false)
+	require.NoError(t, PlanStatsView(o, s))
+	require.Contains(t, buf.String(), "PROJ-DEPLOY  branch develop (PROJ-DEPLOY12)  last 20 builds (#381–#400, 6 days)\n")
+}

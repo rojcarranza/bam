@@ -865,3 +865,15 @@ func TestDescribeSetMasksASecretInTheMatrix(t *testing.T) {
 	require.Equal(t, "publish-specs", svc.Cfg.Project.Sets["rel"].Stages[0][0].Target)
 	require.Equal(t, "hunter2", svc.Cfg.Project.Sets["rel"].Stages[0][0].Matrix.Product["db_password"][0], "the configuration itself is untouched")
 }
+
+func TestLatestSetRunIsThisRepositorysNewest(t *testing.T) {
+	svc := setService(t, fakeBamboo())
+	_, ok, err := svc.LatestSetRun("release")
+	require.NoError(t, err)
+	require.False(t, ok)
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: twoStages("PROJ-BUILD-1")})
+	got, ok, err := svc.LatestSetRun("release")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, rec.ID, got.ID)
+}

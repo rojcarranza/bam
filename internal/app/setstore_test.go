@@ -114,3 +114,28 @@ func TestAFailedLockLeavesNoPartialLock(t *testing.T) {
 	_, err = os.Stat(filepath.Join(s.Dir, "a.lock"))
 	require.True(t, os.IsNotExist(err), "a is released when b is held")
 }
+
+func TestSetStoreHolder(t *testing.T) {
+	dir := t.TempDir()
+	mine := &SetStore{Dir: dir, Host: func() (string, error) { return "laptop", nil }, PID: func() int { return 4242 }}
+	other := &SetStore{Dir: dir, Host: func() (string, error) { return "desk", nil }, PID: func() int { return 77 }}
+	at := time.Date(2026, 10, 6, 9, 15, 0, 0, time.UTC)
+
+	_, _, _, held := mine.Holder("release")
+	require.False(t, held, "no lock file")
+
+	l, err := other.Lock([]string{"release", "release-1"}, false, at)
+	require.NoError(t, err)
+	pid, host, since, held := mine.Holder("release")
+	require.True(t, held)
+	require.Equal(t, 77, pid)
+	require.Equal(t, "desk", host)
+	require.True(t, since.Equal(at))
+	l.Release()
+
+	l, err = mine.Lock([]string{"release", "release-2"}, false, at)
+	require.NoError(t, err)
+	_, _, _, held = mine.Holder("release")
+	require.False(t, held, "this process's own lock is not held elsewhere")
+	l.Release()
+}

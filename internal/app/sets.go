@@ -750,3 +750,8 @@ func maskedMatrix(m *config.Matrix) *config.Matrix {
 	}
 	return out
 }
+
+// LatestSetRun is this repository's newest record of set.
+func (s *Service) LatestSetRun(set string) (SetRecord, bool, error) {
+	return s.Sets.Latest(s.Cfg.RepoRoot, set, nil)
+}

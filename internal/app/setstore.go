@@ -247,3 +247,21 @@ func (r RunRecord) RunName() string {
 	}
 	return r.Target
 }
+
+// Holder reads a set's lock without taking it: who runs the set now, if
+// anyone other than this process.
+func (s *SetStore) Holder(set string) (pid int, host string, since time.Time, held bool) {
+	data, err := os.ReadFile(filepath.Join(s.Dir, set+".lock"))
+	if err != nil {
+		return 0, "", time.Time{}, false
+	}
+	var info lockInfo
+	if json.Unmarshal(data, &info) != nil {
+		return 0, "", time.Time{}, false
+	}
+	me, _ := s.Host()
+	if info.PID == s.PID() && info.Host == me {
+		return 0, "", time.Time{}, false
+	}
+	return info.PID, info.Host, info.Since, true
+}

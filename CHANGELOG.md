@@ -13,7 +13,7 @@ Release trains grow up: matrices, retries, one-off train files and a panel in th
 
 ### Terminal UI
 
-- `:sets` lists the sets with their last run. A set screen shows its stages and runs live; `R` runs it, `U` resumes, `F` reruns the failed runs, each through a prompt for variables with a dry-run preview. The train keeps running while you browse; quitting asks first and leaves it resumable. A set run by another bam is shown and followed.
+- `:sets` lists the sets with their last run. A set screen shows its stages and runs live; `R` runs it through a prompt for variables with a dry-run preview; `U` resumes and `F` reruns the failed runs, asking again only for the variables the run was started with, and acting at once when there are none. The train keeps running while you browse; quitting asks first and leaves it resumable. A set run by another bam is shown and followed.
 
 ### Commands
 
@@ -22,7 +22,7 @@ Release trains grow up: matrices, retries, one-off train files and a panel in th
 
 ### Progress
 
-- On a server that reports no build progress, a running build's progress is estimated from the median of its plan branch's last 10 successful builds. Bamboo's own estimate always wins; `progress` in JSON says which `source` it came from.
+- On a server that does not support build progress, a running build's progress is estimated from the median of its plan branch's last 10 successful builds (at least 3). A server that supports progress but has no estimate yet still shows none. `progress` in JSON says which `source` it came from.
 
 ### JSON
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.2.0 — 2026-10-07
+
+Release trains grow up: matrices, retries, one-off train files and a panel in the terminal UI, plus plan statistics and progress on servers that report none.
+
+### Run sets
+
+- **Matrices.** A `matrix` on a set run expands one preset into several named runs of its stage (`deploy[env=qa]`), as every combination (`{env: [qa, prod]}`) or as exact variable sets (`[{env: qa}, {env: prod}]`). Each run is recorded, resumed and retried on its own; at most 50 runs per stage.
+- **`bam set rerun --failed`.** Bamboo restarts each failed build of the failed stage under the same key, rerunning only its failed jobs with the same variables and commit; a run that never triggered is triggered; then the train finishes. `bam doctor` reports whether the server can restart builds.
+- **Train files.** `bam set run -f hotfix.yaml` runs a one-off train from its own file, in the shape of a `sets:` entry. `status`, `resume` and `rerun --failed` work as for any set; resume reads the file again, and `--file` follows it when it moves.
+- Every failed set ends with `try: bam set rerun --failed <id>`, and `resume` shows the runs that already have a build instead of pending ones.
+
+### Terminal UI
+
+- `:sets` lists the sets with their last run. A set screen shows its stages and runs live; `R` runs it, `U` resumes, `F` reruns the failed runs, each through a prompt for variables with a dry-run preview. The train keeps running while you browse; quitting asks first and leaves it resumable. A set run by another bam is shown and followed.
+
+### Commands
+
+- **`bam plan stats <plan|preset>`** — over the last N builds (default 20): the success rate, median, p90 and slowest durations of successful builds, the current streak, and which jobs the failures came from. `--json` included.
+- **`bam run --revision from`** reuses the commit of the `--from` build; the run form in the UI offers it with `f`.
+
+### Progress
+
+- On a server that reports no build progress, a running build's progress is estimated from the median of its plan branch's last 10 successful builds. Bamboo's own estimate always wins; `progress` in JSON says which `source` it came from.
+
+### JSON
+
+Fields added, none renamed or removed: `revision_from` on run documents; `rerun`, `run` on set events; `reruns`, `name`, `file` on set records; `matrix` and `runs` on `set show`/`list`; `source` on `progress`; and the new `plan stats` document.
+
 ## v0.1.0 — 2026-10-05
 
 First public release: the command set, the terminal UI, build progress, run editing and revisions, preset sync, and the run sets core.

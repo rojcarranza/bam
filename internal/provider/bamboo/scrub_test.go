@@ -247,3 +247,30 @@ func TestFixtureTermViolationsIgnoresTermsInsideLongerWords(t *testing.T) {
 		filepath.Join(dir, "under.json") + ": AGENT",
 	}, v)
 }
+
+// A commit author is not the recording user, so Users does not list them.
+// Bamboo shows them in a build reason as link text and, percent-encoded, in
+// the author link.
+func TestScrubCommitAuthors(t *testing.T) {
+	in := `{"buildReason":"Changes by <a href=\"http://ci.home.internal/authors/viewAuthor.action?authorName=Jane%20Roe%20%3Cjane.roe%40corp.home%3E\">Jane Roe &lt;jane.roe@corp.home&gt;</a>",` +
+		`"author":"Jane Roe <jane.roe@corp.home>","plain":"see x%2Bnote%40corp.home"}`
+	out := string(Scrubber{Host: "ci.home.internal"}.Scrub([]byte(in)))
+	assert.NotContains(t, out, "Jane")
+	assert.NotContains(t, out, "Roe")
+	assert.NotContains(t, out, "corp.home")
+	assert.Contains(t, out, "authorName=jdoe\\\"")
+	assert.Contains(t, out, `>jdoe &lt;jdoe@example.com&gt;</a>`)
+	assert.Contains(t, out, `"author":"jdoe <jdoe@example.com>"`)
+	assert.Contains(t, out, "see jdoe%40example.com")
+}
+
+func TestFixtureHostViolationsEmails(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "a.json"),
+		[]byte(`{"a":"jdoe@example.com","b":"jdoe%40example.com","c":"real@corp.home","d":"authorName=x%3Creal%40corp.home%3E"}`), 0o644))
+	v, err := FixtureHostViolations(dir)
+	require.NoError(t, err)
+	require.Len(t, v, 2)
+	assert.Contains(t, v[0], "real@corp.home")
+	assert.Contains(t, v[1], "real%40corp.home")
+}

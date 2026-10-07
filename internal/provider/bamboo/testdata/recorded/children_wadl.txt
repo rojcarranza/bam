@@ -1,0 +1,2 @@
+GET dependency/search/{projectKey : ([^-/]+)}-{buildKey}/parent
+GET dependency/search/{projectKey : ([^-/]+)}-{buildKey}/child

@@ -14,12 +14,15 @@ import (
 	"time"
 )
 
-// wadlSummary is what -probe-run learns from Bamboo's application.wadl:
-// every method under the queue resource with its query parameters, and
-// every method anywhere that takes a parameter whose name mentions verbose.
+// wadlSummary is what the probes learn from Bamboo's application.wadl:
+// every method under the queue resource with its query parameters, every
+// method anywhere that takes a parameter whose name mentions verbose, and
+// every method whose path mentions dependencies, children, parents or
+// triggers.
 type wadlSummary struct {
 	Queue   []string
 	Verbose []string
+	Related []string
 }
 
 type wadlParam struct {
@@ -42,7 +45,10 @@ type wadlApplication struct {
 	Resources []wadlResource `xml:"resources>resource"`
 }
 
-var verboseRe = regexp.MustCompile(`(?i)verbose`)
+var (
+	verboseRe = regexp.MustCompile(`(?i)verbose`)
+	relatedRe = regexp.MustCompile(`(?i)depend|child|parent|trigger`)
+)
 
 // summarizeWADL reads a WADL document into a host-free text summary.
 func summarizeWADL(body []byte) (wadlSummary, error) {
@@ -79,6 +85,9 @@ func summarizeWADL(body []byte) (wadlSummary, error) {
 				}
 				if len(verbose) > 0 {
 					s.Verbose = append(s.Verbose, line+": "+strings.Join(verbose, " "))
+				}
+				if relatedRe.MatchString(path) {
+					s.Related = append(s.Related, line)
 				}
 			}
 			walk(path, r.Resources)

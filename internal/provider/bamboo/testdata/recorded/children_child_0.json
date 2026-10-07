@@ -1,0 +1,250 @@
+{
+  "artifacts": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "buildCompletedDate": "2026-10-07T11:13:21.458Z",
+  "buildCompletedTime": "2026-10-07T11:13:21.458Z",
+  "buildDuration": 221,
+  "buildDurationDescription": "< 1 second",
+  "buildDurationInSeconds": 0,
+  "buildNumber": 1,
+  "buildReason": "Child of <a href=\"http://bamboo.example.com/browse/LAB-PARENT-2\">LAB-PARENT-2</a>",
+  "buildRelativeTime": "4 hours ago",
+  "buildResultKey": "LAB-CHILD-1",
+  "buildStartedTime": "2026-10-07T11:13:21.153Z",
+  "buildState": "Successful",
+  "buildTestSummary": "No tests found",
+  "changes": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "comments": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "continuable": false,
+  "expand": "changes,metadata,plan,artifacts,comments,labels,jiraIssues,variables,stages",
+  "failedTestCount": 0,
+  "finished": true,
+  "id": 5734405,
+  "jiraIssues": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "key": "LAB-CHILD-1",
+  "labels": {
+    "label": [],
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "lifeCycleState": "Finished",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/result/LAB-CHILD-1",
+    "rel": "self"
+  },
+  "metadata": {
+    "max-result": 4,
+    "size": 4,
+    "start-index": 0
+  },
+  "notRunYet": false,
+  "number": 1,
+  "onceOff": false,
+  "plan": {
+    "enabled": true,
+    "id": 5472259,
+    "key": "LAB-CHILD",
+    "link": {
+      "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CHILD",
+      "rel": "self"
+    },
+    "name": "lab - LAB Child",
+    "planKey": {
+      "key": "LAB-CHILD"
+    },
+    "shortKey": "CHILD",
+    "shortName": "LAB Child",
+    "type": "chain"
+  },
+  "planName": "LAB Child",
+  "planResultKey": {
+    "entityKey": {
+      "key": "LAB-CHILD"
+    },
+    "key": "LAB-CHILD-1",
+    "resultNumber": 1
+  },
+  "prettyBuildCompletedTime": "Wed, 7 Oct, 11:13 AM",
+  "prettyBuildStartedTime": "Wed, 7 Oct, 11:13 AM",
+  "projectName": "lab",
+  "quarantinedTestCount": 0,
+  "reasonSummary": "Child of <a href=\"http://bamboo.example.com/browse/LAB-PARENT-2\">LAB-PARENT-2</a>",
+  "restartable": false,
+  "skippedTestCount": 0,
+  "specsResult": false,
+  "stages": {
+    "expand": "stage",
+    "max-result": 1,
+    "size": 1,
+    "stage": [
+      {
+        "collapsedByDefault": false,
+        "description": "",
+        "displayClass": "Successful",
+        "displayMessage": "1 job passed",
+        "expand": "results",
+        "id": 5767171,
+        "lifeCycleState": "Finished",
+        "manual": false,
+        "name": "Default Stage",
+        "restartable": false,
+        "results": {
+          "expand": "result",
+          "max-result": 1,
+          "result": [
+            {
+              "artifacts": {
+                "max-result": 1,
+                "size": 1,
+                "start-index": 0
+              },
+              "buildCompletedDate": "2026-10-07T11:13:21.306Z",
+              "buildCompletedTime": "2026-10-07T11:13:21.306Z",
+              "buildDuration": 156,
+              "buildDurationDescription": "< 1 second",
+              "buildDurationInSeconds": 0,
+              "buildNumber": 1,
+              "buildReason": "Dependency build",
+              "buildRelativeTime": "4 hours ago",
+              "buildResultKey": "LAB-CHILD-JOB1-1",
+              "buildStartedTime": "2026-10-07T11:13:21.150Z",
+              "buildState": "Successful",
+              "buildTestSummary": "No tests found",
+              "changes": {
+                "max-result": 0,
+                "size": 0,
+                "start-index": 0
+              },
+              "comments": {
+                "max-result": 0,
+                "size": 0,
+                "start-index": 0
+              },
+              "expand": "changes,testResults,metadata,plan,artifacts,comments,labels,jiraIssues,variables,logFiles",
+              "failedTestCount": 0,
+              "id": 5734406,
+              "jiraIssues": {
+                "max-result": 0,
+                "size": 0,
+                "start-index": 0
+              },
+              "key": "LAB-CHILD-JOB1-1",
+              "labels": {
+                "max-result": 0,
+                "size": 0,
+                "start-index": 0
+              },
+              "lifeCycleState": "Finished",
+              "link": {
+                "href": "http://bamboo.example.com/rest/api/latest/result/LAB-CHILD-JOB1-1",
+                "rel": "self"
+              },
+              "logFiles": [
+                "http://bamboo.example.com/download/LAB-CHILD-JOB1/build_logs/plan-5472259-JOB1-1.log"
+              ],
+              "metadata": {
+                "max-result": 11,
+                "size": 11,
+                "start-index": 0
+              },
+              "number": 1,
+              "onceOff": false,
+              "parent": {
+                "href": "http://bamboo.example.com/rest/api/latest/result/LAB-CHILD-1",
+                "rel": "parent"
+              },
+              "plan": {
+                "enabled": true,
+                "id": 5472260,
+                "key": "LAB-CHILD-JOB1",
+                "link": {
+                  "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CHILD-JOB1",
+                  "rel": "self"
+                },
+                "name": "lab - LAB Child - Default Job",
+                "planKey": {
+                  "key": "LAB-CHILD-JOB1"
+                },
+                "shortKey": "CHILD-JOB1",
+                "shortName": "Default Job",
+                "type": "job"
+              },
+              "planName": "Default Job",
+              "planResultKey": {
+                "entityKey": {
+                  "key": "LAB-CHILD-JOB1"
+                },
+                "key": "LAB-CHILD-JOB1-1",
+                "resultNumber": 1
+              },
+              "prettyBuildCompletedTime": "Wed, 7 Oct, 11:13 AM",
+              "prettyBuildStartedTime": "Wed, 7 Oct, 11:13 AM",
+              "prettyQueueDuration": "< 1 sec",
+              "prettyQueueStartedTime": "Wed, 7 Oct, 11:13 AM",
+              "prettyVcsUpdateDuration": "< 1 sec",
+              "prettyVcsUpdateStartedTime": "Wed, 7 Oct, 11:13 AM",
+              "projectName": "lab",
+              "quarantinedTestCount": 0,
+              "queueDuration": 65,
+              "queueStartedTime": "2026-10-07T11:13:21.085Z",
+              "queueTimeInSeconds": 0,
+              "reasonSummary": "Child of <a href=\"http://bamboo.example.com/browse/LAB-PARENT-2\">LAB-PARENT-2</a>",
+              "skippedTestCount": 0,
+              "specsResult": false,
+              "stage": "Default Stage",
+              "state": "Successful",
+              "successfulTestCount": 0,
+              "testResults": {
+                "all": 0,
+                "existingFailed": 0,
+                "failed": 0,
+                "fixed": 0,
+                "newFailed": 0,
+                "quarantined": 0,
+                "skipped": 0,
+                "successful": 0
+              },
+              "variables": {
+                "max-result": 0,
+                "size": 0,
+                "start-index": 0
+              },
+              "vcsUpdateDuration": 0,
+              "vcsUpdateInSeconds": 0,
+              "vcsUpdateStartedTime": "2026-10-07T11:13:21.150Z"
+            }
+          ],
+          "size": 1,
+          "start-index": 0
+        },
+        "runnable": false,
+        "state": "Successful"
+      }
+    ],
+    "start-index": 0
+  },
+  "state": "Successful",
+  "successful": true,
+  "successfulTestCount": 0,
+  "variables": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  }
+}

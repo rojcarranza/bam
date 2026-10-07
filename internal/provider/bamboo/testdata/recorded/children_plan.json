@@ -1,0 +1,64 @@
+{
+  "actions": {
+    "max-result": 9,
+    "size": 9,
+    "start-index": 0
+  },
+  "averageBuildTimeInSeconds": 0,
+  "branches": {
+    "branch": [],
+    "expand": "branch",
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "buildName": "LAB Parent",
+  "enabled": true,
+  "expand": "actions,stages,branches,variableContext",
+  "id": 5472257,
+  "isActive": false,
+  "isBuilding": false,
+  "isFavourite": false,
+  "key": "LAB-PARENT",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-PARENT",
+    "rel": "self"
+  },
+  "name": "lab - LAB Parent",
+  "planKey": {
+    "key": "LAB-PARENT"
+  },
+  "project": {
+    "description": "",
+    "id": 5341185,
+    "key": "LAB",
+    "link": {
+      "href": "http://bamboo.example.com/rest/api/latest/project/LAB",
+      "rel": "self"
+    },
+    "name": "lab"
+  },
+  "projectKey": "LAB",
+  "projectName": "lab",
+  "shortKey": "PARENT",
+  "shortName": "LAB Parent",
+  "stages": {
+    "expand": "stage",
+    "max-result": 1,
+    "size": 1,
+    "stage": [
+      {
+        "description": "",
+        "manual": false,
+        "name": "Default Stage"
+      }
+    ],
+    "start-index": 0
+  },
+  "type": "chain",
+  "variableContext": {
+    "max-results": 0,
+    "size": 0,
+    "variable": []
+  }
+}

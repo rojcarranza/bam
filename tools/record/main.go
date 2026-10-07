@@ -29,6 +29,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -62,6 +63,20 @@ var variableValueFiles = map[string]bool{
 	"result_variables.json": true,
 }
 
+// prettyJSON indents v without escaping <, > and &. The escaped forms end in
+// a letter (\u003e), which would hide a name that follows a tag from the
+// scrubber's word boundary and leak it into a recording.
+func prettyJSON(v any) ([]byte, error) {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimRight(b.Bytes(), "\n"), nil
+}
+
 // scrubVariableValues decodes body as arbitrary JSON and, for every object
 // that looks like a Bamboo variable entry (it has a "name" or "key" field
 // alongside "value"), replaces a non-masked "value" with a synthetic
@@ -74,7 +89,7 @@ func scrubVariableValues(body []byte) ([]byte, error) {
 	}
 	n := 0
 	v = rewriteVariableValues(v, &n)
-	return json.MarshalIndent(v, "", "  ")
+	return prettyJSON(v)
 }
 
 func rewriteVariableValues(v any, n *int) any {
@@ -116,7 +131,7 @@ func scrubLogEntries(body []byte) ([]byte, error) {
 	}
 	wrapper, ok := root["logEntries"].(map[string]any)
 	if !ok {
-		return json.MarshalIndent(root, "", "  ")
+		return prettyJSON(root)
 	}
 	var listKey string
 	var list []any
@@ -127,7 +142,7 @@ func scrubLogEntries(body []byte) ([]byte, error) {
 		}
 	}
 	if listKey == "" {
-		return json.MarshalIndent(root, "", "  ")
+		return prettyJSON(root)
 	}
 	if len(list) > maxScrubbedLogLines {
 		list = list[:maxScrubbedLogLines]
@@ -150,7 +165,7 @@ func scrubLogEntries(body []byte) ([]byte, error) {
 		wrapper["size"] = len(list)
 	}
 	root["logEntries"] = wrapper
-	return json.MarshalIndent(root, "", "  ")
+	return prettyJSON(root)
 }
 
 // scrubLogDownload truncates a raw log download (lines shaped
@@ -199,6 +214,7 @@ func run() error {
 		asKey       = flag.String("as", "LAB", "placeholder project key the recorded project is renamed to")
 		probe       = flag.Bool("probe-run", false, "probe custom revision and verbose logs support; triggers the plan up to three times")
 		probeRerun  = flag.Bool("probe-rerun", false, "probe build restart (PUT queue/{key}); triggers the plan once and restarts it if it failed")
+		probeKids   = flag.Bool("probe-children", false, "probe how Bamboo reports the child builds of the plan's newest build; triggers nothing")
 	)
 	flag.Parse()
 
@@ -271,6 +287,12 @@ func run() error {
 	}
 	if *probeRerun {
 		if err := r.probeRerun(plan); err != nil {
+			return err
+		}
+		return r.finish()
+	}
+	if *probeKids {
+		if err := r.probeChildren(plan); err != nil {
 			return err
 		}
 		return r.finish()
@@ -390,7 +412,7 @@ func writeScrubbed(dir, file string, body []byte, scrub bamboo.Scrubber) error {
 	if strings.HasSuffix(file, ".json") {
 		var pretty any
 		if json.Unmarshal(body, &pretty) == nil {
-			body, _ = json.MarshalIndent(pretty, "", "  ")
+			body, _ = prettyJSON(pretty)
 		}
 	}
 	switch {

@@ -203,3 +203,18 @@ func captureStdout(t *testing.T, f func()) string {
 	require.NoError(t, err)
 	return string(data)
 }
+
+// A name right after an HTML tag, as in a build reason's link text, must be
+// scrubbed too. Pretty-printing used to escape ">" to >, whose last
+// letter hid the name from the scrubber's word boundary.
+func TestWriteScrubbedScrubsNamesInsideHTML(t *testing.T) {
+	dir := t.TempDir()
+	in := `{"buildReason":"Child of <a href=\"http://bamboo.lab.example/browse/WORK-PARENT-2\">WORK-PARENT-2</a>"}`
+	for _, file := range []string{"result.json", "plan_variables.json"} {
+		require.NoError(t, writeScrubbed(dir, file, []byte(in), bamboo.Scrubber{Host: "bamboo.lab.example", Names: map[string]string{"WORK": "LAB"}}))
+		out, err := os.ReadFile(filepath.Join(dir, file))
+		require.NoError(t, err)
+		assert.NotContains(t, string(out), "WORK", file)
+		assert.Contains(t, string(out), ">LAB-PARENT-2</a>", file)
+	}
+}

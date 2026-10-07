@@ -88,7 +88,7 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 
 - **Local duration estimator:** a median of recent builds, for servers whose REST API does not report progress.
 - **Run sets:** the core is built: named sets of presets in ordered stages, `bam set run`, `status` and `resume`, set-level results (see the [run sets core design](superpowers/specs/2026-09-29-bam-run-sets-core-design.md)). Still to come: matrix expansion, batch files, `rerun --failed`, plan statistics, and a run-sets panel in the UI.
-- **Kubernetes:** read-only rollout status per environment.
+- **Kubernetes:** not planned. Deploy pipelines already wait for the rollout (`helm --wait`, `kubectl rollout status`), and reading clusters would need `kubectl` access on every machine; see the [rejected rollout status design](superpowers/specs/2026-10-07-bam-rollout-status-design.md).
 
 ### Explicitly out of scope
 

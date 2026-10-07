@@ -1,0 +1,31 @@
+{
+  "dependencies": {
+    "expand": "plan",
+    "max-result": 1,
+    "plan": [
+      {
+        "enabled": true,
+        "id": 1081351,
+        "key": "LAB2-BUILD",
+        "link": {
+          "href": "http://bamboo.example.com/rest/api/latest/plan/LAB2-BUILD",
+          "rel": "self"
+        },
+        "name": "lab2 - Build LAB2 Image",
+        "planKey": {
+          "key": "LAB2-BUILD"
+        },
+        "shortKey": "BUILD",
+        "shortName": "Build LAB2 Image",
+        "type": "chain"
+      }
+    ],
+    "size": 1,
+    "start-index": 0
+  },
+  "expand": "dependencies",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/dependency/search/LAB-PARENT/child",
+    "rel": "self"
+  }
+}

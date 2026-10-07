@@ -1,0 +1,31 @@
+{
+  "dependencies": {
+    "expand": "plan",
+    "max-result": 1,
+    "plan": [
+      {
+        "enabled": true,
+        "id": 5472259,
+        "key": "LAB-CHILD",
+        "link": {
+          "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CHILD",
+          "rel": "self"
+        },
+        "name": "lab - LAB Child",
+        "planKey": {
+          "key": "LAB-CHILD"
+        },
+        "shortKey": "CHILD",
+        "shortName": "LAB Child",
+        "type": "chain"
+      }
+    ],
+    "size": 1,
+    "start-index": 0
+  },
+  "expand": "dependencies",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/dependency/search/LAB-PARENT/parent",
+    "rel": "self"
+  }
+}

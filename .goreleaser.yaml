@@ -21,4 +21,4 @@ archives:
 checksum:
   name_template: checksums.txt
 changelog:
-  use: git
+  disable: true # the notes come from CHANGELOG.md (release.yml)

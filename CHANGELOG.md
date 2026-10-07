@@ -18,15 +18,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `bam run --revision from` rebuilds the commit an earlier build used.
 - Servers that don't report build progress now get an estimate from recent builds.
 
-### Changed
-
-- A failed train now suggests `bam set rerun --failed`, and resuming shows the builds that already ran.
-- JSON documents gained fields for the features above (see [docs/json.md](docs/json.md)). None were renamed or removed.
-
-### Fixed
-
-- A train file that was renamed can resume its run again.
-
 ## [0.1.0] - 2026-10-05
 
 ### Added

@@ -20,8 +20,15 @@ var (
 	hostOnlyRe    = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://([^/"'\s<>:\[\]]+)`)
 	ipv6BracketRe = regexp.MustCompile(`\[[0-9A-Fa-f:]+\]`)
 	emailRe       = regexp.MustCompile(`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
-	ipv4Re        = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
-	placeholder   = "bamboo.example.com"
+	// encodedEmailRe is an e-mail address inside a URL, its @ as %40.
+	encodedEmailRe = regexp.MustCompile(`[A-Za-z0-9._%+-]+%40[A-Za-z0-9.-]+\.[A-Za-z]{2,}`)
+	// authorParamRe is the value of a commit author link's authorName.
+	authorParamRe = regexp.MustCompile(`(authorName=)[^"&\s<>\\]*`)
+	// authorTextRe is a commit author shown as "Name <address>", once the
+	// address is scrubbed; the name follows a tag or opens a JSON string.
+	authorTextRe = regexp.MustCompile(`([>"])[^<>"&\n]{1,100}?\s*(&lt;|<)jdoe@example\.com(&gt;|>)`)
+	ipv4Re       = regexp.MustCompile(`\b(?:\d{1,3}\.){3}\d{1,3}\b`)
+	placeholder  = "bamboo.example.com"
 )
 
 // AllowedFixtureHosts are the only hosts that may appear in testdata.
@@ -69,7 +76,12 @@ func (s Scrubber) Scrub(data []byte) []byte {
 		out = re.ReplaceAllLiteralString(out, s.Names[name])
 	}
 
+	// Commit authors are not the recording user, so Users does not name
+	// them: their link value, encoded addresses and display names go too.
+	out = authorParamRe.ReplaceAllString(out, "${1}jdoe")
+	out = encodedEmailRe.ReplaceAllString(out, "jdoe%40example.com")
 	out = emailRe.ReplaceAllString(out, "jdoe@example.com")
+	out = authorTextRe.ReplaceAllString(out, "${1}jdoe ${2}jdoe@example.com${3}")
 	return []byte(out)
 }
 
@@ -195,6 +207,19 @@ func FixtureHostViolations(root string) ([]string, error) {
 				continue
 			}
 			out = append(out, path+": "+m)
+		}
+
+		// Check for e-mail addresses, plain or percent-encoded, outside
+		// example.com.
+		for _, m := range emailRe.FindAllString(content, -1) {
+			if !strings.HasSuffix(strings.ToLower(m), "@example.com") {
+				out = append(out, path+": "+m)
+			}
+		}
+		for _, m := range encodedEmailRe.FindAllString(content, -1) {
+			if !strings.HasSuffix(strings.ToLower(m), "%40example.com") {
+				out = append(out, path+": "+m)
+			}
 		}
 
 		// Check for IPv4 addresses (except 127.0.0.1)

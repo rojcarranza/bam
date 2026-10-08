@@ -389,6 +389,7 @@ func (m Model) showPlans() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) showPresets() (tea.Model, tea.Cmd) {
+	m.fromProjects = false
 	m.home.view = homePresets
 	m.sortPresets()
 	return m.goHome()

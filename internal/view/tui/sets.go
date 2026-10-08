@@ -63,6 +63,7 @@ func (m *Model) loadSets() tea.Cmd {
 
 // showSets picks Home's sets table (:sets).
 func (m Model) showSets() (tea.Model, tea.Cmd) {
+	m.fromProjects = false
 	m.home.view = homeSets
 	load := m.loadSets()
 	next, home := m.goHome()

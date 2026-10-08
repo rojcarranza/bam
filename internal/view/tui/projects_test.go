@@ -157,3 +157,80 @@ func TestProjectsNeverExceedTheTerminal(t *testing.T) {
 func TestProjectsGolden120x30(t *testing.T) {
 	requireGolden(t, "home-projects-120x30", projectsModel(t, "GONE").View())
 }
+
+// fromOPS is the plans view reached from the projects view on OPS.
+func fromOPS(t *testing.T) Model {
+	t.Helper()
+	m := projectsModel(t)
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.fromProjects)
+	return m
+}
+
+func TestEscReturnsFromPlansToProjects(t *testing.T) {
+	m, cmd := send(fromOPS(t), mkKey("esc"))
+	require.Equal(t, homeProjects, m.home.view)
+	require.Equal(t, focusProjects, m.focus)
+	require.Equal(t, "OPS", selectedProject(m), "the cursor is on the project just left")
+	require.Equal(t, "OPS", m.project, "the filter stays")
+	require.NotNil(t, cmd, "the list reloads")
+	require.False(t, m.fromProjects)
+}
+
+func TestEscClearsThePlansFilterBeforeLeaving(t *testing.T) {
+	m := fromOPS(t)
+	m.applyFilter("x")
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, homePlans, m.home.view)
+	require.Equal(t, "", m.plans.query)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, homeProjects, m.home.view)
+}
+
+func TestEscFromPanelsThenHomeStillReturnsToProjects(t *testing.T) {
+	m := fromOPS(t)
+	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "OPS-NIGHTLY", Name: "Nightly", ProjectKey: "OPS"}}})
+	m, _ = send(m, mkKey("enter")) // panels, Builds
+	m, _ = send(m, mkKey("esc"))   // Plans
+	m, _ = send(m, mkKey("esc"))   // Home
+	require.Equal(t, screenHome, m.screen)
+	require.Equal(t, homePlans, m.home.view)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, homeProjects, m.home.view)
+}
+
+func TestEscOnPlansNotFromProjectsStaysPut(t *testing.T) {
+	m, cmd := send(goldenHome(120, 30), mkKey("esc"))
+	require.Equal(t, homePlans, m.home.view)
+	require.Nil(t, cmd)
+}
+
+func TestPickingAProjectElsewhereEndsTheTrail(t *testing.T) {
+	m := fromOPS(t)
+	next, _ := m.setProject("PROJ") // what P and :project do
+	m = next.(Model)
+	require.False(t, m.fromProjects)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, homePlans, m.home.view)
+
+	m = fromOPS(t)
+	next, _ = m.showPresets()
+	require.False(t, next.(Model).fromProjects)
+	next, _ = m.showSets()
+	require.False(t, next.(Model).fromProjects)
+}
+
+func TestServerSwitchDropsTheProjectsTrail(t *testing.T) {
+	m := projectsModel(t)
+	old := m.projectsGen
+	next, _ := m.switchServer("lab")
+	m = next.(Model)
+	require.Empty(t, m.projects.rows(), "the old server's projects go")
+	m, _ = send(m, projectsLoadedMsg{Gen: old, Stream: streamProjects, Projects: sampleProjects()})
+	require.Empty(t, m.projects.rows(), "a late load from the old server is dropped")
+
+	m = fromOPS(t)
+	next, _ = m.switchServer("lab")
+	require.False(t, next.(Model).fromProjects)
+}

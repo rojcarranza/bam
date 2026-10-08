@@ -154,11 +154,12 @@ type Model struct {
 
 	home homeState
 
-	train   trainState
-	setView setScreen
-	setVars setVarsState
-	setDry  []string // the set dry run the overlay shows on the vars prompt
-	fromSet bool     // the panels were opened from a set screen run; esc returns there
+	train        trainState
+	setView      setScreen
+	setVars      setVarsState
+	setDry       []string // the set dry run the overlay shows on the vars prompt
+	fromProjects bool     // Home's plans were reached from the projects view; esc returns there
+	fromSet      bool     // the panels were opened from a set screen run; esc returns there
 
 	formFrom screen // where esc from the run form returns
 }
@@ -876,6 +877,7 @@ func (m Model) chooseOverlay() (tea.Model, tea.Cmd) {
 // plans, the builds and the open build all belonged to the old filter, so
 // they go before the new list loads.
 func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
+	m.fromProjects = false // a project picked any other way ends the trail
 	if key == m.project {
 		return m, nil
 	}
@@ -918,6 +920,9 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	// The project filter names a project of the server being left; keeping it
 	// would hide every plan on the new one.
 	m.project = ""
+	m.fromProjects = false
+	m.projectsGen++ // a projects load from the old server is dropped
+	m.projects.setItems(nil)
 	m.plans.setItems(nil)
 	m.builds.setItems(nil)
 	m.presets.setItems(nil)
@@ -1576,14 +1581,20 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case m.screen == screenHome:
-		// Home is the top: esc clears the active table's filter and
+		// Home is the top: esc clears the active table's filter, then on a
+		// plans table reached from the projects view goes back there, and
 		// otherwise does nothing.
-		if m.home.view == homeSets && m.sets.query != "" {
+		switch {
+		case m.home.view == homeSets && m.sets.query != "":
 			m.sets.setQuery("")
-		} else if m.home.view == homePresets && m.presets.query != "" {
+		case m.home.view == homePresets && m.presets.query != "":
 			m.presets.setQuery("")
-		} else if m.home.view == homePlans && m.plans.query != "" {
+		case m.home.view == homeProjects && m.projects.query != "":
+			m.projects.setQuery("")
+		case m.home.view == homePlans && m.plans.query != "":
 			m.plans.setQuery("")
+		case m.home.view == homePlans && m.fromProjects:
+			return m.backToProjects()
 		}
 		return m, nil
 	case m.screen == screenColumns && m.fromSet:

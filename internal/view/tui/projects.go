@@ -55,6 +55,7 @@ func (m *Model) loadProjects() tea.Cmd {
 // list is one request.
 func (m Model) showProjects() (tea.Model, tea.Cmd) {
 	m.home.view = homeProjects
+	m.fromProjects = false
 	var load tea.Cmd
 	if m.svc != nil {
 		load = m.loadProjects()
@@ -153,7 +154,9 @@ func (m Model) handleProjectsKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		nm := next.(Model)
 		nm.home.view = homePlans
 		shown, home := nm.goHome()
-		return shown.(Model), tea.Batch(load, home), true
+		sm := shown.(Model)
+		sm.fromProjects = true // after setProject, which ends any older trail
+		return sm, tea.Batch(load, home), true
 	case key.Matches(msg, keys.Refresh):
 		if m.svc == nil {
 			return m, nil, true
@@ -166,4 +169,14 @@ func (m Model) handleProjectsKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		return m, nil, true
 	}
 	return m, nil, false
+}
+
+// backToProjects is esc on a plans table reached from the projects view:
+// the projects table again, the cursor on the project just left.
+func (m Model) backToProjects() (tea.Model, tea.Cmd) {
+	project := m.project
+	next, cmd := m.showProjects()
+	nm := next.(Model)
+	nm.projects.selectFirst(func(p projectItem) bool { return p.Key == project })
+	return nm, cmd
 }

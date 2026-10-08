@@ -94,7 +94,14 @@ func (m Model) planRows(width, height int) string {
 	var b strings.Builder
 	for i := start; i < end; i++ {
 		b.WriteString(m.cursorFor(m.focus == focusPlans, m.plans.cursor == i))
-		b.WriteString(truncate(rows[i].Key, width-4))
+		// Keys differ by a letter or two and say nothing about the plan, so
+		// the name follows whenever the panel has room for some of it.
+		p := rows[i]
+		label := p.Key
+		if w := width - 6 - lipgloss.Width(label); w > 6 && p.Name != "" {
+			label += dimStyle.Render("  " + truncate(p.Name, w))
+		}
+		b.WriteString(truncate(label, width-4))
 		b.WriteString("\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
@@ -151,22 +158,55 @@ func (m Model) leftColumn(width, height int) string {
 	rest := height - 2*each
 	return lipgloss.JoinVertical(lipgloss.Left,
 		panel("1 Plans", m.focus == focusPlans, width, each, m.planRows(width, each-2)),
-		panel("2 Builds", m.focus == focusBuilds, width, each, m.buildRows(width, each-2)),
+		panel(m.namedTitle("2 Builds", m.buildsPlan), m.focus == focusBuilds, width, each, m.buildRows(width, each-2)),
 		panel("3 Presets", m.focus == focusPresets, width, rest, m.presetRows(width, rest-2)),
 	)
 }
 
 // mainPanel shows what the focused left panel points at: the open build's
-// detail, otherwise a hint about the build the Builds cursor is on.
+// detail, otherwise the plan the Plans cursor is on, otherwise a hint about
+// the build the Builds cursor is on.
 func (m Model) mainPanel(width, height int) string {
 	if m.detail != nil {
-		return panel(m.detail.Key, m.focus == focusMain, width, height, m.detailBody(width-2, height-2))
+		return panel(m.namedTitle(m.detail.Key, m.detail.PlanKey), m.focus == focusMain, width, height,
+			m.detailBody(width-2, height-2))
+	}
+	if p, ok := m.plans.selected(); ok && m.focus == focusPlans {
+		return panel(m.namedTitle(p.Key, p.Key), false, width, height, m.planSummary(p, width-2))
 	}
 	if b, ok := m.builds.selected(); ok {
-		return panel(b.Key, m.focus == focusMain, width, height,
+		return panel(m.namedTitle(b.Key, b.PlanKey), m.focus == focusMain, width, height,
 			dimStyle.Render("press enter to open this build"))
 	}
 	return panel("bam", m.focus == focusMain, width, height, dimStyle.Render("select a plan"))
+}
+
+// namedTitle follows a panel title with the name of the plan it is about:
+// the key alone rarely says which plan that is.
+func (m Model) namedTitle(title, planKey string) string {
+	if name := m.planNameOf(planKey); name != "" {
+		return title + " · " + name
+	}
+	return title
+}
+
+// planSummary is the main panel while the Plans cursor moves. Moving it loads
+// nothing, so this says which plan enter would open, with the whole name.
+func (m Model) planSummary(p provider.Plan, width int) string {
+	var lines []string
+	if p.Name != "" {
+		lines = append(lines, lipgloss.NewStyle().Width(width).Render(p.Name))
+	}
+	last := "no builds yet"
+	if lb := p.LastBuild; lb != nil {
+		last = fmt.Sprintf("last build %s #%d %s",
+			stateCell(lb.State), lb.Number, m.ago(lb.FinishedAt))
+	}
+	if p.ProjectKey != "" {
+		last = p.ProjectKey + " · " + last
+	}
+	lines = append(lines, last, "", dimStyle.Render("press enter to show its builds"))
+	return strings.Join(lines, "\n")
 }
 
 func branchOrDefault(b provider.Build) string {

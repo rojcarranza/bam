@@ -1,8 +1,8 @@
-┏━1 Plans━━━━━━━━━━━━━━━━━━━━┓╭─PROJ-BUILD-44──────────────────────────────────────────────────────────────────────────╮
-┃▸ OPS-NIGHTLY               ┃│press enter to open this build                                                          │
-┃  PROJ-BUILD                ┃│                                                                                        │
-┃  PROJ-DEPLOY               ┃│                                                                                        │
-┃                            ┃│                                                                                        │
+┏━1 Plans━━━━━━━━━━━━━━━━━━━━┓╭─OPS-NIGHTLY · Nightly──────────────────────────────────────────────────────────────────╮
+┃▸ OPS-NIGHTLY  Nightly      ┃│Nightly                                                                                 │
+┃  PROJ-BUILD  Build and test┃│OPS · no builds yet                                                                     │
+┃  PROJ-DEPLOY  Deploy       ┃│                                                                                        │
+┃                            ┃│press enter to show its builds                                                          │
 ┃                            ┃│                                                                                        │
 ┃                            ┃│                                                                                        │
 ┃                            ┃│                                                                                        │
@@ -11,7 +11,7 @@
 ┃                            ┃│                                                                                        │
 ┃                            ┃│                                                                                        │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│                                                                                        │
-╭─2 Builds───────────────────╮│                                                                                        │
+╭─2 Builds · Build and test──╮│                                                                                        │
 │▸ ✗ #44 3m ago              ││                                                                                        │
 │  ✓ #43 1h ago              ││                                                                                        │
 │                            ││                                                                                        │

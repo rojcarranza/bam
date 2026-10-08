@@ -387,6 +387,22 @@ func (m Model) lastBuildOf(planKey string) *provider.BuildSummary {
 	return nil
 }
 
+// planNameOf is the name of planKey from the plans load. A branch plan is
+// named after its master plan; when two masters match, the longer key is the
+// closer one. It is empty when the plan is not loaded.
+func (m Model) planNameOf(planKey string) string {
+	name, best := "", 0
+	for _, p := range m.plans.items {
+		switch {
+		case p.Key == planKey:
+			return p.Name
+		case len(p.Key) > best && isBranchOf(planKey, p.Key):
+			name, best = p.Name, len(p.Key)
+		}
+	}
+	return name
+}
+
 // sortPresets orders the presets in place by the presets sort. It sorts the
 // items rather than setting a list order, because the state and age columns
 // read the plans load, which changes under the list.

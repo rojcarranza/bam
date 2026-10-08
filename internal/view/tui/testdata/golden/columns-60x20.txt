@@ -1,10 +1,10 @@
-┏━1 Plans━━━━━━━━━━┓╭─PROJ-BUILD-44────────────────────────╮
-┃▸ OPS-NIGHTLY     ┃│press enter to open this build        │
-┃  PROJ-BUILD      ┃│                                      │
+┏━1 Plans━━━━━━━━━━┓╭─OPS-NIGHTLY · Nightly────────────────╮
+┃▸ OPS-NIGHTLY     ┃│Nightly                               │
+┃  PROJ-BUILD      ┃│OPS · no builds yet                   │
 ┃  PROJ-DEPLOY     ┃│                                      │
-┃                  ┃│                                      │
+┃                  ┃│press enter to show its builds        │
 ┗━━━━━━━━━━━━━━━━━━┛│                                      │
-╭─2 Builds─────────╮│                                      │
+╭─2 Builds · Build─╮│                                      │
 │▸ ✗ #44 3m ago    ││                                      │
 │  ✓ #43 1h ago    ││                                      │
 │                  ││                                      │

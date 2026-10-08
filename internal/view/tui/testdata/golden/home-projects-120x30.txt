@@ -1,0 +1,30 @@
+ Server:  lab [bamboo.lab.example]   <enter> drill in          </> filter or search      <:> command bar
+ Version: 9.6.4                      <esc> back / close        <s> next sort column      <?> help
+ User:    jdoe                       <o> open in the browser   <y> copy the URL
+───────────────────────────────────────────────────── projects[3] ────────────────────────────────────────── sort key↑ ─
+     KEY    NAME
+▸ ●  (all)  every project                                                                                               
+     GONE                                                                                                        missing
+     OPS    Operations
+     PROJ   Example Project
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+lab · 9.6.4 · jdoe                                             enter open  / filter  s sort  : cmd  R run  ?help  q quit

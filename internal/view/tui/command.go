@@ -15,30 +15,35 @@ import (
 // command is one entry of the : bar (home spec §5). The table below is the
 // only definition: the prompt, completion and the help overlay all read it.
 type command struct {
-	name string
-	arg  string // what the argument is, or "" for none: project, server, column
-	desc string
-	run  func(m Model, arg string) (tea.Model, tea.Cmd, error)
+	name  string
+	alias string // another exact name, for one a prefix cannot reach
+	arg   string // what the argument is, or "" for none: project, server, column
+	desc  string
+	run   func(m Model, arg string) (tea.Model, tea.Cmd, error)
 }
 
 func commands() []command {
 	return []command{
-		{"plans", "", "the plans table", func(m Model, _ string) (tea.Model, tea.Cmd, error) {
+		{name: "plans", desc: "the plans table", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
 			next, cmd := m.showPlans()
 			return next, cmd, nil
 		}},
-		{"presets", "", "the presets table", func(m Model, _ string) (tea.Model, tea.Cmd, error) {
+		{name: "presets", desc: "the presets table", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
 			next, cmd := m.showPresets()
 			return next, cmd, nil
 		}},
-		{"sets", "", "the sets table", func(m Model, _ string) (tea.Model, tea.Cmd, error) {
+		{name: "sets", desc: "the sets table", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
 			next, cmd := m.showSets()
 			return next, cmd, nil
 		}},
-		{"project", "project", "filter by project, or all", Model.commandProject},
-		{"server", "server", "switch server", Model.commandServer},
-		{"sort", "column", "sort the table; -column reverses", Model.commandSort},
-		{"quit", "", "quit", func(m Model, _ string) (tea.Model, tea.Cmd, error) {
+		{name: "projects", alias: "proj", desc: "the projects table; enter narrows the plans to one", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
+			next, cmd := m.showProjects()
+			return next, cmd, nil
+		}},
+		{name: "project", arg: "project", desc: "filter by project, or all", run: Model.commandProject},
+		{name: "server", arg: "server", desc: "switch server", run: Model.commandServer},
+		{name: "sort", arg: "column", desc: "sort the table; -column reverses", run: Model.commandSort},
+		{name: "quit", desc: "quit", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
 			next, cmd := m.quit()
 			return next, cmd, nil
 		}},
@@ -57,7 +62,7 @@ func commandNames() []string {
 func findCommand(name string) (command, error) {
 	var hits []command
 	for _, c := range commands() {
-		if c.name == name {
+		if c.name == name || (c.alias != "" && c.alias == name) {
 			return c, nil
 		}
 		if strings.HasPrefix(c.name, name) {

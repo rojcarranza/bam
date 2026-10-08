@@ -20,15 +20,16 @@ import (
 
 // homeState is what the Home screen keeps between frames (home spec §3-§4).
 type homeState struct {
-	view       homeView                  // which table Home shows
-	sort       homeSort                  // the plans table's order
-	presetSort homeSort                  // the presets table's order
-	setSort    homeSort                  // the sets table's order
-	live       map[string]provider.Build // builds the UI watches or started, by plan key
-	loadedAt   time.Time                 // the last load in which every project succeeded
-	stale      bool                      // the last load, or part of it, failed
-	plansErr   bool                      // m.err came from the plans stream, not another one
-	missing    []string                  // the configured projects missing on the last load
+	view        homeView                  // which table Home shows
+	sort        homeSort                  // the plans table's order
+	presetSort  homeSort                  // the presets table's order
+	setSort     homeSort                  // the sets table's order
+	projectSort homeSort                  // the projects table's order
+	live        map[string]provider.Build // builds the UI watches or started, by plan key
+	loadedAt    time.Time                 // the last load in which every project succeeded
+	stale       bool                      // the last load, or part of it, failed
+	plansErr    bool                      // m.err came from the plans stream, not another one
+	missing     []string                  // the configured projects missing on the last load
 
 	tickGen int       // the auto-refresh loop's generation (home spec §4.2)
 	lastKey time.Time // the last key pressed, for the idle cut-off
@@ -42,6 +43,7 @@ const (
 	homePlans homeView = iota
 	homePresets
 	homeSets
+	homeProjects
 )
 
 // homeCol is a sortable column. The presets table reuses the values: key is
@@ -57,9 +59,10 @@ const (
 
 // homeColNames are the column names :sort accepts, per table, in homeCol order.
 var homeColNames = map[homeView][]string{
-	homePlans:   {"key", "name", "state", "age"},
-	homePresets: {"target", "plan", "state", "age"},
-	homeSets:    {"set", "state", "age"},
+	homePlans:    {"key", "name", "state", "age"},
+	homePresets:  {"target", "plan", "state", "age"},
+	homeSets:     {"set", "state", "age"},
+	homeProjects: {"key", "name"},
 }
 
 // homeSort is a column and a direction. desc reverses the column's natural
@@ -358,6 +361,9 @@ func (m Model) homeFocus() focus {
 	if m.home.view == homeSets {
 		return focusSets
 	}
+	if m.home.view == homeProjects {
+		return focusProjects
+	}
 	if m.home.view == homePresets {
 		return focusPresets
 	}
@@ -510,6 +516,11 @@ func (m Model) presetTable(width, height int) []string {
 // Home. It reports handled=false for every other key, which then goes
 // through handleKey's shared switch with focus on Home's list.
 func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
+	if m.home.view == homeProjects {
+		if next, cmd, handled := m.handleProjectsKey(msg); handled {
+			return next, cmd, true
+		}
+	}
 	if m.home.view == homeSets {
 		if next, cmd, handled := m.handleSetsKey(msg); handled {
 			return next, cmd, true
@@ -564,6 +575,9 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 
 // currentHomeSort is the order of the table Home is currently showing.
 func (m Model) currentHomeSort() homeSort {
+	if m.home.view == homeProjects {
+		return m.home.projectSort
+	}
 	if m.home.view == homeSets {
 		return m.home.setSort
 	}
@@ -575,6 +589,18 @@ func (m Model) currentHomeSort() homeSort {
 
 // setHomeSort re-sorts the active table and keeps the cursor on its row.
 func (m *Model) setHomeSort(s homeSort) {
+	if m.home.view == homeProjects {
+		if int(s.col) >= len(homeColNames[homeProjects]) {
+			s.col = 0 // key and name only
+		}
+		keep, had := m.projects.selected()
+		m.home.projectSort = s
+		m.projects.setOrder(projectLess(s))
+		if had {
+			m.projects.selectFirst(func(p projectItem) bool { return p.Key == keep.Key })
+		}
+		return
+	}
 	if m.home.view == homeSets {
 		if int(s.col) >= len(homeColNames[homeSets]) {
 			s.col = 0 // the sets table has three columns, not four
@@ -663,9 +689,12 @@ func (m Model) homeHeader() string {
 	if m.home.view == homeSets {
 		count, sortLabel, query = countOf(m.sets.len(), "set"), m.home.setSort.label(homeSets), m.sets.query
 	}
+	if m.home.view == homeProjects {
+		count, sortLabel, query = countOf(m.projectCount(), "project"), m.home.projectSort.label(homeProjects), m.projects.query
+	}
 	parts := []string{"bam", m.server, m.info.Version, m.user.Name, "project " + project,
 		count, "sort " + sortLabel}
-	if m.home.view == homeSets {
+	if m.home.view == homeSets || m.home.view == homeProjects {
 		// Sets are not filtered by project.
 		parts = append(parts[:4], count, "sort "+sortLabel)
 	}
@@ -705,6 +734,8 @@ func (m Model) homeTitle() (title, right string) {
 		name, n, query, sortLabel = "presets", m.presets.len(), m.presets.query, m.home.presetSort.label(homePresets)
 	case homeSets:
 		name, scope, n, query, sortLabel = "sets", "", m.sets.len(), m.sets.query, m.home.setSort.label(homeSets)
+	case homeProjects:
+		name, scope, n, query, sortLabel = "projects", "", m.projectCount(), m.projects.query, m.home.projectSort.label(homeProjects)
 	}
 	title = name + scope
 	if query != "" {
@@ -725,6 +756,8 @@ func homeHints(v homeView) []key.Binding {
 	switch v {
 	case homePresets:
 		return []key.Binding{keys.Enter, keys.Run, keys.Project, keys.Filter, keys.Sort, keys.Command, keys.Help}
+	case homeProjects:
+		return []key.Binding{keys.Enter, keys.Back, keys.Open, keys.Filter, keys.Sort, keys.Copy, keys.Command, keys.Help}
 	case homeSets:
 		return []key.Binding{keys.Enter, keys.Run, keys.Filter, keys.Sort, keys.Command, keys.Help}
 	}
@@ -831,6 +864,9 @@ func (m Model) homeView() string {
 	}
 	if m.home.view == homeSets {
 		lines = m.setTable(m.width, body)
+	}
+	if m.home.view == homeProjects {
+		lines = m.projectTable(m.width, body)
 	}
 	if len(lines) > body {
 		lines = lines[:body]

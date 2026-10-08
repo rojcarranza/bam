@@ -43,7 +43,8 @@ const (
 	focusBuilds
 	focusPresets
 	focusMain
-	focusSets // Home's sets table; not in the panels' tab order
+	focusSets     // Home's sets table; not in the panels' tab order
+	focusProjects // Home's projects table; not in the panels' tab order
 )
 
 // overlay is the modal on top, if any. At most one is open.
@@ -105,11 +106,12 @@ type Model struct {
 	expanded   map[string]bool
 	treeCursor int
 
-	plans   listState[provider.Plan]
-	builds  listState[provider.Build]
-	presets listState[app.TargetInfo]
-	sets    listState[setItem]
-	picker  listState[pickerItem]
+	plans    listState[provider.Plan]
+	builds   listState[provider.Build]
+	presets  listState[app.TargetInfo]
+	sets     listState[setItem]
+	projects listState[projectItem]
+	picker   listState[pickerItem]
 
 	confirm  confirmState
 	help     helpState
@@ -164,20 +166,22 @@ type Model struct {
 // New builds the initial model. It starts no work; Init does that.
 func New(d Deps) Model {
 	m := Model{
-		deps:    d,
-		ctx:     context.Background(),
-		server:  d.Initial,
-		screen:  screenHome,
-		focus:   focusPlans,
-		plans:   newList(planMatchText),
-		builds:  newList(func(b provider.Build) string { return b.Key + " " + b.Branch + " " + b.Reason }),
-		presets: newList(func(t app.TargetInfo) string { return t.Name + " " + t.Plan + " " + t.Branch }),
-		sets:    newList(func(s setItem) string { return s.Info.Name }),
-		picker:  newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
-		now:     time.Now,
-		input:   textinput.New(),
+		deps:     d,
+		ctx:      context.Background(),
+		server:   d.Initial,
+		screen:   screenHome,
+		focus:    focusPlans,
+		plans:    newList(planMatchText),
+		builds:   newList(func(b provider.Build) string { return b.Key + " " + b.Branch + " " + b.Reason }),
+		presets:  newList(func(t app.TargetInfo) string { return t.Name + " " + t.Plan + " " + t.Branch }),
+		sets:     newList(func(s setItem) string { return s.Info.Name }),
+		projects: newList(projectMatchText),
+		picker:   newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
+		now:      time.Now,
+		input:    textinput.New(),
 	}
 	m.plans.setOrder(planLess(m.home.sort))
+	m.projects.setOrder(projectLess(homeSort{}))
 	m.home.lastKey = m.now()
 	return m
 }
@@ -316,6 +320,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.svc, m.info, m.user, m.server = msg.Svc, msg.Info, msg.User, msg.Alias
 		m.err = nil
 		cmd := m.loadPlans()
+		if m.home.view == homeProjects {
+			projects := m.loadProjects()
+			return m, tea.Batch(cmd, projects)
+		}
 		return m, cmd
 	case plansLoadedMsg:
 		if msg.Gen != m.plansGen {
@@ -338,6 +346,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sortPresets()
 		return m, nil
 	case projectsLoadedMsg:
+		if msg.Stream == streamProjects {
+			if msg.Gen != m.projectsGen {
+				return m, nil
+			}
+			return m.projectsLoaded(msg), nil
+		}
 		if msg.Stream != streamPicker || msg.Gen != m.pickerGen {
 			return m, nil
 		}
@@ -507,6 +521,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		m.status = ""
 		m.plans.loading, m.builds.loading = false, false
+		if msg.Stream == streamProjects {
+			m.projects.loading = false
+		}
 		// plansErr tracks whether the error now showing came from the plans
 		// stream, so a later successful plans load knows whether it is the
 		// one that gets to clear it (finding 5).
@@ -702,6 +719,8 @@ func (m *Model) applyFilter(q string) {
 		m.presets.setQuery(q)
 	case focusSets:
 		m.sets.setQuery(q)
+	case focusProjects:
+		m.projects.setQuery(q)
 	}
 }
 
@@ -937,6 +956,8 @@ func (m *Model) moveFocused(delta int) {
 		m.presets.move(delta)
 	case focusSets:
 		m.sets.move(delta)
+	case focusProjects:
+		m.projects.move(delta)
 	case focusMain:
 		m.treeCursor += delta
 		m.clampTree()
@@ -953,6 +974,8 @@ func (m *Model) jumpFocused(top bool) {
 		jump(&m.presets, top)
 	case focusSets:
 		jump(&m.sets, top)
+	case focusProjects:
+		jump(&m.projects, top)
 	case focusMain:
 		m.treeCursor = 0
 		if !top {
@@ -1212,6 +1235,10 @@ func (m Model) selectionURL() string {
 	case focusBuilds:
 		if b, ok := m.builds.selected(); ok {
 			return b.URL
+		}
+	case focusProjects:
+		if p, ok := m.projects.selected(); ok {
+			return p.URL
 		}
 	case focusMain:
 		// A stage has no URL of its own, so the build's stands in.

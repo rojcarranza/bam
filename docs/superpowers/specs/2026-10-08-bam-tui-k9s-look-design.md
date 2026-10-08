@@ -32,10 +32,10 @@ The owner compares the UI with k9s, where the selected row is a solid colour bar
 The row under the cursor is drawn across the full table width with background colour 6 (cyan) and foreground colour 0 (black), bold. In a panel that does not have focus, the cursor row gets background colour 8 (grey) instead, so the user still sees where they were. Unchanged: the `▸` mark in the gutter (bold blue when focused, dim when not).
 
 ```
-  PROJECT  KEY           NAME                          STATE       #  AGE  BY
-  PROJ       PROJ-DEPLOY    Deploy to staging    ✗ failed   13  433d jdoe
-▸ PROJ       PROJ-BUILD        Build and test            ✓ success 270  2d   jdoe   ← cyan bar
-  PROJ       PROJ-NIGHTLY    Nightly acceptance     ✗ failed  161  12h  sched
+  PROJECT  KEY           NAME                  STATE        #  AGE  BY
+  PROJ     PROJ-DEPLOY   Deploy to staging     ✗ failed    13  433d jdoe
+▸ PROJ     PROJ-BUILD    Build and test        ✓ success  270  2d   jdoe   ← cyan bar
+  PROJ     PROJ-NIGHTLY  Nightly acceptance    ✗ failed   161  12h  sched
 ```
 
 ### 3.2 Rendering
@@ -61,7 +61,7 @@ At 20 rows or more, the one-line header becomes a three-line block plus a titled
  Server:  work [bamboo.example.com]   <enter> drill in          <P> filter by project     <y> copy the URL
  Version: 9.6.9                       <R> open the run form     </> filter or search      <:> command bar
  User:    jdoe                        <o> open in the browser   <s> next sort column      <?> help
-──────────────────────────── plans(PROJ)[132] ─────────────────────────────────────
+──────────────────────────── plans(PROJ)[132] ────────────────────────────────────
   PROJECT  KEY        NAME                              STATE      #  AGE  BY
 ```
 
@@ -98,8 +98,8 @@ A fourth Home view, `homeProjects`, after plans, presets and sets.
 ──────────────────────────── projects[14] ───────────────────────────────────────
   KEY      NAME
 ▸ (all)    every project                                                    ← bar
-● PROJ       Example Project
-  LAB    Lab
+  LAB      Lab
+● PROJ     Example Project
   OPS      Operations           missing
 ```
 

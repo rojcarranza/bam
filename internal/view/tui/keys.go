@@ -114,7 +114,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"MOVE", "esc", "back one level, close an overlay; from Plans to Home"},
 		{"HOME", "enter", "open the panels on the row's plan"},
 		{"HOME", "s", "next sort column"},
-		{"HOME", ":", "command bar: :plans :presets :sets :project :server :sort :q"},
+		{"HOME", ":", "command bar: :plans :presets :sets :projects :project :server :sort :q"},
 		{"VIEW", "l", "logs for the selection (failed jobs by default)"},
 		{"VIEW", "a", "all logs, not only failed; in the set vars prompt, add a variable"},
 		{"VIEW", "f", "follow (log screen)"},

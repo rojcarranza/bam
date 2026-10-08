@@ -1,6 +1,6 @@
 # bam: a k9s-style look for the terminal UI, and a projects view
 
-**Status:** Proposed | **Date:** 2026-10-08
+**Status:** Implemented | **Date:** 2026-10-08
 **Product requirements:** [`docs/prd.md`](../../prd.md) "Next (v0.2): terminal UI"
 **Builds on:** [`2026-09-23-bam-v0.3-tui-home-design.md`](2026-09-23-bam-v0.3-tui-home-design.md) (Home, header, `:` commands), [`2026-10-06-bam-tui-sets-design.md`](2026-10-06-bam-tui-sets-design.md) (Home views)
 

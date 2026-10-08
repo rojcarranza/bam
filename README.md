@@ -233,6 +233,8 @@ without a terminal, bare `bam` prints help exactly as before.
 
 `:sets` lists the run sets with their last run. `enter` opens a set: its stages and runs, live while it runs. `R` runs it (a prompt takes optional variables, `d` previews the dry run, `ctrl-R` starts it), `U` resumes an interrupted run, `F` reruns the failed runs; resume and rerun ask again for the variables the run was started with. The train keeps running while you browse, one per window; `q` asks first and leaves it interrupted, to continue with `U` or `bam set resume`. A set run by another bam is shown and re-read every few seconds.
 
+`:projects` (or `:proj`) lists the projects, `(all)` first, `●` on the one the plans are narrowed to. `enter` shows that project's plans; `esc` goes back to the list. A configured project the server does not have is marked `missing`.
+
 ### Keys
 
 | | Keys | Does |
@@ -246,7 +248,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `esc` | back one level, close an overlay; from Plans to Home |
 | Home | `enter` | open the panels on the row's plan |
 | | `s` | next sort column |
-| | `:` | command bar: :plans :presets :sets :project :server :sort :q |
+| | `:` | command bar: :plans :presets :sets :projects :project :server :sort :q |
 | View | `l` | logs for the selection (failed jobs by default) |
 | | `a` | all logs, not only failed; in the set vars prompt, add a variable |
 | | `f` | follow (log screen) |

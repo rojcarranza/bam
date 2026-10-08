@@ -128,6 +128,7 @@ type Model struct {
 	pickerGen, presetsGen        int
 	cancelGen                    int
 	setsGen, setGen              int
+	projectsGen                  int
 
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
@@ -243,6 +244,8 @@ func (m Model) currentStream(s stream, gen int) bool {
 		return gen == m.cancelGen
 	case streamSets:
 		return gen == m.setsGen
+	case streamProjects:
+		return gen == m.projectsGen
 	}
 	return true
 }
@@ -335,7 +338,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sortPresets()
 		return m, nil
 	case projectsLoadedMsg:
-		if msg.Gen != m.pickerGen {
+		if msg.Stream != streamPicker || msg.Gen != m.pickerGen {
 			return m, nil
 		}
 		// The empty value is the "no filter" row, so one list both sets and
@@ -629,7 +632,7 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pickerGen++
 		m.picker.setQuery("")
 		m.picker.setItems(nil)
-		return m, loadProjectsCmd(m.baseCtx(), m.svc, m.pickerGen)
+		return m, loadProjectsCmd(m.baseCtx(), m.svc, streamPicker, m.pickerGen)
 	case key.Matches(msg, keys.Branch):
 		p, ok := m.plans.selected()
 		if !ok || m.svc == nil {

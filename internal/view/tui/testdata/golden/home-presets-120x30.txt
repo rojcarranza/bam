@@ -2,7 +2,7 @@
   TARGET  PLAN        BRANCH                                                                  STATE             #  AGE
   build   PROJ-BUILD  default                                                                 ✗ failed          4  12m
   orphan  LAB-X       default                                                                 –                 –  –
-▸ smoke   PROJ-PROV   develop                                                                 ✓ success         8  3h
+▸ smoke   PROJ-PROV   develop                                                                 ✓ success         8  3h   
 
 
 

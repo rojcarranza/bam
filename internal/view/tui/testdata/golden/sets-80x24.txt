@@ -1,6 +1,6 @@
  bam · lab · 9.6.4 · jdoe · 2 sets · sort set↑
   SET      STAGES  RUNS  LAST RUN                                          AGE
-▸ release       2     3  ✗ failed                                          12m
+▸ release       2     3  ✗ failed                                          12m  
   nightly       1     1  –                                                 –
 
 

@@ -145,7 +145,7 @@ func TestTableLinesPadsAlignsAndMarksTheCursor(t *testing.T) {
 	require.Equal(t, []string{
 		"  KEY       #  NAME",
 		"  A         4  Long…",
-		"▸ B        12  x",
+		"▸ B        12  x    ",
 	}, lines)
 }
 
@@ -442,4 +442,22 @@ func TestTheHeaderCountsOnePlanInTheSingular(t *testing.T) {
 	require.Contains(t, m.homeHeader(), "· 1 plan ·")
 	m.applyFilter("")
 	require.Contains(t, m.homeHeader(), "· 4 plans ·")
+}
+
+func TestCursorRowSpansTheTable(t *testing.T) {
+	m := goldenHome(120, 30)
+	lines := m.planTable(120, 10)
+	require.Equal(t, 120, lipgloss.Width(lines[1]), "the cursor row is padded to the table's width")
+	require.True(t, strings.HasPrefix(lines[1], "▸ "), "the mark stays, so selection shows without colour")
+	require.Less(t, lipgloss.Width(lines[2]), 120, "other rows are not padded")
+}
+
+func TestCursorRowNeverExceedsTheTable(t *testing.T) {
+	m := goldenHome(80, 24)
+	long := provider.Plan{Key: "OPS-LONG", ProjectKey: "OPS", Name: strings.Repeat("名前", 40)}
+	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: append(samplePlans(), long)})
+	m.plans.selectFirst(func(p provider.Plan) bool { return p.Key == "OPS-LONG" })
+	for i, l := range strings.Split(m.View(), "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 80, "line %d", i)
+	}
 }

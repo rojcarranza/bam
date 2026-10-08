@@ -297,7 +297,8 @@ func planCells(cols []tableCol, p provider.Plan, live *provider.Build, now time.
 }
 
 // tableLines is a header line and one line per row. cursor is the row index
-// that gets the ▸ marker; -1 marks none.
+// drawn as the selected bar, behind the ▸ mark; -1 marks none. Home's table
+// always has the keys, so its bar is the focused one.
 func tableLines(cols []tableCol, cells [][]string, cursor int) []string {
 	head := make([]string, len(cols))
 	for i, c := range cols {
@@ -305,13 +306,23 @@ func tableLines(cols []tableCol, cells [][]string, cursor int) []string {
 	}
 	lines := []string{"  " + titleStyle.Render(joinCells(cols, head))}
 	for r, row := range cells {
-		mark := "  "
 		if r == cursor {
-			mark = cursorStyle.Render("▸") + " "
+			lines = append(lines, cursorStyle.Render("▸")+" "+selectedRow(joinCells(cols, row), rowWidth(cols), true))
+			continue
 		}
-		lines = append(lines, mark+joinCells(cols, row))
+		lines = append(lines, "  "+joinCells(cols, row))
 	}
 	return lines
+}
+
+// rowWidth is how wide a row of cols is: the columns and the two spaces
+// between each pair.
+func rowWidth(cols []tableCol) int {
+	w := 2 * (len(cols) - 1)
+	for _, c := range cols {
+		w += c.width
+	}
+	return w
 }
 
 func joinCells(cols []tableCol, cells []string) string {

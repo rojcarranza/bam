@@ -135,6 +135,14 @@ func TestTabCompletesAUniqueCandidate(t *testing.T) {
 	require.Equal(t, "server ", m.input.Value(), "a command with an argument gets its space")
 }
 
+func TestTabOnAnAliasCompletesItsCommand(t *testing.T) {
+	require.Equal(t, []string{"projects"}, homeModel().complete("proj"), "proj is :projects, not a prefix of :project")
+	m, _ := send(homeModel(), mkKey(":"))
+	m = typeLine(m, "proj")
+	m, _ = send(m, mkKey("tab"))
+	require.Equal(t, "projects", m.input.Value())
+}
+
 func TestHelpListsTheCommands(t *testing.T) {
 	m := goldenModel(120, 50) // tall enough for the whole help overlay
 	m, _ = send(m, mkKey("?"))

@@ -73,7 +73,7 @@ It opens on the plans table; `enter` opens the panels for a plan:
   PROJECT  KEY          NAME                                                    STATE             #  AGE    BY
 ▸ OPS      OPS-NIGHTLY  Nightly                                                 ✓ success         9  now    commit
   OPS      OPS-OLD      Archived                                                –                 –  –      –
-  PROJ     PROJ-BUILD   Build and test                                          ✗ failed          4  12m    J Doe
+  PROJ     PROJ-BUILD   Build and test                                          ✗ failed          4  12m    jdoe
   PROJ     PROJ-PROV    Provision lab                                           ✓ success         8  3h     sched
 
  enter open  / filter  s sort  : cmd  R run  ?help  q quit

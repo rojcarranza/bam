@@ -111,7 +111,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"MOVE", "shift-tab", "previous panel"},
 		{"MOVE", "1 2 3", "focus a panel (on Home: open it)"},
 		{"MOVE", "enter", "drill in"},
-		{"MOVE", "esc", "back one level, close an overlay; from Plans to Home"},
+		{"MOVE", "esc", "back one level, close an overlay; from Plans to Home; from a project's plans to :projects"},
 		{"HOME", "enter", "open the panels on the row's plan"},
 		{"HOME", "s", "next sort column"},
 		{"HOME", ":", "command bar: :plans :presets :sets :projects :project :server :sort :q"},

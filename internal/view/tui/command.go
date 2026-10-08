@@ -201,6 +201,13 @@ func (m Model) complete(line string) []string {
 	if !spaced {
 		var out []string
 		for _, c := range commands() {
+			// An alias names one command exactly; as a prefix it would also
+			// reach another (proj is :projects, not the start of :project).
+			if c.alias != "" && c.alias == name {
+				return []string{c.name}
+			}
+		}
+		for _, c := range commands() {
 			if strings.HasPrefix(c.name, name) {
 				out = append(out, c.name)
 			}

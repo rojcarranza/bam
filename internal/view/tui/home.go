@@ -794,7 +794,12 @@ func (m Model) homeHeaderBlock(width int) []string {
 		leftW = max(leftW, 9+lipgloss.Width(c[1]))
 	}
 	hints := homeHints(m.home.view)
+	// One column whenever a short hint fits, even if a long one is cut:
+	// between 60 and 80 columns the header would otherwise show no keys.
 	cols := max((width-leftW-4)/hintWidth, 0)
+	if cols == 0 && width-leftW-4 >= 16 {
+		cols = 1
+	}
 	lines := make([]string, 3)
 	for r, c := range ctx {
 		var b strings.Builder

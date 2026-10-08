@@ -506,6 +506,14 @@ func TestSmallTerminalsKeepTheOneLineHeader(t *testing.T) {
 	}
 }
 
+func TestNarrowHeaderKeepsOneHintColumn(t *testing.T) {
+	v := goldenHome(60, 20).View()
+	require.Contains(t, v, "<enter> drill in", "between 60 and 80 columns one hint column still fits")
+	for i, l := range strings.Split(v, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 60, "line %d", i)
+	}
+}
+
 func TestHomeFillsTheTerminalExactly(t *testing.T) {
 	for _, size := range [][2]int{{80, 19}, {80, 20}, {120, 30}, {60, 20}} {
 		lines := strings.Split(goldenHome(size[0], size[1]).View(), "\n")

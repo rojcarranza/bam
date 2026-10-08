@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -15,6 +16,24 @@ func TestVersionPrintsVersion(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("version"))
 	assert.Equal(t, "bam dev\n", h.stdout.String())
+}
+
+// TestVersionFallsBackToBuildInfo: go install cannot pass -ldflags, so a
+// binary built that way reports the module version Go recorded in it.
+func TestVersionFallsBackToBuildInfo(t *testing.T) {
+	info := func(v string) func() (*debug.BuildInfo, bool) {
+		return func() (*debug.BuildInfo, bool) {
+			return &debug.BuildInfo{Main: debug.Module{Path: "github.com/r0jjames/bam-cli", Version: v}}, true
+		}
+	}
+	noInfo := func() (*debug.BuildInfo, bool) { return nil, false }
+
+	assert.Equal(t, "v0.2.1", resolveVersion("v0.2.1", info("v0.2.0")), "-ldflags wins")
+	assert.Equal(t, "v0.2.1", resolveVersion("dev", info("v0.2.1")), "go install @v0.2.1")
+	assert.Equal(t, "v0.2.2-0.20261008120000-021f33300000", resolveVersion("dev", info("v0.2.2-0.20261008120000-021f33300000")), "go install @main")
+	assert.Equal(t, "dev", resolveVersion("dev", info("(devel)")), "go build without VCS stamping")
+	assert.Equal(t, "dev", resolveVersion("dev", info("")))
+	assert.Equal(t, "dev", resolveVersion("dev", noInfo))
 }
 
 func TestUnknownCommandIsUsageError(t *testing.T) {

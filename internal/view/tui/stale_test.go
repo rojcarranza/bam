@@ -228,7 +228,7 @@ func TestStalePickerResponsesAreDropped(t *testing.T) {
 	stale := m.pickerGen
 	m.pickerGen++
 
-	m, _ = send(m, projectsLoadedMsg{Gen: stale, Projects: []provider.Project{{Key: "OLD"}}})
+	m, _ = send(m, projectsLoadedMsg{Gen: stale, Stream: streamPicker, Projects: []provider.Project{{Key: "OLD"}}})
 	require.Equal(t, 0, m.picker.len())
 
 	m, _ = send(m, branchesLoadedMsg{Gen: stale, MasterKey: "OLD", Branches: nil})
@@ -428,7 +428,7 @@ func TestChangingTheProjectDropsTheOldProjectsBuildAndWatch(t *testing.T) {
 	m.watchCancel = func() { stopped = true }
 
 	m, _ = send(m, mkKey("P"))
-	m, _ = send(m, projectsLoadedMsg{Gen: m.pickerGen, Projects: []provider.Project{{Key: "OPS"}}})
+	m, _ = send(m, projectsLoadedMsg{Gen: m.pickerGen, Stream: streamPicker, Projects: []provider.Project{{Key: "OPS"}}})
 	m, _ = send(m, mkKey("j")) // onto OPS
 	m, _ = send(m, mkKey("enter"))
 

@@ -66,14 +66,22 @@ logs, run a preset, and cancel.
 It opens on the plans table; `enter` opens the panels for a plan:
 
 ```
-bam · env · 9.6.2 · jdoe · project all · 4 plans · sort key↑
-PROJECT  KEY          NAME             STATE      #    AGE    BY
-▸OPS      OPS-NIGHTLY  Nightly          ● running   91   now   sched
- PROJ     PROJ-BUILD   Build and test   ✗ failed   482  12m    jdoe
- PROJ     PROJ-PROV    Provision lab    ✓ success    8   3h    sched
+ Server:  lab [bamboo.lab.example]   <enter> drill in          <P> filter by project     <y> copy the URL
+ Version: 9.6.4                      <R> open the run form     </> filter or search      <:> command bar
+ User:    jdoe                       <o> open in the browser   <s> next sort column      <?> help
+──────────────────────────────────────────────────── plans(all)[4] ───────────────────────────────────────── sort key↑ ─
+  PROJECT  KEY          NAME                                                    STATE             #  AGE    BY
+▸ OPS      OPS-NIGHTLY  Nightly                                                 ✓ success         9  now    commit
+  OPS      OPS-OLD      Archived                                                –                 –  –      –
+  PROJ     PROJ-BUILD   Build and test                                          ✗ failed          4  12m    jdoe
+  PROJ     PROJ-PROV    Provision lab                                           ✓ success         8  3h     sched
 
  enter open  / filter  s sort  : cmd  R run  ?help  q quit
 ```
+
+Terminals under 20 rows or 60 columns keep the one-line header.
+
+`:projects` (or `:proj`) lists the projects, `(all)` first, `●` on the one the plans are narrowed to. `enter` shows that project's plans; `esc` goes back to the list. A configured project the server does not have is marked `missing`.
 
 No lowercase key changes anything on the server. `R` only opens the run form,
 `ctrl-R` inside that form is the only key that starts a build, and `C` always
@@ -116,10 +124,10 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `shift-tab` | previous panel |
 | | `1` `2` `3` | focus a panel (on Home: open it) |
 | | `enter` | drill in |
-| | `esc` | back one level, close an overlay; from Plans to Home |
+| | `esc` | back one level, close an overlay; from Plans to Home; on plans reached from `:projects`, back to the projects list |
 | Home | `enter` | open the panels on the row's plan |
 | | `s` | next sort column |
-| | `:` | command bar: :plans :presets :sets :project :server :sort :q |
+| | `:` | command bar: :plans :presets :sets :projects :project :server :sort :q |
 | View | `l` | logs for the selection (failed jobs by default) |
 | | `a` | all logs, not only failed; in the set vars prompt, add a variable |
 | | `f` | follow (log screen) |

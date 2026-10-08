@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/view/style"
 )
@@ -53,4 +56,27 @@ var (
 	errorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	cursorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
+
+	hintKeyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
 )
+
+// selectedRowStyle is the cursor row's bar, as k9s draws it: black on cyan
+// where the keys go, light on grey in a panel without focus, so the user
+// still sees where they were.
+func selectedRowStyle(focused bool) lipgloss.Style {
+	if focused {
+		return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("0")).Background(lipgloss.Color("6"))
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Background(lipgloss.Color("8"))
+}
+
+// selectedRow draws s as the cursor row's bar, width cells wide. Any colour
+// s carries is dropped first: a state's own colour ends in a reset, which
+// would cut the bar in two.
+func selectedRow(s string, width int, focused bool) string {
+	plain := ansi.Strip(s)
+	if pad := width - lipgloss.Width(plain); pad > 0 {
+		plain += strings.Repeat(" ", pad)
+	}
+	return selectedRowStyle(focused).Render(plain)
+}

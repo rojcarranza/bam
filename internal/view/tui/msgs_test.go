@@ -169,7 +169,7 @@ func TestLoadProjectsCmdListsOnlyTheConfiguredProjects(t *testing.T) {
 		provider.Project{Key: "LAB", Name: "Lab"})
 	svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
 
-	got := loadProjectsCmd(context.Background(), svc, 0)().(projectsLoadedMsg)
+	got := loadProjectsCmd(context.Background(), svc, streamPicker, 0)().(projectsLoadedMsg)
 	keys := []string{}
 	for _, p := range got.Projects {
 		keys = append(keys, p.Key)
@@ -182,7 +182,7 @@ func TestLoadProjectsCmdListsEveryProjectWhenNoneConfigured(t *testing.T) {
 	f := svc.P.(*fake.Provider)
 	f.Projects = append(f.Projects, provider.Project{Key: "OPS", Name: "Operations"})
 
-	got := loadProjectsCmd(context.Background(), svc, 0)().(projectsLoadedMsg)
+	got := loadProjectsCmd(context.Background(), svc, streamPicker, 0)().(projectsLoadedMsg)
 	keys := []string{}
 	for _, p := range got.Projects {
 		keys = append(keys, p.Key)
@@ -269,4 +269,23 @@ func TestInitConnectsOnlyWhenNotAlreadyConnected(t *testing.T) {
 	}})
 	require.NotNil(t, m2.Init())
 	require.Equal(t, 0, calls, "Init returns the command; it does not run it")
+}
+
+func TestLoadProjectsCmdReportsConfiguredProjectsMissingOnTheServer(t *testing.T) {
+	svc := testService()
+	f := svc.P.(*fake.Provider)
+	f.Projects = append(f.Projects, provider.Project{Key: "OPS", Name: "Operations"})
+	svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "GONE", "PROJ"}}
+
+	got := loadProjectsCmd(context.Background(), svc, streamProjects, 7)().(projectsLoadedMsg)
+	require.Equal(t, streamProjects, got.Stream)
+	require.Equal(t, 7, got.Gen)
+	require.Equal(t, []string{"GONE"}, got.Missing)
+	require.Len(t, got.Projects, 2)
+}
+
+func TestLoadProjectsCmdMissesNothingWhenNoneConfigured(t *testing.T) {
+	got := loadProjectsCmd(context.Background(), testService(), streamPicker, 0)().(projectsLoadedMsg)
+	require.Empty(t, got.Missing)
+	require.Equal(t, streamPicker, got.Stream)
 }

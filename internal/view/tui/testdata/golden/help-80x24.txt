@@ -10,7 +10,7 @@
     ┃      esc              back one level, close an overlay; from Plans t ┃    
     ┃HOME  enter            open the panels on the row's plan              ┃    
     ┃      s                next sort column                               ┃    
-    ┃      :                command bar: :plans :presets :sets :project :s ┃    
+    ┃      :                command bar: :plans :presets :sets :projects : ┃    
     ┃VIEW  l                logs for the selection (failed jobs by default ┃    
     ┃      a                all logs, not only failed; in the set vars pro ┃    
     ┃      f                follow (log screen)                            ┃    

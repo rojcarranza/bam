@@ -1,6 +1,6 @@
  release · never run
  stage 1/2
- ▸ smoke                          –                 pending
+ ▸ smoke                          –                 pending                     
  stage 2/2
    build[env=qa]                  –                 pending
    build[env=prod]                –                 pending

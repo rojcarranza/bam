@@ -101,7 +101,11 @@ func (m Model) planRows(width, height int) string {
 		if w := width - 6 - lipgloss.Width(label); w > 6 && p.Name != "" {
 			label += dimStyle.Render("  " + truncate(p.Name, w))
 		}
-		b.WriteString(truncate(label, width-4))
+		label = truncate(label, width-4)
+		if m.plans.cursor == i {
+			label = selectedRow(label, width-4, m.focus == focusPlans)
+		}
+		b.WriteString(label)
 		b.WriteString("\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
@@ -114,9 +118,13 @@ func (m Model) buildRows(width, height int) string {
 	for i := start; i < end; i++ {
 		bd := rows[i]
 		b.WriteString(m.cursorFor(m.focus == focusBuilds, m.builds.cursor == i))
-		b.WriteString(stateStyle(bd.State).Render(stateGlyph(bd.State)))
-		fmt.Fprintf(&b, " #%d ", bd.Number)
-		b.WriteString(dimStyle.Render(m.ago(bd.FinishedAt)))
+		line := stateStyle(bd.State).Render(stateGlyph(bd.State)) +
+			fmt.Sprintf(" #%d ", bd.Number) + dimStyle.Render(m.ago(bd.FinishedAt))
+		line = truncate(line, width-4)
+		if m.builds.cursor == i {
+			line = selectedRow(line, width-4, m.focus == focusBuilds)
+		}
+		b.WriteString(line)
 		b.WriteString("\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
@@ -147,7 +155,11 @@ func (m Model) presetRows(width, height int) string {
 		if w := width - 6 - lipgloss.Width(label); w > 6 && detail != "" {
 			label += dimStyle.Render("  " + truncate(detail, w))
 		}
-		b.WriteString(truncate(label, width-4))
+		label = truncate(label, width-4)
+		if m.presets.cursor == i {
+			label = selectedRow(label, width-4, m.focus == focusPresets)
+		}
+		b.WriteString(label)
 		b.WriteString("\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
@@ -248,6 +260,9 @@ func (m Model) keyLine() string {
 		return strings.Join(append(parts, "r refresh", "esc back"), "  ")
 	}
 	if m.screen == screenHome {
+		if m.home.view == homeProjects {
+			return "enter plans  / filter  s sort  : cmd  ?help  q quit"
+		}
 		return "enter open  / filter  s sort  : cmd  R run  ?help  q quit"
 	}
 	return "?help  : cmd  tab focus  l logs  o open  q quit"

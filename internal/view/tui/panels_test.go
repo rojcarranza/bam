@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +24,8 @@ func TestPlanRowsShowTheNameWhenItFits(t *testing.T) {
 func TestPlanRowsWithoutANameShowTheKey(t *testing.T) {
 	m := goldenModel(160, 40)
 	m.plans.setItems([]provider.Plan{{Key: "PROJ-BARE", ProjectKey: "PROJ"}})
-	require.Equal(t, "▸ PROJ-BARE", m.planRows(40, 10))
+	// The cursor row is a bar padded to the panel width, so trim the padding.
+	require.Equal(t, "▸ PROJ-BARE", strings.TrimRight(m.planRows(40, 10), " "))
 }
 
 // TestBuildsPanelNamesItsPlan: after enter on a plan nothing else on screen
@@ -102,4 +105,26 @@ func TestPlanNameOf(t *testing.T) {
 	require.Equal(t, "", m.planNameOf("PROJ-OTHER"))
 	require.Equal(t, "", m.planNameOf(""))
 	require.Equal(t, "", m.planNameOf("PROJ-BUILDX"), "a branch suffix is digits only")
+}
+
+// barStart is the escape sequence a bar of this focus begins with.
+func barStart(focused bool) string {
+	return strings.SplitN(selectedRowStyle(focused).Render("x"), "x", 2)[0]
+}
+
+func TestPanelCursorRowsAreBars(t *testing.T) {
+	forceColour(t)
+	m := goldenModel(80, 24) // focus on Plans
+	plans := strings.Split(m.planRows(20, 5), "\n")
+	require.Contains(t, plans[0], barStart(true), "the focused panel's cursor row is the bright bar")
+	require.NotContains(t, plans[1], barStart(true))
+	builds := strings.Split(m.buildRows(40, 5), "\n")
+	require.Contains(t, builds[0], barStart(false), "an unfocused panel shows where its cursor is")
+}
+
+func TestBuildRowsTruncateToTheBar(t *testing.T) {
+	m := goldenModel(80, 24)
+	for _, l := range strings.Split(m.buildRows(8, 5), "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 8, "a build row never outgrows its panel")
+	}
 }

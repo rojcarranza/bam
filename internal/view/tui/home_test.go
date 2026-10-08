@@ -145,7 +145,7 @@ func TestTableLinesPadsAlignsAndMarksTheCursor(t *testing.T) {
 	require.Equal(t, []string{
 		"  KEY       #  NAME",
 		"  A         4  Long…",
-		"▸ B        12  x",
+		"▸ B        12  x    ",
 	}, lines)
 }
 
@@ -383,9 +383,9 @@ func TestShowPresetsSwitchesTheTable(t *testing.T) {
 	require.Equal(t, focusPresets, m.focus)
 	v := m.View()
 	require.Contains(t, v, "TARGET")
-	require.Contains(t, v, "3 presets")
+	require.Contains(t, v, "presets(all)[3]")
 	next, _ := m.showPlans()
-	require.Contains(t, next.(Model).View(), "4 plans")
+	require.Contains(t, next.(Model).View(), "plans(all)[4]")
 }
 
 func TestPresetsSortByTargetAndState(t *testing.T) {
@@ -443,3 +443,82 @@ func TestTheHeaderCountsOnePlanInTheSingular(t *testing.T) {
 	m.applyFilter("")
 	require.Contains(t, m.homeHeader(), "· 4 plans ·")
 }
+
+func TestCursorRowSpansTheTable(t *testing.T) {
+	m := goldenHome(120, 30)
+	lines := m.planTable(120, 10)
+	require.Equal(t, 120, lipgloss.Width(lines[1]), "the cursor row is padded to the table's width")
+	require.True(t, strings.HasPrefix(lines[1], "▸ "), "the mark stays, so selection shows without colour")
+	require.Less(t, lipgloss.Width(lines[2]), 120, "other rows are not padded")
+}
+
+func TestCursorRowNeverExceedsTheTable(t *testing.T) {
+	m := goldenHome(80, 24)
+	long := provider.Plan{Key: "OPS-LONG", ProjectKey: "OPS", Name: strings.Repeat("名前", 40)}
+	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: append(samplePlans(), long)})
+	m.plans.selectFirst(func(p provider.Plan) bool { return p.Key == "OPS-LONG" })
+	for i, l := range strings.Split(m.View(), "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 80, "line %d", i)
+	}
+}
+
+func TestHomeHeaderBlockNamesContextKeysAndTitle(t *testing.T) {
+	v := goldenHome(120, 30).View()
+	for _, want := range []string{
+		"Server:", "lab [bamboo.lab.example]", "Version:", "9.6.4", "User:", "jdoe",
+		"<enter> drill in", "<P> filter by project", "<?> help",
+		"plans(all)[4]", "sort key↑",
+	} {
+		require.Contains(t, v, want)
+	}
+}
+
+func TestHomeTitleCarriesProjectFilterAndCount(t *testing.T) {
+	m := goldenHome(120, 30)
+	m.project = "PROJ"
+	m.applyFilter("fail")
+	title, _ := m.homeTitle()
+	require.Equal(t, "plans(PROJ)</fail>[1]", title)
+	next, _ := m.showSets()
+	title, _ = next.(Model).homeTitle()
+	require.Equal(t, "sets[0]", title, "sets have no project scope")
+}
+
+func TestHomeTitleRuleShowsStale(t *testing.T) {
+	m := goldenHome(120, 30)
+	m.home.stale, m.home.loadedAt = true, time.Time{}
+	_, right := m.homeTitle()
+	require.Equal(t, "sort key↑ · stale", right)
+}
+
+func TestTitleRuleFillsTheWidth(t *testing.T) {
+	for _, w := range []int{20, 40, 80, 120} {
+		require.Equal(t, w, lipgloss.Width(titleRule(w, "plans(all)[4]", "sort key↑ · refreshing…")), "width %d", w)
+	}
+	require.NotContains(t, titleRule(20, "plans(all)[4]", "sort key↑ · refreshing…"), "sort", "the right part goes first when it does not fit")
+}
+
+func TestSmallTerminalsKeepTheOneLineHeader(t *testing.T) {
+	for _, size := range [][2]int{{80, 19}, {59, 30}} {
+		v := goldenHome(size[0], size[1]).View()
+		require.True(t, strings.HasPrefix(v, " bam · lab"), "%dx%d", size[0], size[1])
+		require.NotContains(t, v, "Server:")
+	}
+}
+
+func TestNarrowHeaderKeepsOneHintColumn(t *testing.T) {
+	v := goldenHome(60, 20).View()
+	require.Contains(t, v, "<enter> drill in", "between 60 and 80 columns one hint column still fits")
+	for i, l := range strings.Split(v, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 60, "line %d", i)
+	}
+}
+
+func TestHomeFillsTheTerminalExactly(t *testing.T) {
+	for _, size := range [][2]int{{80, 19}, {80, 20}, {120, 30}, {60, 20}} {
+		lines := strings.Split(goldenHome(size[0], size[1]).View(), "\n")
+		require.Len(t, lines, size[1], "%dx%d", size[0], size[1])
+	}
+}
+
+func TestHomeGolden80x12(t *testing.T) { requireGolden(t, "home-80x12", goldenHome(80, 12).View()) }

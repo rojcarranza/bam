@@ -42,7 +42,7 @@ The row under the cursor is drawn across the full table width with background co
 
 - `theme.go` gains `selectedRowStyle(focused bool) lipgloss.Style`, the single definition of the bar.
 - `tableLines` (`home.go`) builds the cursor row from plain cells: the state cell is `style.Glyph(s) + " " + style.Label(s)` without `stateStyle`, then the joined row is padded to the table width and rendered with `selectedRowStyle`. Other rows are unchanged.
-- The cell builders (`planCells`, `presetCells`, the sets cells) gain a `plain bool` argument, or return plain cells and colour them at join time. The implementation plan picks one; the rule is that no ANSI sequence sits inside the bar except its own.
+- `selectedRow` strips every ANSI sequence from the joined row (`x/ansi.Strip`) before rendering the bar, so the cell builders do not change and no ANSI sequence sits inside the bar except its own.
 - The panels' cursor rows (`panels.go`) use the same style, so the Plans, Builds and Presets panels match Home.
 - Lists in overlays (picker, help) and the form are out of scope; they keep the `▸`.
 
@@ -69,7 +69,7 @@ At 20 rows or more, the one-line header becomes a three-line block plus a titled
 - **Key hints** (middle): up to three columns of `<key> description`, keys in colour 4. The hints for each Home view come from `keyMap` bindings (`WithHelp`), not from literal strings, so they cannot drift from the real keys. The projects view shows its own set (§5.3).
 - **Title** in the rule above the table: `view(scope)[count]`.
   - `view` is `plans`, `presets`, `sets` or `projects`.
-  - `scope` is the project key, or `all`; `all (none configured)` keeps today's wording. Sets and projects have no scope: `sets[4]`.
+  - `scope` is the project key, or `all`. The one-line header keeps `all (none configured)`; the title does not repeat it. Sets and projects have no scope: `sets[4]`.
   - A filter adds `</query>`: `plans(PROJ)</fail>[3]`.
   - The sort, refreshing and stale markers move to the right end of the rule: `─ sort key↑ · refreshing… ─`.
 - Below 20 rows, or below 60 columns, the header is today's single line, unchanged, so small terminals keep their table rows.
@@ -82,7 +82,7 @@ At 20 rows or more, the one-line header becomes a three-line block plus a titled
 ### 4.3 Tests
 
 - Goldens for the plans view at 120×30 (block header) and 80×12 (compact header).
-- A test that every hint printed for a view matches a binding in `keys`.
+- Hints are `key.Binding` values from `keys`, so a hint that names an unbound key cannot compile; tests check the header shows the expected hints.
 - The existing header tests for stale and refreshing still pass against the rule.
 
 ## 5. Projects view
@@ -103,7 +103,7 @@ A fourth Home view, `homeProjects`, after plans, presets and sets.
   OPS      Operations           missing
 ```
 
-- **Open it** with `:projects`, alias `:proj`. The help overlay and the `:` completion list it.
+- **Open it** with `:projects`, alias `:proj` (an exact alias: as a prefix, `proj` would be ambiguous with `:project`). The help overlay and the `:` completion list it.
 - **Rows** come from `ListProjects`, one request. When the configuration lists `projects:`, only those are shown; a configured project that is not on the server is shown dimmed with `missing`, as `plansLoadedMsg.Missing` already reports. The first row is `(all)`.
 - **`●`** marks the active project (`m.project`), or `(all)` when there is none.
 - **Enter** on a project calls the existing `setProject(key)` and switches to the plans view. Enter on `(all)` calls `setProject("")`.

@@ -12,8 +12,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- The terminal UI names plans, not just their keys: in the Plans panel when it fits, in the Builds and build titles, and in the main panel while you move through plans.
 - The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, version and user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.
+
+## [0.2.1] - 2026-10-08
+
+### Changed
+
+- The terminal UI names plans, not just their keys: in the Plans panel when it fits, in the Builds and build titles, and in the main panel while you move through plans.
+
+### Fixed
+
+- `bam version` prints the real version for `go install` builds instead of `dev`.
 
 ## [0.2.0] - 2026-10-07
 
@@ -41,6 +50,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A terminal UI with a plans table, panels for builds, stages and logs, and a run form.
 - `--json` on every read command, and stable exit codes.
 
-[Unreleased]: https://github.com/r0jjames/bam-cli/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/r0jjames/bam-cli/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/r0jjames/bam-cli/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/r0jjames/bam-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/r0jjames/bam-cli/releases/tag/v0.1.0

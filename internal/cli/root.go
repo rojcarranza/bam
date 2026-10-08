@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/view"
@@ -11,7 +12,22 @@ import (
 )
 
 // version is set at build time with -ldflags "-X github.com/r0jjames/bam-cli/internal/cli.version=v0.1.0".
+// go install cannot pass -ldflags; resolveVersion covers that build.
 var version = "dev"
+
+// resolveVersion is the version set at build time or, when there is none, the
+// module version Go records in a go install build (v0.2.1, or a pseudo-version
+// for @main). A plain go build records "(devel)", which says nothing, so that
+// stays "dev".
+func resolveVersion(set string, read func() (*debug.BuildInfo, bool)) string {
+	if set != "dev" {
+		return set
+	}
+	if bi, ok := read(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return set
+}
 
 const (
 	groupSetup    = "setup"
@@ -119,7 +135,7 @@ func newVersionCmd(r *runtime) *cobra.Command {
 		Short: "Print the bam version",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, err := fmt.Fprintf(r.env.Stdout, "bam %s\n", version)
+			_, err := fmt.Fprintf(r.env.Stdout, "bam %s\n", resolveVersion(version, debug.ReadBuildInfo))
 			return err
 		},
 	}

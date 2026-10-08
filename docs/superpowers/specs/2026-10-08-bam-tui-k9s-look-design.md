@@ -58,15 +58,15 @@ The row under the cursor is drawn across the full table width with background co
 At 20 rows or more, the one-line header becomes a three-line block plus a titled border line above the table:
 
 ```
- Server:  work [bamboo.example.com]   <enter> Panels    <R> Run       <o> Browser
- Version: 9.6.9                       <P> Project       <s> Sort      <y> Copy URL
- User:    jdoe                        </> Filter        <:> Command   <?> Help
+ Server:  work [bamboo.example.com]   <enter> drill in          <P> filter by project     <y> copy the URL
+ Version: 9.6.9                       <R> open the run form     </> filter or search      <:> command bar
+ User:    jdoe                        <o> open in the browser   <s> next sort column      <?> help
 ──────────────────────────── plans(PROJ)[132] ─────────────────────────────────────
   PROJECT  KEY        NAME                              STATE      #  AGE  BY
 ```
 
 - **Context block** (left): server alias with its host, Bamboo version, user name. Labels dim, values bold.
-- **Key hints** (middle): up to three columns of `<key> description`, keys in colour 4. The hints for each Home view come from `keyMap` bindings (`WithHelp`), not from literal strings, so they cannot drift from the real keys. The projects view shows its own set (§5.3).
+- **Key hints** (middle): up to three columns of `<key> description`, keys in colour 4. The hints for each Home view come from `keyMap` bindings (`WithHelp`), not from literal strings, so they cannot drift from the real keys. The projects view shows its own set (§5.1).
 - **Title** in the rule above the table: `view(scope)[count]`.
   - `view` is `plans`, `presets`, `sets` or `projects`.
   - `scope` is the project key, or `all`. The one-line header keeps `all (none configured)`; the title does not repeat it. Sets and projects have no scope: `sets[4]`.
@@ -92,9 +92,9 @@ At 20 rows or more, the one-line header becomes a three-line block plus a titled
 A fourth Home view, `homeProjects`, after plans, presets and sets.
 
 ```
- Server:  work [bamboo.example.com]   <enter> Plans     </> Filter
- Version: 9.6.9                       <esc> Back        <s> Sort
- User:    jdoe                        <:> Command       <?> Help
+ Server:  work [bamboo.example.com]   <enter> drill in          <s> next sort column      <?> help
+ Version: 9.6.9                       <o> open in the browser   <y> copy the URL
+ User:    jdoe                        </> filter or search      <:> command bar
 ──────────────────────────── projects[14] ───────────────────────────────────────
   KEY      NAME
 ▸ (all)    every project                                                    ← bar
@@ -105,6 +105,7 @@ A fourth Home view, `homeProjects`, after plans, presets and sets.
 
 - **Open it** with `:projects`, alias `:proj` (an exact alias: as a prefix, `proj` would be ambiguous with `:project`). The help overlay and the `:` completion list it.
 - **Rows** come from `ListProjects`, one request. When the configuration lists `projects:`, only those are shown; a configured project that is not on the server is shown dimmed with `missing`, as `plansLoadedMsg.Missing` already reports. The first row is `(all)`.
+- **Title count and order.** The count in the title (`projects[14]`) excludes `(all)` and the missing projects. Missing projects sort last, in key order and in name order alike, after every project the server has.
 - **`●`** marks the active project (`m.project`), or `(all)` when there is none.
 - **Enter** on a project calls the existing `setProject(key)` and switches to the plans view. Enter on `(all)` calls `setProject("")`.
 - **Esc** on the plans view, when it was reached from the projects view, goes back to the projects view with the cursor on the project just left. The project filter stays. In every other case Esc keeps its current meaning.
@@ -115,7 +116,7 @@ A fourth Home view, `homeProjects`, after plans, presets and sets.
 ### 5.2 State
 
 - `homeState.view` gains `homeProjects`; `homeColNames[homeProjects]` is `{"key", "name"}`.
-- `Model` gains `projects listState[projectItem]`, a `projectsGen` generation counter like the other streams, and `fromProjects bool`, set by Enter on the projects view and cleared by `goHome`, `setProject` from `P`, and server switching.
+- `Model` gains `projects listState[projectItem]`, a `projectsGen` generation counter like the other streams, and `fromProjects bool`, set by Enter on the projects view; it survives the panels round trip and `:plans`; it is cleared by `:presets`, `:sets`, `:projects`, `setProject` (from `P` or `:project`) and a server switch.
 - `loadProjectsCmd` returns `projectsLoadedMsg{Gen, Projects, Missing}`; stale generations are dropped as for plans.
 
 ### 5.3 Tests

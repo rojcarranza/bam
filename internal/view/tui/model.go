@@ -192,10 +192,12 @@ func (m *Model) loadPlans() tea.Cmd {
 // clear empties the panel first, for a switch to a different plan or branch:
 // the rows on screen belong to what is being left, and Enter on one of them
 // would open a build from the wrong plan. A plain refresh keeps them, so the
-// cursor does not jump.
+// cursor does not jump. The panel names planKey from the request on, so its
+// title never names the plan being left, even if the load fails.
 func (m *Model) loadBuilds(planKey string, clear bool) tea.Cmd {
 	m.buildsGen++
 	m.builds.loading = true
+	m.buildsPlan = planKey
 	if clear {
 		m.builds.setItems(nil)
 	}
@@ -840,7 +842,6 @@ func (m Model) chooseOverlay() (tea.Model, tea.Cmd) {
 	case overlayBranches:
 		m.overlay = overlayNone
 		m.leaveBuild()
-		m.buildsPlan = it.Value
 		m.focus = focusBuilds
 		cmd := m.loadBuilds(it.Value, true)
 		return m, cmd

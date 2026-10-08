@@ -41,6 +41,21 @@ func TestBuildsPanelNamesItsPlan(t *testing.T) {
 	require.Contains(t, m.View(), "2 Builds─")
 }
 
+// TestBuildsTitleFollowsTheDrill: enter clears the Builds panel at once, so
+// its title must name the plan being loaded, not the one being left, even
+// when the load never answers.
+func TestBuildsTitleFollowsTheDrill(t *testing.T) {
+	m := goldenModel(120, 40)
+	m.svc = testService()
+	m.plans.cursor = 2 // PROJ-DEPLOY, after OPS-NIGHTLY and PROJ-BUILD
+	p, _ := m.plans.selected()
+	require.Equal(t, "PROJ-DEPLOY", p.Key)
+
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, focusBuilds, m.focus)
+	require.Contains(t, m.View(), "2 Builds · Deploy")
+}
+
 func TestMainPanelNamesTheBuildsPlan(t *testing.T) {
 	m := goldenModel(120, 40)
 	m.focus = focusBuilds
@@ -82,7 +97,8 @@ func TestPlanNameOf(t *testing.T) {
 	})
 	require.Equal(t, "Build and test", m.planNameOf("PROJ-BUILD"))
 	require.Equal(t, "Build one", m.planNameOf("PROJ-BUILD1"), "an exact key beats a branch match")
-	require.Equal(t, "Build and test", m.planNameOf("PROJ-BUILD23"))
+	require.Equal(t, "Build and test", m.planNameOf("PROJ-BUILD23"), "PROJ-BUILD23 does not start with PROJ-BUILD1")
+	require.Equal(t, "Build one", m.planNameOf("PROJ-BUILD15"), "both masters match; the longer key is the closer one")
 	require.Equal(t, "", m.planNameOf("PROJ-OTHER"))
 	require.Equal(t, "", m.planNameOf(""))
 	require.Equal(t, "", m.planNameOf("PROJ-BUILDX"), "a branch suffix is digits only")

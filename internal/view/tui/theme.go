@@ -56,6 +56,8 @@ var (
 	errorStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	cursorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
+
+	hintKeyStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("4"))
 )
 
 // selectedRowStyle is the cursor row's bar, as k9s draws it: black on cyan

@@ -1,12 +1,12 @@
- bam · lab · 9.6.4 · jdoe · project all (none configured) · 4 plans · sort key↑
+ Server:  lab [bamboo.lab.example]   <enter> drill in          <P> filter by project
+ Version: 9.6.4                      <R> open the run form     </> filter or search
+ User:    jdoe                       <o> open in the browser   <s> next sort column
+───────────────────────────────────── plans(all)[4] ────────────────────────── sort key↑ ─
   PROJECT  KEY          NAME                                    STATE             #  AGE
 ▸ OPS      OPS-NIGHTLY  Nightly                                 ✓ success         9  now  
   OPS      OPS-OLD      Archived                                –                 –  –
   PROJ     PROJ-BUILD   Build and test                          ✗ failed          4  12m
   PROJ     PROJ-PROV    Provision lab                           ✓ success         8  3h
-
-
-
 
 
 

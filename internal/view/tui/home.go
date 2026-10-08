@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -671,15 +672,141 @@ func (m Model) homeHeader() string {
 	if query != "" {
 		parts = append(parts, "filter /"+query)
 	}
-	switch {
-	case m.plans.loading && len(m.plans.items) > 0:
-		parts = append(parts, "refreshing…")
-	case m.home.stale && !m.home.loadedAt.IsZero():
-		parts = append(parts, "stale "+ageShort(m.now().Sub(m.home.loadedAt)))
-	case m.home.stale:
-		parts = append(parts, "stale")
+	if s := m.homeLoadMarker(); s != "" {
+		parts = append(parts, s)
 	}
 	return " " + strings.Join(parts, " · ")
+}
+
+// homeLoadMarker is "refreshing…", "stale 3m", "stale" or "": what both
+// header forms say about the last plans load.
+func (m Model) homeLoadMarker() string {
+	switch {
+	case m.plans.loading && len(m.plans.items) > 0:
+		return "refreshing…"
+	case m.home.stale && !m.home.loadedAt.IsZero():
+		return "stale " + ageShort(m.now().Sub(m.home.loadedAt))
+	case m.home.stale:
+		return "stale"
+	}
+	return ""
+}
+
+// homeTitle is the title set into the rule above the table, k9s style:
+// view(scope)</query>[count], and what goes at the rule's right end.
+func (m Model) homeTitle() (title, right string) {
+	scope := m.project
+	if scope == "" {
+		scope = "all"
+	}
+	name, scope, n, query, sortLabel := "plans", "("+scope+")", m.plans.len(), m.plans.query, m.home.sort.label(homePlans)
+	switch m.home.view {
+	case homePresets:
+		name, n, query, sortLabel = "presets", m.presets.len(), m.presets.query, m.home.presetSort.label(homePresets)
+	case homeSets:
+		name, scope, n, query, sortLabel = "sets", "", m.sets.len(), m.sets.query, m.home.setSort.label(homeSets)
+	}
+	title = name + scope
+	if query != "" {
+		title += "</" + query + ">"
+	}
+	title += fmt.Sprintf("[%d]", n)
+	right = "sort " + sortLabel
+	if s := m.homeLoadMarker(); s != "" {
+		right += " · " + s
+	}
+	return title, right
+}
+
+// homeHints is the key hints the header shows for view, most useful first.
+// They are the bindings themselves, so a hint cannot name a key that is not
+// bound.
+func homeHints(v homeView) []key.Binding {
+	switch v {
+	case homePresets:
+		return []key.Binding{keys.Enter, keys.Run, keys.Project, keys.Filter, keys.Sort, keys.Command, keys.Help}
+	case homeSets:
+		return []key.Binding{keys.Enter, keys.Run, keys.Filter, keys.Sort, keys.Command, keys.Help}
+	}
+	return []key.Binding{keys.Enter, keys.Run, keys.Open, keys.Project, keys.Filter, keys.Sort, keys.Copy, keys.Command, keys.Help}
+}
+
+// serverHost is the host of the server the UI is on, from the configuration:
+// never a path or a query.
+func (m Model) serverHost() string {
+	for _, s := range m.deps.Servers {
+		if s.Alias == m.server {
+			if u, err := url.Parse(s.URL); err == nil {
+				return u.Host
+			}
+		}
+	}
+	return ""
+}
+
+// hintWidth is one key-hint column: "<o> open in the browser" and a gap.
+const hintWidth = 26
+
+// homeHeaderBlock is the three lines of the k9s-style header: who and where
+// on the left, key hints in as many columns as fit beside them.
+func (m Model) homeHeaderBlock(width int) []string {
+	server := m.server
+	if h := m.serverHost(); h != "" {
+		server += " [" + h + "]"
+	}
+	ctx := [3][2]string{{"Server:", server}, {"Version:", m.info.Version}, {"User:", m.user.Name}}
+	leftW := 0
+	for _, c := range ctx {
+		leftW = max(leftW, 9+lipgloss.Width(c[1]))
+	}
+	hints := homeHints(m.home.view)
+	cols := max((width-leftW-4)/hintWidth, 0)
+	lines := make([]string, 3)
+	for r, c := range ctx {
+		var b strings.Builder
+		b.WriteString(" " + dimStyle.Render(fmt.Sprintf("%-9s", c[0])) + titleStyle.Render(c[1]))
+		b.WriteString(strings.Repeat(" ", leftW-9-lipgloss.Width(c[1])+3))
+		for col := 0; col < cols; col++ {
+			i := col*3 + r
+			if i >= len(hints) {
+				break
+			}
+			h := hints[i].Help()
+			cell := hintKeyStyle.Render("<"+h.Key+">") + " " + h.Desc
+			b.WriteString(cell + strings.Repeat(" ", max(hintWidth-lipgloss.Width(cell), 1)))
+		}
+		lines[r] = truncate(strings.TrimRight(b.String(), " "), width)
+	}
+	return lines
+}
+
+// titleRule is a rule width cells wide with title centred in it and right
+// near its end. right is left out when it does not fit.
+func titleRule(width int, title, right string) string {
+	t := " " + title + " "
+	tw := lipgloss.Width(t)
+	if tw >= width {
+		return truncate(t, width)
+	}
+	left := (width - tw) / 2
+	rest := width - left - tw
+	r, tail := "", ""
+	if right != "" && lipgloss.Width(right)+3 <= rest {
+		r, tail = " "+right+" ", "─"
+	}
+	mid := rest - lipgloss.Width(r) - lipgloss.Width(tail)
+	return dimStyle.Render(strings.Repeat("─", left)) + titleStyle.Render(t) +
+		dimStyle.Render(strings.Repeat("─", mid)+r+tail)
+}
+
+// homeChrome is what sits above Home's table: the k9s-style block and title
+// rule when the terminal has room, else the one-line header.
+func (m Model) homeChrome() []string {
+	if m.width < 60 || m.height < 20 {
+		return []string{truncate(m.homeHeader(), m.width)}
+	}
+	title, right := m.homeTitle()
+	return append(m.homeHeaderBlock(m.width), titleRule(m.width, title, right))
 }
 
 // planTable is the column header and the rows that fit in height lines.
@@ -696,7 +823,8 @@ func (m Model) planTable(width, height int) []string {
 
 // homeView is the whole Home screen: header, table, status bar.
 func (m Model) homeView() string {
-	body := m.height - 2
+	head := m.homeChrome()
+	body := max(m.height-len(head)-1, 0)
 	lines := m.planTable(m.width, body)
 	if m.home.view == homePresets {
 		lines = m.presetTable(m.width, body)
@@ -711,7 +839,7 @@ func (m Model) homeView() string {
 		lines = append(lines, "")
 	}
 	out := make([]string, 0, m.height)
-	out = append(out, truncate(m.homeHeader(), m.width))
+	out = append(out, head...)
 	for _, l := range lines {
 		out = append(out, truncate(l, m.width))
 	}

@@ -1,10 +1,10 @@
- bam · lab · 9.6.4 · jdoe · 2 sets · sort set↑
+ Server:  lab [bamboo.lab.example]   <enter> drill in
+ Version: 9.6.4                      <R> open the run form
+ User:    jdoe                       </> filter or search
+─────────────────────────────────── sets[2] ──────────────────────── sort set↑ ─
   SET      STAGES  RUNS  LAST RUN                                          AGE
 ▸ release       2     3  ✗ failed                                          12m  
   nightly       1     1  –                                                 –
-
-
-
 
 
 

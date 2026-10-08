@@ -758,7 +758,7 @@ func homeHints(v homeView) []key.Binding {
 	case homePresets:
 		return []key.Binding{keys.Enter, keys.Run, keys.Project, keys.Filter, keys.Sort, keys.Command, keys.Help}
 	case homeProjects:
-		return []key.Binding{keys.Enter, keys.Back, keys.Open, keys.Filter, keys.Sort, keys.Copy, keys.Command, keys.Help}
+		return []key.Binding{keys.Enter, keys.Open, keys.Filter, keys.Sort, keys.Copy, keys.Command, keys.Help}
 	case homeSets:
 		return []key.Binding{keys.Enter, keys.Run, keys.Filter, keys.Sort, keys.Command, keys.Help}
 	}

@@ -120,6 +120,7 @@ func (m Model) buildRows(width, height int) string {
 		b.WriteString(m.cursorFor(m.focus == focusBuilds, m.builds.cursor == i))
 		line := stateStyle(bd.State).Render(stateGlyph(bd.State)) +
 			fmt.Sprintf(" #%d ", bd.Number) + dimStyle.Render(m.ago(bd.FinishedAt))
+		line = truncate(line, width-4)
 		if m.builds.cursor == i {
 			line = selectedRow(line, width-4, m.focus == focusBuilds)
 		}
@@ -259,6 +260,9 @@ func (m Model) keyLine() string {
 		return strings.Join(append(parts, "r refresh", "esc back"), "  ")
 	}
 	if m.screen == screenHome {
+		if m.home.view == homeProjects {
+			return "enter plans  / filter  s sort  : cmd  ?help  q quit"
+		}
 		return "enter open  / filter  s sort  : cmd  R run  ?help  q quit"
 	}
 	return "?help  : cmd  tab focus  l logs  o open  q quit"

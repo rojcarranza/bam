@@ -62,7 +62,30 @@ func TestProjectsTableListsAllFirstThenByKey(t *testing.T) {
 	v := m.View()
 	require.Contains(t, v, "(all)")
 	require.Contains(t, v, "every project")
-	require.Contains(t, v, "<esc> back / close")
+	require.NotContains(t, v, "<esc> back / close", "esc only clears a filter here")
+}
+
+func TestProjectsFooterDoesNotAdvertiseRun(t *testing.T) {
+	m := projectsModel(t)
+	bar := m.statusBar(120)
+	require.NotContains(t, bar, "R run")
+	require.Contains(t, bar, "enter plans")
+}
+
+func TestProjectCountExcludesMissing(t *testing.T) {
+	m := projectsModel(t, "GONE")
+	require.Equal(t, 2, m.projectCount())
+	title, _ := m.homeTitle()
+	require.Equal(t, "projects[2]", title)
+}
+
+func TestMissingProjectsSortLast(t *testing.T) {
+	m := projectsModel(t, "GONE")
+	require.Equal(t, []string{"", "OPS", "PROJ", "GONE"}, projectKeys(m))
+	m, _ = send(m, mkKey("s")) // name
+	require.Equal(t, []string{"", "PROJ", "OPS", "GONE"}, projectKeys(m))
+	m, _ = runCmdLine(m, "sort -key")
+	require.Equal(t, []string{"", "PROJ", "OPS", "GONE"}, projectKeys(m))
 }
 
 func TestProjectsSortKeepsAllFirst(t *testing.T) {

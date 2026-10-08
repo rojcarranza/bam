@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
 )
@@ -119,4 +120,11 @@ func TestPanelCursorRowsAreBars(t *testing.T) {
 	require.NotContains(t, plans[1], barStart(true))
 	builds := strings.Split(m.buildRows(40, 5), "\n")
 	require.Contains(t, builds[0], barStart(false), "an unfocused panel shows where its cursor is")
+}
+
+func TestBuildRowsTruncateToTheBar(t *testing.T) {
+	m := goldenModel(80, 24)
+	for _, l := range strings.Split(m.buildRows(8, 5), "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 8, "a build row never outgrows its panel")
+	}
 }

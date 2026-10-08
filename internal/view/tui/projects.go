@@ -25,11 +25,17 @@ func projectMatchText(p projectItem) string {
 }
 
 // projectLess orders the projects table by key or name under s. (all) is
-// always first.
+// always first and missing projects always last.
 func projectLess(s homeSort) func(a, b projectItem) bool {
 	return func(a, b projectItem) bool {
 		if (a.Key == "") != (b.Key == "") {
 			return a.Key == ""
+		}
+		if a.Missing != b.Missing {
+			return b.Missing
+		}
+		if a.Missing {
+			return a.Key < b.Key
 		}
 		x, y := a.Key, b.Key
 		if s.col == colName {
@@ -85,11 +91,12 @@ func (m Model) projectsLoaded(msg projectsLoadedMsg) Model {
 	return m
 }
 
-// projectCount is the projects the table shows, not counting (all).
+// projectCount is the projects the table shows, not counting (all) or the
+// missing ones.
 func (m Model) projectCount() int {
 	n := 0
 	for _, p := range m.projects.rows() {
-		if p.Key != "" {
+		if p.Key != "" && !p.Missing {
 			n++
 		}
 	}

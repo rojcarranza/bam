@@ -375,12 +375,70 @@ func (m Model) treeCounts() string {
 	return strings.Join(parts, " · ")
 }
 
-// askTreeRerun is F; Task 6 fills it in.
-func (m Model) askTreeRerun() (tea.Model, tea.Cmd) { return m, nil }
-
 type treeRerunMsg struct {
 	Gen     int
 	Results []app.RerunResult
 }
 
-func (m Model) handleTreeRerun(treeRerunMsg) (tea.Model, tea.Cmd) { return m, nil }
+// askTreeRerun is F: it says why it cannot act, or asks before restarting
+// the tree's topmost failures.
+func (m Model) askTreeRerun() (tea.Model, tea.Cmd) {
+	t := m.buildTree.tree
+	if !m.buildTree.have || len(m.buildTree.restarting) > 0 || m.svc == nil {
+		return m, nil
+	}
+	cands := app.RerunCandidates(t)
+	switch {
+	case len(cands) == 0:
+		m.status = "nothing to rerun"
+		return m, nil
+	case t.State == provider.StateRunning:
+		m.status = "the tree is still running; rerun when it has finished"
+		return m, nil
+	}
+	var keys []string
+	for _, n := range cands {
+		keys = append(keys, n.Build.Key)
+	}
+	noun := "builds"
+	if len(cands) == 1 {
+		noun = "build"
+	}
+	prompt := fmt.Sprintf("Rerun the failed jobs of %d %s? %s", len(cands), noun, strings.Join(keys, ", "))
+	return m.ask(prompt, func(m Model) (tea.Model, tea.Cmd) {
+		m.buildTree.restarting = map[string]bool{}
+		for _, k := range keys {
+			m.buildTree.restarting[k] = true
+		}
+		m.stopTree()
+		gen, svc, ctx := m.treeGen, m.svc, m.baseCtx()
+		return m, func() tea.Msg { return treeRerunMsg{Gen: gen, Results: svc.RerunTree(ctx, cands)} }
+	})
+}
+
+// handleTreeRerun reports the restarts and watches the tree afresh, so the
+// restarted builds are read again. A result for a screen since closed or
+// reopened is dropped.
+func (m Model) handleTreeRerun(msg treeRerunMsg) (tea.Model, tea.Cmd) {
+	if msg.Gen != m.treeGen || m.screen != screenTree {
+		return m, nil
+	}
+	m.buildTree.restarting = nil
+	restarted := 0
+	var problems []string
+	for _, r := range msg.Results {
+		switch {
+		case r.Err != nil:
+			problems = append(problems, r.Key+": "+errorWhat(r.Err))
+		case r.Restarted:
+			restarted++
+		default:
+			problems = append(problems, r.Key+" was not restarted")
+		}
+	}
+	m.status = fmt.Sprintf("restarted %d build(s)", restarted)
+	if len(problems) > 0 {
+		m.status += "; " + strings.Join(problems, "; ")
+	}
+	return m.watchTree()
+}

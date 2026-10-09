@@ -119,3 +119,77 @@ func TestTreeScreenIgnoresAStaleEvent(t *testing.T) {
 	m, _ = send(m, treeEventMsg{Gen: m.treeGen - 1, Event: app.TreeEvent{Type: app.TreeUpdate, Tree: app.Tree{Root: &app.TreeNode{}}}})
 	require.Equal(t, before, m.buildTree.tree)
 }
+
+// restartableChild makes the root succeed, so PROJ-PROV-7 is the one
+// candidate, and makes PROJ-PROV-7 restart and then succeed.
+func restartableChild(f *fake.Provider) {
+	f.History["PROJ-BUILD"][0].State = provider.StateSuccess
+	child := f.History["PROJ-PROV"][0]
+	queued, done := child, child
+	queued.State, done.State = provider.StateQueued, provider.StateSuccess
+	done.Stages = nil
+	f.Sequences = map[string][]provider.Build{"PROJ-PROV-7": {child, child, queued, done}}
+}
+
+func TestTreeScreenRerunAsksThenRestartsAndWatchesAgain(t *testing.T) {
+	m, f := treeTUIModel(t)
+	restartableChild(f)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("F"))
+	require.Equal(t, overlayConfirm, m.overlay)
+	require.Contains(t, m.confirm.Prompt, "Rerun the failed jobs of 1 build? PROJ-PROV-7")
+	m, cmd := send(m, mkKey("y"))
+	require.True(t, m.buildTree.restarting["PROJ-PROV-7"])
+	require.NotNil(t, cmd)
+	m, cmd = send(m, cmd())
+	require.Empty(t, m.buildTree.restarting)
+	require.Contains(t, m.status, "restarted")
+	require.NotNil(t, cmd, "a fresh watch starts")
+	require.NotNil(t, m.treeCh)
+}
+
+func TestTreeScreenRerunNothingToRerun(t *testing.T) {
+	m, f := treeTUIModel(t)
+	f.History["PROJ-BUILD"][0].State = provider.StateSuccess
+	f.History["PROJ-PROV"][0].State = provider.StateSuccess
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("F"))
+	require.Equal(t, overlayNone, m.overlay)
+	require.Equal(t, "nothing to rerun", m.status)
+}
+
+func TestTreeScreenRerunRefusesARunningTree(t *testing.T) {
+	m, f := treeTUIModel(t)
+	f.History["PROJ-BUILD"][0].State = provider.StateSuccess
+	f.Plans["PROJ"] = append(f.Plans["PROJ"], provider.Plan{Key: "PROJ-DOCS", ProjectKey: "PROJ"})
+	f.History["PROJ-DOCS"] = []provider.Build{{Key: "PROJ-DOCS-3", PlanKey: "PROJ-DOCS", Number: 3,
+		State: provider.StateRunning, Reason: "Child of PROJ-BUILD-44"}}
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("F"))
+	require.Equal(t, overlayNone, m.overlay)
+	require.Contains(t, m.status, "still running")
+}
+
+func TestTreeScreenRerunIgnoresASecondF(t *testing.T) {
+	m, f := treeTUIModel(t)
+	restartableChild(f)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("F"))
+	m, _ = send(m, mkKey("y"))
+	m, cmd := send(m, mkKey("F"))
+	require.Equal(t, overlayNone, m.overlay, "no second question while restarting")
+	require.Nil(t, cmd)
+}
+
+func TestTreeScreenLateRerunResultIsDropped(t *testing.T) {
+	m, f := treeTUIModel(t)
+	restartableChild(f)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("F"))
+	m, cmd := send(m, mkKey("y"))
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenColumns, m.screen)
+	m, _ = send(m, cmd())
+	require.Equal(t, screenColumns, m.screen, "a result after closing does not reopen the screen")
+	require.Nil(t, m.treeCh)
+}

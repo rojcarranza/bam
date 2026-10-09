@@ -1,6 +1,6 @@
 # bam: rerun a build tree's failures, and the tree in the terminal UI
 
-**Status:** Draft | **Date:** 2026-10-09
+**Status:** Implemented | **Date:** 2026-10-09
 **Issue:** #50 (follow-up to #27)
 **Builds on:** [`2026-10-08-bam-build-tree-design.md`](2026-10-08-bam-build-tree-design.md) (the tree), [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md) (`Service.Restart`), [`2026-10-06-bam-tui-sets-design.md`](2026-10-06-bam-tui-sets-design.md) (a live screen in the terminal UI)
 

@@ -32,7 +32,7 @@ func (r *recorder) probePlans(project string) error {
 			return fmt.Errorf("GET %s: status %d", s.path, status)
 		}
 		before := len(ids)
-		synth, err := synthPlans(body, ids)
+		synth, err := synthPlans(body, ids, project)
 		if err != nil {
 			return fmt.Errorf("%s: %w", s.file, err)
 		}
@@ -57,8 +57,10 @@ func (r *recorder) probePlans(project string) error {
 // start-index, max-result, expand) and the project's key and name, and
 // replaces every plan with a synthetic one named after its number in ids.
 // ids maps a real plan key to its number and is shared across pages, so the
-// same plan gets the same synthetic key in every file.
-func synthPlans(body []byte, ids map[string]int) ([]byte, error) {
+// same plan gets the same synthetic key in every file. A plan of project
+// keeps that key, which the scrubber then renames; a plan of any other
+// project gets OPS, since the scrubber may not know that project's key.
+func synthPlans(body []byte, ids map[string]int, project string) ([]byte, error) {
 	var root map[string]any
 	if err := json.Unmarshal(body, &root); err != nil {
 		return nil, err
@@ -81,7 +83,10 @@ func synthPlans(body []byte, ids map[string]int) ([]byte, error) {
 	for _, item := range items {
 		p, _ := item.(map[string]any)
 		key, _ := p["key"].(string)
-		project, _ := p["projectKey"].(string)
+		owner, _ := p["projectKey"].(string)
+		if owner != project {
+			owner = "OPS"
+		}
 		n, ok := ids[key]
 		if !ok {
 			n = len(ids) + 1
@@ -89,11 +94,11 @@ func synthPlans(body []byte, ids map[string]int) ([]byte, error) {
 		}
 		short := fmt.Sprintf("P%d", n)
 		plan := map[string]any{
-			"key":        project + "-" + short,
+			"key":        owner + "-" + short,
 			"shortKey":   short,
-			"name":       fmt.Sprintf("%s - Plan %d", project, n),
+			"name":       fmt.Sprintf("%s - Plan %d", owner, n),
 			"shortName":  fmt.Sprintf("Plan %d", n),
-			"projectKey": project,
+			"projectKey": owner,
 		}
 		if v, ok := p["enabled"]; ok {
 			plan["enabled"] = v

@@ -50,6 +50,7 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 		from = m.buildTree.from
 	}
 	m.stopWatch()
+	m.rerunGen++ // a rerun started on another tree reports to that one only
 	m.buildTree = treeScreen{root: key, from: from}
 	m.screen = screenTree
 	return m.watchTree()
@@ -59,6 +60,9 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 // restarted are read again.
 func (m Model) watchTree() (tea.Model, tea.Cmd) {
 	m.stopTree()
+	if m.svc == nil {
+		return m, nil
+	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.treeCancel = cancel
 	m.treeCh = m.svc.WatchTree(ctx, m.buildTree.root, app.TreeOptions{})
@@ -76,6 +80,7 @@ func (m *Model) stopTree() {
 
 func (m Model) closeTree() (tea.Model, tea.Cmd) {
 	m.stopTree()
+	m.rerunGen++ // a rerun result for the closed screen is dropped
 	m.screen = m.buildTree.from
 	if m.screen == screenTree {
 		m.screen = screenColumns
@@ -411,16 +416,17 @@ func (m Model) askTreeRerun() (tea.Model, tea.Cmd) {
 			m.buildTree.restarting[k] = true
 		}
 		m.stopTree()
-		gen, svc, ctx := m.treeGen, m.svc, m.baseCtx()
+		gen, svc, ctx := m.rerunGen, m.svc, m.baseCtx()
 		return m, func() tea.Msg { return treeRerunMsg{Gen: gen, Results: svc.RerunTree(ctx, cands)} }
 	})
 }
 
 // handleTreeRerun reports the restarts and watches the tree afresh, so the
 // restarted builds are read again. A result for a screen since closed or
-// reopened is dropped.
+// reopened is dropped; one that lands while a build of the tree is open is
+// reported, and the tree is watched again on the way back.
 func (m Model) handleTreeRerun(msg treeRerunMsg) (tea.Model, tea.Cmd) {
-	if msg.Gen != m.treeGen || m.screen != screenTree {
+	if msg.Gen != m.rerunGen {
 		return m, nil
 	}
 	m.buildTree.restarting = nil
@@ -439,6 +445,9 @@ func (m Model) handleTreeRerun(msg treeRerunMsg) (tea.Model, tea.Cmd) {
 	m.status = fmt.Sprintf("restarted %d build(s)", restarted)
 	if len(problems) > 0 {
 		m.status += "; " + strings.Join(problems, "; ")
+	}
+	if m.screen != screenTree {
+		return m, nil
 	}
 	return m.watchTree()
 }

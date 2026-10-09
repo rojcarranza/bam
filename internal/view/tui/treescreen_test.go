@@ -193,3 +193,47 @@ func TestTreeScreenLateRerunResultIsDropped(t *testing.T) {
 	require.Equal(t, screenColumns, m.screen, "a result after closing does not reopen the screen")
 	require.Nil(t, m.treeCh)
 }
+
+// A refresh during a rerun must not lose its result: F would stay dead and
+// a failed restart would never be reported.
+func TestTreeScreenRerunSurvivesARefresh(t *testing.T) {
+	m, f := treeTUIModel(t)
+	restartableChild(f)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("F"))
+	m, cmd := send(m, mkKey("y"))
+	m, _ = send(m, mkKey("r"))
+	m, _ = send(m, cmd())
+	require.Empty(t, m.buildTree.restarting)
+	require.Contains(t, m.status, "restarted 1 build")
+}
+
+func TestTreeScreenRerunSurvivesABuildVisit(t *testing.T) {
+	m, f := treeTUIModel(t)
+	restartableChild(f)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("F"))
+	m, cmd := send(m, mkKey("y"))
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, screenColumns, m.screen)
+	m, _ = send(m, cmd())
+	require.Empty(t, m.buildTree.restarting, "the result lands while the build is open")
+	require.Contains(t, m.status, "restarted 1 build")
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenTree, m.screen)
+}
+
+// A server switch leaves the tree behind: esc from its build must not
+// watch the old server's build on the new one, nor a tree with no server.
+func TestTreeBuildAfterAServerSwitchDoesNotReturnToTheTree(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.fromTree)
+	next, _ := m.switchServer("lab")
+	m = next.(Model)
+	require.Nil(t, m.svc)
+	require.NotPanics(t, func() { m, _ = send(m, mkKey("esc")) })
+	require.NotEqual(t, screenTree, m.screen)
+	require.Nil(t, m.treeCh)
+}

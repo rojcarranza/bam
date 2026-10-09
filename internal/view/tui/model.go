@@ -133,6 +133,7 @@ type Model struct {
 	setsGen, setGen              int
 	projectsGen                  int
 	treeGen                      int
+	rerunGen                     int // the tree screen opened now; only opening or closing it moves on
 
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
@@ -933,7 +934,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 			})
 	}
 	m.leaveBuild()
-	m.fromSet = false
+	m.fromSet, m.fromTree = false, false
 	m.server, m.svc = alias, nil
 	m.buildsPlan = ""
 	// The project filter names a project of the server being left; keeping it

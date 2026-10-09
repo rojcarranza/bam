@@ -135,3 +135,12 @@ func TestBuildRerunRefusesARunningOrSuccessfulBuild(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is running; nothing to rerun")
 	assert.Empty(t, h.fake.Restarted)
 }
+
+// A not-built build has no failed jobs; only a failed or stopped build is
+// restarted.
+func TestBuildRerunRefusesANotBuiltBuild(t *testing.T) {
+	h := treeHarness(t, provider.StateNotBuilt)
+	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
+	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is not built; nothing to rerun")
+	assert.Empty(t, h.fake.Restarted)
+}

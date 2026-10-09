@@ -165,6 +165,7 @@ type Model struct {
 	setDry       []string // the set dry run the overlay shows on the vars prompt
 	buildTree    treeScreen
 	fromTree     bool // the panels were opened from the tree screen; esc returns there
+	logsFromTree bool // the log screen was opened from the tree screen; esc returns there
 	fromProjects bool // Home's plans were reached from the projects view; esc returns there
 	fromSet      bool // the panels were opened from a set screen run; esc returns there
 
@@ -934,7 +935,12 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 			})
 	}
 	m.leaveBuild()
-	m.fromSet, m.fromTree = false, false
+	m.fromSet, m.fromTree, m.logsFromTree = false, false, false
+	if m.screen == screenTree {
+		// The tree is the old server's; a build key means another build here.
+		m.stopTree()
+		m.screen = m.buildTree.from
+	}
 	m.server, m.svc = alias, nil
 	m.buildsPlan = ""
 	// The project filter names a project of the server being left; keeping it
@@ -1587,6 +1593,11 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		}
 		m.overlay = overlayNone
 		return m, nil
+	case m.screen == screenLogs && m.logsFromTree:
+		m.stopFollow()
+		m.logsFromTree, m.fromTree = false, false
+		m.screen = screenTree
+		return m.watchTree() // watching paused while the logs were open
 	case m.screen == screenLogs:
 		m.stopFollow()
 		m.screen = screenColumns

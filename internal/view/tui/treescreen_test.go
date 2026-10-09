@@ -237,3 +237,27 @@ func TestTreeBuildAfterAServerSwitchDoesNotReturnToTheTree(t *testing.T) {
 	require.NotEqual(t, screenTree, m.screen)
 	require.Nil(t, m.treeCh)
 }
+
+func TestSOnTheTreeScreenSwitchesServerAndLeavesTheTree(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("S"))
+	require.Equal(t, overlayServers, m.overlay)
+	next, _ := m.switchServer("lab")
+	m = next.(Model)
+	require.NotEqual(t, screenTree, m.screen, "a new server leaves the old server's tree")
+	require.Nil(t, m.treeCh)
+}
+
+func TestLogsFromTheTreeReturnToTheTree(t *testing.T) {
+	for _, k := range []string{"l", "a"} {
+		m, _ := treeTUIModel(t)
+		m = firstTree(t, m)
+		m, _ = send(m, mkKey("j"))
+		m, _ = send(m, mkKey(k))
+		require.Equal(t, screenLogs, m.screen, k)
+		m, _ = send(m, mkKey("esc"))
+		require.Equal(t, screenTree, m.screen, "esc from logs opened on the tree returns to it (%s)", k)
+		require.NotNil(t, m.treeCh, "and watches it again (%s)", k)
+	}
+}

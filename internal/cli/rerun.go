@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -29,11 +30,13 @@ succeeded is refused.`,
 			if err != nil {
 				return err
 			}
-			switch {
-			case b.State == provider.StateSuccess:
+			// Only a failed or stopped build has failed jobs to run again.
+			switch b.State {
+			case provider.StateFailed, provider.StateStopped:
+			case provider.StateSuccess:
 				return errs.Usagef("%s succeeded; nothing to rerun", key)
-			case !b.State.Finished():
-				return errs.Usagef("%s is %s; nothing to rerun", key, b.State)
+			default:
+				return errs.Usagef("%s is %s; nothing to rerun", key, strings.ReplaceAll(string(b.State), "_", " "))
 			}
 			_, restarted, err := svc.Restart(ctx, key)
 			if err != nil {

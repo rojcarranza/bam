@@ -272,6 +272,8 @@ func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.watchTree()
 	case key.Matches(msg, keys.RerunFailed):
 		return m.askTreeRerun()
+	case key.Matches(msg, keys.Server):
+		return m.openServerPicker()
 	case key.Matches(msg, keys.Help):
 		return m.openHelp()
 	case key.Matches(msg, keys.ExpandErr):
@@ -299,6 +301,7 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 	m.expanded = defaultExpanded(b)
 	m.treeCursor = 0
 	if logs {
+		m.logsFromTree = true
 		return m.openLogs("", all)
 	}
 	return m.startWatch(b.Key)

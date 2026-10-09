@@ -33,6 +33,7 @@ const (
 	screenHome // the plans table bam opens on (home spec §2)
 	screenSet  // one run set: its stages and runs
 	screenSetVars
+	screenTree // one build's tree: every build it triggered
 )
 
 // focus is which panel takes keys. Main is the right-hand panel.
@@ -131,9 +132,12 @@ type Model struct {
 	cancelGen                    int
 	setsGen, setGen              int
 	projectsGen                  int
+	treeGen                      int
 
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
+	treeCancel  context.CancelFunc
+	treeCh      <-chan app.TreeEvent
 
 	// revisionRun is the build the form last triggered with a revision, so a
 	// not-built result can say which revision Bamboo could not build.
@@ -158,8 +162,10 @@ type Model struct {
 	setView      setScreen
 	setVars      setVarsState
 	setDry       []string // the set dry run the overlay shows on the vars prompt
-	fromProjects bool     // Home's plans were reached from the projects view; esc returns there
-	fromSet      bool     // the panels were opened from a set screen run; esc returns there
+	buildTree    treeScreen
+	fromTree     bool // the panels were opened from the tree screen; esc returns there
+	fromProjects bool // Home's plans were reached from the projects view; esc returns there
+	fromSet      bool // the panels were opened from a set screen run; esc returns there
 
 	formFrom screen // where esc from the run form returns
 }
@@ -498,6 +504,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleTrainStarted(msg)
 	case setDryMsg:
 		return m.handleSetDry(msg)
+	case treeEventMsg:
+		return m.handleTreeEvent(msg)
+	case treeClosedMsg:
+		return m, nil
+	case treeRerunMsg:
+		return m.handleTreeRerun(msg)
 	case setLoadedMsg:
 		return m.handleSetLoaded(msg)
 	case watchEventMsg:
@@ -581,6 +593,9 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.screen == screenSetVars {
 		return m.handleSetVarsKey(msg)
 	}
+	if m.screen == screenTree {
+		return m.handleTreeKey(msg)
+	}
 	if m.screen == screenHome {
 		if next, cmd, handled := m.handleHomeKey(msg); handled {
 			return next, cmd
@@ -631,6 +646,10 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openLogs("", false)
 	case key.Matches(msg, keys.AllLogs):
 		return m.openLogs("", true)
+	case key.Matches(msg, keys.Tree):
+		if b, ok := m.currentBuild(); ok {
+			return m.openTree(b.Key)
+		}
 	case key.Matches(msg, keys.Help):
 		return m.openHelp()
 	case key.Matches(msg, keys.ExpandErr):
@@ -1232,6 +1251,9 @@ func (m Model) selectionURL() string {
 	if m.screen == screenSet {
 		return m.setSelectionURL()
 	}
+	if m.screen == screenTree {
+		return m.treeSelectionURL()
+	}
 	switch m.focus {
 	case focusPlans:
 		if p, ok := m.plans.selected(); ok {
@@ -1602,6 +1624,13 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		m.stopWatch()
 		m.screen = screenSet
 		return m, nil
+	case m.screen == screenColumns && m.fromTree:
+		m.fromTree = false
+		m.stopWatch()
+		m.screen = screenTree
+		return m.watchTree() // watching paused while the build was open
+	case m.screen == screenTree:
+		return m.closeTree()
 	case m.screen == screenSet:
 		return m.showSets()
 	case m.focus != focusPlans:
@@ -1638,6 +1667,7 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 			})
 	}
 	m.stopWatch()
+	m.stopTree()
 	m.stopFollow()
 	return m, tea.Quit
 }
@@ -1670,6 +1700,8 @@ func (m Model) View() string {
 		return m.overlayView(m.setScreenView())
 	case screenSetVars:
 		return m.overlayView(m.setVarsView())
+	case screenTree:
+		return m.overlayView(m.treeScreenView())
 	}
 	return m.columnsView()
 }

@@ -259,6 +259,13 @@ func (m Model) keyLine() string {
 		}
 		return strings.Join(append(parts, "r refresh", "esc back"), "  ")
 	}
+	if m.screen == screenTree {
+		parts := []string{"enter build", "l logs"}
+		if m.treeRerunnable() {
+			parts = append(parts, "F rerun")
+		}
+		return strings.Join(append(parts, "r refresh", "esc back"), "  ")
+	}
 	if m.screen == screenHome {
 		if m.home.view == homeProjects {
 			return "enter plans  / filter  s sort  : cmd  ?help  q quit"

@@ -20,6 +20,8 @@ type command struct {
 	arg   string // what the argument is, or "" for none: project, server, column
 	desc  string
 	run   func(m Model, arg string) (tea.Model, tea.Cmd, error)
+	// optional: the argument may be left out
+	optional bool
 }
 
 func commands() []command {
@@ -43,6 +45,7 @@ func commands() []command {
 		{name: "project", arg: "project", desc: "filter by project, or all", run: Model.commandProject},
 		{name: "server", arg: "server", desc: "switch server", run: Model.commandServer},
 		{name: "sort", arg: "column", desc: "sort the table; -column reverses", run: Model.commandSort},
+		{name: "tree", arg: "build", optional: true, desc: "the build tree of a build, or of the selected build", run: Model.commandTree},
 		{name: "quit", desc: "quit", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
 			next, cmd := m.quit()
 			return next, cmd, nil
@@ -107,7 +110,7 @@ func (m Model) runCommandLine(line string) (tea.Model, tea.Cmd) {
 	if err == nil {
 		arg := strings.Join(fields[1:], " ")
 		switch {
-		case c.arg != "" && arg == "":
+		case c.arg != "" && arg == "" && !c.optional:
 			err = fmt.Errorf(":%s needs a %s", c.name, c.arg)
 		case c.arg == "" && arg != "":
 			err = fmt.Errorf(":%s takes no argument", c.name)
@@ -284,4 +287,17 @@ func commandHelpRows() []helpRow {
 		out = append(out, helpRow{Group: "CMD", Keys: k, Desc: c.desc})
 	}
 	return out
+}
+
+func (m Model) commandTree(arg string) (tea.Model, tea.Cmd, error) {
+	key := strings.ToUpper(strings.TrimSpace(arg))
+	if key == "" {
+		b, ok := m.currentBuild()
+		if !ok {
+			return m, nil, fmt.Errorf("no build selected; :tree KEY")
+		}
+		key = b.Key
+	}
+	next, cmd := m.openTree(key)
+	return next, cmd, nil
 }

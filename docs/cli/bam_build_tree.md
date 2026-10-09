@@ -23,7 +23,10 @@ bam build tree [<build>|<plan>|<target>] [flags]
       --failed          show only the branches that lead to a failure
   -h, --help            help for tree
       --last            the last build bam triggered from this repository
+      --no-watch        with --rerun-failed, restart and exit without following
+      --rerun-failed    restart the failed builds whose parents succeeded, then follow the tree
       --watch           follow the tree until every build has finished
+      --yes             with --rerun-failed, do not ask first
 ```
 
 ### Options inherited from parent commands

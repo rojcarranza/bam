@@ -17,8 +17,8 @@
     ┃      /                filter the focused list, or search the log     ┃    
     ┃      n N              next / previous match, or next failure         ┃    
     ┃      r                refresh the focused panel                      ┃    
+    ┃      t                the build tree of the selected build: every bu ┃    
     ┃      e                expand the current error                       ┃    
     ┃RUN   R                open the run form for the selection            ┃    
-    ┃      ctrl-R           run (in the form)                              ┃    
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛    
                                                                                 

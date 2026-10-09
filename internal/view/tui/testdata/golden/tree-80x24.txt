@@ -1,0 +1,24 @@
+ PROJ-BUILD-44 · ✗ failed
+ 2 failed
+ PROJ-BUILD-44  ✗ failed  3m12s                                                 
+ └─ PROJ-PROV-7  ✗ failed  40s
+    └─ ✗ stage Apply  40s  Terraform
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+lab · 9.6.4 · jdoe             enter build  l logs  F rerun  r refresh  esc back

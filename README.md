@@ -114,6 +114,10 @@ without a terminal, bare `bam` prints help exactly as before.
 
 `:sets` lists the run sets with their last run. `enter` opens a set: its stages and runs, live while it runs. `R` runs it (a prompt takes optional variables, `d` previews the dry run, `ctrl-R` starts it), `U` resumes an interrupted run, `F` reruns the failed runs; resume and rerun ask again for the variables the run was started with. The train keeps running while you browse, one per window; `q` asks first and leaves it interrupted, to continue with `U` or `bam set resume`. A set run by another bam is shown and re-read every few seconds.
 
+### Build trees
+
+`t` on a build, or `:tree KEY` from the command bar, opens its tree: the build and every build it triggered, with their stages, live while they run. `enter` opens the selected build and `l` its logs, `esc` comes back. `F` lists the failed builds whose parents succeeded and asks before rerunning them, then keeps watching the tree.
+
 ### Keys
 
 | | Keys | Does |
@@ -127,13 +131,14 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `esc` | back one level, close an overlay; from Plans to Home; on plans reached from `:projects`, back to the projects list |
 | Home | `enter` | open the panels on the row's plan |
 | | `s` | next sort column |
-| | `:` | command bar: :plans :presets :sets :projects :project :server :sort :q |
+| | `:` | command bar: :plans :presets :sets :projects :tree :project :server :sort :q |
 | View | `l` | logs for the selection (failed jobs by default) |
 | | `a` | all logs, not only failed; in the set vars prompt, add a variable |
 | | `f` | follow (log screen) |
 | | `/` | filter the focused list, or search the log |
 | | `n` `N` | next / previous match, or next failure |
 | | `r` | refresh the focused panel |
+| | `t` | the build tree of the selected build: every build it triggered |
 | | `e` | expand the current error |
 | Run | `R` | open the run form for the selection |
 | | `ctrl-R` | run (in the form) |
@@ -142,7 +147,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `f` | use the build's revision (in the form, on the revision row) |
 | | `C` | cancel the selected build (asks first) |
 | | `U` | resume the set's interrupted run (set screen) |
-| | `F` | rerun the set's failed runs (set screen) |
+| | `F` | rerun the failed runs (set screen) or builds (tree screen) |
 | | `x` | remove a variable row (set vars prompt) |
 | Go | `o` | open the selection's Bamboo URL in the browser |
 | | `y` | copy the selection's Bamboo URL |
@@ -171,6 +176,7 @@ and `bam build cancel` on the command line, stop a build.
 | is this plan flaky? | `bam plan stats provision-lab` |
 | follow a running build | `bam watch --last` |
 | see every build a build triggered, and where it failed | `bam build tree --last` |
+| retry the failed parts of a run | `bam build tree --last --rerun-failed` |
 | read only the failed jobs' logs | `bam logs --last --failed` |
 | stop a build | `bam build cancel --last` |
 | open anything in Bamboo | `bam open PROJ-PLAN-123` |
@@ -233,6 +239,8 @@ next: bam logs OPS-SMOKE-51 --failed
 - `--watch` follows the tree until every build has finished, including children that start after their parent ends. Ctrl-C stops watching only.
 - `--failed` shows only the branches that lead to a failure; `--depth N` limits the levels; `--json` prints the tree as one document.
 - It exits 0 when every build succeeded and 1 when any did not. Without `--watch`, a tree that is still running exits 0 and suggests `--watch`.
+
+To retry the failures, `bam build tree PROJ-API-142 --rerun-failed` lists the failed builds whose parents succeeded and asks before restarting them. Bamboo reruns only their failed jobs, under the same build keys, and triggers their children again when they succeed; bam then follows the tree until it has finished. `--yes` skips the question (required without a terminal), `--no-watch` restarts and exits. `bam build rerun OPS-SMOKE-51` restarts one build. Only the newest run of a child plan counts: an older one shows as `earlier run`.
 
 Bamboo's API does not list a plan's child plans, so bam finds a child by its reason, "Child of PROJ-API-142", in the last 25 builds of each plan in your projects and in the build's own project. A `children:` map in the configuration narrows that and shows a child that never ran; see [Child plans](docs/configuration.md#child-plans-children).
 

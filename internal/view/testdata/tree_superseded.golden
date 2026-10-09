@@ -1,0 +1,3 @@
+OPS-DEPLOY-88    ✓ success  3m00s
+├─ OPS-SMOKE-52  ✓ success  1m00s
+└─ OPS-SMOKE-51  ✗ failed   1m40s  earlier run

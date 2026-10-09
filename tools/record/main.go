@@ -26,6 +26,10 @@
 //	                PUT queue/{key}, recording the answer and every state
 //	                change until it finishes; then record how Bamboo refuses
 //	                to restart a successful build
+//	-probe-plans    record the first and second page of the plan's project
+//	                (expand plans.plan, then plans[25:125].plan) and the
+//	                second page of GET plan, with every plan replaced by a
+//	                synthetic one; triggers nothing
 package main
 
 import (
@@ -215,6 +219,7 @@ func run() error {
 		probe       = flag.Bool("probe-run", false, "probe custom revision and verbose logs support; triggers the plan up to three times")
 		probeRerun  = flag.Bool("probe-rerun", false, "probe build restart (PUT queue/{key}); triggers the plan once and restarts it if it failed")
 		probeKids   = flag.Bool("probe-children", false, "probe how Bamboo reports the child builds of the plan's newest build; triggers nothing")
+		probePlans  = flag.Bool("probe-plans", false, "probe how Bamboo pages the plans of the plan's project, with synthetic plan names; triggers nothing")
 	)
 	flag.Parse()
 
@@ -293,6 +298,12 @@ func run() error {
 	}
 	if *probeKids {
 		if err := r.probeChildren(plan); err != nil {
+			return err
+		}
+		return r.finish()
+	}
+	if *probePlans {
+		if err := r.probePlans(project); err != nil {
 			return err
 		}
 		return r.finish()

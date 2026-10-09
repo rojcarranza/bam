@@ -42,11 +42,12 @@ type TreeOptions struct {
 
 // TreeNode is one build of a tree, or a configured child that never ran.
 type TreeNode struct {
-	PlanKey  string
-	Build    provider.Build // zero for a not-run node
-	NotRun   bool           // a configured child plan with no build that names the parent
-	Loop     bool           // the build already appears above; its children are not followed
-	Children []*TreeNode    // by plan key, then build number, newest first
+	PlanKey    string
+	Build      provider.Build // zero for a not-run node
+	NotRun     bool           // a configured child plan with no build that names the parent
+	Loop       bool           // the build already appears above; its children are not followed
+	Superseded bool           // an older run of the same child plan; it does not count toward the tree
+	Children   []*TreeNode    // by plan key, then build number, newest first
 }
 
 // Walk calls f for n and every node below it, parents first; the root is at
@@ -78,7 +79,11 @@ func TreeFinished(s provider.State) bool { return s.Finished() || s == provider.
 // succeed or a configured child did not run, success otherwise.
 func TreeState(root *TreeNode) provider.State {
 	running, bad := false, false
-	root.Walk(func(n *TreeNode, _ int) {
+	var walk func(n *TreeNode)
+	walk = func(n *TreeNode) {
+		if n.Superseded {
+			return
+		}
 		switch {
 		case n.NotRun:
 			bad = true
@@ -87,7 +92,11 @@ func TreeState(root *TreeNode) provider.State {
 		case n.Build.State != provider.StateSuccess && n.Build.State != provider.StateSkipped:
 			bad = true
 		}
-	})
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	walk(root)
 	switch {
 	case running:
 		return provider.StateRunning
@@ -332,6 +341,12 @@ func treeGrow(n *TreeNode, idx map[string][]provider.Build, configured map[strin
 		}
 		return kids[i].Build.Number > kids[j].Build.Number
 	})
+	// The newest run of a child plan is current; older ones are superseded.
+	for i := 1; i < len(kids); i++ {
+		if !kids[i].NotRun && kids[i].PlanKey == kids[i-1].PlanKey {
+			kids[i].Superseded = true
+		}
+	}
 	n.Children = kids
 	for _, k := range kids {
 		if k.NotRun {

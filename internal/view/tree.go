@@ -21,6 +21,9 @@ func pruneFailed(n *app.TreeNode) *app.TreeNode {
 	c := *n
 	c.Children = nil
 	for _, k := range n.Children {
+		if k.Superseded {
+			continue
+		}
 		if p := pruneFailed(k); treeBad(k) || len(p.Children) > 0 {
 			c.Children = append(c.Children, p)
 		}
@@ -49,7 +52,7 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 			node  *app.TreeNode
 		}
 		var items []item
-		if stages && !n.NotRun && !n.Loop {
+		if stages && !n.NotRun && !n.Loop && !n.Superseded {
 			for i := range n.Build.Stages {
 				items = append(items, item{stage: &n.Build.Stages[i]})
 			}
@@ -67,6 +70,9 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 				continue
 			}
 			tb.Rows = append(tb.Rows, treeRow(o, it.node, indent+branch))
+			if it.node.Superseded {
+				continue
+			}
 			if !it.node.NotRun && !it.node.Loop && it.node.Build.State == provider.StateFailed && len(it.node.Build.FailedJobs()) > 0 {
 				next = append(next, it.node.Build.Key)
 			}
@@ -87,6 +93,9 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 
 func treeRow(o Out, n *app.TreeNode, prefix string) []string {
 	switch {
+	case n.Superseded:
+		return []string{prefix + style.Dim(o.Style, n.Build.Key), style.Dim(o.Style, style.Glyph(n.Build.State)+" "+style.Label(n.Build.State)),
+			style.Dim(o.Style, Duration(n.Build.Duration)), style.Dim(o.Style, "earlier run")}
 	case n.NotRun:
 		return []string{prefix + n.PlanKey, style.Pending(o.Style) + " not run", "", ""}
 	case n.Loop:
@@ -143,6 +152,8 @@ func treeNodeDoc(n *app.TreeNode) TreeNodeDoc {
 		return d
 	case n.Loop:
 		d.Status = "loop"
+	case n.Superseded:
+		d.Status = "superseded"
 	}
 	b := BuildJSON(n.Build)
 	d.Build = &b

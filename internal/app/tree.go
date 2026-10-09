@@ -312,3 +312,105 @@ func windowWarnings(windows map[string]planWindow, root provider.Build) []string
 	}
 	return out
 }
+
+// treePoll is the time between two refreshes of a watched tree; treeTries
+// is how many failed refreshes in a row end the watch.
+const (
+	treePoll  = 10 * time.Second
+	treeTries = 3
+)
+
+// TreeEventType names a step of a watched tree.
+type TreeEventType string
+
+const (
+	TreeUpdate TreeEventType = "update" // the tree changed (always sent for the first refresh)
+	TreeDone   TreeEventType = "done"   // every build finished and nothing new appeared; last event
+	TreeError  TreeEventType = "error"  // refreshes kept failing; last event
+)
+
+// TreeEvent is one step of a watched tree.
+type TreeEvent struct {
+	Type TreeEventType
+	Time time.Time
+	Tree Tree
+	Err  error
+}
+
+// WatchTree refreshes the tree of key every treePoll and emits it when it
+// changed. It ends once every build has finished and one more refresh
+// found nothing new, since Bamboo queues children when their parent ends.
+// Ending ctx stops watching; no build is stopped.
+func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-chan TreeEvent {
+	ch := make(chan TreeEvent, 4)
+	go func() {
+		defer close(ch)
+		send := func(e TreeEvent) bool {
+			e.Time = s.Clock.Now()
+			select {
+			case ch <- e:
+				return true
+			case <-ctx.Done():
+				return false
+			}
+		}
+		done := map[string]provider.Build{}
+		var last, settled string
+		fails := 0
+		for {
+			t, err := s.buildTree(ctx, key, o, done)
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil {
+				fails++
+				if fails >= treeTries {
+					send(TreeEvent{Type: TreeError, Err: err})
+					return
+				}
+			} else {
+				fails = 0
+				t.Root.Walk(func(n *TreeNode, _ int) {
+					if !n.NotRun && !n.Loop && n.Build.State.Finished() {
+						done[n.Build.Key] = n.Build
+					}
+				})
+				sig := treeSignature(t)
+				if sig != last {
+					if !send(TreeEvent{Type: TreeUpdate, Tree: t}) {
+						return
+					}
+					last = sig
+				}
+				if t.State == provider.StateRunning {
+					settled = ""
+				} else if settled == sig {
+					send(TreeEvent{Type: TreeDone, Tree: t})
+					return
+				} else {
+					settled = sig
+				}
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.Clock.After(treePoll):
+			}
+		}
+	}()
+	return ch
+}
+
+// treeSignature is what a watcher compares between refreshes: every node,
+// its state and its stages' states.
+func treeSignature(t Tree) string {
+	var b strings.Builder
+	t.Root.Walk(func(n *TreeNode, depth int) {
+		fmt.Fprintf(&b, "%d %s %s %s %t %t", depth, n.PlanKey, n.Build.Key, n.Build.State, n.NotRun, n.Loop)
+		for _, st := range n.Build.Stages {
+			fmt.Fprintf(&b, " %s=%s", st.Name, st.State)
+		}
+		b.WriteByte('\n')
+	})
+	return b.String()
+}

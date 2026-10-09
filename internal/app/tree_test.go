@@ -257,3 +257,13 @@ func TestTreeNodeWalk(t *testing.T) {
 	tr.Root.Walk(func(n *TreeNode, depth int) { got = append(got, fmt.Sprintf("%d:%s", depth, n.Build.Key)) })
 	require.Equal(t, []string{"0:PROJ-API-142", "1:OPS-DEPLOY-88", "2:OPS-SMOKE-51", "1:PROJ-DOCS-30"}, got)
 }
+
+func TestBuildTreeFailsWhenNoPlansBuildsCanBeRead(t *testing.T) {
+	p := treeFake()
+	svc := treeService(t, p)
+	svc.P = &flakyProvider{Provider: p, failBuilds: func(string, int) bool { return true }}
+	_, err := svc.BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
+	require.Error(t, err, "a root alone would read as success")
+	require.Equal(t, errs.KindBamboo, errs.KindOf(err))
+	require.Contains(t, err.Error(), "no candidate plan's builds could be read")
+}

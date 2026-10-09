@@ -3,6 +3,7 @@ package view
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -151,4 +152,83 @@ func treeNodeDoc(n *app.TreeNode) TreeNodeDoc {
 		d.Children = append(d.Children, treeNodeDoc(k))
 	}
 	return d
+}
+
+// TreeRenderer shows a watched tree.
+type TreeRenderer interface {
+	Event(e app.TreeEvent)
+}
+
+// TreeLive redraws the tree in place on a TTY.
+type TreeLive struct {
+	o      Out
+	failed bool
+	lines  int
+}
+
+func NewTreeLive(o Out, failedOnly bool) *TreeLive { return &TreeLive{o: o, failed: failedOnly} }
+
+func (l *TreeLive) Event(e app.TreeEvent) {
+	if e.Type == app.TreeError {
+		return
+	}
+	var b strings.Builder
+	o := l.o
+	o.W = &b
+	_ = TreeText(o, e.Tree, l.failed)
+	text := b.String()
+	if l.lines > 0 {
+		fmt.Fprintf(l.o.W, "\x1b[%dA\x1b[J", l.lines)
+	}
+	fmt.Fprint(l.o.W, text)
+	l.lines = strings.Count(text, "\n")
+}
+
+// TreeLines prints one timestamped line per node whose state changed, for
+// pipes and CI logs, and the whole tree at the end.
+type TreeLines struct {
+	o      Out
+	failed bool
+	seen   map[string]string
+}
+
+func NewTreeLines(o Out, failedOnly bool) *TreeLines {
+	return &TreeLines{o: o, failed: failedOnly, seen: map[string]string{}}
+}
+
+func (l *TreeLines) Event(e app.TreeEvent) {
+	switch e.Type {
+	case app.TreeUpdate:
+		ts := e.Time.UTC().Format(time.RFC3339)
+		e.Tree.Root.Walk(func(n *app.TreeNode, _ int) {
+			key, state := n.Build.Key, string(n.Build.State)
+			switch {
+			case n.NotRun:
+				key, state = n.PlanKey, "not run"
+			case n.Loop:
+				return
+			}
+			if l.seen[key] == state {
+				return
+			}
+			l.seen[key] = state
+			fmt.Fprintf(l.o.W, "%s %s %s\n", ts, key, state)
+		})
+	case app.TreeDone:
+		_ = TreeText(l.o, e.Tree, l.failed)
+	}
+}
+
+// TreeNDJSON writes one tree document per update.
+type TreeNDJSON struct {
+	o      Out
+	failed bool
+}
+
+func NewTreeNDJSON(o Out, failedOnly bool) *TreeNDJSON { return &TreeNDJSON{o: o, failed: failedOnly} }
+
+func (n *TreeNDJSON) Event(e app.TreeEvent) {
+	if e.Type == app.TreeUpdate {
+		_ = WriteNDJSON(n.o.W, TreeJSON(e.Tree, n.failed))
+	}
 }

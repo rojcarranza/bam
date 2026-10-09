@@ -56,6 +56,19 @@ A running build carries the server's duration estimate as well:
 
 Queued and running builds are not counted. `other` counts stopped, not built and skipped builds by state; `success_rate` is passed ÷ (passed + failed). `duration` is over passed builds only, and the median and p90 are real build durations. `success_rate`, `duration` and `streak` are `null` when there is nothing to compute them from, and `from`/`to` when no build was read. A failed build whose jobs could not be read counts under the job name `(unknown)` and adds a warning.
 
+## Build tree
+
+```json
+{"state": "failed", "warnings": [], "root": {"plan_key": "PROJ-API", "status": "failed", "build": {...}, "children": [
+  {"plan_key": "OPS-AUDIT", "status": "not_run", "build": null, "children": []}
+]}}
+```
+
+- `state`: `success`, `failed` or `running`.
+- `status`: the build's state, `not_run` for a configured child that never ran, or `loop` for a build already shown above (its `children` is empty).
+- `build`: the `bam build show --json` document, without `progress`; `null` for `not_run`.
+- `--watch --json` writes one such document per change, one per line.
+
 ## Events
 
     {"type":"state","time":"...","build_key":"PROJ-BUILD-45","state":"running","progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000,"source":"bamboo"}}

@@ -1,6 +1,6 @@
 # bam: the build tree (`bam build tree`)
 
-**Status:** Draft | **Date:** 2026-10-08
+**Status:** Implemented | **Date:** 2026-10-08
 **Issue:** #27 (this spec covers the tree; rerunning failed nodes is the next spec)
 **Builds on:** [`2026-09-12-bam-cli-mvp-design.md`](2026-09-12-bam-cli-mvp-design.md) (§2.2 argument resolution, §5 exit codes, §7 JSON)
 **Evidence:** the recordings `internal/provider/bamboo/testdata/recorded/children_*` (PR #38)

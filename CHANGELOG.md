@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- `bam build tree` shows a build and every build it triggered, with their stages and failures, and `--watch` follows them to the end.
+
 ## [0.2.0] - 2026-10-07
 
 ### Added

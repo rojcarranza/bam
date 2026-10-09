@@ -207,3 +207,10 @@ func TestWatchTreeStopsWhenCancelled(t *testing.T) {
 	cancel()
 	require.Empty(t, collectTree(svc.WatchTree(ctx, "PROJ-API-142", TreeOptions{})))
 }
+
+func TestWatchTreeEndsWhenAChildWasSkipped(t *testing.T) {
+	p := treeFake()
+	p.History["PROJ-DOCS"][0].State = provider.StateSkipped
+	evs := collectTree(treeService(t, p).WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
+}

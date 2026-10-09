@@ -12,7 +12,8 @@ import (
 
 // treeBad reports whether a node failed, was stopped or did not run.
 func treeBad(n *app.TreeNode) bool {
-	return n.NotRun || (n.Build.State.Finished() && n.Build.State != provider.StateSuccess)
+	s := n.Build.State
+	return n.NotRun || (app.TreeFinished(s) && s != provider.StateSuccess && s != provider.StateSkipped)
 }
 
 // pruneFailed keeps the nodes on a path to a bad node; the root always stays.

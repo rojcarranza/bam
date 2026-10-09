@@ -267,3 +267,14 @@ func TestBuildTreeFailsWhenNoPlansBuildsCanBeRead(t *testing.T) {
 	require.Equal(t, errs.KindBamboo, errs.KindOf(err))
 	require.Contains(t, err.Error(), "no candidate plan's builds could be read")
 }
+
+// Bamboo's skipped is a final result, though provider.State.Finished leaves
+// it out: a skipped build must neither keep a tree running nor fail it.
+func TestTreeStateSkippedIsFinishedAndNotAFailure(t *testing.T) {
+	ok := provider.Build{State: provider.StateSuccess}
+	tree := &TreeNode{Build: ok, Children: []*TreeNode{{Build: provider.Build{State: provider.StateSkipped}}}}
+	require.Equal(t, provider.StateSuccess, TreeState(tree))
+	require.True(t, TreeFinished(provider.StateSkipped))
+	require.True(t, TreeFinished(provider.StateFailed))
+	require.False(t, TreeFinished(provider.StateRunning))
+}

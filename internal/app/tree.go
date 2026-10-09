@@ -69,6 +69,11 @@ type Tree struct {
 	Warnings []string       // sorted; never change the result
 }
 
+// TreeFinished reports whether a build in a tree has its final result.
+// Bamboo's skipped is final too, though provider.State.Finished leaves it
+// out; a skipped build is not a failure either.
+func TreeFinished(s provider.State) bool { return s.Finished() || s == provider.StateSkipped }
+
 // TreeState is running while any build runs, failed when any build did not
 // succeed or a configured child did not run, success otherwise.
 func TreeState(root *TreeNode) provider.State {
@@ -77,9 +82,9 @@ func TreeState(root *TreeNode) provider.State {
 		switch {
 		case n.NotRun:
 			bad = true
-		case !n.Build.State.Finished():
+		case !TreeFinished(n.Build.State):
 			running = true
-		case n.Build.State != provider.StateSuccess:
+		case n.Build.State != provider.StateSuccess && n.Build.State != provider.StateSkipped:
 			bad = true
 		}
 	})
@@ -455,7 +460,7 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 			} else {
 				scan, fails = next, 0
 				t.Root.Walk(func(n *TreeNode, _ int) {
-					if !n.NotRun && !n.Loop && n.Build.State.Finished() {
+					if !n.NotRun && !n.Loop && TreeFinished(n.Build.State) {
 						done[n.Build.Key] = n.Build
 					}
 				})

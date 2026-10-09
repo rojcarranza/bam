@@ -109,3 +109,29 @@ func TestRerunFailedReportsABuildThatWasNotRestarted(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 was not restarted: it is running or has succeeded")
 	require.Empty(t, h.fake.Restarted)
 }
+
+func TestBuildRerunRestartsOneBuild(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateSuccess)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9"))
+	assert.Equal(t, []string{"PROJ-PROV-9"}, h.fake.Restarted)
+	assert.Contains(t, h.stdout.String(), "restarted PROJ-PROV-9")
+	assert.Contains(t, h.stdout.String(), "watch: bam watch PROJ-PROV-9")
+}
+
+func TestBuildRerunWatch(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateSuccess)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--watch"))
+	assert.Contains(t, h.stdout.String(), "✓ Success")
+}
+
+func TestBuildRerunRefusesARunningOrSuccessfulBuild(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
+	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 succeeded; nothing to rerun")
+	h = treeHarness(t, provider.StateRunning)
+	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
+	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is running; nothing to rerun")
+	assert.Empty(t, h.fake.Restarted)
+}

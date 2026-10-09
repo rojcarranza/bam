@@ -1,0 +1,37 @@
+## bam build rerun
+
+Rerun a failed build's failed jobs
+
+### Synopsis
+
+Rerun a failed or stopped build's failed jobs, as Bamboo's "Rerun failed jobs"
+does: same build key, same variables and commit. A build that is running or
+succeeded is refused.
+
+```
+bam build rerun [<build>|<plan>|<target>] [flags]
+```
+
+### Options
+
+```
+      --branch string   plan branch when a plan or target is given
+  -h, --help            help for rerun
+      --last            the last build bam triggered from this repository
+      --watch           follow the build until it finishes
+```
+
+### Options inherited from parent commands
+
+```
+      --color string    color output: auto, always or never
+      --debug           log HTTP requests to stderr
+      --json            print JSON
+      --no-tui          never open the terminal UI
+      --server string   server alias to use
+```
+
+### SEE ALSO
+
+* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+

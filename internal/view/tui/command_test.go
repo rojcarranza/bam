@@ -58,11 +58,11 @@ func TestAUniquePrefixIsAccepted(t *testing.T) {
 
 func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
 	m, _ := runCmdLine(homeModel(), "p")
-	require.EqualError(t, m.err, `ambiguous command "p": plans, presets, project`)
+	require.EqualError(t, m.err, `ambiguous command "p": plans, presets, projects, project`)
 	require.Equal(t, homePlans, m.home.view)
 
 	m, _ = runCmdLine(homeModel(), "frobnicate")
-	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets sets project server sort quit`)
+	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets sets projects project server sort quit`)
 	require.Equal(t, inputNone, m.inputFor)
 }
 
@@ -118,7 +118,7 @@ func TestQuitCommand(t *testing.T) {
 
 func TestCompletion(t *testing.T) {
 	m := homeModel()
-	require.Equal(t, []string{"plans", "presets", "project"}, m.complete("p"))
+	require.Equal(t, []string{"plans", "presets", "projects", "project"}, m.complete("p"))
 	require.Equal(t, []string{"project OPS", "project PROJ", "project all"}, m.complete("project "))
 	require.Equal(t, []string{"sort age"}, m.complete("sort ag"))
 	require.Equal(t, []string{"sort -age"}, m.complete("sort -a"))
@@ -130,9 +130,17 @@ func TestTabCompletesAUniqueCandidate(t *testing.T) {
 	m, _ = send(m, mkKey("tab"))
 	require.Equal(t, "presets", m.input.Value())
 	m, _ = send(homeModel(), mkKey(":"))
-	m = typeLine(m, "pro")
+	m = typeLine(m, "ser")
 	m, _ = send(m, mkKey("tab"))
-	require.Equal(t, "project ", m.input.Value(), "a command with an argument gets its space")
+	require.Equal(t, "server ", m.input.Value(), "a command with an argument gets its space")
+}
+
+func TestTabOnAnAliasCompletesItsCommand(t *testing.T) {
+	require.Equal(t, []string{"projects"}, homeModel().complete("proj"), "proj is :projects, not a prefix of :project")
+	m, _ := send(homeModel(), mkKey(":"))
+	m = typeLine(m, "proj")
+	m, _ = send(m, mkKey("tab"))
+	require.Equal(t, "projects", m.input.Value())
 }
 
 func TestHelpListsTheCommands(t *testing.T) {

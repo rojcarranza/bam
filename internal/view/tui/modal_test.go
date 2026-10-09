@@ -119,7 +119,7 @@ func TestChoosingAProjectReloadsThePlans(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()
 	m, _ = send(m, mkKey("P"))
-	m, _ = send(m, projectsLoadedMsg{Gen: m.pickerGen, Projects: []provider.Project{{Key: "PROJ"}, {Key: "OPS"}}})
+	m, _ = send(m, projectsLoadedMsg{Gen: m.pickerGen, Stream: streamPicker, Projects: []provider.Project{{Key: "PROJ"}, {Key: "OPS"}}})
 	m, _ = send(m, mkKey("j")) // onto PROJ
 	m, cmd := send(m, mkKey("enter"))
 	require.Equal(t, "PROJ", m.project)
@@ -133,7 +133,7 @@ func TestChoosingAllProjectsClearsTheFilter(t *testing.T) {
 	m.svc = testService()
 	m.project = "PROJ"
 	m, _ = send(m, mkKey("P"))
-	m, _ = send(m, projectsLoadedMsg{Gen: m.pickerGen, Projects: []provider.Project{{Key: "PROJ"}}})
+	m, _ = send(m, projectsLoadedMsg{Gen: m.pickerGen, Stream: streamPicker, Projects: []provider.Project{{Key: "PROJ"}}})
 	m.picker.top()
 	m, _ = send(m, mkKey("enter"))
 	require.Equal(t, "", m.project)

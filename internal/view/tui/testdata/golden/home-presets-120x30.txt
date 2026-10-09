@@ -1,11 +1,11 @@
- bam · lab · 9.6.4 · jdoe · project all (none configured) · 3 presets · sort target↑
+ Server:  lab [bamboo.lab.example]   <enter> drill in          </> filter or search      <?> help
+ Version: 9.6.4                      <R> open the run form     <s> next sort column
+ User:    jdoe                       <P> filter by project     <:> command bar
+─────────────────────────────────────────────────── presets(all)[3] ───────────────────────────────────── sort target↑ ─
   TARGET  PLAN        BRANCH                                                                  STATE             #  AGE
   build   PROJ-BUILD  default                                                                 ✗ failed          4  12m
   orphan  LAB-X       default                                                                 –                 –  –
-▸ smoke   PROJ-PROV   develop                                                                 ✓ success         8  3h
-
-
-
+▸ smoke   PROJ-PROV   develop                                                                 ✓ success         8  3h   
 
 
 

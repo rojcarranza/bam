@@ -65,6 +65,7 @@ const (
 	streamSets
 	streamRun
 	streamCancel
+	streamProjects
 )
 
 // errMsg is a failure to show, never a failure to exit on. Where names the
@@ -412,34 +413,38 @@ func reloadBuildCmd(ctx context.Context, svc *app.Service, key string, gen int) 
 
 type projectsLoadedMsg struct {
 	Gen      int
+	Stream   stream // streamPicker for the P picker, streamProjects for the projects view
 	Projects []provider.Project
+	Missing  []string // configured projects the server does not have
 }
 
-// loadProjectsCmd lists the projects the project picker offers: the
-// configured projects that are actually on the server, in configured order,
-// or every server project when none is configured (spec §3.1's "P narrows to
-// one project" only makes sense among the projects Home itself can show).
-func loadProjectsCmd(ctx context.Context, svc *app.Service, gen int) tea.Cmd {
+// loadProjectsCmd lists the projects: the configured projects that are
+// actually on the server, in configured order, or every project on the server
+// when none is configured. Missing names the configured ones the server does
+// not have; the picker ignores it, the projects view shows it.
+func loadProjectsCmd(ctx context.Context, svc *app.Service, s stream, gen int) tea.Cmd {
 	return func() tea.Msg {
 		ps, err := svc.P.ListProjects(ctx)
 		if err != nil {
-			return errMsg{Err: err, Where: "projects", Stream: streamPicker, Gen: gen}
+			return errMsg{Err: err, Where: "projects", Stream: s, Gen: gen}
 		}
 		keys := svc.ProjectKeys()
 		if len(keys) == 0 {
-			return projectsLoadedMsg{Gen: gen, Projects: ps}
+			return projectsLoadedMsg{Gen: gen, Stream: s, Projects: ps}
 		}
 		byKey := map[string]provider.Project{}
 		for _, p := range ps {
 			byKey[p.Key] = p
 		}
-		var out []provider.Project
+		msg := projectsLoadedMsg{Gen: gen, Stream: s}
 		for _, k := range keys {
 			if p, ok := byKey[k]; ok {
-				out = append(out, p)
+				msg.Projects = append(msg.Projects, p)
+			} else {
+				msg.Missing = append(msg.Missing, k)
 			}
 		}
-		return projectsLoadedMsg{Gen: gen, Projects: out}
+		return msg
 	}
 }
 

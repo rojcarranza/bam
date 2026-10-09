@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"fmt"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,15 +20,16 @@ import (
 
 // homeState is what the Home screen keeps between frames (home spec §3-§4).
 type homeState struct {
-	view       homeView                  // which table Home shows
-	sort       homeSort                  // the plans table's order
-	presetSort homeSort                  // the presets table's order
-	setSort    homeSort                  // the sets table's order
-	live       map[string]provider.Build // builds the UI watches or started, by plan key
-	loadedAt   time.Time                 // the last load in which every project succeeded
-	stale      bool                      // the last load, or part of it, failed
-	plansErr   bool                      // m.err came from the plans stream, not another one
-	missing    []string                  // the configured projects missing on the last load
+	view        homeView                  // which table Home shows
+	sort        homeSort                  // the plans table's order
+	presetSort  homeSort                  // the presets table's order
+	setSort     homeSort                  // the sets table's order
+	projectSort homeSort                  // the projects table's order
+	live        map[string]provider.Build // builds the UI watches or started, by plan key
+	loadedAt    time.Time                 // the last load in which every project succeeded
+	stale       bool                      // the last load, or part of it, failed
+	plansErr    bool                      // m.err came from the plans stream, not another one
+	missing     []string                  // the configured projects missing on the last load
 
 	tickGen int       // the auto-refresh loop's generation (home spec §4.2)
 	lastKey time.Time // the last key pressed, for the idle cut-off
@@ -41,6 +43,7 @@ const (
 	homePlans homeView = iota
 	homePresets
 	homeSets
+	homeProjects
 )
 
 // homeCol is a sortable column. The presets table reuses the values: key is
@@ -56,9 +59,10 @@ const (
 
 // homeColNames are the column names :sort accepts, per table, in homeCol order.
 var homeColNames = map[homeView][]string{
-	homePlans:   {"key", "name", "state", "age"},
-	homePresets: {"target", "plan", "state", "age"},
-	homeSets:    {"set", "state", "age"},
+	homePlans:    {"key", "name", "state", "age"},
+	homePresets:  {"target", "plan", "state", "age"},
+	homeSets:     {"set", "state", "age"},
+	homeProjects: {"key", "name"},
 }
 
 // homeSort is a column and a direction. desc reverses the column's natural
@@ -297,7 +301,8 @@ func planCells(cols []tableCol, p provider.Plan, live *provider.Build, now time.
 }
 
 // tableLines is a header line and one line per row. cursor is the row index
-// that gets the ▸ marker; -1 marks none.
+// drawn as the selected bar, behind the ▸ mark; -1 marks none. Home's table
+// always has the keys, so its bar is the focused one.
 func tableLines(cols []tableCol, cells [][]string, cursor int) []string {
 	head := make([]string, len(cols))
 	for i, c := range cols {
@@ -305,13 +310,23 @@ func tableLines(cols []tableCol, cells [][]string, cursor int) []string {
 	}
 	lines := []string{"  " + titleStyle.Render(joinCells(cols, head))}
 	for r, row := range cells {
-		mark := "  "
 		if r == cursor {
-			mark = cursorStyle.Render("▸") + " "
+			lines = append(lines, cursorStyle.Render("▸")+" "+selectedRow(joinCells(cols, row), rowWidth(cols), true))
+			continue
 		}
-		lines = append(lines, mark+joinCells(cols, row))
+		lines = append(lines, "  "+joinCells(cols, row))
 	}
 	return lines
+}
+
+// rowWidth is how wide a row of cols is: the columns and the two spaces
+// between each pair.
+func rowWidth(cols []tableCol) int {
+	w := 2 * (len(cols) - 1)
+	for _, c := range cols {
+		w += c.width
+	}
+	return w
 }
 
 func joinCells(cols []tableCol, cells []string) string {
@@ -346,6 +361,9 @@ func (m Model) homeFocus() focus {
 	if m.home.view == homeSets {
 		return focusSets
 	}
+	if m.home.view == homeProjects {
+		return focusProjects
+	}
 	if m.home.view == homePresets {
 		return focusPresets
 	}
@@ -371,6 +389,7 @@ func (m Model) showPlans() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) showPresets() (tea.Model, tea.Cmd) {
+	m.fromProjects = false
 	m.home.view = homePresets
 	m.sortPresets()
 	return m.goHome()
@@ -385,6 +404,22 @@ func (m Model) lastBuildOf(planKey string) *provider.BuildSummary {
 		}
 	}
 	return nil
+}
+
+// planNameOf is the name of planKey from the plans load. A branch plan is
+// named after its master plan; when two masters match, the longer key is the
+// closer one. It is empty when the plan is not loaded.
+func (m Model) planNameOf(planKey string) string {
+	name, best := "", 0
+	for _, p := range m.plans.items {
+		switch {
+		case p.Key == planKey:
+			return p.Name
+		case len(p.Key) > best && isBranchOf(planKey, p.Key):
+			name, best = p.Name, len(p.Key)
+		}
+	}
+	return name
 }
 
 // sortPresets orders the presets in place by the presets sort. It sorts the
@@ -482,6 +517,11 @@ func (m Model) presetTable(width, height int) []string {
 // Home. It reports handled=false for every other key, which then goes
 // through handleKey's shared switch with focus on Home's list.
 func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
+	if m.home.view == homeProjects {
+		if next, cmd, handled := m.handleProjectsKey(msg); handled {
+			return next, cmd, true
+		}
+	}
 	if m.home.view == homeSets {
 		if next, cmd, handled := m.handleSetsKey(msg); handled {
 			return next, cmd, true
@@ -536,6 +576,9 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 
 // currentHomeSort is the order of the table Home is currently showing.
 func (m Model) currentHomeSort() homeSort {
+	if m.home.view == homeProjects {
+		return m.home.projectSort
+	}
 	if m.home.view == homeSets {
 		return m.home.setSort
 	}
@@ -547,6 +590,18 @@ func (m Model) currentHomeSort() homeSort {
 
 // setHomeSort re-sorts the active table and keeps the cursor on its row.
 func (m *Model) setHomeSort(s homeSort) {
+	if m.home.view == homeProjects {
+		if int(s.col) >= len(homeColNames[homeProjects]) {
+			s.col = 0 // key and name only
+		}
+		keep, had := m.projects.selected()
+		m.home.projectSort = s
+		m.projects.setOrder(projectLess(s))
+		if had {
+			m.projects.selectFirst(func(p projectItem) bool { return p.Key == keep.Key })
+		}
+		return
+	}
 	if m.home.view == homeSets {
 		if int(s.col) >= len(homeColNames[homeSets]) {
 			s.col = 0 // the sets table has three columns, not four
@@ -635,24 +690,162 @@ func (m Model) homeHeader() string {
 	if m.home.view == homeSets {
 		count, sortLabel, query = countOf(m.sets.len(), "set"), m.home.setSort.label(homeSets), m.sets.query
 	}
+	if m.home.view == homeProjects {
+		count, sortLabel, query = countOf(m.projectCount(), "project"), m.home.projectSort.label(homeProjects), m.projects.query
+	}
 	parts := []string{"bam", m.server, m.info.Version, m.user.Name, "project " + project,
 		count, "sort " + sortLabel}
-	if m.home.view == homeSets {
+	if m.home.view == homeSets || m.home.view == homeProjects {
 		// Sets are not filtered by project.
 		parts = append(parts[:4], count, "sort "+sortLabel)
 	}
 	if query != "" {
 		parts = append(parts, "filter /"+query)
 	}
-	switch {
-	case m.plans.loading && len(m.plans.items) > 0:
-		parts = append(parts, "refreshing…")
-	case m.home.stale && !m.home.loadedAt.IsZero():
-		parts = append(parts, "stale "+ageShort(m.now().Sub(m.home.loadedAt)))
-	case m.home.stale:
-		parts = append(parts, "stale")
+	if s := m.homeLoadMarker(); s != "" {
+		parts = append(parts, s)
 	}
 	return " " + strings.Join(parts, " · ")
+}
+
+// homeLoadMarker is "refreshing…", "stale 3m", "stale" or "": what both
+// header forms say about the last plans load.
+func (m Model) homeLoadMarker() string {
+	switch {
+	case m.plans.loading && len(m.plans.items) > 0:
+		return "refreshing…"
+	case m.home.stale && !m.home.loadedAt.IsZero():
+		return "stale " + ageShort(m.now().Sub(m.home.loadedAt))
+	case m.home.stale:
+		return "stale"
+	}
+	return ""
+}
+
+// homeTitle is the title set into the rule above the table, k9s style:
+// view(scope)</query>[count], and what goes at the rule's right end.
+func (m Model) homeTitle() (title, right string) {
+	scope := m.project
+	if scope == "" {
+		scope = "all"
+	}
+	name, scope, n, query, sortLabel := "plans", "("+scope+")", m.plans.len(), m.plans.query, m.home.sort.label(homePlans)
+	switch m.home.view {
+	case homePresets:
+		name, n, query, sortLabel = "presets", m.presets.len(), m.presets.query, m.home.presetSort.label(homePresets)
+	case homeSets:
+		name, scope, n, query, sortLabel = "sets", "", m.sets.len(), m.sets.query, m.home.setSort.label(homeSets)
+	case homeProjects:
+		name, scope, n, query, sortLabel = "projects", "", m.projectCount(), m.projects.query, m.home.projectSort.label(homeProjects)
+	}
+	title = name + scope
+	if query != "" {
+		title += "</" + query + ">"
+	}
+	title += fmt.Sprintf("[%d]", n)
+	right = "sort " + sortLabel
+	if s := m.homeLoadMarker(); s != "" {
+		right += " · " + s
+	}
+	return title, right
+}
+
+// homeHints is the key hints the header shows for view, most useful first.
+// They are the bindings themselves, so a hint cannot name a key that is not
+// bound.
+func homeHints(v homeView) []key.Binding {
+	switch v {
+	case homePresets:
+		return []key.Binding{keys.Enter, keys.Run, keys.Project, keys.Filter, keys.Sort, keys.Command, keys.Help}
+	case homeProjects:
+		return []key.Binding{keys.Enter, keys.Open, keys.Filter, keys.Sort, keys.Copy, keys.Command, keys.Help}
+	case homeSets:
+		return []key.Binding{keys.Enter, keys.Run, keys.Filter, keys.Sort, keys.Command, keys.Help}
+	}
+	return []key.Binding{keys.Enter, keys.Run, keys.Open, keys.Project, keys.Filter, keys.Sort, keys.Copy, keys.Command, keys.Help}
+}
+
+// serverHost is the host of the server the UI is on, from the configuration:
+// never a path or a query.
+func (m Model) serverHost() string {
+	for _, s := range m.deps.Servers {
+		if s.Alias == m.server {
+			if u, err := url.Parse(s.URL); err == nil {
+				return u.Host
+			}
+		}
+	}
+	return ""
+}
+
+// hintWidth is one key-hint column: "<o> open in the browser" and a gap.
+const hintWidth = 26
+
+// homeHeaderBlock is the three lines of the k9s-style header: who and where
+// on the left, key hints in as many columns as fit beside them.
+func (m Model) homeHeaderBlock(width int) []string {
+	server := m.server
+	if h := m.serverHost(); h != "" {
+		server += " [" + h + "]"
+	}
+	ctx := [3][2]string{{"Server:", server}, {"Version:", m.info.Version}, {"User:", m.user.Name}}
+	leftW := 0
+	for _, c := range ctx {
+		leftW = max(leftW, 9+lipgloss.Width(c[1]))
+	}
+	hints := homeHints(m.home.view)
+	// One column whenever a short hint fits, even if a long one is cut:
+	// between 60 and 80 columns the header would otherwise show no keys.
+	cols := max((width-leftW-4)/hintWidth, 0)
+	if cols == 0 && width-leftW-4 >= 16 {
+		cols = 1
+	}
+	lines := make([]string, 3)
+	for r, c := range ctx {
+		var b strings.Builder
+		b.WriteString(" " + dimStyle.Render(fmt.Sprintf("%-9s", c[0])) + titleStyle.Render(c[1]))
+		b.WriteString(strings.Repeat(" ", leftW-9-lipgloss.Width(c[1])+3))
+		for col := 0; col < cols; col++ {
+			i := col*3 + r
+			if i >= len(hints) {
+				break
+			}
+			h := hints[i].Help()
+			cell := hintKeyStyle.Render("<"+h.Key+">") + " " + h.Desc
+			b.WriteString(cell + strings.Repeat(" ", max(hintWidth-lipgloss.Width(cell), 1)))
+		}
+		lines[r] = truncate(strings.TrimRight(b.String(), " "), width)
+	}
+	return lines
+}
+
+// titleRule is a rule width cells wide with title centred in it and right
+// near its end. right is left out when it does not fit.
+func titleRule(width int, title, right string) string {
+	t := " " + title + " "
+	tw := lipgloss.Width(t)
+	if tw >= width {
+		return truncate(t, width)
+	}
+	left := (width - tw) / 2
+	rest := width - left - tw
+	r, tail := "", ""
+	if right != "" && lipgloss.Width(right)+3 <= rest {
+		r, tail = " "+right+" ", "─"
+	}
+	mid := rest - lipgloss.Width(r) - lipgloss.Width(tail)
+	return dimStyle.Render(strings.Repeat("─", left)) + titleStyle.Render(t) +
+		dimStyle.Render(strings.Repeat("─", mid)+r+tail)
+}
+
+// homeChrome is what sits above Home's table: the k9s-style block and title
+// rule when the terminal has room, else the one-line header.
+func (m Model) homeChrome() []string {
+	if m.width < 60 || m.height < 20 {
+		return []string{truncate(m.homeHeader(), m.width)}
+	}
+	title, right := m.homeTitle()
+	return append(m.homeHeaderBlock(m.width), titleRule(m.width, title, right))
 }
 
 // planTable is the column header and the rows that fit in height lines.
@@ -669,13 +862,17 @@ func (m Model) planTable(width, height int) []string {
 
 // homeView is the whole Home screen: header, table, status bar.
 func (m Model) homeView() string {
-	body := m.height - 2
+	head := m.homeChrome()
+	body := max(m.height-len(head)-1, 0)
 	lines := m.planTable(m.width, body)
 	if m.home.view == homePresets {
 		lines = m.presetTable(m.width, body)
 	}
 	if m.home.view == homeSets {
 		lines = m.setTable(m.width, body)
+	}
+	if m.home.view == homeProjects {
+		lines = m.projectTable(m.width, body)
 	}
 	if len(lines) > body {
 		lines = lines[:body]
@@ -684,7 +881,7 @@ func (m Model) homeView() string {
 		lines = append(lines, "")
 	}
 	out := make([]string, 0, m.height)
-	out = append(out, truncate(m.homeHeader(), m.width))
+	out = append(out, head...)
 	for _, l := range lines {
 		out = append(out, truncate(l, m.width))
 	}

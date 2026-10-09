@@ -43,7 +43,8 @@ const (
 	focusBuilds
 	focusPresets
 	focusMain
-	focusSets // Home's sets table; not in the panels' tab order
+	focusSets     // Home's sets table; not in the panels' tab order
+	focusProjects // Home's projects table; not in the panels' tab order
 )
 
 // overlay is the modal on top, if any. At most one is open.
@@ -105,11 +106,12 @@ type Model struct {
 	expanded   map[string]bool
 	treeCursor int
 
-	plans   listState[provider.Plan]
-	builds  listState[provider.Build]
-	presets listState[app.TargetInfo]
-	sets    listState[setItem]
-	picker  listState[pickerItem]
+	plans    listState[provider.Plan]
+	builds   listState[provider.Build]
+	presets  listState[app.TargetInfo]
+	sets     listState[setItem]
+	projects listState[projectItem]
+	picker   listState[pickerItem]
 
 	confirm  confirmState
 	help     helpState
@@ -128,6 +130,7 @@ type Model struct {
 	pickerGen, presetsGen        int
 	cancelGen                    int
 	setsGen, setGen              int
+	projectsGen                  int
 
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
@@ -151,11 +154,12 @@ type Model struct {
 
 	home homeState
 
-	train   trainState
-	setView setScreen
-	setVars setVarsState
-	setDry  []string // the set dry run the overlay shows on the vars prompt
-	fromSet bool     // the panels were opened from a set screen run; esc returns there
+	train        trainState
+	setView      setScreen
+	setVars      setVarsState
+	setDry       []string // the set dry run the overlay shows on the vars prompt
+	fromProjects bool     // Home's plans were reached from the projects view; esc returns there
+	fromSet      bool     // the panels were opened from a set screen run; esc returns there
 
 	formFrom screen // where esc from the run form returns
 }
@@ -163,20 +167,22 @@ type Model struct {
 // New builds the initial model. It starts no work; Init does that.
 func New(d Deps) Model {
 	m := Model{
-		deps:    d,
-		ctx:     context.Background(),
-		server:  d.Initial,
-		screen:  screenHome,
-		focus:   focusPlans,
-		plans:   newList(planMatchText),
-		builds:  newList(func(b provider.Build) string { return b.Key + " " + b.Branch + " " + b.Reason }),
-		presets: newList(func(t app.TargetInfo) string { return t.Name + " " + t.Plan + " " + t.Branch }),
-		sets:    newList(func(s setItem) string { return s.Info.Name }),
-		picker:  newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
-		now:     time.Now,
-		input:   textinput.New(),
+		deps:     d,
+		ctx:      context.Background(),
+		server:   d.Initial,
+		screen:   screenHome,
+		focus:    focusPlans,
+		plans:    newList(planMatchText),
+		builds:   newList(func(b provider.Build) string { return b.Key + " " + b.Branch + " " + b.Reason }),
+		presets:  newList(func(t app.TargetInfo) string { return t.Name + " " + t.Plan + " " + t.Branch }),
+		sets:     newList(func(s setItem) string { return s.Info.Name }),
+		projects: newList(projectMatchText),
+		picker:   newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
+		now:      time.Now,
+		input:    textinput.New(),
 	}
 	m.plans.setOrder(planLess(m.home.sort))
+	m.projects.setOrder(projectLess(homeSort{}))
 	m.home.lastKey = m.now()
 	return m
 }
@@ -192,10 +198,12 @@ func (m *Model) loadPlans() tea.Cmd {
 // clear empties the panel first, for a switch to a different plan or branch:
 // the rows on screen belong to what is being left, and Enter on one of them
 // would open a build from the wrong plan. A plain refresh keeps them, so the
-// cursor does not jump.
+// cursor does not jump. The panel names planKey from the request on, so its
+// title never names the plan being left, even if the load fails.
 func (m *Model) loadBuilds(planKey string, clear bool) tea.Cmd {
 	m.buildsGen++
 	m.builds.loading = true
+	m.buildsPlan = planKey
 	if clear {
 		m.builds.setItems(nil)
 	}
@@ -241,6 +249,8 @@ func (m Model) currentStream(s stream, gen int) bool {
 		return gen == m.cancelGen
 	case streamSets:
 		return gen == m.setsGen
+	case streamProjects:
+		return gen == m.projectsGen
 	}
 	return true
 }
@@ -311,6 +321,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.svc, m.info, m.user, m.server = msg.Svc, msg.Info, msg.User, msg.Alias
 		m.err = nil
 		cmd := m.loadPlans()
+		if m.home.view == homeProjects {
+			projects := m.loadProjects()
+			return m, tea.Batch(cmd, projects)
+		}
 		return m, cmd
 	case plansLoadedMsg:
 		if msg.Gen != m.plansGen {
@@ -333,7 +347,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sortPresets()
 		return m, nil
 	case projectsLoadedMsg:
-		if msg.Gen != m.pickerGen {
+		if msg.Stream == streamProjects {
+			if msg.Gen != m.projectsGen {
+				return m, nil
+			}
+			return m.projectsLoaded(msg), nil
+		}
+		if msg.Stream != streamPicker || msg.Gen != m.pickerGen {
 			return m, nil
 		}
 		// The empty value is the "no filter" row, so one list both sets and
@@ -502,6 +522,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		m.status = ""
 		m.plans.loading, m.builds.loading = false, false
+		if msg.Stream == streamProjects {
+			m.projects.loading = false
+		}
 		// plansErr tracks whether the error now showing came from the plans
 		// stream, so a later successful plans load knows whether it is the
 		// one that gets to clear it (finding 5).
@@ -627,7 +650,7 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pickerGen++
 		m.picker.setQuery("")
 		m.picker.setItems(nil)
-		return m, loadProjectsCmd(m.baseCtx(), m.svc, m.pickerGen)
+		return m, loadProjectsCmd(m.baseCtx(), m.svc, streamPicker, m.pickerGen)
 	case key.Matches(msg, keys.Branch):
 		p, ok := m.plans.selected()
 		if !ok || m.svc == nil {
@@ -697,6 +720,8 @@ func (m *Model) applyFilter(q string) {
 		m.presets.setQuery(q)
 	case focusSets:
 		m.sets.setQuery(q)
+	case focusProjects:
+		m.projects.setQuery(q)
 	}
 }
 
@@ -840,7 +865,6 @@ func (m Model) chooseOverlay() (tea.Model, tea.Cmd) {
 	case overlayBranches:
 		m.overlay = overlayNone
 		m.leaveBuild()
-		m.buildsPlan = it.Value
 		m.focus = focusBuilds
 		cmd := m.loadBuilds(it.Value, true)
 		return m, cmd
@@ -853,6 +877,7 @@ func (m Model) chooseOverlay() (tea.Model, tea.Cmd) {
 // plans, the builds and the open build all belonged to the old filter, so
 // they go before the new list loads.
 func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
+	m.fromProjects = false // a project picked any other way ends the trail
 	if key == m.project {
 		return m, nil
 	}
@@ -895,6 +920,9 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	// The project filter names a project of the server being left; keeping it
 	// would hide every plan on the new one.
 	m.project = ""
+	m.fromProjects = false
+	m.projectsGen++ // a projects load from the old server is dropped
+	m.projects.setItems(nil)
 	m.plans.setItems(nil)
 	m.builds.setItems(nil)
 	m.presets.setItems(nil)
@@ -933,6 +961,8 @@ func (m *Model) moveFocused(delta int) {
 		m.presets.move(delta)
 	case focusSets:
 		m.sets.move(delta)
+	case focusProjects:
+		m.projects.move(delta)
 	case focusMain:
 		m.treeCursor += delta
 		m.clampTree()
@@ -949,6 +979,8 @@ func (m *Model) jumpFocused(top bool) {
 		jump(&m.presets, top)
 	case focusSets:
 		jump(&m.sets, top)
+	case focusProjects:
+		jump(&m.projects, top)
 	case focusMain:
 		m.treeCursor = 0
 		if !top {
@@ -1208,6 +1240,10 @@ func (m Model) selectionURL() string {
 	case focusBuilds:
 		if b, ok := m.builds.selected(); ok {
 			return b.URL
+		}
+	case focusProjects:
+		if p, ok := m.projects.selected(); ok {
+			return p.URL
 		}
 	case focusMain:
 		// A stage has no URL of its own, so the build's stands in.
@@ -1545,14 +1581,20 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case m.screen == screenHome:
-		// Home is the top: esc clears the active table's filter and
+		// Home is the top: esc clears the active table's filter, then on a
+		// plans table reached from the projects view goes back there, and
 		// otherwise does nothing.
-		if m.home.view == homeSets && m.sets.query != "" {
+		switch {
+		case m.home.view == homeSets && m.sets.query != "":
 			m.sets.setQuery("")
-		} else if m.home.view == homePresets && m.presets.query != "" {
+		case m.home.view == homePresets && m.presets.query != "":
 			m.presets.setQuery("")
-		} else if m.home.view == homePlans && m.plans.query != "" {
+		case m.home.view == homeProjects && m.projects.query != "":
+			m.projects.setQuery("")
+		case m.home.view == homePlans && m.plans.query != "":
 			m.plans.setQuery("")
+		case m.home.view == homePlans && m.fromProjects:
+			return m.backToProjects()
 		}
 		return m, nil
 	case m.screen == screenColumns && m.fromSet:

@@ -30,11 +30,12 @@ func goldenModel(w, h int) Model {
 		{Key: "OPS-NIGHTLY", Name: "Nightly", ProjectKey: "OPS"},
 	})
 	m.builds.setItems([]provider.Build{
-		{Key: "PROJ-BUILD-44", Number: 44, State: provider.StateFailed, Branch: "main",
+		{Key: "PROJ-BUILD-44", PlanKey: "PROJ-BUILD", Number: 44, State: provider.StateFailed, Branch: "main",
 			FinishedAt: goldenNow.Add(-3 * time.Minute), Duration: 192 * time.Second},
-		{Key: "PROJ-BUILD-43", Number: 43, State: provider.StateSuccess, Branch: "main",
+		{Key: "PROJ-BUILD-43", PlanKey: "PROJ-BUILD", Number: 43, State: provider.StateSuccess, Branch: "main",
 			FinishedAt: goldenNow.Add(-time.Hour), Duration: 52 * time.Second},
 	})
+	m.buildsPlan = "PROJ-BUILD"
 	m.now = func() time.Time { return goldenNow }
 	m.screen = screenColumns // the v0.2 tests start on the panels; Home has its own tests
 	return m

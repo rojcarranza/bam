@@ -1,11 +1,11 @@
-╭─1 Plans──────────╮┏━PROJ-BUILD-44━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+╭─1 Plans──────────╮┏━PROJ-BUILD-44 · Build and test━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 │▸ OPS-NIGHTLY     │┃▸ running   #44   branch main   –    50%  ~2m00s left     ┃
 │  PROJ-BUILD      │┃Manual run by jdoe                                        ┃
 │  PROJ-DEPLOY     │┃                                                          ┃
 │                  │┃▸ ✓ Build                      42s                        ┃
 │                  │┃  ▸ Test                       2m30s                      ┃
 ╰──────────────────╯┃    ▸ Integration              2m30s                      ┃
-╭─2 Builds─────────╮┃  – Deploy                                                ┃
+╭─2 Builds · Build─╮┃  – Deploy                                                ┃
 │▸ ✗ #44 3m ago    │┃                                                          ┃
 │  ✓ #43 1h ago    │┃                                                          ┃
 │                  │┃                                                          ┃

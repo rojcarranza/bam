@@ -176,3 +176,17 @@ func TestGetBuildNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "build PROJ-BUILD-9 not found")
 	assert.True(t, errors.Is(err, errs.ErrNotFound))
 }
+
+// TestRecordedChildReason checks the reason of a recorded child build maps to
+// the plain text the build tree matches on.
+func TestRecordedChildReason(t *testing.T) {
+	if _, err := os.Stat(filepath.Join("testdata", "recorded", "children_child_0.json")); err != nil {
+		t.Skip("children_child_0.json not recorded")
+	}
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/LAB-CHILD-1": {fixture: "recorded/children_child_0.json"},
+	})
+	b, err := c.GetBuild(ctx, "LAB-CHILD-1")
+	require.NoError(t, err)
+	assert.Equal(t, "Child of LAB-PARENT-2", b.Reason)
+}

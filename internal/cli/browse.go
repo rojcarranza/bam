@@ -31,7 +31,7 @@ func addBrowse(root *cobra.Command, r *runtime) {
 	subgroup(root, "plan", "Plans: list, show, variables, branches, stats", groupBrowse).
 		AddCommand(newPlanListCmd(r), newPlanShowCmd(r), newPlanVarsCmd(r), newPlanBranchesCmd(r), newPlanStatsCmd(r))
 	subgroup(root, "build", "Builds: list, show, run, watch, logs, cancel", groupRun).
-		AddCommand(newBuildListCmd(r), newBuildShowCmd(r))
+		AddCommand(newBuildListCmd(r), newBuildShowCmd(r), newBuildTreeCmd(r))
 }
 
 func (r *runtime) note(msg, try string) {

@@ -145,6 +145,20 @@ stages:
 
 The file holds one set in the shape of an entry under `sets:`, plus an optional `name:`. Its presets come from your configuration, and every check of a configured set applies; a literal secret is refused, as in the project file. Its runs are recorded under its name, so `bam set status`, `bam set resume` and `bam set rerun --failed` work as for any set. Resume and rerun read the file again from where it was run; if it has moved, pass `--file` with its new path. A moved file keeps its run's name even under another file name, unless its own `name:` says otherwise.
 
+## Child plans (`children`)
+
+`bam build tree` finds the builds a build triggered by their reason, "Child of <build>", in the last 25 builds of each plan of your projects. A `children` map narrows that for a plan and shows a configured child that never ran:
+
+```yaml
+children:
+  PROJ-API: [OPS-DEPLOY, PROJ-DOCS]
+  OPS-DEPLOY: [OPS-SMOKE]
+```
+
+- Keys and values are plan keys. A plan with an entry gets only the listed plans as children; a listed plan without a matching build shows as `not run` and makes the tree fail.
+- Listed plans are searched even outside your projects.
+- The project file, the machine file and a machine `repos` entry may each set it; a later one replaces a plan's list (project, then machine, then `repos`).
+
 ## Machine file
 
     version: 1

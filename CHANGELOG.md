@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - The terminal UI's `:projects` view lists the projects; `enter` shows one project's plans and `esc` goes back.
+- `bam build tree` shows a build and every build it triggered, with their stages and failures, and `--watch` follows them to the end.
 
 ### Changed
 

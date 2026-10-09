@@ -170,6 +170,7 @@ and `bam build cancel` on the command line, stop a build.
 | see recent builds | `bam build list provision-lab` |
 | is this plan flaky? | `bam plan stats provision-lab` |
 | follow a running build | `bam watch --last` |
+| see every build a build triggered, and where it failed | `bam build tree --last` |
 | read only the failed jobs' logs | `bam logs --last --failed` |
 | stop a build | `bam build cancel --last` |
 | open anything in Bamboo | `bam open PROJ-PLAN-123` |
@@ -210,6 +211,30 @@ set failed: stage 2 (1 of 2 runs failed)
 A `matrix` runs one preset over several variable sets in the same stage: `matrix: {env: [qa, staging]}` runs every combination, `matrix: [{env: qa}, {env: prod, region: us}]` exactly those. Each run is named, for example `deploy[env=qa]`, and is resumed and rerun on its own.
 
 A failure never cancels a build. Ctrl-C stops watching; `bam set status` and `bam set resume` pick the train up again. After a failure, `bam set rerun --failed` has Bamboo restart the failed builds (only their failed jobs run again, with the same variables and commit) and then finishes the train. See [Sets](docs/configuration.md#sets-release-trains) for the rules.
+
+## Build trees
+
+When a plan triggers child plans, each child is a separate build in Bamboo. `bam build tree` shows a build and every build it caused, to any depth, with their stages and what failed:
+
+```
+$ bam build tree PROJ-API-142
+PROJ-API-142              ✗ failed   12m03s
+├─ stage Build            ✓ success  2m10s
+├─ stage Test             ✓ success  4m55s
+├─ OPS-DEPLOY-88          ✓ success  3m12s
+│  ├─ stage Deploy        ✓ success  3m12s
+│  └─ OPS-SMOKE-51        ✗ failed   1m40s   3 tests failed
+│     └─ stage Smoke      ✗ failed   1m40s   Smoke tests
+└─ PROJ-DOCS-30           ▸ running  45s
+next: bam logs OPS-SMOKE-51 --failed
+```
+
+- The argument works as in `bam build show`: a build key, a plan or preset (its latest build, with `--branch`), or `--last`.
+- `--watch` follows the tree until every build has finished, including children that start after their parent ends. Ctrl-C stops watching only.
+- `--failed` shows only the branches that lead to a failure; `--depth N` limits the levels; `--json` prints the tree as one document.
+- It exits 0 when every build succeeded and 1 when any did not. Without `--watch`, a tree that is still running exits 0 and suggests `--watch`.
+
+Bamboo's API does not list a plan's child plans, so bam finds a child by its reason, "Child of PROJ-API-142", in the last 25 builds of each plan in your projects and in the build's own project. A `children:` map in the configuration narrows that and shows a child that never ran; see [Child plans](docs/configuration.md#child-plans-children).
 
 ## More
 

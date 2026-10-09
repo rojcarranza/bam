@@ -1,0 +1,9 @@
+PROJ-API-142          ✗ failed   12m03s
+├─ stage Build        ✓ success  2m10s
+├─ stage Test         ✓ success  4m55s
+├─ OPS-DEPLOY-88      ✓ success  3m12s
+│  ├─ stage Deploy    ✓ success  3m12s
+│  └─ OPS-SMOKE-51    ✗ failed   1m40s   3 tests failed
+│     └─ stage Smoke  ✗ failed   1m40s   Smoke tests
+└─ OPS-AUDIT          · not run
+next: bam logs OPS-SMOKE-51 --failed

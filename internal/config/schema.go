@@ -11,25 +11,27 @@ import (
 
 // ProjectFile is .bam.yaml, committed with a repository.
 type ProjectFile struct {
-	Version       int               `yaml:"version"`
-	Servers       map[string]Server `yaml:"servers,omitempty"`
-	DefaultServer string            `yaml:"default_server,omitempty"`
-	Projects      []string          `yaml:"projects,omitempty"`
-	Targets       map[string]Target `yaml:"targets,omitempty"`
-	Sets          map[string]Set    `yaml:"sets,omitempty"`
+	Version       int                 `yaml:"version"`
+	Servers       map[string]Server   `yaml:"servers,omitempty"`
+	DefaultServer string              `yaml:"default_server,omitempty"`
+	Projects      []string            `yaml:"projects,omitempty"`
+	Targets       map[string]Target   `yaml:"targets,omitempty"`
+	Sets          map[string]Set      `yaml:"sets,omitempty"`
+	Children      map[string][]string `yaml:"children,omitempty"`
 }
 
 // MachineFile is the per-machine config.yaml, never committed.
 type MachineFile struct {
-	Version       int               `yaml:"version"`
-	DefaultServer string            `yaml:"default_server,omitempty"`
-	Servers       map[string]Server `yaml:"servers,omitempty"`
-	Targets       map[string]Target `yaml:"targets,omitempty"`
-	Sets          map[string]Set    `yaml:"sets,omitempty"`
-	Repos         map[string]Repo   `yaml:"repos,omitempty"`
-	Color         string            `yaml:"color,omitempty"`
-	Pager         string            `yaml:"pager,omitempty"`
-	Editor        string            `yaml:"editor,omitempty"`
+	Version       int                 `yaml:"version"`
+	DefaultServer string              `yaml:"default_server,omitempty"`
+	Servers       map[string]Server   `yaml:"servers,omitempty"`
+	Targets       map[string]Target   `yaml:"targets,omitempty"`
+	Sets          map[string]Set      `yaml:"sets,omitempty"`
+	Repos         map[string]Repo     `yaml:"repos,omitempty"`
+	Children      map[string][]string `yaml:"children,omitempty"`
+	Color         string              `yaml:"color,omitempty"`
+	Pager         string              `yaml:"pager,omitempty"`
+	Editor        string              `yaml:"editor,omitempty"`
 }
 
 type Server struct {
@@ -51,10 +53,11 @@ type Target struct {
 }
 
 type Repo struct {
-	Server   string            `yaml:"server,omitempty"`
-	Projects []string          `yaml:"projects,omitempty"`
-	Targets  map[string]Target `yaml:"targets,omitempty"`
-	Sets     map[string]Set    `yaml:"sets,omitempty"`
+	Server   string              `yaml:"server,omitempty"`
+	Projects []string            `yaml:"projects,omitempty"`
+	Targets  map[string]Target   `yaml:"targets,omitempty"`
+	Sets     map[string]Set      `yaml:"sets,omitempty"`
+	Children map[string][]string `yaml:"children,omitempty"`
 }
 
 // StringMap decodes any YAML scalar values as strings; Bamboo variables are strings.

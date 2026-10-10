@@ -108,13 +108,20 @@ func (m Model) enterPlan(key, buildsPlan string, want *provider.Build, f focus) 
 	return m.openPlan(key, buildsPlan, want, f)
 }
 
-// closePlan forgets the plan screen: its build, its watch, its stack and
-// its cache. Every way off the plan screen to Home, and a server switch,
-// calls it.
+// closePlan forgets the plan screen: its build, its watch, its builds, its
+// stack and its cache. Every way off the plan screen to Home, and a server
+// switch, calls it.
 func (m *Model) closePlan() {
 	m.leaveBuild()
 	m.plan = planScreen{}
 	m.treePreviewGen++
+	// The builds are the plan's: left behind, t on Home would fall back to
+	// one of them. A load still in flight for them is dropped.
+	m.buildsGen++
+	m.builds.setItems(nil)
+	m.builds.setQuery("")
+	m.builds.loading = false
+	m.buildsPlan = ""
 }
 
 // showBuild makes b the open build: Stages shows it, a running build is

@@ -787,3 +787,23 @@ func TestFilterIsForBuildsAndLoadsWhereItLands(t *testing.T) {
 	m, _ = send(m, cmd())
 	require.Equal(t, "PROJ-BUILD-42", m.detail.Key, "Stages shows a build the list shows")
 }
+
+// M6: the plan screen's builds leave with it, so t on Home has no build to
+// fall back to, and a late Builds load is dropped.
+func TestHomeKeepsNoBuildsOfTheClosedPlan(t *testing.T) {
+	m := planOnBuilds(t)
+	gen := m.buildsGen
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenHome, m.screen)
+	require.Empty(t, m.builds.items)
+	require.Empty(t, m.buildsPlan)
+
+	m, cmd := send(m, mkKey("t"))
+	require.Equal(t, screenHome, m.screen, "t on Home has no build to open")
+	for _, msg := range runBatch(cmd) {
+		require.NotPanics(t, func() { send(m, msg) })
+	}
+
+	m, _ = send(m, buildsLoadedMsg{Gen: gen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
+	require.Empty(t, m.builds.items, "a load for the closed plan is dropped")
+}

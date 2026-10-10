@@ -244,7 +244,8 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.plan.tree = treePreview{key: msg.Key, tree: msg.Tree, have: true, err: msg.Err}
-	if msg.Err == nil && msg.Tree.Root != nil && msg.Tree.State != provider.StateRunning {
+	if msg.Err == nil && msg.Tree.Root != nil &&
+		app.TreeFinished(msg.Tree.Root.Build.State) && msg.Tree.State != provider.StateRunning {
 		if m.plan.trees == nil {
 			m.plan.trees = map[string]app.Tree{}
 		}

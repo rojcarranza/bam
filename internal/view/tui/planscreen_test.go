@@ -356,3 +356,28 @@ func TestTreeRowURLIsTheChildBuilds(t *testing.T) {
 	m.focus = focusTree
 	require.Equal(t, labOrigin+"/browse/PROJ-PROV-7", m.selectionURL())
 }
+
+func TestOnlyAFinalTreeIsCached(t *testing.T) {
+	m := planWithTree(t)
+	key := m.detail.Key
+	root := func(s provider.State) app.Tree {
+		b := sampleBuild()
+		b.State = s
+		return app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b}, State: provider.StateSuccess}
+	}
+	delete(m.plan.trees, key)
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: key, Tree: root(provider.StateQueued)})
+	require.NotContains(t, m.plan.trees, key, "a tree whose root is not final is never cached")
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: key, Tree: root(provider.StateFailed)})
+	require.Contains(t, m.plan.trees, key)
+}
+
+func TestAWatchErrorClearsStagesLoading(t *testing.T) {
+	m := planOnBuilds(t)
+	running := sampleBuild()
+	running.State = provider.StateRunning
+	m, _ = m.showBuild(running)
+	require.True(t, m.plan.stagesLoading)
+	m, _ = send(m, watchEventMsg{Gen: m.watchGen, Event: app.Event{Type: app.EventError, Err: errBoom}})
+	require.False(t, m.plan.stagesLoading)
+}

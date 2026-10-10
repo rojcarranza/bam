@@ -695,6 +695,9 @@ func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.completeInput(), nil
 		}
 	case tea.KeyEsc:
+		if m.inputFor == inputSearch {
+			m.logs.search("") // esc drops the search and its highlight
+		}
 		m.inputFor = inputNone
 		m.input.SetValue("")
 		m.input.Blur()
@@ -1189,9 +1192,11 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.quit()
 	case key.Matches(msg, keys.Bottom):
 		m.logs.vp.GotoBottom()
+		m.logs.pinned = true
 		return m, nil
 	case key.Matches(msg, keys.Top):
 		m.logs.vp.GotoTop()
+		m.logs.pinned = m.logs.vp.AtBottom()
 		return m, nil
 	case key.Matches(msg, keys.Open):
 		return m.openSelection()
@@ -1221,6 +1226,7 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	m.logs.vp, cmd = m.logs.vp.Update(msg)
+	m.logs.pinned = m.logs.vp.AtBottom()
 	return m, cmd
 }
 

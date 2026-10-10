@@ -1,10 +1,12 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
 )
@@ -273,4 +275,109 @@ func TestFollowIsRefusedWhileSeveralJobsAreShown(t *testing.T) {
 	require.False(t, m.logs.following)
 	require.Nil(t, cmd)
 	require.Contains(t, m.status, "one job")
+}
+
+func tallLogModel(n int) Model {
+	m := logModel()
+	lines := make([]string, n)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %02d", i)
+	}
+	m.logs.setLines(m.width, m.logHeight(), lines)
+	return m
+}
+
+func TestAChunkScrollsWhilePinned(t *testing.T) {
+	m := tallLogModel(60)
+	require.True(t, m.logs.pinned, "a log opens pinned to the bottom")
+	m.logs.appendLines([]string{"line 60"})
+	require.True(t, m.logs.vp.AtBottom())
+}
+
+// TestAJumpUnpinsAndGRepins: a match on screen must not be scrolled away by
+// the next chunk, spec §4.3.
+func TestAJumpUnpinsAndGRepins(t *testing.T) {
+	m := tallLogModel(60)
+	m.logs.search("line 05")
+	require.False(t, m.logs.pinned)
+	y := m.logs.vp.YOffset
+	m.logs.appendLines([]string{"line 60"})
+	require.Equal(t, y, m.logs.vp.YOffset, "the reader stays on the match")
+
+	m, _ = send(m, mkKey("G"))
+	require.True(t, m.logs.pinned)
+	m.logs.appendLines([]string{"line 61"})
+	require.True(t, m.logs.vp.AtBottom())
+}
+
+func TestAViewportKeyAtTheBottomRepins(t *testing.T) {
+	m := tallLogModel(60)
+	m.logs.search("line 05")
+	m.logs.vp.GotoBottom()
+	m, _ = send(m, mkKey("down"))
+	require.True(t, m.logs.pinned)
+	m, _ = send(m, mkKey("up"))
+	require.False(t, m.logs.pinned)
+}
+
+func TestASearchCountsLinesThatArriveLater(t *testing.T) {
+	m := logModel()
+	m.logs.search("error")
+	require.Equal(t, []int{1, 2}, m.logs.matches)
+	m.logs.appendLines([]string{"12:07:09  [ERROR] again"})
+	require.Equal(t, []int{1, 2, 4}, m.logs.matches)
+	require.Equal(t, 0, m.logs.match, "the current match does not move")
+	require.Contains(t, m.View(), "match 1/3")
+}
+
+func TestEscInTheSearchInputClearsTheSearch(t *testing.T) {
+	m := logModel()
+	m.logs.search("error")
+	m, _ = send(m, mkKey("/"))
+	m, _ = send(m, mkKey("esc"))
+	require.Empty(t, m.logs.query)
+	require.Empty(t, m.logs.matches)
+	require.NotContains(t, m.View(), "match")
+}
+
+func TestKeyLineSaysWhatNDoes(t *testing.T) {
+	m := logModel()
+	require.Contains(t, m.View(), "n next failure")
+	m.logs.search("error")
+	require.Contains(t, m.View(), "n next match")
+}
+
+func TestHighlightSpans(t *testing.T) {
+	require.Equal(t, [][2]int{{3, 8}, {16, 21}}, highlightSpans("an Error and an ERROR", "error"))
+	line := "ÉCHEC du test"
+	require.Equal(t, [][2]int{{0, len(line)}}, highlightSpans(line, "échec"),
+		"a non-ASCII case match highlights the whole line")
+	require.Nil(t, highlightSpans("nothing here", "zzz"))
+	require.Nil(t, highlightSpans("anything", ""))
+}
+
+func TestHighlightLeavesTheTextIntact(t *testing.T) {
+	line := "12:06:58  [ERROR] ConnectionRefused"
+	require.Equal(t, line, ansi.Strip(highlight(line, "error")))
+}
+
+// TestResizeKeepsTheSearch: Review Focus 3.
+func TestResizeKeepsTheSearch(t *testing.T) {
+	m := logModel()
+	m.logs.search("error")
+	m.logs.resize(100, 30)
+	require.Equal(t, "error", m.logs.query)
+	require.Equal(t, []int{1, 2}, m.logs.matches)
+	require.Len(t, m.logs.rendered, len(m.logs.lines))
+}
+
+func TestAnEmptyFollowedLogSaysItIsWaiting(t *testing.T) {
+	m := logModel()
+	m.logs.setLines(m.width, m.logHeight(), nil)
+	m.logs.following = true
+	m.logs.refresh()
+	require.Contains(t, m.View(), waitingLine)
+	require.Empty(t, m.logs.lines, "the waiting line is not part of the log")
+	m.logs.search("waiting")
+	require.Empty(t, m.logs.matches)
 }

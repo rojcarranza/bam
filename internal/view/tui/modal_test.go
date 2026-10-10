@@ -116,6 +116,7 @@ func TestPOpensTheProjectPickerWithAnAllRow(t *testing.T) {
 }
 
 func TestChoosingAProjectReloadsThePlans(t *testing.T) {
+	instantHomeTick(t) // setProject restarts Home's tick, which batches with the load
 	m := goldenModel(80, 24)
 	m.svc = testService()
 	m, _ = send(m, mkKey("P"))
@@ -125,7 +126,12 @@ func TestChoosingAProjectReloadsThePlans(t *testing.T) {
 	require.Equal(t, "PROJ", m.project)
 	require.Equal(t, overlayNone, m.overlay)
 	require.NotNil(t, cmd)
-	require.IsType(t, plansLoadedMsg{}, cmd())
+	var loaded bool
+	for _, msg := range runBatch(cmd) {
+		_, ok := msg.(plansLoadedMsg)
+		loaded = loaded || ok
+	}
+	require.True(t, loaded, "the plans reload")
 }
 
 func TestChoosingAllProjectsClearsTheFilter(t *testing.T) {
@@ -139,10 +145,10 @@ func TestChoosingAllProjectsClearsTheFilter(t *testing.T) {
 	require.Equal(t, "", m.project)
 }
 
-func TestBOpensTheBranchPickerForTheSelectedPlan(t *testing.T) {
+func TestBOpensTheBranchPickerForThePlanScreensPlan(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()
-	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-PROV"}}})
+	m.plan.key = "PROJ-PROV"
 	m, cmd := send(m, mkKey("b"))
 	require.Equal(t, overlayBranches, m.overlay)
 	require.NotNil(t, cmd)
@@ -160,7 +166,7 @@ func TestBOpensTheBranchPickerForTheSelectedPlan(t *testing.T) {
 func TestChoosingABranchLoadsThatBranchPlansBuilds(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()
-	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-PROV"}}})
+	m.plan.key = "PROJ-PROV"
 	m, _ = send(m, mkKey("b"))
 	m, _ = send(m, branchesLoadedMsg{Gen: m.pickerGen, MasterKey: "PROJ-PROV", Branches: []provider.Branch{
 		{Key: "PROJ-PROV12", ShortName: "develop", PlanKey: "PROJ-PROV"},
@@ -178,7 +184,7 @@ func TestChoosingABranchLoadsThatBranchPlansBuilds(t *testing.T) {
 func TestBranchSwitchCancelsTheWatch(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()
-	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-PROV"}}})
+	m.plan.key = "PROJ-PROV"
 	cancelled := false
 	m.watchCancel = func() { cancelled = true }
 	m.detail = ptr(sampleBuild())
@@ -192,7 +198,7 @@ func TestBranchSwitchCancelsTheWatch(t *testing.T) {
 func TestBWithNoPlanSelectedDoesNothing(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()
-	m.plans.setItems(nil)
+	m.plan.key = ""
 	m, cmd := send(m, mkKey("b"))
 	require.Equal(t, overlayNone, m.overlay)
 	require.Nil(t, cmd)

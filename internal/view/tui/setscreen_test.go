@@ -53,8 +53,9 @@ func TestSetScreenBuildReturnsToTheSet(t *testing.T) {
 	m := setScreenModel(t, failedRec(), "")
 	m, _ = send(m, mkKey("j")) // build[env=qa], the failed run
 	m, _ = send(m, mkKey("enter"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
+	m, _ = send(m, mkKey("esc")) // Stages back to Builds
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenSet, m.screen, "esc from a set's build returns to the set")
 }

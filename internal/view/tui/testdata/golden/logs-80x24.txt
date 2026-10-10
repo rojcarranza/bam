@@ -1,9 +1,9 @@
+ Build and test
 PROJ-BUILD-INT-44 · logs · failed                                            4/4
 12:04:31  [INFO] Running integration suite                                      
 12:06:58  [ERROR] ConnectionRefused: bamboo.lab.example:5432                    
 12:06:58  [ERROR] 3 tests failed                                                
 12:07:01  Finished with exit code 1                                             
-                                                                                
                                                                                 
                                                                                 
                                                                                 

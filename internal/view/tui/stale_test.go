@@ -124,6 +124,7 @@ func TestBranchSwitchClearsTheBuildsRows(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-PROV"}}})
+	m.plan.key = "PROJ-PROV"
 	require.Positive(t, m.builds.len())
 
 	m, _ = send(m, mkKey("b"))
@@ -160,7 +161,7 @@ func TestCurrentBuildFollowsTheBuildsCursorWhenBuildsHasFocus(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "PROJ-BUILD-43", b.Key)
 
-	m.focus = focusMain
+	m.focus = focusStages
 	b, _ = m.currentBuild()
 	require.Equal(t, "PROJ-BUILD-44", b.Key, "Main still acts on the open build")
 }
@@ -283,27 +284,27 @@ func TestOpeningAnotherPlanStopsTheWatchAndClearsTheDetail(t *testing.T) {
 	stopped := false
 	m.watchCancel = func() { stopped = true }
 
-	m.focus = focusPlans
+	m.screen, m.focus = screenHome, focusPlans
 	m, _ = send(m, mkKey("enter"))
 	require.True(t, stopped)
 	require.Nil(t, m.detail)
 	require.Nil(t, m.watchCancel)
 }
 
-// TestOpeningAPresetStopsTheWatchToo.
+// TestOpeningAPresetStopsTheWatchToo: Enter on a preset in Home's presets view
+// ends the watch of the build the plan screen was showing.
 func TestOpeningAPresetStopsTheWatchToo(t *testing.T) {
-	m := goldenModel(80, 24)
+	m := presetModel()
 	m.svc = testService()
-	m, _ = send(m, presetsLoadedMsg{Gen: m.presetsGen,
-		Targets: []app.TargetInfo{{Name: "smoke", Plan: "PROJ-PROV", Branch: "develop"}}})
 	m.detail = ptr(sampleBuild())
 	stopped := false
 	m.watchCancel = func() { stopped = true }
 
-	m.focus = focusPresets
 	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, screenPlan, m.screen)
 	require.True(t, stopped)
 	require.Nil(t, m.detail)
+	require.Nil(t, m.watchCancel)
 }
 
 // TestSwitchingServerClearsThePresetsAndTheProjectFilter: both are keyed to
@@ -380,12 +381,12 @@ func TestTheDetailTreeScrollsWithItsCursor(t *testing.T) {
 			Name: "Stage" + string(rune('A'+i%26)) + string(rune('0'+i/26)), State: provider.StateSuccess})
 	}
 	m := goldenModel(80, 24)
-	m.detail, m.expanded, m.focus = &b, map[string]bool{}, focusMain
+	m.detail, m.expanded, m.focus = &b, map[string]bool{}, focusStages
 	m.treeCursor = len(m.treeRows()) - 1
 
 	last, ok := m.selectedTreeRow()
 	require.True(t, ok)
-	require.Contains(t, m.detailBody(56, 18), last.Name,
+	require.Contains(t, m.stagesBody(56, 18), last.Name,
 		"the row the cursor is on must be on screen")
 }
 
@@ -466,11 +467,11 @@ func TestLeavingABuildInvalidatesAPendingRefresh(t *testing.T) {
 	m.svc = testService()
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-BUILD"}, {Key: "PROJ-PROV"}}})
 	m.detail = ptr(sampleBuild())
-	m.focus = focusMain
+	m.focus = focusStages
 	m, _ = send(m, mkKey("r")) // a Main refresh is now in flight
 	pending := m.detailGen
 
-	m.focus = focusPlans
+	m.screen, m.focus = screenHome, focusPlans
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter")) // a different plan
 	require.Nil(t, m.detail)
@@ -530,7 +531,7 @@ func TestAPresetResolutionFailureIsShown(t *testing.T) {
 	m.svc = testService()
 	m, _ = send(m, presetsLoadedMsg{Gen: m.presetsGen,
 		Targets: []app.TargetInfo{{Name: "gone", Plan: "PROJ-PROV", Branch: "no-such-branch"}}})
-	m.focus = focusPresets
+	m.screen, m.focus, m.home.view = screenHome, focusPresets, homePresets
 
 	m, cmd := send(m, mkKey("enter"))
 	require.NotNil(t, cmd)

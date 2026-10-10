@@ -1,0 +1,24 @@
+ Build and test
+ PROJ › PROJ-BUILD                               ✗ failed last build #44 3m ago
+────────────────────────────────── builds[2] ───────────────────────────────────
+╭─Builds───────────────────────╮╭─Stages · #44─────────────────────────────────╮
+│▸ ✗ #44    main  3m  –        ││Manual run by jdoe                            │
+│  ✓ #43    main  1h  –        ││                                              │
+│                              ││▸ ✓ Build                      42s            │
+│                              ││  ✗ Test                       2m30s          │
+│                              ││    ✗ Integration              2m30s          │
+│                              ││  – Deploy                                    │
+│                              ││                                              │
+│                              ││3 failed tests                                │
+│                              │╰──────────────────────────────────────────────╯
+│                              │┏━Tree · what #44 triggered━━━━━━━━━━━━━━━━━━━━┓
+│                              │┃▸ ✗ PROJ-PROV  #7    failed                   ┃
+│                              │┃  – Nightly  not run                          ┃
+│                              │┃                                              ┃
+│                              │┃                                              ┃
+│                              │┃                                              ┃
+│                              │┃                                              ┃
+│                              │┃                                              ┃
+│                              │┃                                              ┃
+╰──────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+lab · 9.6.4 · jdoe                        enter open  t tree  l logs  esc builds

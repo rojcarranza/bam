@@ -225,17 +225,17 @@ func TestStaleFormLoadIsDropped(t *testing.T) {
 func TestEscLeavesTheForm(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 }
 
 // TestROnNothingDoesNothing.
 func TestROnNothingDoesNothing(t *testing.T) {
 	m := New(Deps{})
 	m.width, m.height = 80, 24
-	m.screen = screenColumns
+	m.screen = screenPlan
 	m, cmd := send(m, mkKey("R"))
 	require.Nil(t, cmd)
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 }
 
 // TestRIsNotReachableFromTheLogScreen: the log screen is for reading.
@@ -303,7 +303,7 @@ func TestEscWhileEditingLeavesTheFieldNotTheForm(t *testing.T) {
 	require.Equal(t, screenForm, m.screen)
 
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 }
 
 // TestEscWhileEditingKeepsTheOldValue.
@@ -495,8 +495,8 @@ func TestASuccessfulRunOpensAndWatchesTheNewBuild(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, triggeredMsg{Gen: m.formGen,
 		Build: provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9}})
-	require.Equal(t, screenColumns, m.screen)
-	require.Equal(t, focusMain, m.focus)
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, focusStages, m.focus)
 	require.NotNil(t, m.detail)
 	require.Equal(t, "PROJ-PROV12-9", m.detail.Key)
 	require.NotNil(t, m.watchCancel, "the new build is watched")
@@ -862,26 +862,26 @@ func TestAZeroVariablePlanCanStillBeRun(t *testing.T) {
 	require.Contains(t, m3.View(), "no variables would be sent")
 }
 
-// TestCIsIgnoredOutsideBuildsAndMain: currentBuild falls back to the Builds
-// cursor, so without a focus guard a C struck in Plans offers to stop a build
-// from a panel the user is not operating on.
-func TestCIsIgnoredOutsideBuildsAndMain(t *testing.T) {
+// TestCIsIgnoredOffThePlanScreen: currentBuild falls back to the Builds
+// cursor, so without a screen guard a C struck on Home offers to stop a build
+// from a table the user is not operating on.
+func TestCIsIgnoredOffThePlanScreen(t *testing.T) {
 	for _, f := range []focus{focusPlans, focusPresets} {
 		m := cancelModel()
-		m.focus = f
+		m.screen, m.focus = screenHome, f
 		m, cmd := send(m, mkKey("C"))
 		require.Equal(t, overlayNone, m.overlay, "focus %v must not open the confirmation", f)
 		require.Nil(t, cmd)
 	}
 }
 
-// TestCStillWorksFromBuildsAndMain is the other half: the guard must not
-// take away the two focuses the design gives C.
-func TestCStillWorksFromBuildsAndMain(t *testing.T) {
-	for _, f := range []focus{focusBuilds, focusMain} {
+// TestCStillWorksFromEveryPlanScreenPanel is the other half: C acts on the
+// open build from Builds, Stages and Tree.
+func TestCStillWorksFromEveryPlanScreenPanel(t *testing.T) {
+	for _, f := range []focus{focusBuilds, focusStages, focusTree} {
 		m := cancelModel()
 		m.focus = f
-		if f == focusMain {
+		if f != focusBuilds {
 			b := m.builds.items[0]
 			m.detail = &b
 		}

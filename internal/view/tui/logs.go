@@ -154,7 +154,15 @@ func (m Model) logsView() string {
 	if m.err != nil {
 		foot = truncate(errorStyle.Render(errorWhat(m.err)), m.width)
 	}
-	return strings.Join([]string{head, m.logs.vp.View(), foot}, "\n")
+	out := []string{head, m.logs.vp.View(), foot}
+	if m.height >= 20 {
+		planKey := ""
+		if b, ok := m.logBuild(); ok {
+			planKey = m.masterOf(b.PlanKey)
+		}
+		out = append([]string{m.nameLine(m.width, planKey)}, out...)
+	}
+	return strings.Join(out, "\n")
 }
 
 // search records every matching line and jumps to the first one. Matching is

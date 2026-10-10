@@ -3,13 +3,13 @@ package tui
 import (
 	"context"
 	"maps"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
@@ -28,7 +28,7 @@ const (
 type screen int
 
 const (
-	screenColumns screen = iota
+	screenPlan screen = iota
 	screenLogs
 	screenForm
 	screenHome // the plans table bam opens on (home spec §2)
@@ -37,16 +37,19 @@ const (
 	screenTree // one build's tree: every build it triggered
 )
 
-// focus is which panel takes keys. Main is the right-hand panel.
+// focus is which panel or table takes keys. Plans, Presets, Sets and
+// Projects are Home's tables; Builds, Stages and Tree are the plan screen's
+// panels.
 type focus int
 
 const (
 	focusPlans focus = iota
 	focusBuilds
 	focusPresets
-	focusMain
-	focusSets     // Home's sets table; not in the panels' tab order
-	focusProjects // Home's projects table; not in the panels' tab order
+	focusStages // the plan screen's stage and job tree of the open build
+	focusSets   // Home's sets table; not in the plan screen's tab order
+	focusProjects
+	focusTree // the plan screen's list of what the open build triggered
 )
 
 // overlay is the modal on top, if any. At most one is open.
@@ -63,22 +66,18 @@ const (
 	overlayConfirm
 )
 
-var tabOrder = []focus{focusPlans, focusBuilds, focusPresets, focusMain}
+var tabOrder = []focus{focusBuilds, focusStages, focusTree}
 
-// parent is where esc goes from here. Main came from Builds and Presets is a
-// sibling of Builds, so neither steps through the tab order backwards.
-func (f focus) parent() focus {
-	switch f {
-	case focusMain:
-		return focusBuilds
-	case focusBuilds, focusPresets:
-		return focusPlans
-	}
-	return focusPlans
+// next and prev look the focus up rather than indexing by its value: Home's
+// tables are not in the tab order, and from one of them tab lands on Builds.
+func (f focus) next() focus {
+	return tabOrder[(slices.Index(tabOrder, f)+1)%len(tabOrder)]
 }
 
-func (f focus) next() focus { return tabOrder[(int(f)+1)%len(tabOrder)] }
-func (f focus) prev() focus { return tabOrder[(int(f)+len(tabOrder)-1)%len(tabOrder)] }
+func (f focus) prev() focus {
+	i := max(slices.Index(tabOrder, f), 0)
+	return tabOrder[(i+len(tabOrder)-1)%len(tabOrder)]
+}
 
 // Model is the whole UI. Update is a pure function of (Model, tea.Msg).
 type Model struct {
@@ -134,6 +133,7 @@ type Model struct {
 	setsGen, setGen              int
 	projectsGen                  int
 	treeGen                      int
+	treePreviewGen               int
 	rerunGen                     int // the tree screen opened now; only opening or closing it moves on
 
 	watchCancel context.CancelFunc
@@ -165,6 +165,7 @@ type Model struct {
 	setVars      setVarsState
 	setDry       []string // the set dry run the overlay shows on the vars prompt
 	buildTree    treeScreen
+	plan         planScreen
 	fromTree     bool // the panels were opened from the tree screen; esc returns there
 	logsFromTree bool // the log screen was opened from the tree screen; esc returns there
 	fromProjects bool // Home's plans were reached from the projects view; esc returns there
@@ -345,8 +346,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.builds.loading = false
+		m.plan.buildsStale = false
 		m.buildsPlan = msg.PlanKey
 		m.builds.setItems(msg.Builds)
+		if m.plan.key != "" {
+			return m.planBuildsLoaded()
+		}
 		return m, nil
 	case presetsLoadedMsg:
 		if msg.Gen != m.presetsGen {
@@ -463,6 +468,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openTriggered(msg.Build)
+	case planRestMsg:
+		return m.planRest(msg)
 	case buildLoadedMsg:
 		if msg.Gen != m.detailGen {
 			return m, nil
@@ -471,6 +478,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail = &b
 		m.progress = msg.Progress
 		m.clampTree()
+		m.plan.stagesLoading = false
+		m = m.cacheBuild(b)
 		return m, nil
 	case setsLoadedMsg:
 		if msg.Gen != m.setsGen {
@@ -512,6 +521,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSetDry(msg)
 	case treeEventMsg:
 		return m.handleTreeEvent(msg)
+	case treePreviewMsg:
+		return m.treePreviewLoaded(msg)
 	case treeClosedMsg:
 		return m, nil
 	case treeRerunMsg:
@@ -540,6 +551,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		m.status = ""
 		m.plans.loading, m.builds.loading = false, false
+		if msg.Stream == streamDetail {
+			m.plan.stagesLoading = false
+		}
+		if msg.Stream == streamBuilds && m.plan.key != "" {
+			m.plan.buildsStale = true
+		}
 		if msg.Stream == streamProjects {
 			m.projects.loading = false
 		}
@@ -617,22 +634,33 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.PrevPanel):
 		m.focus = m.focus.prev()
 	case key.Matches(msg, keys.Panel1):
-		m.focus = focusPlans
-	case key.Matches(msg, keys.Panel2):
 		m.focus = focusBuilds
+	case key.Matches(msg, keys.Panel2):
+		m.focus = focusStages
 	case key.Matches(msg, keys.Panel3):
-		m.focus = focusPresets
+		m.focus = focusTree
 	case key.Matches(msg, keys.Down):
 		m.moveFocused(1)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Up):
 		m.moveFocused(-1)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Top):
 		m.jumpFocused(true)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Bottom):
 		m.jumpFocused(false)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Enter):
 		return m.drill()
 	case key.Matches(msg, keys.Filter):
+		if m.screen == screenPlan && m.focus != focusBuilds {
+			return m, nil // Stages and Tree have no filter
+		}
 		return m.startInput()
 	case key.Matches(msg, keys.Command):
 		return m.startCommand()
@@ -677,15 +705,14 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.picker.setItems(nil)
 		return m, loadProjectsCmd(m.baseCtx(), m.svc, streamPicker, m.pickerGen)
 	case key.Matches(msg, keys.Branch):
-		p, ok := m.plans.selected()
-		if !ok || m.svc == nil {
+		if m.screen != screenPlan || m.plan.key == "" || m.svc == nil {
 			return m, nil
 		}
 		m.overlay = overlayBranches
 		m.pickerGen++
 		m.picker.setQuery("")
 		m.picker.setItems(nil)
-		return m, loadBranchesCmd(m.baseCtx(), m.svc, p.Key, m.pickerGen)
+		return m, loadBranchesCmd(m.baseCtx(), m.svc, m.plan.key, m.pickerGen)
 	}
 	return m, nil
 }
@@ -718,7 +745,10 @@ func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.applyFilter(q)
-		return m, nil
+		// The filter may move the Builds cursor; Stages follows it as it
+		// follows a cursor move.
+		rest := m.restCmd()
+		return m, rest
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -851,12 +881,17 @@ func (m Model) refresh() (tea.Model, tea.Cmd) {
 		}
 		cmd := m.loadBuilds(m.buildsPlan, false)
 		return m, cmd
-	case focusMain:
+	case focusStages:
 		if m.detail == nil {
 			return m, nil
 		}
 		m.detailGen++
 		return m, reloadBuildCmd(m.baseCtx(), m.svc, m.detail.Key, m.detailGen)
+	case focusTree:
+		if m.detail == nil {
+			return m, nil
+		}
+		return m.loadTreePreview(m.detail.Key, true)
 	}
 	return m, nil
 }
@@ -893,6 +928,7 @@ func (m Model) chooseOverlay() (tea.Model, tea.Cmd) {
 	case overlayBranches:
 		m.overlay = overlayNone
 		m.leaveBuild()
+		m.plan.want, m.plan.older = nil, "" // the pinned build belonged to the branch being left
 		m.focus = focusBuilds
 		cmd := m.loadBuilds(it.Value, true)
 		return m, cmd
@@ -915,8 +951,10 @@ func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
 	m.buildsGen++
 	m.builds.setItems(nil)
 	m.plans.setItems(nil)
-	if m.screen != screenHome {
-		m.focus = focusPlans
+	if m.screen == screenPlan {
+		m.closePlan()
+		m.screen = screenHome
+		m.focus = m.homeFocus()
 	}
 	load := m.loadPlans()
 	tick := m.restartHomeTick()
@@ -947,6 +985,14 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 		// The tree is the old server's; a build key means another build here.
 		m.stopTree()
 		m.screen = m.buildTree.from
+		m.buildTree.back = nil // the plan screen to return to is the old server's
+	}
+	// The plan, its builds and its cache are the old server's, also when
+	// the plan screen is not the one on top.
+	m.closePlan()
+	if m.screen == screenPlan {
+		m.screen = screenHome
+		m.focus = m.homeFocus()
 	}
 	m.server, m.svc = alias, nil
 	m.buildsPlan = ""
@@ -996,9 +1042,11 @@ func (m *Model) moveFocused(delta int) {
 		m.sets.move(delta)
 	case focusProjects:
 		m.projects.move(delta)
-	case focusMain:
+	case focusStages:
 		m.treeCursor += delta
 		m.clampTree()
+	case focusTree:
+		m.plan.treeCursor = min(max(m.plan.treeCursor+delta, 0), max(len(m.treePreviewRows())-1, 0))
 	}
 }
 
@@ -1014,12 +1062,17 @@ func (m *Model) jumpFocused(top bool) {
 		jump(&m.sets, top)
 	case focusProjects:
 		jump(&m.projects, top)
-	case focusMain:
+	case focusStages:
 		m.treeCursor = 0
 		if !top {
 			m.treeCursor = len(m.treeRows()) - 1
 		}
 		m.clampTree()
+	case focusTree:
+		m.plan.treeCursor = 0
+		if !top {
+			m.plan.treeCursor = max(len(m.treePreviewRows())-1, 0)
+		}
 	}
 }
 
@@ -1078,49 +1131,17 @@ func (m *Model) leaveBuild() {
 // drill is spec §4.1. Each row moves focus and starts the load its panel needs.
 func (m Model) drill() (tea.Model, tea.Cmd) {
 	switch m.focus {
-	case focusPlans:
-		p, ok := m.plans.selected()
-		if !ok || m.svc == nil {
-			return m, nil
-		}
-		m.focus = focusBuilds
-		m.leaveBuild()
-		cmd := m.loadBuilds(p.Key, true)
-		return m, cmd
 	case focusBuilds:
 		b, ok := m.builds.selected()
 		if !ok || m.svc == nil {
 			return m, nil
 		}
-		m.focus = focusMain
-		m.detail = &b
-		m.progress = provider.Progress{}
-		m.expanded = defaultExpanded(b)
-		m.treeCursor = 0
-		return m.startWatch(b.Key)
-	case focusPresets:
-		t, ok := m.presets.selected()
-		if !ok || m.svc == nil || t.Plan == "" {
+		m.focus = focusStages
+		if m.detail != nil && m.detail.Key == b.Key {
 			return m, nil
 		}
-		// Move the Plans cursor onto the preset's plan when it is listed, so
-		// the panels agree about what the main panel is showing.
-		for i, p := range m.plans.rows() {
-			if p.Key == t.Plan {
-				m.plans.cursor = i
-				break
-			}
-		}
-		m.focus = focusBuilds
-		m.leaveBuild()
-		m.buildsGen++
-		m.builds.loading = true
-		m.builds.setItems(nil)
-		// A preset may name a branch, and its builds live under the branch
-		// plan, not the master. ResolvePlan is what turns the two into a plan
-		// key, exactly as bam run does it.
-		return m, resolveTargetBuildsCmd(m.baseCtx(), m.svc, t, m.buildsGen)
-	case focusMain:
+		return m.showBuild(b)
+	case focusStages:
 		row, ok := m.selectedTreeRow()
 		if !ok {
 			return m, nil
@@ -1134,6 +1155,8 @@ func (m Model) drill() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openLogs(row.Key, false)
+	case focusTree:
+		return m.drillTree()
 	}
 	return m, nil
 }
@@ -1148,6 +1171,7 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		m.detail = &b
 		m.progress = e.Progress
 		m.clampTree()
+		m.plan.stagesLoading = false
 		// "queued KEY" is news only while the build waits; after that the
 		// detail panel shows its state. Other notices are not the watch's.
 		if m.status == "queued "+b.Key && (b.State != provider.StateQueued || e.Type == app.EventDone) {
@@ -1157,13 +1181,26 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 	switch e.Type {
 	case app.EventError:
 		m.err = e.Err
+		m.plan.stagesLoading = false
 		m.stopWatch()
 		return m, nil
 	case app.EventDone:
 		if e.Build.Key == m.revisionRun.Key && m.revisionRun.Rev != "" && e.Build.State == provider.StateNotBuilt {
 			m.status = "Bamboo could not build revision " + m.revisionRun.Rev
 		}
+		m = m.cacheBuild(e.Build)
 		m.stopWatch()
+		// The plan screen may sit under its logs or the run form; the
+		// one re-read is still due (§4.3).
+		if m.plan.key != "" && m.detail != nil && m.plan.tree.key == m.detail.Key {
+			var tree tea.Cmd
+			m, tree = m.loadTreePreview(m.detail.Key, true)
+			if m.svc != nil && m.buildsPlan != "" {
+				load := m.loadBuilds(m.buildsPlan, false)
+				return m, tea.Batch(tree, load)
+			}
+			return m, tree
+		}
 		if m.svc != nil && m.buildsPlan != "" {
 			cmd := m.loadBuilds(m.buildsPlan, false)
 			return m, cmd
@@ -1247,7 +1284,7 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // otherwise the current stage of a build still running, live, or else the
 // failed jobs.
 func (m Model) openSelectionLogs() (tea.Model, tea.Cmd) {
-	if m.focus == focusMain {
+	if m.focus == focusStages {
 		if row, ok := m.selectedTreeRow(); ok {
 			if row.Kind == rowStage {
 				return m.openStageLogs(row.Name)
@@ -1325,13 +1362,19 @@ func (m Model) selectionURL() string {
 		if p, ok := m.projects.selected(); ok {
 			return p.URL
 		}
-	case focusMain:
+	case focusStages:
 		// A stage has no URL of its own, so the build's stands in.
 		if row, ok := m.selectedTreeRow(); ok && row.URL != "" {
 			return row.URL
 		}
 		if m.detail != nil {
 			return m.detail.URL
+		}
+	case focusTree:
+		if rows := m.treePreviewRows(); m.plan.treeCursor < len(rows) {
+			if u := rows[m.plan.treeCursor].Build.URL; u != "" {
+				return u
+			}
 		}
 	}
 	return ""
@@ -1520,7 +1563,7 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 	// C is a Builds and Main key. currentBuild falls back to the Builds
 	// cursor, so without this a C struck in Plans or Presets would offer to
 	// stop a build from the row the user is no longer looking at.
-	if m.focus != focusBuilds && m.focus != focusMain {
+	if m.screen != screenPlan {
 		return m, nil
 	}
 	b, ok := m.currentBuild()
@@ -1540,26 +1583,17 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 // openTriggered shows the build that was just started and watches it. It is
 // the drill-into-a-build path, so at most one watch still runs.
 func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
-	m.screen = screenColumns
 	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
 	m.form = formState{}
-	m.focus = focusMain
-	m.detail = &b
-	m.progress = provider.Progress{}
-	m.expanded = defaultExpanded(b)
-	m.treeCursor = 0
-	m.status = "queued " + b.Key
-
-	next, watch := m.startWatch(b.Key)
-	m = next.(Model)
-	// startWatch stops whatever was being watched before, which clears the
-	// old marker; note this build's only after, so it survives.
+	// Esc after a run returns to Home (§4.1), not to a set, a tree or a
+	// drilled plan the form was opened from.
+	m.fromSet, m.fromTree, m.logsFromTree = false, false, false
+	m, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
+	// showBuild started the watch; note the build only after, since
+	// stopping the previous watch clears the marker.
 	m.noteLive(b)
-	cmds := []tea.Cmd{watch}
-	if b.PlanKey != "" {
-		cmds = append(cmds, m.loadBuilds(b.PlanKey, false))
-	}
-	return m, tea.Batch(cmds...)
+	m.status = "queued " + b.Key
+	return m, cmd
 }
 
 // openForm opens the run form for whatever the cursor is on: a preset by its
@@ -1587,11 +1621,11 @@ func (m Model) openForm() (tea.Model, tea.Cmd) {
 		}
 		planKey = p.Key
 	default:
-		b, ok := m.currentBuild()
-		if !ok {
-			return m, nil
+		if b, ok := m.currentBuild(); ok {
+			planKey = b.PlanKey
+		} else {
+			planKey = m.buildsPlan
 		}
-		planKey = b.PlanKey
 	}
 	if target == nil && planKey == "" {
 		return m, nil
@@ -1650,12 +1684,15 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		m.stopFollow()
 		m.logsGen++ // abandon a load still in flight
 		m.logsFromTree, m.fromTree = false, false
+		// The plan screen openTreeBuild opened under the logs is left too:
+		// closing it stops its watch and drops its loads still in flight.
+		m.closePlan()
 		m.screen = screenTree
 		return m.watchTree() // watching paused while the logs were open
 	case m.screen == screenLogs:
 		m.stopFollow()
 		m.logsGen++ // abandon a load still in flight
-		m.screen = screenColumns
+		m.screen = screenPlan
 		return m, nil
 	case m.screen == screenForm:
 		m.formGen++ // abandon a load still in flight
@@ -1686,23 +1723,30 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 			return m.backToProjects()
 		}
 		return m, nil
-	case m.screen == screenColumns && m.fromSet:
+	case m.screen == screenPlan && m.focus == focusBuilds && m.builds.query != "":
+		m.builds.setQuery("") // esc clears the focused panel's filter first (§4.1)
+		return m, nil
+	case m.screen == screenPlan && m.focus != focusBuilds:
+		m.focus = focusBuilds
+		return m, nil
+	case m.screen == screenPlan && len(m.plan.stack) > 0:
+		return m.popPlan()
+	case m.screen == screenPlan && m.fromSet:
+		// Closing the plan screen stops its watch and drops its loads still
+		// in flight, so none lands on a plan the user has left.
 		m.fromSet = false
-		m.stopWatch()
+		m.closePlan()
 		m.screen = screenSet
 		return m, nil
-	case m.screen == screenColumns && m.fromTree:
+	case m.screen == screenPlan && m.fromTree:
 		m.fromTree = false
-		m.stopWatch()
+		m.closePlan()
 		m.screen = screenTree
 		return m.watchTree() // watching paused while the build was open
 	case m.screen == screenTree:
 		return m.closeTree()
 	case m.screen == screenSet:
 		return m.showSets()
-	case m.focus != focusPlans:
-		m.focus = m.focus.parent()
-		return m, nil
 	}
 	return m.goHome()
 }
@@ -1770,27 +1814,17 @@ func (m Model) View() string {
 	case screenTree:
 		return m.overlayView(m.treeScreenView())
 	}
-	return m.columnsView()
+	return m.planView()
 }
 
-// logHeight is the viewport's height: the terminal minus the header and the
-// key line.
+// logHeight is the viewport's height: the terminal minus the name line (on
+// a terminal of 20 rows or more), the header and the key line.
 func (m Model) logHeight() int {
 	h := m.height - 2
-	if h < 1 {
-		h = 1
+	if m.height >= 20 {
+		h--
 	}
-	return h
-}
-
-func (m Model) columnsView() string {
-	body := m.height - 1 // the status bar
-	lw := leftWidth(m.width)
-	return m.overlayView(lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			m.leftColumn(lw, body),
-			m.mainPanel(m.width-lw, body)),
-		m.statusBar(m.width)))
+	return max(h, 1)
 }
 
 // expandErr opens the error overlay on the error the status bar shows: its

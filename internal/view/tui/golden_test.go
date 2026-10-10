@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +39,8 @@ func goldenModel(w, h int) Model {
 	})
 	m.buildsPlan = "PROJ-BUILD"
 	m.now = func() time.Time { return goldenNow }
-	m.screen = screenColumns // the v0.2 tests start on the panels; Home has its own tests
+	m.screen = screenPlan // the v0.2 tests start on the plan screen; Home has its own tests
+	m.focus = focusBuilds
 	return m
 }
 
@@ -54,20 +57,74 @@ func requireGolden(t *testing.T, name, got string) {
 	require.Equal(t, string(want), got)
 }
 
-// TestColumnsGolden80x24 is the smallest supported size and the screen the
-// spec draws.
-func TestColumnsGolden80x24(t *testing.T) {
-	requireGolden(t, "columns-80x24", goldenModel(80, 24).View())
+// planGolden is goldenModel on the plan screen with build 44 open, its
+// stages read and its tree delivered: PROJ-PROV-7 and a not-run child.
+func planGolden(w, h int) Model {
+	m := goldenModel(w, h)
+	m.plan.key = "PROJ-BUILD"
+	b := sampleBuild()
+	b.FinishedAt = goldenNow.Add(-3 * time.Minute)
+	m.detail = &b
+	m.expanded = defaultExpanded(b)
+	m.plan.tree = treePreview{key: b.Key, have: true, tree: app.Tree{Root: &app.TreeNode{
+		PlanKey: "PROJ-BUILD", Build: b,
+		Children: []*app.TreeNode{
+			{PlanKey: "PROJ-PROV", Build: provider.Build{Key: "PROJ-PROV-7", PlanKey: "PROJ-PROV", Number: 7, State: provider.StateFailed}},
+			{PlanKey: "OPS-NIGHTLY", NotRun: true},
+		},
+	}}}
+	return m
 }
 
-func TestColumnsGolden120x40(t *testing.T) {
-	requireGolden(t, "columns-120x40", goldenModel(120, 40).View())
+func TestPlanGolden80x24(t *testing.T)  { requireGolden(t, "plan-80x24", planGolden(80, 24).View()) }
+func TestPlanGolden120x40(t *testing.T) { requireGolden(t, "plan-120x40", planGolden(120, 40).View()) }
+func TestPlanGolden60x16(t *testing.T)  { requireGolden(t, "plan-60x16", planGolden(60, 16).View()) }
+
+func TestPlanGoldenTreeFocused(t *testing.T) {
+	m := planGolden(80, 24)
+	m.focus = focusTree
+	requireGolden(t, "plan-tree-80x24", m.View())
 }
 
-// TestColumnsGolden60x20 proves the layout degrades rather than panics below
-// the supported size.
-func TestColumnsGolden60x20(t *testing.T) {
-	requireGolden(t, "columns-60x20", goldenModel(60, 20).View())
+func TestPlanGoldenEmptyTree(t *testing.T) {
+	m := planGolden(80, 24)
+	m.plan.tree.tree.Root.Children = nil
+	requireGolden(t, "plan-notree-80x24", m.View())
+}
+
+func TestPlanGoldenWithEstimate(t *testing.T) {
+	m := planGolden(80, 24)
+	b := runningDetail()
+	m.detail = &b
+	m.progress = runningEstimate()
+	// The list's newest build is the one running, so the header and the
+	// Builds row agree with Stages.
+	m.builds.items[0].State, m.builds.items[0].FinishedAt = b.State, time.Time{}
+	m.builds.setItems(m.builds.items)
+	requireGolden(t, "plan-estimate-80x24", m.View())
+}
+
+// TestPlanViewNeverExceedsTheTerminal resizes across the small-terminal
+// threshold and back (Review Focus 2).
+func TestPlanViewNeverExceedsTheTerminal(t *testing.T) {
+	// A long tree error must not wrap and push the screen past the bottom.
+	treeErr := errors.New("bamboo returned 503 Service Unavailable: the server is in maintenance mode until the upgrade completes")
+	for _, size := range [][2]int{{80, 24}, {59, 19}, {40, 10}, {60, 20}, {20, 6}, {63, 24}, {70, 24}, {80, 24}} {
+		for _, f := range []focus{focusBuilds, focusStages, focusTree} {
+			for _, err := range []error{nil, treeErr} {
+				m := planGolden(size[0], size[1])
+				m.focus = f
+				if err != nil {
+					m.plan.tree = treePreview{key: m.detail.Key, have: true, err: err}
+				}
+				lines := strings.Split(m.View(), "\n")
+				require.LessOrEqual(t, len(lines), size[1], "%v focus %v err %v", size, f, err)
+				for _, l := range lines {
+					require.LessOrEqual(t, lipgloss.Width(l), size[0], "%v: %q", size, l)
+				}
+			}
+		}
+	}
 }
 
 // TestViewNeverExceedsTheTerminal: a line wider than the terminal wraps and
@@ -86,7 +143,7 @@ func TestViewNeverExceedsTheTerminal(t *testing.T) {
 func TestFocusedPanelIsMarked(t *testing.T) {
 	m := goldenModel(80, 24)
 	first := m.View()
-	m.focus = focusBuilds
+	m.focus = focusStages
 	require.NotEqual(t, first, m.View(), "moving focus must change the rendering")
 }
 
@@ -96,27 +153,8 @@ func TestZeroSizeDoesNotPanic(t *testing.T) {
 	require.NotPanics(t, func() { _ = New(Deps{}).View() })
 }
 
-// TestDetailGolden is the screen spec §3 draws.
-func TestDetailGolden(t *testing.T) {
-	m := goldenModel(80, 24)
-	m.focus = focusMain
-	m.detail = ptr(sampleBuild())
-	m.expanded = defaultExpanded(sampleBuild())
-	requireGolden(t, "detail-80x24", m.View())
-}
-
 func TestHelpGolden(t *testing.T) {
 	// Opened through the key, so the viewport is sized as it would be.
 	m, _ := send(goldenModel(80, 24), mkKey("?"))
 	requireGolden(t, "help-80x24", m.View())
-}
-
-// TestDetailWithEstimateGolden pins the bar in the detail header.
-func TestDetailWithEstimateGolden(t *testing.T) {
-	m := goldenModel(80, 24)
-	m.focus = focusMain
-	m.detail = ptr(runningDetail())
-	m.expanded = defaultExpanded(runningDetail())
-	m.progress = runningEstimate()
-	requireGolden(t, "detail-estimate-80x24", m.View())
 }

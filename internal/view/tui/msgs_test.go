@@ -222,19 +222,6 @@ func TestErrMsgNeverQuits(t *testing.T) {
 	require.Error(t, m.err)
 }
 
-// TestEnterOnPlansLoadsBuildsAndMovesFocus is spec §4.1's first row.
-func TestEnterOnPlansLoadsBuildsAndMovesFocus(t *testing.T) {
-	m := testModel()
-	m.svc = testService()
-	m, _ = send(m, plansLoadedMsg{Plans: []provider.Plan{{Key: "PROJ-BUILD"}}})
-	m, cmd := send(m, mkKey("enter"))
-	require.Equal(t, focusBuilds, m.focus)
-	require.NotNil(t, cmd)
-	got, ok := cmd().(buildsLoadedMsg)
-	require.True(t, ok)
-	require.Equal(t, "PROJ-BUILD", got.PlanKey)
-}
-
 // TestRunReturnsTheFirstConnectFailure is spec §6: a failure to start maps to
 // an exit code, and only later failures stay in the status bar. Run must
 // therefore not enter the program loop when the first connect fails.

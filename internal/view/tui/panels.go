@@ -11,25 +11,6 @@ import (
 	"github.com/r0jjames/bam-cli/internal/view"
 )
 
-// leftWidth is a quarter of the terminal, clamped so the panels stay
-// readable on a narrow terminal and do not swallow a wide one.
-func leftWidth(total int) int {
-	w := total / 4
-	switch {
-	case w < 20:
-		w = 20
-	case w > 40:
-		w = 40
-	}
-	if w > total-20 {
-		w = total - 20
-	}
-	if w < 0 {
-		w = 0
-	}
-	return w
-}
-
 // panel draws one bordered box with its title set into the top border, the
 // way the spec's layout draws it. lipgloss v1 has no border title, so the top
 // edge is drawn by hand and the box is rendered without one.
@@ -88,137 +69,12 @@ func (m Model) cursorFor(focused, selected bool) string {
 	return "  "
 }
 
-func (m Model) planRows(width, height int) string {
-	rows := m.plans.rows()
-	start, end := m.plans.window(height)
-	var b strings.Builder
-	for i := start; i < end; i++ {
-		b.WriteString(m.cursorFor(m.focus == focusPlans, m.plans.cursor == i))
-		// Keys differ by a letter or two and say nothing about the plan, so
-		// the name follows whenever the panel has room for some of it.
-		p := rows[i]
-		label := p.Key
-		if w := width - 6 - lipgloss.Width(label); w > 6 && p.Name != "" {
-			label += dimStyle.Render("  " + truncate(p.Name, w))
-		}
-		label = truncate(label, width-4)
-		if m.plans.cursor == i {
-			label = selectedRow(label, width-4, m.focus == focusPlans)
-		}
-		b.WriteString(label)
-		b.WriteString("\n")
-	}
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-func (m Model) buildRows(width, height int) string {
-	rows := m.builds.rows()
-	start, end := m.builds.window(height)
-	var b strings.Builder
-	for i := start; i < end; i++ {
-		bd := rows[i]
-		b.WriteString(m.cursorFor(m.focus == focusBuilds, m.builds.cursor == i))
-		line := stateStyle(bd.State).Render(stateGlyph(bd.State)) +
-			fmt.Sprintf(" #%d ", bd.Number) + dimStyle.Render(m.ago(bd.FinishedAt))
-		line = truncate(line, width-4)
-		if m.builds.cursor == i {
-			line = selectedRow(line, width-4, m.focus == focusBuilds)
-		}
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
 // ago is relative time against the model's clock, so goldens are stable.
 func (m Model) ago(t time.Time) string {
 	if t.IsZero() {
 		return "–"
 	}
 	return view.Ago(m.now().Sub(t))
-}
-
-func (m Model) presetRows(width, height int) string {
-	rows := m.presets.rows()
-	start, end := m.presets.window(height)
-	var b strings.Builder
-	for i := start; i < end; i++ {
-		t := rows[i]
-		b.WriteString(m.cursorFor(m.focus == focusPresets, m.presets.cursor == i))
-		// Name, plan and branch: without the branch, two presets on the same
-		// plan look identical and the user cannot tell what enter will open.
-		detail := t.Plan
-		if t.Branch != "" {
-			detail += " @" + t.Branch
-		}
-		label := t.Name
-		if w := width - 6 - lipgloss.Width(label); w > 6 && detail != "" {
-			label += dimStyle.Render("  " + truncate(detail, w))
-		}
-		label = truncate(label, width-4)
-		if m.presets.cursor == i {
-			label = selectedRow(label, width-4, m.focus == focusPresets)
-		}
-		b.WriteString(label)
-		b.WriteString("\n")
-	}
-	return strings.TrimSuffix(b.String(), "\n")
-}
-
-func (m Model) leftColumn(width, height int) string {
-	each := height / 3
-	rest := height - 2*each
-	return lipgloss.JoinVertical(lipgloss.Left,
-		panel("1 Plans", m.focus == focusPlans, width, each, m.planRows(width, each-2)),
-		panel(m.namedTitle("2 Builds", m.buildsPlan), m.focus == focusBuilds, width, each, m.buildRows(width, each-2)),
-		panel("3 Presets", m.focus == focusPresets, width, rest, m.presetRows(width, rest-2)),
-	)
-}
-
-// mainPanel shows what the focused left panel points at: the open build's
-// detail, otherwise the plan the Plans cursor is on, otherwise a hint about
-// the build the Builds cursor is on.
-func (m Model) mainPanel(width, height int) string {
-	if m.detail != nil {
-		return panel(m.namedTitle(m.detail.Key, m.detail.PlanKey), m.focus == focusMain, width, height,
-			m.detailBody(width-2, height-2))
-	}
-	if p, ok := m.plans.selected(); ok && m.focus == focusPlans {
-		return panel(m.namedTitle(p.Key, p.Key), false, width, height, m.planSummary(p, width-2))
-	}
-	if b, ok := m.builds.selected(); ok {
-		return panel(m.namedTitle(b.Key, b.PlanKey), m.focus == focusMain, width, height,
-			dimStyle.Render("press enter to open this build"))
-	}
-	return panel("bam", m.focus == focusMain, width, height, dimStyle.Render("select a plan"))
-}
-
-// namedTitle follows a panel title with the name of the plan it is about:
-// the key alone rarely says which plan that is.
-func (m Model) namedTitle(title, planKey string) string {
-	if name := m.planNameOf(planKey); name != "" {
-		return title + " · " + name
-	}
-	return title
-}
-
-// planSummary is the main panel while the Plans cursor moves. Moving it loads
-// nothing, so this says which plan enter would open, with the whole name.
-func (m Model) planSummary(p provider.Plan, width int) string {
-	var lines []string
-	if p.Name != "" {
-		lines = append(lines, lipgloss.NewStyle().Width(width).Render(p.Name))
-	}
-	last := "no builds yet"
-	if lb := p.LastBuild; lb != nil {
-		last = fmt.Sprintf("last build %s #%d %s",
-			stateCell(lb.State), lb.Number, m.ago(lb.FinishedAt))
-	}
-	if p.ProjectKey != "" {
-		last = p.ProjectKey + " · " + last
-	}
-	lines = append(lines, last, "", dimStyle.Render("press enter to show its builds"))
-	return strings.Join(lines, "\n")
 }
 
 func branchOrDefault(b provider.Build) string {
@@ -272,7 +128,13 @@ func (m Model) keyLine() string {
 		}
 		return "enter open  / filter  s sort  : cmd  R run  ?help  q quit"
 	}
-	return "?help  : cmd  tab focus  l logs  o open  q quit"
+	switch m.focus {
+	case focusStages:
+		return "enter expand  l logs  R run  t tree  esc builds"
+	case focusTree:
+		return "enter open  t tree  l logs  esc builds"
+	}
+	return "enter stages  R run  l logs  t tree  / filter  esc back"
 }
 
 // statusBar is one line: where we are on the left, what to press on the

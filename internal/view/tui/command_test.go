@@ -27,7 +27,7 @@ func TestColonOpensThePromptOnHomeAndPanels(t *testing.T) {
 	m, _ := send(homeModel(), mkKey(":"))
 	require.Equal(t, inputCommand, m.inputFor)
 	p := homeModel()
-	p.screen = screenColumns
+	p.screen = screenPlan
 	p, _ = send(p, mkKey(":"))
 	require.Equal(t, inputCommand, p.inputFor)
 }
@@ -46,7 +46,7 @@ func TestPresetsAndPlansCommands(t *testing.T) {
 	require.Equal(t, homePlans, m.home.view)
 
 	p := homeModel()
-	p.screen = screenColumns
+	p.screen = screenPlan
 	p, _ = runCmdLine(p, "plans")
 	require.Equal(t, screenHome, p.screen, ":plans from the panels returns Home")
 }

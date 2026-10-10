@@ -372,6 +372,9 @@ func (m Model) homeFocus() focus {
 
 // goHome shows Home again.
 func (m Model) goHome() (tea.Model, tea.Cmd) {
+	if m.screen == screenPlan {
+		m.closePlan()
+	}
 	m.screen = screenHome
 	m.fromSet, m.fromTree, m.logsFromTree = false, false, false // Home leaves a set's or tree's build behind; esc must not return to it
 	m.focus = m.homeFocus()
@@ -532,13 +535,13 @@ func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		next, cmd := m.drillFromHome(focusBuilds)
 		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Panel1):
-		next, cmd := m.drillFromHome(focusPlans)
-		return next.(Model), cmd, true
-	case key.Matches(msg, keys.Panel2):
 		next, cmd := m.drillFromHome(focusBuilds)
 		return next.(Model), cmd, true
+	case key.Matches(msg, keys.Panel2):
+		next, cmd := m.drillFromHome(focusStages)
+		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Panel3):
-		next, cmd := m.drillFromHome(focusPresets)
+		next, cmd := m.drillFromHome(focusTree)
 		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Sort):
 		m.setHomeSort(m.currentHomeSort().next())
@@ -555,23 +558,28 @@ func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// drillFromHome opens the panels on the row's plan, then focuses want. It is
-// enter on the Plans panel, so the builds load exactly as they do there.
+// drillFromHome opens the plan screen on the row's plan, or on a preset's
+// plan and branch, with focus on want.
 func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
-	if m.home.view == homePresets {
-		if _, ok := m.presets.selected(); !ok {
-			return m, nil
-		}
-	} else if _, ok := m.plans.selected(); !ok {
+	if m.svc == nil {
 		return m, nil
 	}
-	m.screen = screenColumns
-	m.home.tickGen++
-	m.focus = m.homeFocus()
-	next, cmd := m.drill()
-	nm := next.(Model)
-	nm.focus = want
-	return nm, cmd
+	if m.home.view == homePresets {
+		t, ok := m.presets.selected()
+		if !ok || t.Plan == "" {
+			return m, nil
+		}
+		m, _ = m.enterPlan(t.Plan, t.Plan, nil, want)
+		// A preset may name a branch, and its builds live under the branch
+		// plan. resolveTargetBuildsCmd resolves it exactly as bam run does,
+		// under the builds generation openPlan just bumped.
+		return m, resolveTargetBuildsCmd(m.baseCtx(), m.svc, t, m.buildsGen)
+	}
+	p, ok := m.plans.selected()
+	if !ok {
+		return m, nil
+	}
+	return m.enterPlan(p.Key, p.Key, nil, want)
 }
 
 // currentHomeSort is the order of the table Home is currently showing.

@@ -198,13 +198,7 @@ func (m Model) openSetBuild() (tea.Model, tea.Cmd) {
 	}
 	b := rows[m.setView.cursor].Build
 	m.fromSet = true
-	m.screen = screenColumns
-	m.focus = focusMain
-	m.detail = &b
-	m.progress = provider.Progress{}
-	m.expanded = defaultExpanded(b)
-	m.treeCursor = 0
-	return m.startWatch(b.Key)
+	return m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 }
 
 func (m Model) setScreenView() string {

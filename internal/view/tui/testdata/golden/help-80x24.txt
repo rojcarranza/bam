@@ -3,12 +3,12 @@
     ┃Keys                                                                  ┃    
     ┃MOVE  j k ↑ ↓          up / down in the focused panel                 ┃    
     ┃      g G              first / last row                               ┃    
-    ┃      tab              next panel                                     ┃    
+    ┃      tab              next panel: Builds, Stages, Tree               ┃    
     ┃      shift-tab        previous panel                                 ┃    
-    ┃      1 2 3            focus a panel (on Home: open it)               ┃    
-    ┃      enter            drill in                                       ┃    
-    ┃      esc              back one level, close an overlay; from Plans t ┃    
-    ┃HOME  enter            open the panels on the row's plan              ┃    
+    ┃      1 2 3            focus Builds, Stages, Tree (on Home: open the  ┃    
+    ┃      enter            drill in: a build's stages, expand a stage, op ┃    
+    ┃      esc              back one level, close an overlay; from Stages  ┃    
+    ┃HOME  enter            open the plan screen on the row's plan         ┃    
     ┃      s                next sort column                               ┃    
     ┃      :                command bar: :plans :presets :sets :projects : ┃    
     ┃VIEW  l                logs for the selection: a stage, a job, or fai ┃    

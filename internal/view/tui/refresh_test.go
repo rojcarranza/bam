@@ -125,7 +125,7 @@ func TestAStaleTickDoesNothing(t *testing.T) {
 
 func TestATickOffHomeEndsTheLoop(t *testing.T) {
 	m := tickModel()
-	m.screen = screenColumns
+	m.screen = screenPlan
 	gen := m.plansGen
 	m, cmd := send(m, homeTickMsg{Gen: m.home.tickGen})
 	require.Equal(t, gen, m.plansGen)
@@ -170,7 +170,6 @@ func TestLeavingAndReturningHomeRestartsTheLoop(t *testing.T) {
 	m := tickModel()
 	tick := m.home.tickGen
 	m, _ = send(m, mkKey("enter"))
-	m, _ = send(m, mkKey("esc"))
 	m, cmd := send(m, mkKey("esc"))
 	require.Equal(t, screenHome, m.screen)
 	require.Greater(t, m.home.tickGen, tick)

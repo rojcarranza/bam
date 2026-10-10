@@ -30,7 +30,7 @@ func TestDetailBodyShowsTheEstimate(t *testing.T) {
 	m.expanded = defaultExpanded(runningDetail())
 	m.progress = runningEstimate()
 
-	body := m.detailBody(56, 20)
+	body := m.stagesBody(56, 20)
 
 	require.Contains(t, body, "50%")
 	require.Contains(t, body, "~2m00s left")
@@ -41,7 +41,7 @@ func TestDetailBodyWithoutAnEstimateShowsNoBar(t *testing.T) {
 	m.detail = ptr(runningDetail())
 	m.expanded = defaultExpanded(runningDetail())
 
-	require.NotContains(t, m.detailBody(56, 20), "%")
+	require.NotContains(t, m.stagesBody(56, 20), "%")
 }
 
 func TestWatchEventCarriesTheEstimateIntoTheModel(t *testing.T) {
@@ -52,7 +52,7 @@ func TestWatchEventCarriesTheEstimateIntoTheModel(t *testing.T) {
 		Type: app.EventState, Build: runningDetail(), Progress: runningEstimate(), State: provider.StateRunning}})
 
 	require.Equal(t, runningEstimate(), m.progress)
-	require.Contains(t, m.detailBody(56, 20), "50%")
+	require.Contains(t, m.stagesBody(56, 20), "50%")
 }
 
 func TestOpeningAnotherBuildDropsTheOldEstimate(t *testing.T) {
@@ -71,7 +71,7 @@ func TestDetailBodyDrawsCellsWhenThePanelIsWide(t *testing.T) {
 	m.expanded = defaultExpanded(runningDetail())
 	m.progress = runningEstimate()
 
-	require.Contains(t, m.detailBody(110, 20), "[")
+	require.Contains(t, m.stagesBody(110, 20), "[")
 }
 
 func TestProgressEventMovesTheBar(t *testing.T) {
@@ -85,6 +85,6 @@ func TestProgressEventMovesTheBar(t *testing.T) {
 	m, cmd := send(m, watchEventMsg{Gen: m.watchGen, Event: app.Event{
 		Type: app.EventProgress, Build: runningDetail(), Progress: later}})
 
-	require.Contains(t, m.detailBody(56, 20), "75%")
+	require.Contains(t, m.stagesBody(56, 20), "75%")
 	require.NotNil(t, cmd, "a progress event keeps the watch going")
 }

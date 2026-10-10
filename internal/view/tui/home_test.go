@@ -207,7 +207,7 @@ func TestEnterOnHomeOpensThePanelsOnThePlan(t *testing.T) {
 	m := homeModel()
 	m, _ = send(m, mkKey("j")) // OPS-OLD
 	m, cmd := send(m, mkKey("enter"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, focusBuilds, m.focus)
 	require.True(t, m.builds.loading)
 	require.NotNil(t, cmd)
@@ -215,9 +215,9 @@ func TestEnterOnHomeOpensThePanelsOnThePlan(t *testing.T) {
 }
 
 func TestNumberKeysOnHomeOpenThePanelsWithThatFocus(t *testing.T) {
-	for k, want := range map[string]focus{"1": focusPlans, "2": focusBuilds, "3": focusPresets} {
+	for k, want := range map[string]focus{"1": focusBuilds, "2": focusStages, "3": focusTree} {
 		m, _ := send(homeModel(), mkKey(k))
-		require.Equal(t, screenColumns, m.screen, k)
+		require.Equal(t, screenPlan, m.screen, k)
 		require.Equal(t, want, m.focus, k)
 	}
 }
@@ -295,27 +295,6 @@ func TestBackFromTheRunFormRestartsHomesAutoRefresh(t *testing.T) {
 	require.Equal(t, screenHome, m.screen)
 	require.NotNil(t, cmd, "back to Home must restart the loop")
 	require.Greater(t, m.home.tickGen, tick)
-}
-
-// TestEscOnPresetsPanelGoesThroughPlansFirst covers finding 2: esc from a
-// panel other than Plans always steps to Plans first (spec §2.1 step 3),
-// even when Home last showed the presets table and Plans and Presets are
-// siblings there.
-func TestEscOnPresetsPanelGoesThroughPlansFirst(t *testing.T) {
-	m := presetModel() // Home shows presets; homeFocus() is focusPresets
-	m, _ = send(m, mkKey("3"))
-	require.Equal(t, screenColumns, m.screen)
-	require.Equal(t, focusPresets, m.focus)
-
-	m, cmd := send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen, "esc steps to Plans before Home")
-	require.Equal(t, focusPlans, m.focus)
-	require.Nil(t, cmd)
-
-	m, cmd = send(m, mkKey("esc"))
-	require.Equal(t, screenHome, m.screen)
-	require.Equal(t, homePresets, m.home.view)
-	require.NotNil(t, cmd)
 }
 
 // TestLiveForMatchesTheMasterAndItsBranches covers finding 3: a branch match
@@ -414,7 +393,7 @@ func TestPresetRowTakesItsPlansState(t *testing.T) {
 func TestEnterOnAPresetOpensThePanels(t *testing.T) {
 	m := presetModel()
 	m, cmd := send(m, mkKey("enter"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, focusBuilds, m.focus)
 	require.NotNil(t, cmd)
 }

@@ -35,7 +35,7 @@ func TestSelectionURLFollowsFocus(t *testing.T) {
 	m.focus = focusBuilds
 	require.Equal(t, labOrigin+"/browse/PROJ-BUILD-44", m.selectionURL())
 
-	m.focus = focusMain
+	m.focus = focusStages
 	m.detail = ptr(sampleBuild())
 	m.expanded = map[string]bool{"Test": true}
 	m.treeCursor = 2 // the Integration job

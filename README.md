@@ -60,10 +60,10 @@ To try bam without a Bamboo server, run it against the fake Bamboo built from th
 ## Terminal UI
 
 Running `bam` alone on a terminal opens a k9s-style table of every plan, with
-lazygit-style panels behind it to browse detail, watch a build live, read its
+a plan screen behind it to browse detail, watch a build live, read its
 logs, run a preset, and cancel.
 
-It opens on the plans table; `enter` opens the panels for a plan:
+It opens on the plans table:
 
 ```
  Server:  lab [bamboo.lab.example]   <enter> drill in          <P> filter by project     <y> copy the URL
@@ -87,24 +87,34 @@ No lowercase key changes anything on the server. `R` only opens the run form,
 `ctrl-R` inside that form is the only key that starts a build, and `C` always
 asks before it cancels one.
 
-```
-┏━1 Plans━━━━━━━━━━━━━━━━━━━━┓╭─PROJ-BUILD-44 · Build and test─────────────────────────╮
-┃▸ PROJ-BUILD  Build and test┃│✗ failed   #44   branch main   3m12s                    │
-┃  PROJ-DEPLOY  Deploy       ┃│jdoe · manual                                           │
-┃  OPS-NIGHTLY  Nightly      ┃│                                                        │
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│✓ Build       42s                                       │
-╭─2 Builds · Build and test──╮│  ✓ Compile        28s                                  │
-│▸ ✗ #44 3m ago              ││  ✓ Unit tests     14s                                  │
-│  ✓ #43 1h ago              ││✗ Test        2m30s                                     │
-╰────────────────────────────╯│  ✗ Integration    2m30s                                │
-╭─3 Presets──────────────────╮│– Deploy                                                │
-│  provision-lab  PROJ-PROV  ││                                                        │
-│  smoke  PROJ-BUILD         ││3 failed tests                                          │
-╰────────────────────────────╯╰────────────────────────────────────────────────────────╯
-lab · 9.6.4 · jdoe                       ?help  : cmd  tab focus  l logs  o open  q quit
-```
+`enter` on a plan opens its plan screen: the plan's full name on top, its builds on the left, and on the right the stages of the selected build and the plans that build triggered. `enter` on a triggered plan opens its own plan screen; `esc` comes back.
 
-Plans show their names next to their keys when the panel has room. The Builds panel and the build title name the plan too. While you move through Plans, the main panel shows the plan under the cursor with its full name.
+```
+ Build and test
+ PROJ › PROJ-BUILD                               ✗ failed last build #44 3m ago
+────────────────────────────────── builds[2] ───────────────────────────────────
+┏━Builds━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #44─────────────────────────────────╮
+┃▸ ✗ #44    main  3m  –        ┃│Manual run by jdoe                            │
+┃  ✓ #43    main  1h  –        ┃│                                              │
+┃                              ┃│▸ ✓ Build                      42s            │
+┃                              ┃│  ✗ Test                       2m30s          │
+┃                              ┃│    ✗ Integration              2m30s          │
+┃                              ┃│  – Deploy                                    │
+┃                              ┃│                                              │
+┃                              ┃│3 failed tests                                │
+┃                              ┃╰──────────────────────────────────────────────╯
+┃                              ┃╭─Tree · what #44 triggered────────────────────╮
+┃                              ┃│▸ ✗ PROJ-PROV  #7    failed                   │
+┃                              ┃│  – Nightly  not run                          │
+┃                              ┃│                                              │
+┃                              ┃│                                              │
+┃                              ┃│                                              │
+┃                              ┃│                                              │
+┃                              ┃│                                              │
+┃                              ┃│                                              │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰──────────────────────────────────────────────╯
+lab · 9.6.4 · jdoe       enter stages  R run  l logs  t tree  / filter  esc back
+```
 
 `bam ui` opens it explicitly. To keep the UI out of the way, use `--no-tui`,
 set `BAM_NO_TUI=1`, or pipe bam's output — on a pipe, on a dumb terminal, or
@@ -124,12 +134,12 @@ without a terminal, bare `bam` prints help exactly as before.
 | --- | --- | --- |
 | Move | `j` `k` `↑` `↓` | up / down in the focused panel |
 | | `g` `G` | first / last row |
-| | `tab` | next panel |
+| | `tab` | next panel: Builds, Stages, Tree |
 | | `shift-tab` | previous panel |
-| | `1` `2` `3` | focus a panel (on Home: open it) |
-| | `enter` | drill in |
-| | `esc` | back one level, close an overlay; from Plans to Home; on plans reached from `:projects`, back to the projects list |
-| Home | `enter` | open the panels on the row's plan |
+| | `1` `2` `3` | focus Builds, Stages, Tree (on Home: open the plan screen there) |
+| | `enter` | drill in: a build's stages, expand a stage, open a triggered plan |
+| | `esc` | back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to Home; from a project's plans to `:projects` |
+| Home | `enter` | open the plan screen on the row's plan |
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :project :server :sort :q |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |

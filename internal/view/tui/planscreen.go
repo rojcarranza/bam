@@ -74,6 +74,14 @@ func (m Model) openPlan(key, buildsPlan string, want *provider.Build, f focus) (
 	return m, tea.Batch(cmds...)
 }
 
+// enterPlan opens a plan screen afresh. Every entry but a Tree drill and
+// its esc back goes through it, so no drill stack, cache, wanted build or
+// pin survives from an earlier visit (§4.1, §4.3).
+func (m Model) enterPlan(key, buildsPlan string, want *provider.Build, f focus) (Model, tea.Cmd) {
+	m.closePlan()
+	return m.openPlan(key, buildsPlan, want, f)
+}
+
 // closePlan forgets the plan screen: its build, its watch, its stack and
 // its cache. Every way off the plan screen to Home, and a server switch,
 // calls it.

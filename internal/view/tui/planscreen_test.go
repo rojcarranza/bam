@@ -591,3 +591,80 @@ func TestABuildFinishingUnderItsLogsReReadsTheTree(t *testing.T) {
 	require.True(t, m.plan.tree.loading)
 	require.NotNil(t, cmd)
 }
+
+// I3: the plan cache is the old server's after a switch, whichever screen
+// the switch is made from.
+func TestServerSwitchFromATreeScreenDropsThePlanCache(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m.screen, m.focus = screenHome, focusPlans
+	next, cmd := m.openTree("PROJ-BUILD-44")
+	m = next.(Model)
+	m, _ = send(m, cmd())
+	m, _ = send(m, mkKey("enter")) // the root, PROJ-BUILD-44
+	require.Equal(t, screenPlan, m.screen)
+	m, _ = send(m, buildLoadedMsg{Gen: m.detailGen, Build: sampleBuild()})
+	require.Contains(t, m.plan.cache, "PROJ-BUILD-44")
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenTree, m.screen)
+
+	next, _ = m.switchServer("lab")
+	m = next.(Model)
+	require.Empty(t, m.plan.cache, "nothing keyed to one origin is shown under another")
+	require.Empty(t, m.plan.key)
+}
+
+func TestServerSwitchFromASetScreenDropsThePlanCache(t *testing.T) {
+	m := setScreenModel(t, failedRec(), "")
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, buildLoadedMsg{Gen: m.detailGen, Build: sampleBuild()})
+	require.Contains(t, m.plan.cache, "PROJ-BUILD-44")
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenSet, m.screen)
+
+	next, _ := m.switchServer("lab")
+	m = next.(Model)
+	require.Empty(t, m.plan.cache)
+}
+
+// Entering from the set screen starts a fresh plan screen: no drill stack,
+// cache or pin from an earlier visit.
+func TestEnteringFromTheSetScreenStartsFresh(t *testing.T) {
+	m := setScreenModel(t, failedRec(), "")
+	m.plan.stack = []planFrame{{key: "PROJ-PROV", buildsPlan: "PROJ-PROV"}}
+	m.plan.cache = map[string]provider.Build{"PROJ-PROV-7": {Key: "PROJ-PROV-7"}}
+	m.plan.older = "PROJ-PROV-7"
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, screenPlan, m.screen)
+	require.Empty(t, m.plan.stack)
+	require.Empty(t, m.plan.cache)
+	require.Empty(t, m.plan.older)
+
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenSet, m.screen)
+}
+
+// M2: Esc after a run returns to Home (§4.1), even when the run form was
+// opened from a drilled plan screen reached from a set.
+func TestEscAfterARunReturnsHome(t *testing.T) {
+	m := setScreenModel(t, failedRec(), "")
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.fromSet)
+	m.plan.stack = []planFrame{{key: "PROJ-PROV", buildsPlan: "PROJ-PROV"}}
+
+	queued := sampleBuild()
+	queued.Key, queued.Number, queued.State = "PROJ-BUILD-46", 46, provider.StateQueued
+	m, _ = send(m, triggeredMsg{Gen: m.formGen, Build: queued})
+	require.Equal(t, screenPlan, m.screen)
+	require.Empty(t, m.plan.stack)
+	require.False(t, m.fromSet)
+
+	m, _ = send(m, mkKey("esc")) // Stages to Builds
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenHome, m.screen)
+}

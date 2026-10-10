@@ -198,7 +198,7 @@ func (m Model) openSetBuild() (tea.Model, tea.Cmd) {
 	}
 	b := rows[m.setView.cursor].Build
 	m.fromSet = true
-	return m.openPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
+	return m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 }
 
 func (m Model) setScreenView() string {

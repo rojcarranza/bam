@@ -973,9 +973,10 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 		m.stopTree()
 		m.screen = m.buildTree.from
 	}
+	// The plan, its builds and its cache are the old server's, also when
+	// the plan screen is not the one on top.
+	m.closePlan()
 	if m.screen == screenPlan {
-		// The plan and its builds are the old server's.
-		m.closePlan()
 		m.screen = screenHome
 		m.focus = m.homeFocus()
 	}
@@ -1524,7 +1525,10 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
 	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
 	m.form = formState{}
-	m, cmd := m.openPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
+	// Esc after a run returns to Home (§4.1), not to a set, a tree or a
+	// drilled plan the form was opened from.
+	m.fromSet, m.fromTree, m.logsFromTree = false, false, false
+	m, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 	// showBuild started the watch; note the build only after, since
 	// stopping the previous watch clears the marker.
 	m.noteLive(b)

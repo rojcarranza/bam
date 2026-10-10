@@ -294,7 +294,7 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 	b := n.Build
 	m.stopTree()
 	m.fromTree = true
-	next, cmd := m.openPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
+	next, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 	if !logs {
 		return next, cmd
 	}

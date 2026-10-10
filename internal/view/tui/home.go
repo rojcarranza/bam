@@ -569,7 +569,7 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 		if !ok || t.Plan == "" {
 			return m, nil
 		}
-		m, _ = m.openPlan(t.Plan, t.Plan, nil, want)
+		m, _ = m.enterPlan(t.Plan, t.Plan, nil, want)
 		// A preset may name a branch, and its builds live under the branch
 		// plan. resolveTargetBuildsCmd resolves it exactly as bam run does,
 		// under the builds generation openPlan just bumped.
@@ -579,7 +579,7 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	return m.openPlan(p.Key, p.Key, nil, want)
+	return m.enterPlan(p.Key, p.Key, nil, want)
 }
 
 // currentHomeSort is the order of the table Home is currently showing.

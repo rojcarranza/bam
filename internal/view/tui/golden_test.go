@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
@@ -106,12 +107,22 @@ func TestPlanGoldenWithEstimate(t *testing.T) {
 // TestPlanViewNeverExceedsTheTerminal resizes across the small-terminal
 // threshold and back (Review Focus 2).
 func TestPlanViewNeverExceedsTheTerminal(t *testing.T) {
-	for _, size := range [][2]int{{80, 24}, {59, 19}, {40, 10}, {60, 20}, {20, 6}, {80, 24}} {
-		m := planGolden(size[0], size[1])
-		lines := strings.Split(m.View(), "\n")
-		require.LessOrEqual(t, len(lines), size[1], "%v", size)
-		for _, l := range lines {
-			require.LessOrEqual(t, lipgloss.Width(l), size[0], "%v: %q", size, l)
+	// A long tree error must not wrap and push the screen past the bottom.
+	treeErr := errors.New("bamboo returned 503 Service Unavailable: the server is in maintenance mode until the upgrade completes")
+	for _, size := range [][2]int{{80, 24}, {59, 19}, {40, 10}, {60, 20}, {20, 6}, {63, 24}, {70, 24}, {80, 24}} {
+		for _, f := range []focus{focusBuilds, focusStages, focusTree} {
+			for _, err := range []error{nil, treeErr} {
+				m := planGolden(size[0], size[1])
+				m.focus = f
+				if err != nil {
+					m.plan.tree = treePreview{key: m.detail.Key, have: true, err: err}
+				}
+				lines := strings.Split(m.View(), "\n")
+				require.LessOrEqual(t, len(lines), size[1], "%v focus %v err %v", size, f, err)
+				for _, l := range lines {
+					require.LessOrEqual(t, lipgloss.Width(l), size[0], "%v: %q", size, l)
+				}
+			}
 		}
 	}
 }

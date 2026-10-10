@@ -492,7 +492,9 @@ func (m Model) treeBody(width, height int) string {
 	case t.loading:
 		return dimStyle.Render("reading the tree…")
 	case t.err != nil:
-		return errorStyle.Render("could not read the tree: " + errorWhat(t.err))
+		// Cut to the panel, as every other row is: a wrapped error would
+		// push the screen past the terminal's bottom.
+		return errorStyle.Render(cut("could not read the tree: "+errorWhat(t.err), width-4))
 	}
 	rows := m.treePreviewRows()
 	if len(rows) == 0 {

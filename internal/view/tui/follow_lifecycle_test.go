@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// F1a: leaving the log screen before a live load lands must not start a
+// TestLeavingLogsBeforeALiveLoadLandsStartsNoFollow: leaving the log screen before a live load lands must not start a
 // follow nobody can see.
 func TestLeavingLogsBeforeALiveLoadLandsStartsNoFollow(t *testing.T) {
 	m := goldenModel(80, 24)
@@ -24,13 +24,9 @@ func TestLeavingLogsBeforeALiveLoadLandsStartsNoFollow(t *testing.T) {
 	m.stopFollow()
 }
 
-// F1b: switching build or server ends a live follow.
+// TestLeavingABuildOrServerStopsTheFollow: switching build or server ends a live follow.
 func TestLeavingABuildOrServerStopsTheFollow(t *testing.T) {
 	m := stageModel()
-	m, _ = send(m, mkKey("f"))
-	if !m.logs.following {
-		m, _ = send(m, mkKey("f"))
-	}
 	m.startFollowForTest()
 	require.True(t, m.logs.following)
 	m.leaveBuild()
@@ -46,7 +42,7 @@ func TestLeavingABuildOrServerStopsTheFollow(t *testing.T) {
 	require.Nil(t, m.followCancel)
 }
 
-// F2: n with a query that matches nothing stays put.
+// TestNWithAnUnmatchedQueryDoesNotJumpToAFailure: n with a query that matches nothing stays put.
 func TestNWithAnUnmatchedQueryDoesNotJumpToAFailure(t *testing.T) {
 	m := tallLogModel(60)
 	m.logs.lines[10] = "an error here"
@@ -59,7 +55,7 @@ func TestNWithAnUnmatchedQueryDoesNotJumpToAFailure(t *testing.T) {
 	require.True(t, m.logs.pinned)
 }
 
-// F3: a pinned log keeps its bottom in view across a resize.
+// TestResizeKeepsAPinnedLogAtTheBottom: a pinned log keeps its bottom in view across a resize.
 func TestResizeKeepsAPinnedLogAtTheBottom(t *testing.T) {
 	m := tallLogModel(60)
 	require.True(t, m.logs.pinned)
@@ -67,7 +63,7 @@ func TestResizeKeepsAPinnedLogAtTheBottom(t *testing.T) {
 	require.True(t, m.logs.vp.AtBottom())
 }
 
-// F4: a key the viewport ignores must not re-pin the reader.
+// TestAnUnboundKeyDoesNotRepinAfterASearchLanded: a key the viewport ignores must not re-pin the reader.
 func TestAnUnboundKeyDoesNotRepinAfterASearchLanded(t *testing.T) {
 	m := tallLogModel(60)
 	m.screen = screenLogs

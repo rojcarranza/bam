@@ -132,29 +132,41 @@ func (m *Model) dropOlder(key string) {
 }
 
 // planBuildsLoaded places the cursor once the Builds list arrives: on the
-// wanted build (pinned on top when it is older than the list), on the open
+// wanted build (pinned on top when the list does not have it), on the open
 // build after a refresh, or on the newest build, which then opens.
 func (m Model) planBuildsLoaded() (Model, tea.Cmd) {
+	newest := m.newestListed()
 	if w := m.plan.want; w != nil {
 		m.plan.want = nil
 		if !m.builds.selectFirst(func(b provider.Build) bool { return b.Key == w.Key }) && w.Number != 0 {
 			m.builds.setItems(append([]provider.Build{*w}, m.builds.items...))
 			m.builds.top()
-			m.plan.older = w.Key
+			// Bamboo's listing leaves out queued and running builds, so a
+			// build missing from it is older only when the list goes past it;
+			// a just-triggered build is the newest, not "(older)".
+			if w.Number < newest {
+				m.plan.older = w.Key
+			}
 		}
 		return m, nil
 	}
 	if m.detail != nil {
-		if o := m.plan.older; o != "" && m.detail.Key == o {
-			// A refresh brings the newest builds only; the pinned build
-			// stays on top until the user moves off it.
-			if !m.builds.selectFirst(func(b provider.Build) bool { return b.Key == o }) {
-				m.builds.setItems(append([]provider.Build{*m.detail}, m.builds.items...))
-				m.builds.top()
-			}
-			return m, nil
+		d := *m.detail
+		pinned := m.plan.older == d.Key
+		m.plan.older = ""
+		if m.builds.selectFirst(func(b provider.Build) bool { return b.Key == d.Key }) {
+			return m, nil // listed now: no pin, no label
 		}
-		m.builds.selectFirst(func(b provider.Build) bool { return b.Key == m.detail.Key })
+		// A refresh brings the newest finished builds only: a pinned older
+		// build stays on top until the user moves off it, and the open build
+		// still running above the list stays on top as the newest.
+		if pinned || (d.Number > newest && d.PlanKey == m.buildsPlan) {
+			m.builds.setItems(append([]provider.Build{d}, m.builds.items...))
+			m.builds.top()
+			if pinned {
+				m.plan.older = d.Key
+			}
+		}
 		return m, nil
 	}
 	b, ok := m.builds.selected()
@@ -164,6 +176,15 @@ func (m Model) planBuildsLoaded() (Model, tea.Cmd) {
 		return m, nil
 	}
 	return m.showBuild(b)
+}
+
+// newestListed is the highest build number among the listed builds.
+func (m Model) newestListed() int {
+	n := 0
+	for _, b := range m.builds.items {
+		n = max(n, b.Number)
+	}
+	return n
 }
 
 // masterOf is the plan a branch plan belongs to, when the plans list has

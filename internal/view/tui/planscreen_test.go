@@ -515,3 +515,45 @@ func TestSmallScreensKeepTheirOldHeaders(t *testing.T) {
 	m.logs.resize(m.width, m.logHeight())
 	require.NotContains(t, strings.Split(m.View(), "\n")[0], "Build and test")
 }
+
+// I1: Bamboo's listing omits queued and running builds, so a just-triggered
+// build is newer than the list, not older: it goes on top without the
+// "(older)" label and the header counts it as the last build.
+func TestATriggeredBuildIsNotPinnedAsOlder(t *testing.T) {
+	m := planHome(t)
+	queued := sampleBuild()
+	queued.Key, queued.Number, queued.State = "PROJ-BUILD-45", 45, provider.StateQueued
+	queued.Stages = nil
+	next, _ := m.openTriggered(queued)
+	m = next.(Model)
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
+	rows := m.builds.rows()
+	require.Equal(t, "PROJ-BUILD-45", rows[0].Key, "the triggered build goes on top")
+	require.Empty(t, m.plan.older, "a newer build is not older")
+	require.NotContains(t, ansi.Strip(m.View()), "(older)")
+	require.Contains(t, strings.Split(m.View(), "\n")[1], "last build #45")
+
+	listed := append([]provider.Build{queued}, threeBuilds()...)
+	listed[0].State = provider.StateSuccess
+	m.buildsGen++
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: listed})
+	require.Empty(t, m.plan.older)
+	require.Len(t, m.builds.rows(), 4, "no duplicate row once the list has it")
+	require.Equal(t, "PROJ-BUILD-45", m.builds.rows()[0].Key)
+}
+
+// A pinned older build that a refresh lists after all loses its label.
+func TestAPinnedBuildLosesItsPinOnceListed(t *testing.T) {
+	m := planHome(t)
+	older := olderBuild()
+	m, _ = m.openPlan("PROJ-BUILD", "PROJ-BUILD", &older, focusStages)
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: []provider.Build{sampleBuild()}})
+	require.Equal(t, "PROJ-BUILD-3", m.plan.older)
+
+	m.buildsGen++
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: []provider.Build{sampleBuild(), older}})
+	require.Empty(t, m.plan.older)
+	require.Len(t, m.builds.rows(), 2)
+	b, _ := m.builds.selected()
+	require.Equal(t, "PROJ-BUILD-3", b.Key)
+}

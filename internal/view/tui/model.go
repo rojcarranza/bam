@@ -464,6 +464,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openTriggered(msg.Build)
+	case planRestMsg:
+		return m.planRest(msg)
 	case buildLoadedMsg:
 		if msg.Gen != m.detailGen {
 			return m, nil
@@ -472,6 +474,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail = &b
 		m.progress = msg.Progress
 		m.clampTree()
+		m.plan.stagesLoading = false
+		m = m.cacheBuild(b)
 		return m, nil
 	case setsLoadedMsg:
 		if msg.Gen != m.setsGen {
@@ -625,12 +629,20 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.focus = focusTree
 	case key.Matches(msg, keys.Down):
 		m.moveFocused(1)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Up):
 		m.moveFocused(-1)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Top):
 		m.jumpFocused(true)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Bottom):
 		m.jumpFocused(false)
+		rest := m.restCmd()
+		return m, rest
 	case key.Matches(msg, keys.Enter):
 		return m.drill()
 	case key.Matches(msg, keys.Filter):
@@ -1121,6 +1133,7 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		m.detail = &b
 		m.progress = e.Progress
 		m.clampTree()
+		m.plan.stagesLoading = false
 		// "queued KEY" is news only while the build waits; after that the
 		// detail panel shows its state. Other notices are not the watch's.
 		if m.status == "queued "+b.Key && (b.State != provider.StateQueued || e.Type == app.EventDone) {
@@ -1136,6 +1149,7 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		if e.Build.Key == m.revisionRun.Key && m.revisionRun.Rev != "" && e.Build.State == provider.StateNotBuilt {
 			m.status = "Bamboo could not build revision " + m.revisionRun.Rev
 		}
+		m = m.cacheBuild(e.Build)
 		m.stopWatch()
 		if m.svc != nil && m.buildsPlan != "" {
 			cmd := m.loadBuilds(m.buildsPlan, false)

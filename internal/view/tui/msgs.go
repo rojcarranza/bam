@@ -485,3 +485,10 @@ func watchCmd(ch <-chan app.Event, gen int) tea.Cmd {
 		return watchEventMsg{Gen: gen, Event: e}
 	}
 }
+
+// planRestMsg fires once the Builds cursor has stayed on Key for
+// planRestDelay. Gen is the plan screen's restGen when it was scheduled.
+type planRestMsg struct {
+	Gen int
+	Key string
+}

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -17,9 +19,9 @@ type planScreen struct {
 
 	// stack holds the plan screens Enter on a Tree row came from; cache and
 	// trees hold finished builds and their trees by key.
-	stack []planFrame               //nolint:unused // filled by a later task
-	cache map[string]provider.Build //nolint:unused // filled by a later task
-	trees map[string]app.Tree       //nolint:unused // filled by a later task
+	stack []planFrame //nolint:unused // filled by a later task
+	cache map[string]provider.Build
+	trees map[string]app.Tree //nolint:unused // filled by a later task
 
 	tree       treePreview
 	treeCursor int
@@ -85,6 +87,12 @@ func (m Model) showBuild(b provider.Build) (Model, tea.Cmd) {
 	m.progress = provider.Progress{}
 	m.treeCursor = 0
 	m.dropOlder(b.Key)
+	if c, ok := m.plan.cache[b.Key]; ok {
+		m.detail = &c
+		m.expanded = defaultExpanded(c)
+		m.plan.stagesLoading = false
+		return m, nil
+	}
 	bb := b
 	m.detail = &bb
 	m.expanded = defaultExpanded(b)
@@ -140,7 +148,9 @@ func (m Model) planBuildsLoaded() (Model, tea.Cmd) {
 		return m, nil
 	}
 	b, ok := m.builds.selected()
-	if !ok || m.svc == nil {
+	if !ok || m.svc == nil || m.screen != screenPlan {
+		// Off the plan screen (esc went back before the list landed) the
+		// newest build must not open a watch behind another screen.
 		return m, nil
 	}
 	return m.showBuild(b)
@@ -159,4 +169,49 @@ func (m Model) masterOf(planKey string) string {
 		}
 	}
 	return best
+}
+
+// planRestDelay is how long the Builds cursor rests before its build loads.
+// A variable only so tests can make it fire at once.
+var planRestDelay = 250 * time.Millisecond
+
+// restCmd schedules loading the build under the Builds cursor, unless it is
+// the one already open. Every call abandons the previous schedule.
+func (m *Model) restCmd() tea.Cmd {
+	if m.screen != screenPlan || m.focus != focusBuilds {
+		return nil
+	}
+	b, ok := m.builds.selected()
+	if !ok || (m.detail != nil && m.detail.Key == b.Key) {
+		return nil
+	}
+	m.plan.restGen++
+	gen, key := m.plan.restGen, b.Key
+	return tea.Tick(planRestDelay, func(time.Time) tea.Msg { return planRestMsg{Gen: gen, Key: key} })
+}
+
+// planRest opens the build the cursor rested on, if it is still there.
+func (m Model) planRest(msg planRestMsg) (Model, tea.Cmd) {
+	if msg.Gen != m.plan.restGen || m.screen != screenPlan {
+		return m, nil
+	}
+	b, ok := m.builds.selected()
+	if !ok || b.Key != msg.Key {
+		return m, nil
+	}
+	return m.showBuild(b)
+}
+
+// cacheBuild keeps a finished build with its stages, so moving back to it
+// draws at once. A running build changes under the cache, so it never
+// enters it.
+func (m Model) cacheBuild(b provider.Build) Model {
+	if m.screen != screenPlan || !b.State.Finished() || len(b.Stages) == 0 {
+		return m
+	}
+	if m.plan.cache == nil {
+		m.plan.cache = map[string]provider.Build{}
+	}
+	m.plan.cache[b.Key] = b
+	return m
 }

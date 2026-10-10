@@ -1,8 +1,10 @@
 package tui
 
 import (
+	"strconv"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
@@ -147,4 +149,111 @@ func TestEscFromTreeLogsStopsTheBuildWatch(t *testing.T) {
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenTree, m.screen)
 	require.Nil(t, m.watchCancel, "the tree watches itself; no build watch may linger")
+}
+
+// instantRest makes the Builds rest fire at once.
+func instantRest(t *testing.T) {
+	t.Helper()
+	old := planRestDelay
+	planRestDelay = 0
+	t.Cleanup(func() { planRestDelay = old })
+}
+
+func threeBuilds() []provider.Build {
+	out := make([]provider.Build, 0, 3)
+	for i, n := range []int{44, 43, 42} {
+		b := sampleBuild()
+		b.Key, b.Number = "PROJ-BUILD-"+strconv.Itoa(n), n
+		b.Stages = nil // a listing carries no stages
+		if i == 0 {
+			b.State = provider.StateFailed
+		} else {
+			b.State = provider.StateSuccess
+		}
+		out = append(out, b)
+	}
+	return out
+}
+
+// planOnBuilds is the plan screen on PROJ-BUILD with three builds, the
+// newest open.
+func planOnBuilds(t *testing.T) Model {
+	t.Helper()
+	m := planHome(t)
+	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
+	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
+	return m
+}
+
+func TestOnlyTheRestingBuildLoads(t *testing.T) {
+	instantRest(t)
+	m := planOnBuilds(t)
+	var rests []tea.Msg
+	for range 2 {
+		var cmd tea.Cmd
+		m, cmd = send(m, mkKey("j"))
+		require.NotNil(t, cmd, "a cursor move schedules a rest")
+		rests = append(rests, cmd())
+	}
+	require.Equal(t, "PROJ-BUILD-44", m.detail.Key, "moving alone loads nothing")
+
+	m, cmd := send(m, rests[0])
+	require.Nil(t, cmd, "an older rest is dropped")
+	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
+
+	m, cmd = send(m, rests[1])
+	require.NotNil(t, cmd)
+	require.Equal(t, "PROJ-BUILD-42", m.detail.Key)
+}
+
+func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
+	instantRest(t)
+	m := planOnBuilds(t)
+	full := sampleBuild()
+	m, _ = send(m, buildLoadedMsg{Gen: m.detailGen, Build: full})
+	require.Contains(t, m.plan.cache, "PROJ-BUILD-44")
+
+	m, cmd := send(m, mkKey("j"))
+	m, _ = send(m, cmd())
+	m, cmd = send(m, mkKey("k"))
+	m, cmd = send(m, cmd())
+	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
+	require.Len(t, m.detail.Stages, 3, "the cached build has its stages")
+	require.False(t, m.plan.stagesLoading)
+	require.Nil(t, cmd, "a cached finished build is not read again")
+}
+
+func TestARunningBuildIsNeverCached(t *testing.T) {
+	m := planOnBuilds(t)
+	running := sampleBuild()
+	running.State = provider.StateRunning
+	m, _ = send(m, buildLoadedMsg{Gen: m.detailGen, Build: running})
+	require.NotContains(t, m.plan.cache, running.Key)
+}
+
+func TestBuildsRefreshKeepsTheCursorOnTheOpenBuild(t *testing.T) {
+	m := planOnBuilds(t)
+	m.builds.cursor = 1
+	m, _ = m.showBuild(m.builds.rows()[1]) // PROJ-BUILD-43 open
+	newer := sampleBuild()
+	newer.Key, newer.Number = "PROJ-BUILD-45", 45
+	refreshed := append([]provider.Build{newer}, threeBuilds()...)
+
+	m.buildsGen++
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: refreshed})
+	b, _ := m.builds.selected()
+	require.Equal(t, "PROJ-BUILD-43", b.Key)
+	require.Equal(t, "PROJ-BUILD-43", m.detail.Key)
+}
+
+func TestASlowFirstBuildsLoadDoesNotOpenABuildBehindAnotherScreen(t *testing.T) {
+	m := planHome(t)
+	m, _ = send(m, mkKey("enter"))
+	require.Nil(t, m.detail)
+	m.screen = screenSet // as if esc went back to a set screen
+
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
+	require.Nil(t, m.watchCancel, "no watch starts behind another screen")
+	require.Nil(t, m.detail)
 }

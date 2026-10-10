@@ -1,0 +1,24 @@
+PROJ-BUILD-44 · Deploy · running · match 1/1                                 5/5
+[INT] 12:04:31  [INFO] Running integration suite                                
+[INT] 12:06:58  [ERROR] ConnectionRefused: bamboo.lab.example:5432              
+                                                                                
+== Deploy ==                                                                    
+[DEP] 12:08:00  deploying                                                       
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+esc back  / search  G end  f follow  n next match  o open

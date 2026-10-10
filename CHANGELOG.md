@@ -12,10 +12,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `bam build tree` shows a build and every build it triggered, with their stages and failures, and `--watch` follows them to the end.
 - `bam build tree --rerun-failed` and `bam build rerun` restart failed builds; only the newest run of a child plan counts toward the tree.
 - The terminal UI shows a build's tree (`t`, `:tree`) and reruns its failed builds with `F`.
+- The terminal UI streams a running build's stage logs live (`l` on a stage, or on a running build) and search highlights and counts matches as lines arrive.
 
 ### Changed
 
 - The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, version and user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.
+
+### Fixed
+
+- A set run that cannot save its record now always ends with `set_error`; a `run_event` from a build still running could arrive after it.
 
 ## [0.2.1] - 2026-10-08
 

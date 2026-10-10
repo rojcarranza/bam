@@ -66,3 +66,22 @@ func TestTriggerAnswersPerPlan(t *testing.T) {
 	require.Equal(t, "X-1", b.Key)
 	require.Len(t, f.Triggered, 3)
 }
+
+func TestLogGrowthWalksSnapshotsAndCountsCalls(t *testing.T) {
+	f := &Provider{LogGrowth: map[string][][]string{"PROJ-P-J-1": {{"a"}, {"a", "b"}}}}
+	ctx := context.Background()
+
+	c, err := f.FetchLog(ctx, "PROJ-P-J-1", provider.LogOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []string{"a"}, c.Lines)
+
+	c, err = f.FetchLog(ctx, "PROJ-P-J-1", provider.LogOptions{Offset: c.Next})
+	require.NoError(t, err)
+	require.Equal(t, []string{"b"}, c.Lines)
+
+	c, err = f.FetchLog(ctx, "PROJ-P-J-1", provider.LogOptions{Offset: c.Next})
+	require.NoError(t, err)
+	require.Empty(t, c.Lines, "the last snapshot repeats")
+	require.Equal(t, 3, f.LogCalls("PROJ-P-J-1"))
+	require.Equal(t, 0, f.LogCalls("PROJ-P-OTHER-1"))
+}

@@ -1174,7 +1174,9 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		}
 		m = m.cacheBuild(e.Build)
 		m.stopWatch()
-		if m.screen == screenPlan && m.detail != nil && m.plan.tree.key == m.detail.Key {
+		// The plan screen may sit under its logs or the run form; the
+		// one re-read is still due (§4.3).
+		if m.plan.key != "" && m.detail != nil && m.plan.tree.key == m.detail.Key {
 			var tree tea.Cmd
 			m, tree = m.loadTreePreview(m.detail.Key, true)
 			if m.svc != nil && m.buildsPlan != "" {

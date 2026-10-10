@@ -266,7 +266,9 @@ func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
 // tree is cached: Bamboo queues children when the parent ends, so a tree is
 // final once nothing in it runs.
 func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
-	if msg.Gen != m.treePreviewGen || m.screen != screenPlan || msg.Key != m.plan.tree.key {
+	// The logs or the form may be on top of the plan screen; the preview is
+	// still its own. Closing the plan screen bumps the generation.
+	if msg.Gen != m.treePreviewGen || m.plan.key == "" || msg.Key != m.plan.tree.key {
 		return m, nil
 	}
 	m.plan.tree = treePreview{key: msg.Key, tree: msg.Tree, have: true, err: msg.Err}

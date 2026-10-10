@@ -331,6 +331,9 @@ func TestALateTreePreviewIsDropped(t *testing.T) {
 	m, _ = send(m, stale)
 	require.Equal(t, before, m.plan.tree)
 
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: "PROJ-BUILD-43"})
+	require.Equal(t, before, m.plan.tree, "a preview for another build is dropped")
+
 	gen := m.treePreviewGen
 	next, _ := m.switchServer("lab")
 	m = next.(Model)
@@ -556,4 +559,35 @@ func TestAPinnedBuildLosesItsPinOnceListed(t *testing.T) {
 	require.Len(t, m.builds.rows(), 2)
 	b, _ := m.builds.selected()
 	require.Equal(t, "PROJ-BUILD-3", b.Key)
+}
+
+// I2: the tree preview belongs to the plan screen, not to whichever screen
+// is on top when it lands; the logs and the form sit above the plan screen.
+func TestATreePreviewLandsWhileTheLogsAreOpen(t *testing.T) {
+	m := planWithTree(t)
+	m, cmd := m.loadTreePreview(m.detail.Key, true)
+	require.NotNil(t, cmd)
+	m.screen = screenLogs
+	m, _ = send(m, cmd())
+	require.True(t, m.plan.tree.have, "the preview read for this build is kept")
+	require.False(t, m.plan.tree.loading)
+}
+
+// A watched build that finishes while its logs are open still gets its one
+// tree re-read (§4.3).
+func TestABuildFinishingUnderItsLogsReReadsTheTree(t *testing.T) {
+	m := planWithTree(t)
+	running := sampleBuild()
+	running.State = provider.StateRunning
+	m, _ = m.showBuild(running)
+	require.NotNil(t, m.watchCancel)
+	m.plan.tree = treePreview{key: running.Key, have: true}
+	m.screen = screenLogs
+	gen := m.treePreviewGen
+
+	done := sampleBuild()
+	m, cmd := send(m, watchEventMsg{Gen: m.watchGen, Event: app.Event{Type: app.EventDone, Build: done}})
+	require.Greater(t, m.treePreviewGen, gen, "the tree is read again")
+	require.True(t, m.plan.tree.loading)
+	require.NotNil(t, cmd)
 }

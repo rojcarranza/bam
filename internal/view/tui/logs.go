@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/view/style"
 
@@ -23,7 +24,6 @@ type logState struct {
 	stage     string          // the stage a stage screen follows; empty otherwise
 	live      provider.State  // the followed stage's (or build's) state; empty when not live
 	build     *provider.Build // the build the logs came from, with its jobs
-	offset    int             // the provider's next-read offset for the followed job
 	offsets   map[string]int  // the provider's next-read offset per job on screen
 	lines     []string
 	rendered  []string // lines with the search highlighted, one per line
@@ -274,4 +274,55 @@ func highlight(line, q string) string {
 	}
 	sb.WriteString(line[last:])
 	return sb.String()
+}
+
+// apply folds one follow event into the screen.
+func (l *logState) apply(ev app.LogEvent) {
+	switch ev.Kind {
+	case app.LogStatus:
+		l.setBuild(ev.Build)
+	case app.StageStart:
+		l.stage = ev.Stage
+		l.setBuild(ev.Build)
+		if l.offsets == nil {
+			l.offsets = map[string]int{}
+		}
+		for _, st := range ev.Build.Stages {
+			if st.Name == ev.Stage {
+				for _, j := range st.Jobs {
+					l.offsets[j.Key] = 0
+				}
+			}
+		}
+		l.appendLines([]string{"", "== " + ev.Stage + " =="})
+	case app.LogLines:
+		if l.offsets == nil {
+			l.offsets = map[string]int{}
+		}
+		l.offsets[ev.Job.Key] = ev.Next
+		lines := ev.Lines
+		if l.multi && l.build != nil {
+			prefix := "[" + app.ShortJobKey(*l.build, ev.Job) + "] "
+			lines = make([]string, len(ev.Lines))
+			for i, s := range ev.Lines {
+				lines[i] = prefix + s
+			}
+		}
+		l.appendLines(lines)
+	}
+}
+
+// setBuild keeps the newest snapshot and the state the header shows: the
+// followed stage's on a stage screen, the build's otherwise.
+func (l *logState) setBuild(b provider.Build) {
+	l.build = &b
+	l.live = b.State
+	if l.stage == "" {
+		return
+	}
+	for _, st := range b.Stages {
+		if st.Name == l.stage {
+			l.live = st.State
+		}
+	}
 }

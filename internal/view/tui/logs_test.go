@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,8 @@ func logModel() Model {
 	m.svc = testService()
 	m.detail = ptr(sampleBuild())
 	m, _ = send(m, logsLoadedMsg{Gen: m.logsGen, JobKey: "PROJ-BUILD-INT-44", Title: "PROJ-BUILD-INT-44",
-		URL: labOrigin + "/browse/PROJ-BUILD-INT-44", Lines: logLines()})
+		URL: labOrigin + "/browse/PROJ-BUILD-INT-44", Lines: logLines(),
+		Offsets: map[string]int{"PROJ-BUILD-INT-44": 4}})
 	m.screen = screenLogs
 	return m
 }
@@ -173,35 +175,36 @@ func TestSlashInAPanelFiltersThatPanel(t *testing.T) {
 	require.Equal(t, "OPS-NIGHTLY", sel.Key)
 }
 
-// TestDrainFollowDeliversOneChunkPerCall, the same pattern the watch uses.
-func TestDrainFollowDeliversOneChunkPerCall(t *testing.T) {
-	lines := make(chan []string, 2)
+func linesEvent(job string, next int, lines ...string) app.LogEvent {
+	return app.LogEvent{Kind: app.LogLines, Job: provider.Job{Key: job}, Lines: lines, Next: next}
+}
+
+// TestDrainFollowDeliversOneEventPerCall, the same pattern the watch uses.
+func TestDrainFollowDeliversOneEventPerCall(t *testing.T) {
+	events := make(chan app.LogEvent, 2)
 	done := make(chan error, 1)
-	lines <- []string{"12:07:02  still running"}
-	lines <- []string{"12:07:05  done"}
-	close(lines)
+	events <- linesEvent("PROJ-BUILD-INT-44", 5, "12:07:02  still running")
+	events <- linesEvent("PROJ-BUILD-INT-44", 6, "12:07:05  done")
+	close(events)
 	done <- nil
 
-	first := drainFollowCmd(lines, done, 0)().(logChunkMsg)
-	require.Equal(t, []string{"12:07:02  still running"}, first.Lines)
-
-	second := drainFollowCmd(lines, done, 0)().(logChunkMsg)
-	require.Equal(t, []string{"12:07:05  done"}, second.Lines)
-
-	end := drainFollowCmd(lines, done, 0)()
+	first := drainFollowCmd(events, done, 0)().(logEventMsg)
+	require.Equal(t, []string{"12:07:02  still running"}, first.Event.Lines)
+	second := drainFollowCmd(events, done, 0)().(logEventMsg)
+	require.Equal(t, []string{"12:07:05  done"}, second.Event.Lines)
+	end := drainFollowCmd(events, done, 0)()
 	require.IsType(t, followEndedMsg{}, end)
 	require.NoError(t, end.(followEndedMsg).Err)
 }
 
-func TestLogChunkAppendsAndStaysPinnedToTheBottom(t *testing.T) {
+func TestLogEventAppendsAndStaysPinnedToTheBottom(t *testing.T) {
 	m := logModel()
-	m.logs.vp.GotoBottom()
 	before := len(m.logs.lines)
-	m, _ = send(m, logChunkMsg{Lines: []string{"12:07:05  done"}})
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: linesEvent("PROJ-BUILD-INT-44", 5, "12:07:05  done")})
 	require.Len(t, m.logs.lines, before+1)
+	require.Equal(t, "12:07:05  done", m.logs.lines[before], "a single job's lines stay bare")
 	require.True(t, m.logs.vp.AtBottom())
 }
-
 func TestFToggleStartsAndStopsFollowing(t *testing.T) {
 	m := logModel()
 
@@ -241,40 +244,36 @@ func TestFollowEndedShowsAnErrorWithoutQuitting(t *testing.T) {
 	require.Equal(t, screenLogs, m.screen)
 }
 
-// TestFollowingAJobThatIsNotInTheBuildDoesNothing.
 func TestFollowingAJobThatIsNotInTheBuildDoesNothing(t *testing.T) {
 	m := logModel()
-	m.logs.jobKey = "PROJ-BUILD-GONE-44"
+	m.logs.offsets = map[string]int{"PROJ-BUILD-GONE-44": 0}
 	m, cmd := send(m, mkKey("f"))
 	require.False(t, m.logs.following)
 	require.Nil(t, cmd)
 }
 
-// TestFollowStartsFromTheProviderOffsetNotTheLineCount. app.JobLog.Next is
-// the provider's offset contract; the rendered line count is not, and it is
-// further wrong when several jobs are concatenated with separators.
-func TestFollowStartsFromTheProviderOffsetNotTheLineCount(t *testing.T) {
+// TestFollowStartsFromTheProviderOffsets. app.JobLog.Next is the provider's
+// offset contract; the rendered line count is not.
+func TestFollowStartsFromTheProviderOffsets(t *testing.T) {
 	m := logModel()
-	m.logs.offset = 41 // what the server said, not len(lines)
-	require.NotEqual(t, len(m.logs.lines), m.logs.offset)
-
+	m.logs.offsets = map[string]int{"PROJ-BUILD-INT-44": 41}
 	m, cmd := send(m, mkKey("f"))
 	require.True(t, m.logs.following)
 	require.NotNil(t, cmd)
-	require.Equal(t, 41, m.followFrom, "FollowLog must resume at the provider's offset")
+	require.Equal(t, map[string]int{"PROJ-BUILD-INT-44": 41}, m.followFrom)
 	m.stopFollow()
 }
 
-// TestFollowIsRefusedWhileSeveralJobsAreShown: the screen is a concatenation,
-// so there is no single job to resume, and appending to it would interleave
-// one job's output into another's.
-func TestFollowIsRefusedWhileSeveralJobsAreShown(t *testing.T) {
+// TestFollowWorksWhileSeveralJobsAreShown: the prefixes keep interleaved jobs
+// apart, so the old refusal is gone (spec §4.3).
+func TestFollowWorksWhileSeveralJobsAreShown(t *testing.T) {
 	m := logModel()
 	m.logs.multi = true
+	m.logs.offsets = map[string]int{"PROJ-BUILD-INT-44": 4, "PROJ-BUILD-COMP-44": 1}
 	m, cmd := send(m, mkKey("f"))
-	require.False(t, m.logs.following)
-	require.Nil(t, cmd)
-	require.Contains(t, m.status, "one job")
+	require.True(t, m.logs.following)
+	require.NotNil(t, cmd)
+	m.stopFollow()
 }
 
 func tallLogModel(n int) Model {
@@ -380,4 +379,85 @@ func TestAnEmptyFollowedLogSaysItIsWaiting(t *testing.T) {
 	require.Empty(t, m.logs.lines, "the waiting line is not part of the log")
 	m.logs.search("waiting")
 	require.Empty(t, m.logs.matches)
+}
+
+func runningBuild() provider.Build {
+	b := sampleBuild()
+	b.State = provider.StateRunning
+	b.Stages[1].State = provider.StateRunning
+	b.Stages[1].Jobs[0].State = provider.StateRunning
+	b.Stages[2].State = provider.StateQueued
+	b.Stages[2].Jobs = []provider.Job{{Key: "PROJ-BUILD-DEP-44", Name: "Deploy", State: provider.StateQueued}}
+	return b
+}
+
+// stageModel is a live stage screen on runningBuild's Test stage.
+func stageModel() Model {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	b := runningBuild()
+	m.detail = &b
+	m, _ = send(m, logsLoadedMsg{Gen: m.logsGen, Title: b.Key, Stage: "Test", Multi: true, Build: b,
+		Lines:   []string{"[INT] 12:04:31  [INFO] Running integration suite"},
+		Offsets: map[string]int{"PROJ-BUILD-INT-44": 1}})
+	m.screen = screenLogs
+	return m
+}
+
+func TestLogLinesArePrefixedOnAMultiJobScreen(t *testing.T) {
+	m := stageModel()
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: linesEvent("PROJ-BUILD-INT-44", 2, "12:06:58  [ERROR] refused")})
+	require.Equal(t, "[INT] 12:06:58  [ERROR] refused", m.logs.lines[len(m.logs.lines)-1])
+}
+
+func TestLogLinesRecordTheJobsOffset(t *testing.T) {
+	m := stageModel()
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: linesEvent("PROJ-BUILD-INT-44", 7, "x")})
+	require.Equal(t, 7, m.logs.offsets["PROJ-BUILD-INT-44"])
+}
+
+func TestStageStartAddsASeparatorAndItsJobs(t *testing.T) {
+	m := stageModel()
+	next := runningBuild()
+	next.Stages[1].State = provider.StateSuccess
+	next.Stages[2].State = provider.StateRunning
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: app.LogEvent{Kind: app.StageStart, Stage: "Deploy", Build: next}})
+	n := len(m.logs.lines)
+	require.Equal(t, []string{"", "== Deploy =="}, m.logs.lines[n-2:])
+	require.Equal(t, "Deploy", m.logs.stage)
+	require.Equal(t, provider.StateRunning, m.logs.live)
+	require.Contains(t, m.logs.offsets, "PROJ-BUILD-DEP-44")
+	require.Zero(t, m.logs.offsets["PROJ-BUILD-DEP-44"])
+}
+
+func TestLogStatusShowsTheStageStateInTheHeader(t *testing.T) {
+	m := stageModel()
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: app.LogEvent{Kind: app.LogStatus, Stage: "Test", Build: runningBuild()}})
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · Test · running")
+}
+
+// TestRefollowResumesFromTheStreamedOffsets: Review Focus 1.
+func TestRefollowResumesFromTheStreamedOffsets(t *testing.T) {
+	m := stageModel()
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: linesEvent("PROJ-BUILD-INT-44", 9, "x")})
+	m, _ = send(m, mkKey("f"))
+	require.True(t, m.logs.following)
+	require.Equal(t, 9, m.followFrom["PROJ-BUILD-INT-44"], "no line is read twice")
+	m.stopFollow()
+}
+
+func TestAllJobsAreGroupedByStageAndPrefixed(t *testing.T) {
+	b := sampleBuild()
+	jobs := []app.JobLog{
+		{Stage: "Build", Job: b.Stages[0].Jobs[0], Lines: []string{"compiled"}},
+		{Stage: "Build", Job: b.Stages[0].Jobs[1], Lines: []string{"passed"}},
+		{Stage: "Test", Job: b.Stages[1].Jobs[0], Lines: []string{"refused"}},
+	}
+	require.Equal(t, []string{
+		"== Build ==", "[COMP] compiled", "[UNIT] passed",
+		"", "== Test ==", "[INT] refused",
+	}, composeLogs(b, jobs, true, ""))
+	require.Equal(t, []string{"[INT] refused"}, composeLogs(b, jobs[2:], true, "Test"),
+		"a stage screen's header names the stage, so no separator")
+	require.Equal(t, []string{"refused"}, composeLogs(b, jobs[2:], false, ""))
 }

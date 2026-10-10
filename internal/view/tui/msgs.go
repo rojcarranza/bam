@@ -161,15 +161,17 @@ func loadPresetsCmd(d Deps, gen int) tea.Cmd {
 }
 
 type logsLoadedMsg struct {
-	Gen    int
-	JobKey string
-	Title  string
-	URL    string
-	Lines  []string
-	All    bool
-	Multi  bool           // several jobs are concatenated in Lines
-	Offset int            // the provider's next-read offset, for follow
-	Build  provider.Build // the build the logs were read from, with its jobs
+	Gen     int
+	JobKey  string
+	Title   string
+	URL     string
+	Lines   []string
+	All     bool
+	Multi   bool           // several jobs, or a stage: every line carries its job's prefix
+	Stage   string         // a stage screen's stage; empty otherwise
+	Live    bool           // a stage screen on a build still running: follow at once
+	Offsets map[string]int // the provider's next-read offset per job, for follow
+	Build   provider.Build // the build the logs were read from, with its jobs
 }
 
 // loadLogsCmd reads one build's logs. An empty jobKey with all=false means the
@@ -192,31 +194,56 @@ func loadLogsCmd(ctx context.Context, svc *app.Service, b provider.Build, jobKey
 				WithTry("press a for every job's log"),
 				Where: "logs", Stream: streamLogs, Gen: gen}
 		}
-		var lines []string
-		for i, j := range jobs {
-			if len(jobs) > 1 {
-				if i > 0 {
-					lines = append(lines, "")
-				}
-				lines = append(lines, "== "+j.Job.Name+" ==")
-			}
-			lines = append(lines, j.Lines...)
-		}
-		title := jobs[0].Job.Key
-		if len(jobs) > 1 {
-			title = b.Key
-		}
-		// Next is the provider's offset contract for the next read. It is
-		// meaningful only for a single job: a concatenation of several has no
-		// one offset to resume from.
-		return logsLoadedMsg{Gen: gen, JobKey: jobs[0].Job.Key, Title: title, URL: jobs[0].Job.URL,
-			Lines: lines, All: all, Multi: len(jobs) > 1, Offset: jobs[0].Next, Build: b}
+		return logsMsg(b, jobs, all, "", gen)
 	}
 }
 
-type logChunkMsg struct {
+// logsMsg turns read logs into the screen's message. Offsets carry every
+// job's own offset, because a follow resumes each job where it was read.
+func logsMsg(b provider.Build, jobs []app.JobLog, all bool, stage string, gen int) logsLoadedMsg {
+	multi := len(jobs) > 1 || stage != ""
+	offsets := make(map[string]int, len(jobs))
+	for _, j := range jobs {
+		offsets[j.Job.Key] = j.Next
+	}
+	title, url := jobs[0].Job.Key, jobs[0].Job.URL
+	if multi {
+		title, url = b.Key, b.URL
+	}
+	return logsLoadedMsg{Gen: gen, JobKey: jobs[0].Job.Key, Title: title, URL: url,
+		Lines: composeLogs(b, jobs, multi, stage), All: all, Multi: multi, Stage: stage,
+		Offsets: offsets, Build: b}
+}
+
+// composeLogs lays jobs out for the screen. A single job is bare. Several
+// jobs carry a [JOB] prefix on every line, because once they stream their
+// lines interleave; outside a stage screen a "== stage ==" line opens each
+// stage's jobs. A stage screen's header already names its stage.
+func composeLogs(b provider.Build, jobs []app.JobLog, multi bool, stage string) []string {
+	if !multi {
+		return append([]string(nil), jobs[0].Lines...)
+	}
+	var lines []string
+	last := ""
+	for i, j := range jobs {
+		if stage == "" && (i == 0 || j.Stage != last) {
+			if i > 0 {
+				lines = append(lines, "")
+			}
+			lines = append(lines, "== "+j.Stage+" ==")
+		}
+		last = j.Stage
+		prefix := "[" + app.ShortJobKey(b, j.Job) + "] "
+		for _, l := range j.Lines {
+			lines = append(lines, prefix+l)
+		}
+	}
+	return lines
+}
+
+type logEventMsg struct {
 	Gen   int
-	Lines []string
+	Event app.LogEvent
 }
 
 type followEndedMsg struct {
@@ -224,16 +251,16 @@ type followEndedMsg struct {
 	Err error
 }
 
-// followCmd runs app.FollowLog in its own goroutine and adapts its emit
-// callback into a channel. FollowLog blocks until the job finishes, so this
+// followCmd runs app.FollowLogs in its own goroutine and adapts its emit
+// callback into a channel. FollowLogs blocks until its jobs finish, so this
 // is the one place the UI starts a goroutine, and ending ctx ends it.
-func followCmd(ctx context.Context, svc *app.Service, buildKey string, job provider.Job, offset int) (<-chan []string, <-chan error) {
-	lines := make(chan []string, 8)
+func followCmd(ctx context.Context, svc *app.Service, buildKey string, from map[string]int, advance bool) (<-chan app.LogEvent, <-chan error) {
+	events := make(chan app.LogEvent, 8)
 	done := make(chan error, 1)
 	go func() {
-		err := svc.FollowLog(ctx, buildKey, job, offset, func(ls []string) {
+		err := svc.FollowLogs(ctx, buildKey, from, advance, func(ev app.LogEvent) {
 			select {
-			case lines <- ls:
+			case events <- ev:
 			case <-ctx.Done():
 			}
 		})
@@ -241,17 +268,17 @@ func followCmd(ctx context.Context, svc *app.Service, buildKey string, job provi
 		// sees the close always finds the outcome waiting. Closing first
 		// would let a real failure be read as a clean end.
 		done <- err
-		close(lines)
+		close(events)
 	}()
-	return lines, done
+	return events, done
 }
 
-// drainFollowCmd takes one chunk off the channel, or reports the end. The
-// model re-issues it after each chunk, so Update never ranges over a channel.
-func drainFollowCmd(lines <-chan []string, done <-chan error, gen int) tea.Cmd {
+// drainFollowCmd takes one event off the channel, or reports the end. The
+// model re-issues it after each event, so Update never ranges over a channel.
+func drainFollowCmd(events <-chan app.LogEvent, done <-chan error, gen int) tea.Cmd {
 	return func() tea.Msg {
-		if ls, ok := <-lines; ok {
-			return logChunkMsg{Gen: gen, Lines: ls}
+		if ev, ok := <-events; ok {
+			return logEventMsg{Gen: gen, Event: ev}
 		}
 		select {
 		case err := <-done:

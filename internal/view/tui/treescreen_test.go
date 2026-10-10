@@ -196,14 +196,19 @@ func TestTreeScreenLateRerunResultIsDropped(t *testing.T) {
 
 // A refresh during a rerun must not lose its result: F would stay dead and
 // a failed restart would never be reported.
+// The rerun runs before the refresh so the refreshed watch cannot read
+// PROJ-PROV-7 first: the fake answers by call count, and an earlier read
+// would hand Restart the queued build. The result still lands after the
+// refresh has moved the watch generation, which is what is under test.
 func TestTreeScreenRerunSurvivesARefresh(t *testing.T) {
 	m, f := treeTUIModel(t)
 	restartableChild(f)
 	m = firstTree(t, m)
 	m, _ = send(m, mkKey("F"))
 	m, cmd := send(m, mkKey("y"))
+	res := cmd()
 	m, _ = send(m, mkKey("r"))
-	m, _ = send(m, cmd())
+	m, _ = send(m, res)
 	require.Empty(t, m.buildTree.restarting)
 	require.Contains(t, m.status, "restarted 1 build")
 }

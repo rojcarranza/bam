@@ -419,7 +419,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logs.build = &b
 		}
 		m.logs.setLines(m.width, m.logHeight(), msg.Lines)
-		if msg.Live {
+		if msg.Live && m.screen == screenLogs {
 			return m.startFollow()
 		}
 		return m, nil
@@ -1063,6 +1063,7 @@ func (m Model) selectedTreeRow() (treeRow, bool) {
 // overwriting the main panel while the new plan loads.
 func (m *Model) leaveBuild() {
 	m.stopWatch()
+	m.stopFollow()
 	// Bump the detail generation too: a Main refresh already in flight would
 	// otherwise be accepted and restore the abandoned build under the new
 	// selection.
@@ -1229,8 +1230,16 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	var cmd tea.Cmd
+	before := m.logs.vp.YOffset
 	m.logs.vp, cmd = m.logs.vp.Update(msg)
-	m.logs.pinned = m.logs.vp.AtBottom()
+	// Re-pin after the viewport moves, or when a scroll-down key was pressed
+	// on the last screen (nothing to move, but the reader asked for the end).
+	// An unbound key leaves the pin alone.
+	km := m.logs.vp.KeyMap
+	down := key.Matches(msg, km.Down, km.PageDown, km.HalfPageDown)
+	if m.logs.vp.YOffset != before || down {
+		m.logs.pinned = m.logs.vp.AtBottom()
+	}
 	return m, cmd
 }
 
@@ -1639,11 +1648,13 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		return m, nil
 	case m.screen == screenLogs && m.logsFromTree:
 		m.stopFollow()
+		m.logsGen++ // abandon a load still in flight
 		m.logsFromTree, m.fromTree = false, false
 		m.screen = screenTree
 		return m.watchTree() // watching paused while the logs were open
 	case m.screen == screenLogs:
 		m.stopFollow()
+		m.logsGen++ // abandon a load still in flight
 		m.screen = screenColumns
 		return m, nil
 	case m.screen == screenForm:

@@ -59,6 +59,9 @@ func (l *logState) resize(width, height int) {
 	}
 	l.vp.Width, l.vp.Height = width, height
 	l.refresh()
+	if l.pinned {
+		l.vp.GotoBottom()
+	}
 }
 
 // rerender highlights every line again, for a new query or a new log.
@@ -178,6 +181,9 @@ func matchesQuery(line, q string) bool {
 // nextMatch walks the matches and wraps. With no search typed it falls back
 // to the next failure, which is what the key line promises.
 func (l *logState) nextMatch(delta int) {
+	if l.query != "" && len(l.matches) == 0 {
+		return
+	}
 	if len(l.matches) == 0 {
 		l.nextFailure(delta)
 		return

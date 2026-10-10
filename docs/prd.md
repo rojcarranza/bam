@@ -11,7 +11,7 @@ Bam is a terminal remote control for Atlassian Bamboo: trigger, watch and diagno
 
 Bam is a native developer tool, not a REST API wrapper. It is organised around what a user intends ("run my pipeline", "why did it fail"), not around Bamboo's endpoints.
 
-Bam has two faces over one core. Typing `bam` alone opens a terminal UI (a k9s-style plans table with lazygit-style detail panels) to navigate servers, projects, plans, builds, stages and logs, and to run presets with a keystroke. Typing `bam <command>` gives scriptable commands for speed, scripts and CI. Both call the same use cases, so they cannot disagree.
+Bam has two faces over one core. Typing `bam` alone opens a terminal UI (a k9s-style plans table with a plan screen for each pipeline) to navigate servers, projects, plans, builds, stages and logs, and to run presets with a keystroke. Typing `bam <command>` gives scriptable commands for speed, scripts and CI. Both call the same use cases, so they cannot disagree.
 
 ## 2. Problem
 
@@ -74,7 +74,7 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 
 ### Next (v0.2): terminal UI
 
-- `bam` with no arguments on a terminal opens on a k9s-style table of the configured projects' plans (v0.3); behind it, a lazygit-style UI: stacked side panels for servers, projects and plans, builds, and presets; a main panel for build detail, stages, jobs and logs.
+- `bam` with no arguments on a terminal opens on a k9s-style table of the configured projects' plans (v0.3); behind it, a plan screen per plan: its full name on top, its builds, the stages and jobs of the selected build, and the plans that build triggered; logs and the run form open from there.
 - From the UI: browse, run a preset or plan with a variable form prefilled from the preset or a previous build, switch branch, watch live, read failed logs, cancel, open the Bamboo URL, copy the URL.
 - It is a view over the same use cases as the commands. It adds no behaviour the commands lack.
 

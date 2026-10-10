@@ -1,6 +1,6 @@
 # bam: a plan screen that names the pipeline, with its builds, stages and tree
 
-**Status:** Draft | **Date:** 2026-10-10
+**Status:** Implemented | **Date:** 2026-10-10
 **Issue:** [#54](https://github.com/r0jjames/bam-cli/issues/54)
 **Product requirements:** [`docs/prd.md`](../../prd.md) "Next (v0.2): terminal UI"
 **Builds on:** [`2026-10-08-bam-tui-k9s-look-design.md`](2026-10-08-bam-tui-k9s-look-design.md) (Home's header, title rule, selected-row bar), [`2026-10-08-bam-build-tree-design.md`](2026-10-08-bam-build-tree-design.md) (`app.BuildTree`, the tree screen)

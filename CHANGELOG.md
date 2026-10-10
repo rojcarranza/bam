@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, version and user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.
+- The terminal UI's three-panel screen is replaced by a plan screen: the plan's full name on top, its builds, the selected build's stages, and the plans that build triggered. The run form and log screen name the plan too.
 
 ## [0.2.1] - 2026-10-08
 

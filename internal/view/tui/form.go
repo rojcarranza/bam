@@ -148,19 +148,35 @@ func (m Model) changedCount() int {
 	return len(m.form.stripUntypedMasks(vs).Changed())
 }
 
-// formView is the whole terminal: the run form in the standard panel frame.
+// formView is the whole terminal: the plan's name, what will run, and the
+// variables in the standard panel frame.
 func (m Model) formView() string {
-	body := m.height - 1
-	title := "Run " + m.form.ref.PlanKey
-	if m.form.target != "" {
-		title = "Run " + m.form.target + " · " + m.form.ref.PlanKey
+	ref := m.form.ref
+	head := []string{}
+	if m.height >= 20 {
+		what := ref.PlanKey
+		if ref.Branch != "" {
+			what += " · branch " + ref.Branch
+		}
+		if m.form.target != "" {
+			what += " · preset " + m.form.target
+		}
+		head = append(head, m.nameLine(m.width, m.masterOf(ref.PlanKey)), dimStyle.Render(" "+cut(what, m.width-1)))
 	}
-	if m.form.ref.Branch != "" {
-		title += " · " + m.form.ref.Branch
+	title := "Variables"
+	if len(head) == 0 {
+		// A small terminal keeps the old title, so the plan is still named.
+		title = "Run " + ref.PlanKey
+		if m.form.target != "" {
+			title = "Run " + m.form.target + " · " + ref.PlanKey
+		}
+		if ref.Branch != "" {
+			title += " · " + ref.Branch
+		}
 	}
-	return lipgloss.JoinVertical(lipgloss.Left,
-		panel(title, true, m.width, body, m.formBody(m.width-2, body-2)),
-		m.statusBar(m.width))
+	body := m.height - 1 - len(head)
+	parts := append(head, panel(title, true, m.width, body, m.formBody(m.width-2, body-2)), m.statusBar(m.width))
+	return lipgloss.JoinVertical(lipgloss.Left, parts...)
 }
 
 // formBody is three columns: the name, the value, and the source or the

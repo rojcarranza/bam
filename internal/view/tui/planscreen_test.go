@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
@@ -486,4 +487,31 @@ func TestKeyLineFollowsThePlanScreenFocus(t *testing.T) {
 		bar := m.statusBar(80)
 		require.Contains(t, bar, tc.want, "the line fits an 80-column bar beside lab · 9.6.4 · jdoe")
 	}
+}
+
+func TestRunFormNamesThePlan(t *testing.T) {
+	m := formModel()
+	m.plans.setItems([]provider.Plan{{Key: "PROJ-PROV", Name: "Provision lab", ProjectKey: "PROJ"}})
+	lines := strings.Split(m.View(), "\n")
+	require.Equal(t, " Provision lab", strings.TrimRight(ansi.Strip(lines[0]), " "))
+	require.Contains(t, lines[1], "PROJ-PROV12")
+	require.Contains(t, lines[1], "branch develop")
+	require.Contains(t, lines[2], "Variables")
+}
+
+func TestLogScreenNamesThePlan(t *testing.T) {
+	m := logModel()
+	m.plans.setItems([]provider.Plan{{Key: "PROJ-BUILD", Name: "Build and test", ProjectKey: "PROJ"}})
+	lines := strings.Split(m.View(), "\n")
+	require.Equal(t, " Build and test", ansi.Strip(lines[0]))
+	require.Contains(t, lines[1], "logs")
+	require.Len(t, lines, m.height)
+}
+
+func TestSmallScreensKeepTheirOldHeaders(t *testing.T) {
+	m := logModel()
+	m.plans.setItems([]provider.Plan{{Key: "PROJ-BUILD", Name: "Build and test", ProjectKey: "PROJ"}})
+	m.height = 12
+	m.logs.resize(m.width, m.logHeight())
+	require.NotContains(t, strings.Split(m.View(), "\n")[0], "Build and test")
 }

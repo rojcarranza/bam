@@ -1,4 +1,6 @@
-┏━Run provision-lab · PROJ-PROV12 · develop━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+ PROJ-PROV12                                                                    
+ PROJ-PROV12 · branch develop · preset provision-lab                            
+┏━Variables━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃                                                                              ┃
 ┃▸ cluster_name          beta                      required                    ┃
 ┃  cluster_type          k8s                       k8s | dcos                  ┃
@@ -6,8 +8,6 @@
 ┃  revision              newest                    commit to build             ┃
 ┃                                                                              ┃
 ┃1 of 3 changed from the plan's values                                         ┃
-┃                                                                              ┃
-┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃
 ┃                                                                              ┃

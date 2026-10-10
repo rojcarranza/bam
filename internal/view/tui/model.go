@@ -1745,14 +1745,14 @@ func (m Model) View() string {
 	return m.planView()
 }
 
-// logHeight is the viewport's height: the terminal minus the header and the
-// key line.
+// logHeight is the viewport's height: the terminal minus the name line (on
+// a terminal of 20 rows or more), the header and the key line.
 func (m Model) logHeight() int {
 	h := m.height - 2
-	if h < 1 {
-		h = 1
+	if m.height >= 20 {
+		h--
 	}
-	return h
+	return max(h, 1)
 }
 
 // expandErr opens the error overlay on the error the status bar shows: its

@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
@@ -1750,16 +1749,6 @@ func (m Model) logHeight() int {
 		h = 1
 	}
 	return h
-}
-
-func (m Model) planView() string {
-	body := m.height - 1 // the status bar
-	lw := leftWidth(m.width)
-	return m.overlayView(lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Top,
-			m.leftColumn(lw, body),
-			m.mainPanel(m.width-lw, body)),
-		m.statusBar(m.width)))
 }
 
 // expandErr opens the error overlay on the error the status bar shows: its

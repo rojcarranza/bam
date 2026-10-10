@@ -2,9 +2,11 @@ package tui
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
@@ -380,4 +382,46 @@ func TestAWatchErrorClearsStagesLoading(t *testing.T) {
 	require.True(t, m.plan.stagesLoading)
 	m, _ = send(m, watchEventMsg{Gen: m.watchGen, Event: app.Event{Type: app.EventError, Err: errBoom}})
 	require.False(t, m.plan.stagesLoading)
+}
+
+func TestPlanHeaderNamesThePlanAndNeverItsKeyInARow(t *testing.T) {
+	m := planGolden(80, 24)
+	lines := strings.Split(m.View(), "\n")
+	require.Equal(t, " Build and test", lines[0])
+	require.Contains(t, lines[1], "PROJ › PROJ-BUILD")
+	require.Contains(t, lines[1], "last build #44")
+	for _, l := range lines[3:] {
+		require.NotContains(t, l, "PROJ-BUILD-", "rows show numbers, not build keys")
+	}
+}
+
+func TestLongPlanNameIsCutWithAnEllipsis(t *testing.T) {
+	m := planGolden(80, 24)
+	long := strings.Repeat("Provision the integration lab cluster ", 4)[:120]
+	m.plans.setItems([]provider.Plan{{Key: "PROJ-BUILD", Name: long, ProjectKey: "PROJ"}})
+	lines := strings.Split(m.View(), "\n")
+	require.True(t, strings.HasSuffix(lines[0], "…"), lines[0])
+	for _, l := range lines {
+		require.LessOrEqual(t, lipgloss.Width(l), 80)
+	}
+}
+
+func TestStagesTitleSaysLoading(t *testing.T) {
+	m := planGolden(80, 24)
+	m.plan.stagesLoading = true
+	require.Contains(t, m.View(), "Stages · #44 · loading")
+}
+
+// TestPlanHeaderNamesABranchPlansMaster: the header names the plan the
+// screen is about, also while its Builds list is a branch plan's, and falls
+// back to the key for a plan outside the plans load.
+func TestPlanHeaderNamesABranchPlansMaster(t *testing.T) {
+	m := planGolden(80, 24)
+	m.buildsPlan = "PROJ-BUILD12"
+	lines := strings.Split(m.View(), "\n")
+	require.Equal(t, " Build and test", lines[0])
+	require.Contains(t, lines[1], "PROJ › PROJ-BUILD @ main")
+
+	m.plan.key, m.buildsPlan = "LAB-OTHER", "LAB-OTHER"
+	require.Equal(t, " LAB-OTHER", strings.Split(m.View(), "\n")[0])
 }

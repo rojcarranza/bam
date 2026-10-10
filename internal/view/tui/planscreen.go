@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/view/style"
 )
 
 // planScreen is the screen about one plan: its builds, the stages of the
@@ -301,4 +305,251 @@ func (m Model) popPlan() (Model, tea.Cmd) {
 	m, cmd := m.openPlan(f.key, f.buildsPlan, want, f.focus)
 	m.plan.stack = stack
 	return m, cmd
+}
+
+// planCompact is the small-terminal form: name line only, one panel.
+func (m Model) planCompact() bool { return m.width < 60 || m.height < 20 }
+
+// planLeftWidth is the Builds column: two fifths of the terminal, at least
+// 30 and at most 60 columns, leaving the right side at least 40.
+func planLeftWidth(total int) int {
+	w := min(max(total*2/5, 30), 60)
+	return max(min(w, total-40), 0)
+}
+
+// nameLine is the plan's full name, bold, or its key when the name is not
+// known; the line the plan screen, the run form and the log screen share.
+func (m Model) nameLine(width int, planKey string) string {
+	name := m.planNameOf(planKey)
+	if name == "" {
+		name = planKey
+	}
+	return " " + titleStyle.Render(cut(name, width-1))
+}
+
+// projectOf is the plan's project key from the plans list, or the key's
+// first part.
+func (m Model) projectOf(planKey string) string {
+	for _, p := range m.plans.items {
+		if p.Key == planKey && p.ProjectKey != "" {
+			return p.ProjectKey
+		}
+	}
+	project, _, _ := strings.Cut(planKey, "-")
+	return project
+}
+
+// planHeader is §3.2: the name, then project › key, branch and last build.
+func (m Model) planHeader(width int) []string {
+	lines := []string{m.nameLine(width, m.plan.key)}
+	if m.planCompact() {
+		return lines
+	}
+	left := " " + m.projectOf(m.plan.key) + " › " + m.plan.key
+	if m.buildsPlan != "" && m.buildsPlan != m.plan.key {
+		branch := m.buildsPlan
+		if len(m.builds.items) > 0 && m.builds.items[0].Branch != "" {
+			branch = m.builds.items[0].Branch
+		}
+		left += " @ " + branch
+	}
+	right := ""
+	if len(m.builds.items) > 0 {
+		lb := m.builds.items[0]
+		if lb.Key == m.plan.older && len(m.builds.items) > 1 {
+			lb = m.builds.items[1]
+		}
+		right = stateCell(lb.State) + dimStyle.Render(fmt.Sprintf(" last build #%d %s", lb.Number, m.ago(lb.FinishedAt)))
+	}
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right) - 1
+	if right == "" || gap < 2 {
+		lines = append(lines, dimStyle.Render(cut(left, width)))
+	} else {
+		lines = append(lines, dimStyle.Render(left)+strings.Repeat(" ", gap)+right)
+	}
+	title := "builds"
+	if q := m.builds.query; q != "" {
+		title += "</" + q + ">"
+	}
+	title += fmt.Sprintf("[%d]", m.builds.len())
+	marker := ""
+	if m.builds.loading {
+		marker = "refreshing…"
+	}
+	return append(lines, titleRule(width, title, marker))
+}
+
+// planBuildRows is the Builds panel: glyph, number, branch, age, who. Who
+// goes first, then branch, when the panel is narrow.
+func (m Model) planBuildRows(width, height int) string {
+	rows := m.builds.rows()
+	if len(rows) == 0 {
+		if m.builds.loading {
+			return dimStyle.Render("loading…")
+		}
+		return dimStyle.Render("no builds yet")
+	}
+	start, end := m.builds.window(height)
+	inner := width - 4
+	var b strings.Builder
+	for i := start; i < end; i++ {
+		bd := rows[i]
+		focused := m.focus == focusBuilds
+		b.WriteString(m.cursorFor(focused, m.builds.cursor == i))
+		head := stateStyle(bd.State).Render(stateGlyph(bd.State)) + fmt.Sprintf(" #%-4d", bd.Number)
+		branch, age, by := branchOrDefault(bd), ageShort(m.now().Sub(bd.FinishedAt)), shortBy(bd.Reason)
+		if bd.FinishedAt.IsZero() {
+			age = "–"
+		}
+		if bd.Key == m.plan.older {
+			by = "(older)"
+		}
+		// Who goes first, then branch, when the panel is narrow (§3.3).
+		line := head + "  " + branch + "  " + age + "  " + by
+		if lipgloss.Width(line) > inner {
+			line = head + "  " + branch + "  " + age
+		}
+		if lipgloss.Width(line) > inner {
+			line = head + "  " + age
+		}
+		line = truncate(line, inner)
+		if bd.Key == m.plan.older {
+			line = dimStyle.Render(line)
+		}
+		if m.builds.cursor == i {
+			line = selectedRow(line, inner, focused)
+		}
+		b.WriteString(line + "\n")
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// treeBody is the Tree panel: one row per child of the open build.
+func (m Model) treeBody(width, height int) string {
+	t := m.plan.tree
+	switch {
+	case m.detail == nil:
+		return dimStyle.Render("no builds yet")
+	case t.loading:
+		return dimStyle.Render("reading the tree…")
+	case t.err != nil:
+		return errorStyle.Render("could not read the tree: " + errorWhat(t.err))
+	}
+	rows := m.treePreviewRows()
+	if len(rows) == 0 {
+		return dimStyle.Render(fmt.Sprintf("#%d triggered nothing", m.detail.Number))
+	}
+	start, end := treeWindow(m.plan.treeCursor, len(rows), height)
+	inner := width - 4
+	focused := m.focus == focusTree
+	names := make([]string, len(rows))
+	nameW := 0
+	for i, n := range rows {
+		if names[i] = m.planNameOf(n.PlanKey); names[i] == "" {
+			names[i] = n.PlanKey
+		}
+		nameW = max(nameW, lipgloss.Width(names[i]))
+	}
+	var b strings.Builder
+	for i := start; i < end; i++ {
+		n, name := rows[i], names[i]
+		var line string
+		switch {
+		case n.NotRun:
+			line = dimStyle.Render("– " + name + "  not run")
+		case n.Loop:
+			line = dimStyle.Render("↺ " + name + "  already shown")
+		default:
+			// The glyph leads the row, so the state after the number is its
+			// label alone; names are padded so the numbers line up.
+			tail := fmt.Sprintf("  #%-4d %s", n.Build.Number,
+				stateStyle(n.Build.State).Render(style.Label(n.Build.State)))
+			w := min(nameW, inner-2-lipgloss.Width(tail))
+			line = stateStyle(n.Build.State).Render(stateGlyph(n.Build.State)) + " " +
+				lipgloss.NewStyle().Width(w).Render(cut(name, w)) + tail
+			if n.Superseded {
+				line = dimStyle.Render(line)
+			}
+		}
+		line = truncate(line, inner)
+		b.WriteString(m.cursorFor(focused, m.plan.treeCursor == i))
+		if m.plan.treeCursor == i {
+			line = selectedRow(line, inner, focused)
+		}
+		b.WriteString(line + "\n")
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// stagesTitle names the build Stages shows.
+func (m Model) stagesTitle() string {
+	if m.detail == nil {
+		return "Stages"
+	}
+	t := fmt.Sprintf("Stages · #%d", m.detail.Number)
+	if m.plan.stagesLoading {
+		t += " · loading"
+	}
+	return t
+}
+
+func (m Model) treeTitle() string {
+	if m.detail == nil {
+		return "Tree"
+	}
+	return fmt.Sprintf("Tree · what #%d triggered", m.detail.Number)
+}
+
+func (m Model) stagesPanel(width, height int) string {
+	body := dimStyle.Render("no builds yet")
+	if m.detail != nil {
+		body = m.stagesBody(width-2, height-2)
+	}
+	return panel(m.stagesTitle(), m.focus == focusStages, width, height, body)
+}
+
+// rightHeights splits the right column (§3.3): Stages gets its rows up to
+// 60%, at least 5; Tree the rest, at least 3; an empty tree takes 3.
+func (m Model) rightHeights(body int) (stages, tree int) {
+	if m.plan.tree.have && m.plan.tree.err == nil && len(m.treePreviewRows()) == 0 {
+		return body - 3, 3
+	}
+	want := 2 + 2 // border and the reason line with its blank
+	if m.detail != nil {
+		want += len(buildTree(*m.detail, m.expanded)) + failedTestLines(*m.detail)
+	}
+	stages = min(max(want, 5), body*3/5)
+	tree = body - stages
+	if tree < 3 {
+		tree, stages = 3, body-3
+	}
+	return stages, tree
+}
+
+// planView is the whole plan screen: header, panels, status bar.
+func (m Model) planView() string {
+	head := m.planHeader(m.width)
+	body := max(m.height-len(head)-1, 0)
+	var frame string
+	if m.planCompact() {
+		switch m.focus {
+		case focusStages:
+			frame = m.stagesPanel(m.width, body)
+		case focusTree:
+			frame = panel(m.treeTitle(), true, m.width, body, m.treeBody(m.width, body-2))
+		default:
+			frame = panel("Builds", true, m.width, body, m.planBuildRows(m.width, body-2))
+		}
+	} else {
+		lw := planLeftWidth(m.width)
+		rw := m.width - lw
+		sh, th := m.rightHeights(body)
+		frame = lipgloss.JoinHorizontal(lipgloss.Top,
+			panel("Builds", m.focus == focusBuilds, lw, body, m.planBuildRows(lw, body-2)),
+			lipgloss.JoinVertical(lipgloss.Left,
+				m.stagesPanel(rw, sh),
+				panel(m.treeTitle(), m.focus == focusTree, rw, th, m.treeBody(rw, th-2))))
+	}
+	out := append(append([]string{}, head...), frame, m.statusBar(m.width))
+	return m.overlayView(strings.Join(out, "\n"))
 }

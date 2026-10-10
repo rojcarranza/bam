@@ -60,22 +60,20 @@ func defaultExpanded(b provider.Build) map[string]bool {
 	return out
 }
 
-// detailBody is the main panel's contents for a build: a header, the tree,
-// and the failed-test count when the server reported one.
-func (m Model) detailBody(width, height int) string {
+// stagesBody is the Stages panel for the open build: the reason line, the
+// stage and job tree, and the failed-test count when the server reported
+// one. State, number, branch and duration are in the Builds row and the
+// header, so the panel does not repeat them.
+func (m Model) stagesBody(width, height int) string {
 	b := *m.detail
-	header := fmt.Sprintf("%s   #%d   branch %s   %s",
-		stateCell(b.State), b.Number, branchOrDefault(b), view.Duration(b.Duration))
-	// The bar takes the columns the header line leaves, and is dropped
-	// entirely when the panel is too narrow to hold a readable one.
-	if bar := view.BarWithin(style.Mode{}, m.progress, width-lipgloss.Width(header)-3); bar != "" {
-		header += "   " + bar
+	first := dimStyle.Render(strings.TrimSpace(b.Reason + " " + revisionShort(b)))
+	// The estimate bar stays: it is the one thing about a running build the
+	// Builds row and the header do not say. It takes the columns the reason
+	// leaves, and is dropped when they cannot hold a readable one.
+	if bar := view.BarWithin(style.Mode{}, m.progress, width-lipgloss.Width(first)-3); bar != "" {
+		first += "   " + bar
 	}
-	lines := []string{
-		header,
-		dimStyle.Render(strings.TrimSpace(b.Reason + " " + revisionShort(b))),
-		"",
-	}
+	lines := []string{first, ""}
 
 	rows := buildTree(b, m.expanded)
 	// Window the tree around the cursor rather than truncating the body: the
@@ -99,9 +97,12 @@ func (m Model) detailBody(width, height int) string {
 		// the same column.
 		cell := indent + stateStyle(r.State).Render(stateGlyph(r.State)) + " " +
 			truncate(r.Name, nameWidth-len(indent))
-		line := m.cursorFor(m.focus == focusStages, m.treeCursor == i) +
-			lipgloss.NewStyle().Width(nameWidth+2).Render(cell) + " " + dur
-		lines = append(lines, strings.TrimRight(line, " "))
+		focused := m.focus == focusStages
+		line := strings.TrimRight(lipgloss.NewStyle().Width(nameWidth+2).Render(cell)+" "+dur, " ")
+		if m.treeCursor == i {
+			line = selectedRow(line, width-2, focused)
+		}
+		lines = append(lines, m.cursorFor(focused, m.treeCursor == i)+line)
 	}
 	if n := len(b.FailedTests); n > 0 {
 		lines = append(lines, "", errorStyle.Render(fmt.Sprintf("%d failed tests", n)))

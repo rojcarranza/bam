@@ -385,7 +385,7 @@ func TestTheDetailTreeScrollsWithItsCursor(t *testing.T) {
 
 	last, ok := m.selectedTreeRow()
 	require.True(t, ok)
-	require.Contains(t, m.detailBody(56, 18), last.Name,
+	require.Contains(t, m.stagesBody(56, 18), last.Name,
 		"the row the cursor is on must be on screen")
 }
 

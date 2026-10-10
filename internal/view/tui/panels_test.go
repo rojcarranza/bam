@@ -9,52 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestPlanRowsShowTheNameWhenItFits: keys alone differ by a letter or two,
-// so a row names its plan once the panel has room for it.
-func TestPlanRowsShowTheNameWhenItFits(t *testing.T) {
-	m := goldenModel(160, 40) // a 40-column left panel
-	require.Contains(t, m.planRows(40, 10), "PROJ-BUILD  Build and test")
-
-	narrow := goldenModel(80, 24) // a 20-column left panel: the key alone
-	rows := narrow.planRows(20, 10)
-	require.Contains(t, rows, "PROJ-BUILD")
-	require.NotContains(t, rows, "Build")
-}
-
-func TestPlanRowsWithoutANameShowTheKey(t *testing.T) {
-	m := goldenModel(160, 40)
-	m.plans.setItems([]provider.Plan{{Key: "PROJ-BARE", ProjectKey: "PROJ"}})
-	// The cursor row is a bar padded to the panel width, so trim the padding.
-	require.Equal(t, "▸ PROJ-BARE", strings.TrimRight(m.planRows(40, 10), " "))
-}
-
-// TestBuildsPanelNamesItsPlan: after enter on a plan nothing else on screen
-// said which plan the builds belong to.
-func TestBuildsPanelNamesItsPlan(t *testing.T) {
-	m := goldenModel(120, 40)
-	m.buildsPlan = "PROJ-BUILD"
-	require.Contains(t, m.View(), "2 Builds · Build and test")
-
-	// A branch plan is named after its master plan.
-	m.buildsPlan = "PROJ-BUILD12"
-	require.Contains(t, m.View(), "2 Builds · Build and test")
-
-	// A plan outside the plans load has no name to show.
-	m.buildsPlan = "LAB-OTHER"
-	require.NotContains(t, m.View(), "2 Builds ·")
-}
-
-func TestMainPanelNamesTheBuildsPlan(t *testing.T) {
-	m := goldenModel(120, 40)
-	m.focus = focusBuilds
-	require.Contains(t, m.View(), "PROJ-BUILD-44 · Build and test")
-
-	m.focus = focusStages
-	m.detail = ptr(sampleBuild())
-	m.expanded = defaultExpanded(sampleBuild())
-	require.Contains(t, m.View(), "PROJ-BUILD-44 · Build and test")
-}
-
 func TestPlanNameOf(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.plans.setItems([]provider.Plan{
@@ -77,17 +31,24 @@ func barStart(focused bool) string {
 
 func TestPanelCursorRowsAreBars(t *testing.T) {
 	forceColour(t)
-	m := goldenModel(80, 24) // focus on Builds
-	builds := strings.Split(m.buildRows(40, 5), "\n")
+	m := planGolden(80, 24) // focus on Builds
+	builds := strings.Split(m.planBuildRows(40, 5), "\n")
 	require.Contains(t, builds[0], barStart(true), "the focused panel's cursor row is the bright bar")
 	require.NotContains(t, builds[1], barStart(true))
-	plans := strings.Split(m.planRows(20, 5), "\n")
-	require.Contains(t, plans[0], barStart(false), "an unfocused panel shows where its cursor is")
+	stages := strings.Split(m.stagesBody(46, 10), "\n")
+	require.Contains(t, stages[2], barStart(false), "an unfocused panel shows where its cursor is")
+	require.Equal(t, 1, strings.Count(strings.Join(stages, "\n"), barStart(false)), "one bar")
+
+	m.focus = focusStages
+	stages = strings.Split(m.stagesBody(46, 10), "\n")
+	require.Contains(t, stages[2], barStart(true), "the focused Stages cursor row is the bright bar")
+	builds = strings.Split(m.planBuildRows(40, 5), "\n")
+	require.Contains(t, builds[0], barStart(false))
 }
 
-func TestBuildRowsTruncateToTheBar(t *testing.T) {
+func TestPlanBuildRowsTruncateToTheBar(t *testing.T) {
 	m := goldenModel(80, 24)
-	for _, l := range strings.Split(m.buildRows(8, 5), "\n") {
+	for _, l := range strings.Split(m.planBuildRows(8, 5), "\n") {
 		require.LessOrEqual(t, lipgloss.Width(l), 8, "a build row never outgrows its panel")
 	}
 }

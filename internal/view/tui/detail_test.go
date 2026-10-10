@@ -61,14 +61,14 @@ func TestFailedStagesExpandByDefault(t *testing.T) {
 	require.False(t, defaultExpanded(sampleBuild())["Build"])
 }
 
-func TestDetailBodyNamesTheStateAndTheFailedTests(t *testing.T) {
+// TestStagesBodyShowsTheTreeAndTheFailedTests: state, number and branch are
+// in the Builds row and the header, so Stages starts at the reason line.
+func TestStagesBodyShowsTheTreeAndTheFailedTests(t *testing.T) {
 	m := testModel()
 	m.detail = ptr(sampleBuild())
 	m.expanded = defaultExpanded(sampleBuild())
-	body := m.detailBody(56, 20)
-	require.Contains(t, body, "failed")
-	require.Contains(t, body, "#44")
-	require.Contains(t, body, "main")
+	body := m.stagesBody(56, 20)
+	require.NotContains(t, body, "#44", "the build header line is gone")
 	require.Contains(t, body, "Integration")
 	require.Contains(t, body, "3 failed tests")
 	require.NotContains(t, body, "Compile", "a passing stage stays collapsed")

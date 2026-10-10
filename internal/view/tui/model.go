@@ -972,6 +972,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 		// The tree is the old server's; a build key means another build here.
 		m.stopTree()
 		m.screen = m.buildTree.from
+		m.buildTree.back = nil // the plan screen to return to is the old server's
 	}
 	// The plan, its builds and its cache are the old server's, also when
 	// the plan screen is not the one on top.

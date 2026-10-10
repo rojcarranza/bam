@@ -668,3 +668,82 @@ func TestEscAfterARunReturnsHome(t *testing.T) {
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenHome, m.screen)
 }
+
+// I4(a): the tree screen opened from a drilled plan screen comes back to
+// that drilled screen, stack and all; esc from a build opened on the tree
+// returns to the tree before any stack pop.
+func TestTreeFromADrilledPlanComesBackToIt(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	m, _ = send(m, mkKey("enter")) // drill into PROJ-PROV-7
+	require.Equal(t, "PROJ-PROV", m.plan.key)
+	require.Len(t, m.plan.stack, 1)
+
+	m = firstTree(t, m)
+	require.Equal(t, "PROJ-PROV-7", m.buildTree.root)
+	m, _ = send(m, mkKey("enter")) // the root
+	require.Equal(t, screenPlan, m.screen)
+	require.True(t, m.fromTree)
+	m, _ = send(m, mkKey("esc")) // Stages to Builds
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenTree, m.screen, "esc returns to the tree, not down the drill stack")
+	require.False(t, m.fromTree)
+
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, "PROJ-PROV", m.plan.key)
+	require.Equal(t, "PROJ-PROV-7", m.detail.Key)
+	require.Equal(t, focusStages, m.focus, "focus is where t was pressed")
+	require.Len(t, m.plan.stack, 1, "the drill stack is restored")
+	require.False(t, m.fromTree)
+
+	m, _ = send(m, mkKey("esc")) // Stages to Builds
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, "PROJ-BUILD", m.plan.key, "the drill stack pops as before")
+}
+
+// I4(b): esc off the tree screen lands on the plan screen t was pressed on,
+// with its running build watched again.
+func TestTreeFromAPlanComesBackToItsRunningBuild(t *testing.T) {
+	m := planWithTree(t)
+	running := sampleBuild()
+	running.State = provider.StateRunning
+	m, _ = m.showBuild(running)
+	require.NotNil(t, m.watchCancel)
+	m.focus = focusStages
+
+	m = firstTree(t, m)
+	require.Nil(t, m.watchCancel, "the tree screen watches the tree only")
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("enter")) // PROJ-PROV-7
+	require.Equal(t, "PROJ-PROV", m.plan.key)
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenTree, m.screen)
+
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, "PROJ-BUILD", m.plan.key, "back where t was pressed")
+	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
+	require.Equal(t, focusStages, m.focus)
+	require.NotNil(t, m.watchCancel, "the running build is watched again")
+}
+
+// Leaving a tree opened on Home goes Home with nothing of the build opened
+// on the tree left behind.
+func TestEscOffATreeFromHomeLeavesNoPlanBehind(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m.screen, m.focus = screenHome, focusPlans
+	next, cmd := m.openTree("PROJ-BUILD-44")
+	m = next.(Model)
+	m, _ = send(m, cmd())
+	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenTree, m.screen)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenHome, m.screen)
+	require.Equal(t, focusPlans, m.focus)
+	require.Empty(t, m.plan.key)
+	require.Nil(t, m.detail)
+}

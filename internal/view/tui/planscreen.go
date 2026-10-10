@@ -42,6 +42,32 @@ type planFrame struct {
 	focus           focus
 }
 
+// planReturn is the plan screen t was pressed on: closing the tree screen
+// draws it again, with its drill stack and its way back to a set.
+type planReturn struct {
+	frame   planFrame
+	stack   []planFrame
+	fromSet bool
+}
+
+// currentFrame is the plan screen as it stands, with focus f.
+func (m Model) currentFrame(f focus) planFrame {
+	frame := planFrame{key: m.plan.key, buildsPlan: m.buildsPlan, focus: f}
+	if m.detail != nil {
+		frame.build = *m.detail
+	}
+	return frame
+}
+
+// wantOf is the build a frame opens on, or nil when it had none open.
+func (f planFrame) wantOf() *provider.Build {
+	if f.build.Key == "" {
+		return nil
+	}
+	b := f.build
+	return &b
+}
+
 // treePreview is the Tree panel: the direct children of one build.
 type treePreview struct {
 	key     string
@@ -309,11 +335,7 @@ func (m Model) drillTree() (Model, tea.Cmd) {
 	if n.Loop {
 		return m, nil
 	}
-	frame := planFrame{key: m.plan.key, buildsPlan: m.buildsPlan, focus: focusTree}
-	if m.detail != nil {
-		frame.build = *m.detail
-	}
-	stack := append(m.plan.stack, frame)
+	stack := append(m.plan.stack, m.currentFrame(focusTree))
 	var want *provider.Build
 	if !n.NotRun {
 		b := n.Build
@@ -329,12 +351,7 @@ func (m Model) popPlan() (Model, tea.Cmd) {
 	last := len(m.plan.stack) - 1
 	f := m.plan.stack[last]
 	stack := m.plan.stack[:last]
-	var want *provider.Build
-	if f.build.Key != "" {
-		b := f.build
-		want = &b
-	}
-	m, cmd := m.openPlan(f.key, f.buildsPlan, want, f.focus)
+	m, cmd := m.openPlan(f.key, f.buildsPlan, f.wantOf(), f.focus)
 	m.plan.stack = stack
 	return m, cmd
 }

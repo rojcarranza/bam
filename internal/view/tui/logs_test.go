@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -460,4 +461,130 @@ func TestAllJobsAreGroupedByStageAndPrefixed(t *testing.T) {
 	require.Equal(t, []string{"[INT] refused"}, composeLogs(b, jobs[2:], true, "Test"),
 		"a stage screen's header names the stage, so no separator")
 	require.Equal(t, []string{"refused"}, composeLogs(b, jobs[2:], false, ""))
+}
+
+func TestLOnAStageRowOfARunningBuildOpensItLive(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	b := runningBuild()
+	m.detail = &b
+	m.focus = focusMain
+	m.expanded = map[string]bool{}
+	m.treeCursor = 1 // Build, Test, Deploy: Test
+
+	m, cmd := send(m, mkKey("l"))
+	require.Equal(t, screenLogs, m.screen)
+	msg, ok := cmd().(logsLoadedMsg)
+	require.True(t, ok, "got %T", cmd())
+	require.Equal(t, "Test", msg.Stage)
+	require.True(t, msg.Live)
+	require.True(t, msg.Multi)
+	require.Equal(t, "[INT] 12:04:31  [INFO] Running integration suite", msg.Lines[0])
+
+	m, follow := send(m, msg)
+	require.True(t, m.logs.following, "a running stage opens already following")
+	require.NotNil(t, follow)
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · Test")
+	m.stopFollow()
+}
+
+func TestLOnAStageRowOfAFinishedBuildDoesNotFollow(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	m.detail = ptr(sampleBuild())
+	m.focus = focusMain
+	m.expanded = map[string]bool{}
+	m.treeCursor = 1
+
+	_, cmd := send(m, mkKey("l"))
+	msg := cmd().(logsLoadedMsg)
+	require.Equal(t, "Test", msg.Stage)
+	require.False(t, msg.Live)
+	m, _ = send(m, msg)
+	require.False(t, m.logs.following)
+}
+
+func TestLOnAJobRowOpensThatJob(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	m.detail = ptr(sampleBuild())
+	m.focus = focusMain
+	m.expanded = map[string]bool{"Build": true}
+	m.treeCursor = 2 // Build, Compile, Unit tests, Test, Deploy: Unit tests
+
+	_, cmd := send(m, mkKey("l"))
+	msg := cmd().(logsLoadedMsg)
+	require.Equal(t, "PROJ-BUILD-UNIT-44", msg.JobKey)
+	require.Empty(t, msg.Stage)
+}
+
+func TestEnterOnAStageRowStillTogglesIt(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	m.detail = ptr(sampleBuild())
+	m.focus = focusMain
+	m.expanded = map[string]bool{}
+	m.treeCursor = 1
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.expanded["Test"])
+	require.NotEqual(t, screenLogs, m.screen)
+}
+
+func TestLOnARunningBuildOpensItsCurrentStage(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	m.builds.setItems([]provider.Build{runningBuild()})
+	m.focus = focusBuilds
+
+	_, cmd := send(m, mkKey("l"))
+	msg := cmd().(logsLoadedMsg)
+	require.Equal(t, "Test", msg.Stage)
+	require.True(t, msg.Live)
+}
+
+// TestLOnAQueuedBuildWaitsForJobs: Review Focus 5.
+func TestLOnAQueuedBuildWaitsForJobs(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	queued := provider.Build{Key: "PROJ-BUILD-45", PlanKey: "PROJ-BUILD", Number: 45, State: provider.StateQueued,
+		Stages: []provider.Stage{{Name: "Test", State: provider.StateQueued,
+			Jobs: []provider.Job{{Key: "PROJ-BUILD-INT-45", Name: "Integration", State: provider.StateQueued}}}}}
+	m.builds.setItems([]provider.Build{queued})
+	m.focus = focusBuilds
+
+	m, cmd := send(m, mkKey("l"))
+	msg, ok := cmd().(logsLoadedMsg)
+	require.True(t, ok, "got %T", cmd())
+	require.Empty(t, msg.Lines)
+	m, _ = send(m, msg)
+	require.True(t, m.logs.following)
+	require.Contains(t, m.View(), waitingLine)
+	m.stopFollow()
+}
+
+// TestLeavingALiveStageNeverStopsTheBuild: Review Focus 4.
+func TestLeavingALiveStageNeverStopsTheBuild(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	m.builds.setItems([]provider.Build{runningBuild()})
+	m.focus = focusBuilds
+	m, cmd := send(m, mkKey("l"))
+	m, _ = send(m, cmd())
+	require.True(t, m.logs.following)
+
+	m, _ = send(m, mkKey("esc"))
+	require.False(t, m.logs.following)
+	require.Empty(t, m.svc.P.(*fake.Provider).Stopped)
+}
+
+func TestStageLogGolden(t *testing.T) {
+	m := stageModel()
+	m.logs.appendLines([]string{"[INT] 12:06:58  [ERROR] ConnectionRefused: bamboo.lab.example:5432"})
+	next := runningBuild()
+	next.Stages[1].State = provider.StateSuccess
+	next.Stages[2].State = provider.StateRunning
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: app.LogEvent{Kind: app.StageStart, Stage: "Deploy", Build: next}})
+	m, _ = send(m, logEventMsg{Gen: m.followGen, Event: linesEvent("PROJ-BUILD-DEP-44", 1, "12:08:00  deploying")})
+	m.logs.search("error")
+	requireGolden(t, "logs-stage-80x24", m.View())
 }

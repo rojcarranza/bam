@@ -512,3 +512,37 @@ func watchCmd(ch <-chan app.Event, gen int) tea.Cmd {
 		return watchEventMsg{Gen: gen, Event: e}
 	}
 }
+
+// stageLogsCmd reads one stage's logs. An empty stage means the build's
+// current stage. A listing row carries no stages, so it is read in full
+// first; a build with no current stage, or one that turns out to be
+// finished, gets its failed jobs, which is what l always showed.
+func stageLogsCmd(ctx context.Context, svc *app.Service, b provider.Build, stage string, gen int) tea.Cmd {
+	return func() tea.Msg {
+		if len(b.Stages) == 0 {
+			full, err := svc.Build(ctx, b.Key)
+			if err != nil {
+				return errMsg{Err: err, Where: "logs", Stream: streamLogs, Gen: gen}
+			}
+			b = full
+		}
+		if stage == "" {
+			cur, ok := app.CurrentStage(b)
+			if !ok || b.State.Finished() {
+				return loadLogsCmd(ctx, svc, b, "", false, gen)()
+			}
+			stage = cur
+		}
+		jobs, err := svc.Logs(ctx, b, app.LogsOptions{Stage: stage})
+		if err != nil {
+			return errMsg{Err: err, Where: "logs", Stream: streamLogs, Gen: gen}
+		}
+		if len(jobs) == 0 {
+			return errMsg{Err: errs.Bamboof("stage %s of %s has no jobs", stage, b.Key),
+				Where: "logs", Stream: streamLogs, Gen: gen}
+		}
+		msg := logsMsg(b, jobs, true, stage, gen)
+		msg.Live = !b.State.Finished()
+		return msg
+	}
+}

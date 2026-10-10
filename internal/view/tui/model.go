@@ -649,7 +649,7 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Copy):
 		return m.copySelection()
 	case key.Matches(msg, keys.Logs):
-		return m.openLogs("", false)
+		return m.openSelectionLogs()
 	case key.Matches(msg, keys.AllLogs):
 		return m.openLogs("", true)
 	case key.Matches(msg, keys.Tree):
@@ -1232,6 +1232,38 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.logs.vp, cmd = m.logs.vp.Update(msg)
 	m.logs.pinned = m.logs.vp.AtBottom()
 	return m, cmd
+}
+
+// openSelectionLogs is l: on the tree, the stage or job under the cursor;
+// otherwise the current stage of a build still running, live, or else the
+// failed jobs.
+func (m Model) openSelectionLogs() (tea.Model, tea.Cmd) {
+	if m.focus == focusMain {
+		if row, ok := m.selectedTreeRow(); ok {
+			if row.Kind == rowStage {
+				return m.openStageLogs(row.Name)
+			}
+			return m.openLogs(row.Key, false)
+		}
+	}
+	if b, ok := m.currentBuild(); ok && !b.State.Finished() {
+		return m.openStageLogs("")
+	}
+	return m.openLogs("", false)
+}
+
+// openStageLogs takes the screen for one stage's jobs. An empty stage is the
+// build's current one, resolved once the build is read in full.
+func (m Model) openStageLogs(stage string) (tea.Model, tea.Cmd) {
+	b, ok := m.currentBuild()
+	if !ok || m.svc == nil {
+		return m, nil
+	}
+	m.screen = screenLogs
+	m.stopFollow() // reopening replaces the log state; its follow ends first
+	m.logs = logState{}
+	m.logsGen++
+	return m, stageLogsCmd(m.baseCtx(), m.svc, b, stage, m.logsGen)
 }
 
 // openLogs takes the screen for the log viewport. An empty jobKey means the

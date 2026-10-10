@@ -260,6 +260,9 @@ func (m Model) planRest(msg planRestMsg) (Model, tea.Cmd) {
 	if msg.Gen != m.plan.restGen || m.screen != screenPlan {
 		return m, nil
 	}
+	if m.detail != nil && m.detail.Key == msg.Key {
+		return m, nil // enter opened it before the rest ended
+	}
 	b, ok := m.builds.selected()
 	if !ok || b.Key != msg.Key {
 		return m, nil

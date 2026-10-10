@@ -747,3 +747,20 @@ func TestEscOffATreeFromHomeLeavesNoPlanBehind(t *testing.T) {
 	require.Empty(t, m.plan.key)
 	require.Nil(t, m.detail)
 }
+
+// M1: j then enter within the rest delay opens the build at once; the rest
+// that lands after must not read it again or restart its watch.
+func TestARestForTheOpenBuildDoesNothing(t *testing.T) {
+	instantRest(t)
+	m := planOnBuilds(t)
+	m, cmd := send(m, mkKey("j"))
+	rest := cmd()
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, "PROJ-BUILD-43", m.detail.Key)
+	gen, treeGen := m.detailGen, m.treePreviewGen
+
+	m, cmd = send(m, rest)
+	require.Nil(t, cmd)
+	require.Equal(t, gen, m.detailGen, "the open build is not read again")
+	require.Equal(t, treeGen, m.treePreviewGen)
+}

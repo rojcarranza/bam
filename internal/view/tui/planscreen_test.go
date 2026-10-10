@@ -470,3 +470,20 @@ func TestALongReasonStaysOnItsLine(t *testing.T) {
 		require.LessOrEqual(t, lipgloss.Width(l), 80, l)
 	}
 }
+
+func TestKeyLineFollowsThePlanScreenFocus(t *testing.T) {
+	m := planGolden(80, 24)
+	for _, tc := range []struct {
+		f    focus
+		want string
+	}{
+		{focusBuilds, "enter stages  R run  l logs  t tree  / filter  esc back"},
+		{focusStages, "enter expand  l logs  R run  t tree  esc builds"},
+		{focusTree, "enter open  t tree  l logs  esc builds"},
+	} {
+		m.focus = tc.f
+		require.Equal(t, tc.want, m.keyLine())
+		bar := m.statusBar(80)
+		require.Contains(t, bar, tc.want, "the line fits an 80-column bar beside lab · 9.6.4 · jdoe")
+	}
+}

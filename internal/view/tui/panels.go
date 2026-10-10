@@ -128,7 +128,13 @@ func (m Model) keyLine() string {
 		}
 		return "enter open  / filter  s sort  : cmd  R run  ?help  q quit"
 	}
-	return "?help  : cmd  tab focus  l logs  o open  q quit"
+	switch m.focus {
+	case focusStages:
+		return "enter expand  l logs  R run  t tree  esc builds"
+	case focusTree:
+		return "enter open  t tree  l logs  esc builds"
+	}
+	return "enter stages  R run  l logs  t tree  / filter  esc back"
 }
 
 // statusBar is one line: where we are on the left, what to press on the

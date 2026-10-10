@@ -21,4 +21,4 @@
 │                              │┃                                              ┃
 │                              │┃                                              ┃
 ╰──────────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-lab · 9.6.4 · jdoe               ?help  : cmd  tab focus  l logs  o open  q quit
+lab · 9.6.4 · jdoe                        enter open  t tree  l logs  esc builds

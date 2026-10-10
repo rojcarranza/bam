@@ -142,11 +142,11 @@ without a terminal, bare `bam` prints help exactly as before.
 | Home | `enter` | open the plan screen on the row's plan |
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :project :server :sort :q |
-| View | `l` | logs for the selection (failed jobs by default) |
+| View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |
 | | `a` | all logs, not only failed; in the set vars prompt, add a variable |
-| | `f` | follow (log screen) |
+| | `f` | follow the jobs on the log screen |
 | | `/` | filter the focused list, or search the log |
-| | `n` `N` | next / previous match, or next failure |
+| | `n` `N` | next / previous match, or next failure with no search |
 | | `r` | refresh the focused panel |
 | | `t` | the build tree of the selected build: every build it triggered |
 | | `e` | expand the current error |

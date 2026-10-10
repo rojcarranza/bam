@@ -11,11 +11,11 @@
     ┃HOME  enter            open the plan screen on the row's plan         ┃    
     ┃      s                next sort column                               ┃    
     ┃      :                command bar: :plans :presets :sets :projects : ┃    
-    ┃VIEW  l                logs for the selection (failed jobs by default ┃    
+    ┃VIEW  l                logs for the selection: a stage, a job, or fai ┃    
     ┃      a                all logs, not only failed; in the set vars pro ┃    
-    ┃      f                follow (log screen)                            ┃    
+    ┃      f                follow the jobs on the log screen              ┃    
     ┃      /                filter the focused list, or search the log     ┃    
-    ┃      n N              next / previous match, or next failure         ┃    
+    ┃      n N              next / previous match, or next failure with no ┃    
     ┃      r                refresh the focused panel                      ┃    
     ┃      t                the build tree of the selected build: every bu ┃    
     ┃      e                expand the current error                       ┃    

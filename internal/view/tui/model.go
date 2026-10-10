@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -145,9 +146,9 @@ type Model struct {
 	revisionRun struct{ Key, Rev string }
 
 	followCancel context.CancelFunc
-	followLines  <-chan []string
+	followEvents <-chan app.LogEvent
 	followDone   <-chan error
-	followFrom   int // the offset the current follow resumed at
+	followFrom   map[string]int // the offsets the current follow resumed at
 
 	now func() time.Time
 
@@ -394,12 +395,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case copiedMsg:
 		m.status = "copied to clipboard (osc 52)"
 		return m, nil
-	case logChunkMsg:
+	case logEventMsg:
 		if msg.Gen != m.followGen {
 			return m, nil
 		}
-		m.logs.appendLines(msg.Lines)
-		return m, drainFollowCmd(m.followLines, m.followDone, m.followGen)
+		m.logs.apply(msg.Event)
+		return m, drainFollowCmd(m.followEvents, m.followDone, m.followGen)
 	case followEndedMsg:
 		if msg.Gen != m.followGen {
 			return m, nil
@@ -414,7 +415,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.logs.title, m.logs.jobKey, m.logs.url, m.logs.all = msg.Title, msg.JobKey, msg.URL, msg.All
-		m.logs.multi, m.logs.offset = msg.Multi, msg.Offset
+		m.logs.multi, m.logs.offsets, m.logs.stage = msg.Multi, msg.Offsets, msg.Stage
 		// Keep the build the logs were read from. A row straight from the
 		// Builds panel carries no stages, so without this f could not find
 		// the job it is meant to follow.
@@ -423,6 +424,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.logs.build = &b
 		}
 		m.logs.setLines(m.width, m.logHeight(), msg.Lines)
+		if msg.Live && m.screen == screenLogs {
+			return m.startFollow()
+		}
 		return m, nil
 	case formLoadedMsg:
 		if msg.Gen != m.formGen {
@@ -673,7 +677,7 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Copy):
 		return m.copySelection()
 	case key.Matches(msg, keys.Logs):
-		return m.openLogs("", false)
+		return m.openSelectionLogs()
 	case key.Matches(msg, keys.AllLogs):
 		return m.openLogs("", true)
 	case key.Matches(msg, keys.Tree):
@@ -722,6 +726,9 @@ func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.completeInput(), nil
 		}
 	case tea.KeyEsc:
+		if m.inputFor == inputSearch {
+			m.logs.search("") // esc drops the search and its highlight
+		}
 		m.inputFor = inputNone
 		m.input.SetValue("")
 		m.input.Blur()
@@ -1109,6 +1116,7 @@ func (m Model) selectedTreeRow() (treeRow, bool) {
 // overwriting the main panel while the new plan loads.
 func (m *Model) leaveBuild() {
 	m.stopWatch()
+	m.stopFollow()
 	// Bump the detail generation too: a Main refresh already in flight would
 	// otherwise be accepted and restore the abandoned build under the new
 	// selection.
@@ -1226,9 +1234,11 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.quit()
 	case key.Matches(msg, keys.Bottom):
 		m.logs.vp.GotoBottom()
+		m.logs.pinned = true
 		return m, nil
 	case key.Matches(msg, keys.Top):
 		m.logs.vp.GotoTop()
+		m.logs.pinned = m.logs.vp.AtBottom()
 		return m, nil
 	case key.Matches(msg, keys.Open):
 		return m.openSelection()
@@ -1257,8 +1267,49 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	var cmd tea.Cmd
+	before := m.logs.vp.YOffset
 	m.logs.vp, cmd = m.logs.vp.Update(msg)
+	// Re-pin after the viewport moves, or when a scroll-down key was pressed
+	// on the last screen (nothing to move, but the reader asked for the end).
+	// An unbound key leaves the pin alone.
+	km := m.logs.vp.KeyMap
+	down := key.Matches(msg, km.Down, km.PageDown, km.HalfPageDown)
+	if m.logs.vp.YOffset != before || down {
+		m.logs.pinned = m.logs.vp.AtBottom()
+	}
 	return m, cmd
+}
+
+// openSelectionLogs is l: on the tree, the stage or job under the cursor;
+// otherwise the current stage of a build still running, live, or else the
+// failed jobs.
+func (m Model) openSelectionLogs() (tea.Model, tea.Cmd) {
+	if m.focus == focusStages {
+		if row, ok := m.selectedTreeRow(); ok {
+			if row.Kind == rowStage {
+				return m.openStageLogs(row.Name)
+			}
+			return m.openLogs(row.Key, false)
+		}
+	}
+	if b, ok := m.currentBuild(); ok && !b.State.Finished() {
+		return m.openStageLogs("")
+	}
+	return m.openLogs("", false)
+}
+
+// openStageLogs takes the screen for one stage's jobs. An empty stage is the
+// build's current one, resolved once the build is read in full.
+func (m Model) openStageLogs(stage string) (tea.Model, tea.Cmd) {
+	b, ok := m.currentBuild()
+	if !ok || m.svc == nil {
+		return m, nil
+	}
+	m.screen = screenLogs
+	m.stopFollow() // reopening replaces the log state; its follow ends first
+	m.logs = logState{}
+	m.logsGen++
+	return m, stageLogsCmd(m.baseCtx(), m.svc, b, stage, m.logsGen)
 }
 
 // openLogs takes the screen for the log viewport. An empty jobKey means the
@@ -1359,35 +1410,36 @@ func (m Model) copySelection() (tea.Model, tea.Cmd) {
 	}
 }
 
-// toggleFollow starts or stops streaming the open job's log. Following polls
-// that job only; it never touches the build.
+// toggleFollow starts or stops streaming the open logs. Following polls the
+// build's logs only; it never touches the build.
 func (m Model) toggleFollow() (tea.Model, tea.Cmd) {
 	if m.logs.following {
 		m.stopFollow()
 		return m, nil
 	}
-	if m.logs.multi {
-		// The screen is several jobs concatenated, so there is no single job
-		// to resume and appending would interleave one job into another.
-		m.status = "follow needs one job; press l for the failed job or pick one"
-		return m, nil
-	}
+	return m.startFollow()
+}
+
+// startFollow follows every job on the screen from the provider's own
+// offsets, not from the number of lines drawn: only the first is a contract.
+// A stage screen also moves on to the next stage.
+func (m Model) startFollow() (tea.Model, tea.Cmd) {
 	b, ok := m.logBuild()
-	if !ok || m.svc == nil || m.logs.jobKey == "" {
+	if !ok || m.svc == nil || len(m.logs.offsets) == 0 {
 		return m, nil
 	}
-	job, ok := jobByKey(b, m.logs.jobKey)
-	if !ok {
-		return m, nil
+	for k := range m.logs.offsets {
+		if _, ok := jobByKey(b, k); !ok {
+			return m, nil
+		}
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.followCancel = cancel
 	m.logs.following = true
-	// Resume at the provider's own offset, not at the number of lines drawn:
-	// the two are different numbers and only the first is a contract.
-	m.followFrom = m.logs.offset
-	m.followLines, m.followDone = followCmd(ctx, m.svc, b.Key, job, m.followFrom)
-	return m, drainFollowCmd(m.followLines, m.followDone, m.followGen)
+	m.followFrom = maps.Clone(m.logs.offsets)
+	m.followEvents, m.followDone = followCmd(ctx, m.svc, b.Key, m.followFrom, m.logs.stage != "")
+	m.logs.refresh() // an empty stage now says it is waiting
+	return m, drainFollowCmd(m.followEvents, m.followDone, m.followGen)
 }
 
 func (m *Model) stopFollow() {
@@ -1395,8 +1447,9 @@ func (m *Model) stopFollow() {
 		m.followCancel()
 		m.followCancel = nil
 	}
-	m.followLines, m.followDone = nil, nil
+	m.followEvents, m.followDone = nil, nil
 	m.logs.following = false
+	m.logs.refresh()
 	m.followGen++
 }
 
@@ -1629,12 +1682,14 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		return m, nil
 	case m.screen == screenLogs && m.logsFromTree:
 		m.stopFollow()
+		m.logsGen++ // abandon a load still in flight
 		m.logsFromTree, m.fromTree = false, false
 		m.stopWatch() // the build watch openTreeBuild started; the tree resumes its own
 		m.screen = screenTree
 		return m.watchTree() // watching paused while the logs were open
 	case m.screen == screenLogs:
 		m.stopFollow()
+		m.logsGen++ // abandon a load still in flight
 		m.screen = screenPlan
 		return m, nil
 	case m.screen == screenForm:

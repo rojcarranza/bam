@@ -265,12 +265,24 @@ type setRun struct {
 	// instead of bam triggering them (bam set rerun --failed).
 	restartStage int
 	restart      map[int]bool
+
+	// sendMu orders sends from the stage loop and the run watchers, so that
+	// once the last event (set_error or set_done) is out, a watcher still
+	// winding down cannot send a run_event after it.
+	sendMu sync.Mutex
+	ended  bool
 }
 
 func (r *setRun) send(ctx context.Context, e SetEvent) bool {
+	r.sendMu.Lock()
+	defer r.sendMu.Unlock()
+	if r.ended {
+		return false
+	}
 	e.Time, e.Set, e.ID = r.s.Clock.Now(), r.p.Name, r.rec.ID
 	select {
 	case r.ch <- e:
+		r.ended = e.Type == SetError || e.Type == SetDone
 		return true
 	case <-ctx.Done():
 		return false

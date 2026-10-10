@@ -114,7 +114,7 @@ func TestStaleFollowChunkIsDropped(t *testing.T) {
 	m := logModel()
 	before := len(m.logs.lines)
 	m.followGen = 4
-	m, _ = send(m, logChunkMsg{Gen: 3, Lines: []string{"from a job we left"}})
+	m, _ = send(m, logEventMsg{Gen: 3, Event: linesEvent("PROJ-BUILD-INT-44", 5, "from a job we left")})
 	require.Len(t, m.logs.lines, before)
 }
 
@@ -241,15 +241,16 @@ func TestStalePickerResponsesAreDropped(t *testing.T) {
 // clean end.
 func TestFollowSurfacesItsError(t *testing.T) {
 	svc := testService()
-	svc.P.(*fake.Provider).LogErrs = []error{errBoom}
+	f := svc.P.(*fake.Provider)
+	f.LogErrs = []error{errBoom}
+	f.Sequences = map[string][]provider.Build{"PROJ-BUILD-44": {sampleBuild()}}
 
-	lines, done := followCmd(t.Context(), svc, "PROJ-BUILD-44",
-		provider.Job{Key: "PROJ-BUILD-INT-44"}, 0)
+	events, done := followCmd(t.Context(), svc, "PROJ-BUILD-44", map[string]int{"PROJ-BUILD-INT-44": 0}, false)
 
 	var msg tea.Msg
 	for {
-		msg = drainFollowCmd(lines, done, 0)()
-		if _, ok := msg.(logChunkMsg); !ok {
+		msg = drainFollowCmd(events, done, 0)()
+		if _, ok := msg.(logEventMsg); !ok {
 			break
 		}
 	}
@@ -495,7 +496,7 @@ func TestReopeningTheLogsStopsAnActiveFollow(t *testing.T) {
 	require.False(t, m.logs.following)
 
 	before := len(m.logs.lines)
-	m, _ = send(m, logChunkMsg{Gen: staleGen, Lines: []string{"from the job we left"}})
+	m, _ = send(m, logEventMsg{Gen: staleGen, Event: linesEvent("PROJ-BUILD-INT-44", 5, "from the job we left")})
 	require.Len(t, m.logs.lines, before)
 }
 

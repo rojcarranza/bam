@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 	"time"
 
@@ -40,23 +41,55 @@ type planFrame struct {
 	key, buildsPlan string
 	build           provider.Build
 	focus           focus
+
+	stageCursor int             // Stages: the row under the cursor
+	expanded    map[string]bool // Stages: which stages were open
+	treeCursor  int             // Tree: the row under the cursor
 }
 
 // planReturn is the plan screen t was pressed on: closing the tree screen
-// draws it again, with its drill stack and its way back to a set.
+// draws it again, with its drill stack and its way back to a set or to the
+// tree screen it was itself opened from.
 type planReturn struct {
-	frame   planFrame
-	stack   []planFrame
-	fromSet bool
+	frame    planFrame
+	stack    []planFrame
+	fromSet  bool
+	fromTree bool
+	tree     *treeScreen // the tree screen the plan screen came from, when fromTree
 }
 
 // currentFrame is the plan screen as it stands, with focus f.
 func (m Model) currentFrame(f focus) planFrame {
-	frame := planFrame{key: m.plan.key, buildsPlan: m.buildsPlan, focus: f}
+	frame := planFrame{key: m.plan.key, buildsPlan: m.buildsPlan, focus: f,
+		stageCursor: m.treeCursor, expanded: maps.Clone(m.expanded), treeCursor: m.plan.treeCursor}
 	if m.detail != nil {
 		frame.build = *m.detail
 	}
 	return frame
+}
+
+// restoreCursors puts the Stages and Tree cursors back where the frame had
+// them, once the frame's plan screen is open again. A tree still loading
+// keeps the Tree cursor and clamps it when it arrives.
+func (m *Model) restoreCursors(f planFrame) {
+	if m.detail == nil || m.detail.Key != f.build.Key {
+		return
+	}
+	if f.expanded != nil {
+		m.expanded = maps.Clone(f.expanded)
+	}
+	m.treeCursor = f.stageCursor
+	m.clampTree()
+	m.plan.treeCursor = f.treeCursor
+	m.clampTreePreview()
+}
+
+// clampTreePreview keeps the Tree cursor on a row, once the rows are known.
+func (m *Model) clampTreePreview() {
+	if !m.plan.tree.have {
+		return
+	}
+	m.plan.treeCursor = min(m.plan.treeCursor, max(len(m.treePreviewRows())-1, 0))
 }
 
 // wantOf is the build a frame opens on, or nil when it had none open.
@@ -316,6 +349,7 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 	m.plan.tree = treePreview{key: msg.Key, tree: msg.Tree, have: true, err: msg.Err}
+	m.clampTreePreview()
 	if msg.Err == nil && msg.Tree.Root != nil &&
 		app.TreeFinished(msg.Tree.Root.Build.State) && msg.Tree.State != provider.StateRunning {
 		if m.plan.trees == nil {
@@ -363,6 +397,7 @@ func (m Model) popPlan() (Model, tea.Cmd) {
 	stack := m.plan.stack[:last]
 	m, cmd := m.openPlan(f.key, f.buildsPlan, f.wantOf(), f.focus)
 	m.plan.stack = stack
+	m.restoreCursors(f)
 	return m, cmd
 }
 

@@ -807,3 +807,111 @@ func TestHomeKeepsNoBuildsOfTheClosedPlan(t *testing.T) {
 	m, _ = send(m, buildsLoadedMsg{Gen: gen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
 	require.Empty(t, m.builds.items, "a load for the closed plan is dropped")
 }
+
+// Review on #57: leaving the plan screen for the set or tree screen closes
+// it, so a load still in flight cannot land on the abandoned plan.
+func TestEscOffThePlanScreenDropsLateResults(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		mark func(*Model)
+		want screen
+	}{
+		{"set", func(m *Model) { m.fromSet = true }, screenSet},
+		{"tree", func(m *Model) { m.fromTree = true }, screenTree},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := planWithTree(t)
+			tc.mark(&m)
+			m.focus = focusBuilds
+			buildsGen, treeGen, key := m.buildsGen, m.treePreviewGen, m.plan.tree.key
+			m, _ = send(m, mkKey("esc"))
+			require.Equal(t, tc.want, m.screen)
+			require.Empty(t, m.plan.key, "the plan screen is closed")
+
+			m, _ = send(m, buildsLoadedMsg{Gen: buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
+			require.Zero(t, m.builds.len(), "a late builds load is dropped")
+			m, _ = send(m, treePreviewMsg{Gen: treeGen, Key: key})
+			require.False(t, m.plan.tree.have, "a late tree preview is dropped")
+			require.Nil(t, m.watchCancel)
+		})
+	}
+}
+
+// twoChildTree is build 44's tree with a run child and a not-run one, final.
+func twoChildTree() app.Tree {
+	b := sampleBuild()
+	return app.Tree{State: provider.StateFailed, Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b, Children: []*app.TreeNode{
+		{PlanKey: "PROJ-PROV", Build: provider.Build{Key: "PROJ-PROV-7", PlanKey: "PROJ-PROV", Number: 7, State: provider.StateFailed}},
+		{PlanKey: "OPS-NIGHTLY", NotRun: true},
+	}}}
+}
+
+// planWithCursors is build 44 open with both caches warm, the Stages cursor
+// on Integration (row 2) and the Tree cursor on the second child.
+func planWithCursors(t *testing.T) Model {
+	t.Helper()
+	m := planWithTree(t)
+	full := sampleBuild()
+	m.plan.cache = map[string]provider.Build{full.Key: full}
+	m.plan.trees = map[string]app.Tree{full.Key: twoChildTree()}
+	m.plan.tree.tree = twoChildTree()
+	m.treeCursor, m.plan.treeCursor = 2, 1
+	return m
+}
+
+func TestPopRestoresTheStagesAndTreeCursors(t *testing.T) {
+	m := planWithCursors(t)
+	m.focus = focusTree
+	m, _ = send(m, mkKey("enter")) // the not-run child: OPS-NIGHTLY
+	require.Equal(t, "OPS-NIGHTLY", m.plan.key)
+	m.focus = focusBuilds
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, "PROJ-BUILD", m.plan.key)
+	require.Equal(t, focusTree, m.focus)
+	require.Equal(t, 2, m.treeCursor, "Stages cursor where it was")
+	require.Equal(t, 1, m.plan.treeCursor, "Tree cursor where it was")
+}
+
+func TestClosingTheTreeScreenRestoresTheCursors(t *testing.T) {
+	m := planWithCursors(t)
+	m.focus = focusStages
+	m, _ = send(m, mkKey("t"))
+	require.Equal(t, screenTree, m.screen)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, 2, m.treeCursor)
+	require.Equal(t, 1, m.plan.treeCursor)
+
+	// The tree is read again after the round trip; the cursor survives it.
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: m.plan.tree.key, Tree: twoChildTree()})
+	require.Equal(t, 1, m.plan.treeCursor)
+}
+
+// A plan screen reached from tree A, then t for tree B, then esc: the plan
+// screen still knows its way back to tree A.
+func TestATreeFromAPlanFromATreeKeepsTheWayBack(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m.screen, m.focus = screenHome, focusPlans
+	next, cmd := m.openTree("PROJ-BUILD-44")
+	m = next.(Model)
+	m, _ = send(m, cmd())
+	require.True(t, m.buildTree.have)
+
+	m, _ = send(m, mkKey("enter")) // the root build: its plan screen, from tree A
+	require.Equal(t, screenPlan, m.screen)
+	require.True(t, m.fromTree)
+
+	m, _ = send(m, mkKey("t")) // tree B, on the open build
+	require.Equal(t, screenTree, m.screen)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenPlan, m.screen)
+	require.True(t, m.fromTree, "the plan screen still came from tree A")
+	require.Equal(t, "PROJ-BUILD-44", m.buildTree.root)
+	require.Equal(t, screenHome, m.buildTree.from)
+
+	m.focus = focusBuilds
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenTree, m.screen, "esc returns to tree A, not Home")
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenHome, m.screen)
+}

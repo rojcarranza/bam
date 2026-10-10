@@ -1684,7 +1684,9 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		m.stopFollow()
 		m.logsGen++ // abandon a load still in flight
 		m.logsFromTree, m.fromTree = false, false
-		m.stopWatch() // the build watch openTreeBuild started; the tree resumes its own
+		// The plan screen openTreeBuild opened under the logs is left too:
+		// closing it stops its watch and drops its loads still in flight.
+		m.closePlan()
 		m.screen = screenTree
 		return m.watchTree() // watching paused while the logs were open
 	case m.screen == screenLogs:
@@ -1730,13 +1732,15 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	case m.screen == screenPlan && len(m.plan.stack) > 0:
 		return m.popPlan()
 	case m.screen == screenPlan && m.fromSet:
+		// Closing the plan screen stops its watch and drops its loads still
+		// in flight, so none lands on a plan the user has left.
 		m.fromSet = false
-		m.stopWatch()
+		m.closePlan()
 		m.screen = screenSet
 		return m, nil
 	case m.screen == screenPlan && m.fromTree:
 		m.fromTree = false
-		m.stopWatch()
+		m.closePlan()
 		m.screen = screenTree
 		return m.watchTree() // watching paused while the build was open
 	case m.screen == screenTree:

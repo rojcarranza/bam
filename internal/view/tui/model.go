@@ -517,6 +517,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSetDry(msg)
 	case treeEventMsg:
 		return m.handleTreeEvent(msg)
+	case treePreviewMsg:
+		return m.treePreviewLoaded(msg)
 	case treeClosedMsg:
 		return m, nil
 	case treeRerunMsg:
@@ -545,6 +547,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		m.status = ""
 		m.plans.loading, m.builds.loading = false, false
+		if msg.Stream == streamDetail {
+			m.plan.stagesLoading = false
+		}
 		if msg.Stream == streamProjects {
 			m.projects.loading = false
 		}
@@ -866,6 +871,11 @@ func (m Model) refresh() (tea.Model, tea.Cmd) {
 		}
 		m.detailGen++
 		return m, reloadBuildCmd(m.baseCtx(), m.svc, m.detail.Key, m.detailGen)
+	case focusTree:
+		if m.detail == nil {
+			return m, nil
+		}
+		return m.loadTreePreview(m.detail.Key, true)
 	}
 	return m, nil
 }
@@ -1017,6 +1027,8 @@ func (m *Model) moveFocused(delta int) {
 	case focusStages:
 		m.treeCursor += delta
 		m.clampTree()
+	case focusTree:
+		m.plan.treeCursor = min(max(m.plan.treeCursor+delta, 0), max(len(m.treePreviewRows())-1, 0))
 	}
 }
 
@@ -1038,6 +1050,11 @@ func (m *Model) jumpFocused(top bool) {
 			m.treeCursor = len(m.treeRows()) - 1
 		}
 		m.clampTree()
+	case focusTree:
+		m.plan.treeCursor = 0
+		if !top {
+			m.plan.treeCursor = max(len(m.treePreviewRows())-1, 0)
+		}
 	}
 }
 
@@ -1119,6 +1136,8 @@ func (m Model) drill() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.openLogs(row.Key, false)
+	case focusTree:
+		return m.drillTree()
 	}
 	return m, nil
 }
@@ -1143,6 +1162,7 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 	switch e.Type {
 	case app.EventError:
 		m.err = e.Err
+		m.plan.stagesLoading = false
 		m.stopWatch()
 		return m, nil
 	case app.EventDone:
@@ -1151,6 +1171,15 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		}
 		m = m.cacheBuild(e.Build)
 		m.stopWatch()
+		if m.screen == screenPlan && m.detail != nil && m.plan.tree.key == m.detail.Key {
+			var tree tea.Cmd
+			m, tree = m.loadTreePreview(m.detail.Key, true)
+			if m.svc != nil && m.buildsPlan != "" {
+				load := m.loadBuilds(m.buildsPlan, false)
+				return m, tea.Batch(tree, load)
+			}
+			return m, tree
+		}
 		if m.svc != nil && m.buildsPlan != "" {
 			cmd := m.loadBuilds(m.buildsPlan, false)
 			return m, cmd
@@ -1276,6 +1305,12 @@ func (m Model) selectionURL() string {
 		}
 		if m.detail != nil {
 			return m.detail.URL
+		}
+	case focusTree:
+		if rows := m.treePreviewRows(); m.plan.treeCursor < len(rows) {
+			if u := rows[m.plan.treeCursor].Build.URL; u != "" {
+				return u
+			}
 		}
 	}
 	return ""
@@ -1621,6 +1656,8 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	case m.screen == screenPlan && m.focus != focusBuilds:
 		m.focus = focusBuilds
 		return m, nil
+	case m.screen == screenPlan && len(m.plan.stack) > 0:
+		return m.popPlan()
 	case m.screen == screenPlan && m.fromSet:
 		m.fromSet = false
 		m.stopWatch()

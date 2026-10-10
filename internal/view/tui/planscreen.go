@@ -19,9 +19,9 @@ type planScreen struct {
 
 	// stack holds the plan screens Enter on a Tree row came from; cache and
 	// trees hold finished builds and their trees by key.
-	stack []planFrame //nolint:unused // filled by a later task
+	stack []planFrame
 	cache map[string]provider.Build
-	trees map[string]app.Tree //nolint:unused // filled by a later task
+	trees map[string]app.Tree
 
 	tree       treePreview
 	treeCursor int
@@ -31,7 +31,7 @@ type planScreen struct {
 
 // planFrame is one plan screen on the drill stack: enough to draw it again
 // with the cursor where it was.
-type planFrame struct { //nolint:unused // used by a later task
+type planFrame struct {
 	key, buildsPlan string
 	build           provider.Build
 	focus           focus
@@ -39,11 +39,11 @@ type planFrame struct { //nolint:unused // used by a later task
 
 // treePreview is the Tree panel: the direct children of one build.
 type treePreview struct {
-	key     string   //nolint:unused // filled by a later task
-	tree    app.Tree //nolint:unused // filled by a later task
-	have    bool     //nolint:unused // filled by a later task
-	loading bool     //nolint:unused // filled by a later task
-	err     error    //nolint:unused // filled by a later task
+	key     string
+	tree    app.Tree
+	have    bool
+	loading bool
+	err     error
 }
 
 // openPlan shows the plan screen on key, listing buildsPlan's builds (the
@@ -91,17 +91,22 @@ func (m Model) showBuild(b provider.Build) (Model, tea.Cmd) {
 		m.detail = &c
 		m.expanded = defaultExpanded(c)
 		m.plan.stagesLoading = false
-		return m, nil
+		return m.loadTreePreview(b.Key, false)
 	}
 	bb := b
 	m.detail = &bb
 	m.expanded = defaultExpanded(b)
 	m.plan.stagesLoading = true
+	var read tea.Cmd
 	if b.State.Finished() {
-		return m, reloadBuildCmd(m.baseCtx(), m.svc, b.Key, m.detailGen)
+		read = reloadBuildCmd(m.baseCtx(), m.svc, b.Key, m.detailGen)
+	} else {
+		var next tea.Model
+		next, read = m.startWatch(b.Key)
+		m = next.(Model)
 	}
-	next, cmd := m.startWatch(b.Key)
-	return next.(Model), cmd
+	m, tree := m.loadTreePreview(b.Key, false)
+	return m, tea.Batch(read, tree)
 }
 
 // dropOlder removes the pinned older build once the cursor opens another.
@@ -214,4 +219,85 @@ func (m Model) cacheBuild(b provider.Build) Model {
 	}
 	m.plan.cache[b.Key] = b
 	return m
+}
+
+// loadTreePreview reads key's tree, or takes it from the cache unless fresh.
+func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
+	m.treePreviewGen++
+	m.plan.treeCursor = 0
+	if t, ok := m.plan.trees[key]; ok && !fresh {
+		m.plan.tree = treePreview{key: key, tree: t, have: true}
+		return m, nil
+	}
+	m.plan.tree = treePreview{key: key, loading: true}
+	if m.svc == nil {
+		return m, nil
+	}
+	return m, treePreviewCmd(m.baseCtx(), m.svc, key, m.treePreviewGen)
+}
+
+// treePreviewLoaded keeps the tree for the build it was read for. A finished
+// tree is cached: Bamboo queues children when the parent ends, so a tree is
+// final once nothing in it runs.
+func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
+	if msg.Gen != m.treePreviewGen || m.screen != screenPlan || msg.Key != m.plan.tree.key {
+		return m, nil
+	}
+	m.plan.tree = treePreview{key: msg.Key, tree: msg.Tree, have: true, err: msg.Err}
+	if msg.Err == nil && msg.Tree.Root != nil && msg.Tree.State != provider.StateRunning {
+		if m.plan.trees == nil {
+			m.plan.trees = map[string]app.Tree{}
+		}
+		m.plan.trees[msg.Key] = msg.Tree
+	}
+	return m, nil
+}
+
+// treePreviewRows is the Tree panel's rows: the open build's direct children.
+func (m Model) treePreviewRows() []*app.TreeNode {
+	if !m.plan.tree.have || m.plan.tree.tree.Root == nil {
+		return nil
+	}
+	return m.plan.tree.tree.Root.Children
+}
+
+// drillTree opens the plan screen of the child under the Tree cursor, and
+// remembers this one so esc comes back to it.
+func (m Model) drillTree() (Model, tea.Cmd) {
+	rows := m.treePreviewRows()
+	if m.plan.treeCursor >= len(rows) || m.svc == nil {
+		return m, nil
+	}
+	n := rows[m.plan.treeCursor]
+	if n.Loop {
+		return m, nil
+	}
+	frame := planFrame{key: m.plan.key, buildsPlan: m.buildsPlan, focus: focusTree}
+	if m.detail != nil {
+		frame.build = *m.detail
+	}
+	stack := append(m.plan.stack, frame)
+	var want *provider.Build
+	if !n.NotRun {
+		b := n.Build
+		want = &b
+	}
+	m, cmd := m.openPlan(m.masterOf(n.PlanKey), n.PlanKey, want, focusStages)
+	m.plan.stack = stack
+	return m, cmd
+}
+
+// popPlan goes back to the plan screen the last Tree drill came from.
+func (m Model) popPlan() (Model, tea.Cmd) {
+	last := len(m.plan.stack) - 1
+	f := m.plan.stack[last]
+	stack := m.plan.stack[:last]
+	var want *provider.Build
+	if f.build.Key != "" {
+		b := f.build
+		want = &b
+	}
+	m, cmd := m.openPlan(f.key, f.buildsPlan, want, f.focus)
+	m.plan.stack = stack
+	return m, cmd
 }

@@ -492,3 +492,21 @@ type planRestMsg struct {
 	Gen int
 	Key string
 }
+
+// treePreviewMsg is the Tree panel's one-level tree of build Key.
+type treePreviewMsg struct {
+	Gen  int
+	Key  string
+	Tree app.Tree
+	Err  error
+}
+
+// treePreviewCmd reads what build key triggered, one level down. It is read
+// once, not watched: the plan screen reads it again on r and when the open
+// build finishes.
+func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.Cmd {
+	return func() tea.Msg {
+		t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1})
+		return treePreviewMsg{Gen: gen, Key: key, Tree: t, Err: err}
+	}
+}

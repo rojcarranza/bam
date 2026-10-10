@@ -212,7 +212,10 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 	m := planOnBuilds(t)
 	full := sampleBuild()
 	m, _ = send(m, buildLoadedMsg{Gen: m.detailGen, Build: full})
+	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed}
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: full.Key, Tree: done})
 	require.Contains(t, m.plan.cache, "PROJ-BUILD-44")
+	require.Contains(t, m.plan.trees, "PROJ-BUILD-44")
 
 	m, cmd := send(m, mkKey("j"))
 	m, _ = send(m, cmd())
@@ -221,7 +224,16 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
 	require.Len(t, m.detail.Stages, 3, "the cached build has its stages")
 	require.False(t, m.plan.stagesLoading)
-	require.Nil(t, cmd, "a cached finished build is not read again")
+	require.True(t, m.plan.tree.have, "the cached tree shows at once")
+	require.Nil(t, cmd, "a cached finished build and tree are not read again")
+}
+
+func TestAFailedStagesReadClearsStagesLoading(t *testing.T) {
+	m := planOnBuilds(t)
+	m, _ = m.showBuild(sampleBuild())
+	require.True(t, m.plan.stagesLoading)
+	m, _ = send(m, errMsg{Stream: streamDetail, Gen: m.detailGen, Err: errBoom})
+	require.False(t, m.plan.stagesLoading)
 }
 
 func TestARunningBuildIsNeverCached(t *testing.T) {
@@ -256,4 +268,91 @@ func TestASlowFirstBuildsLoadDoesNotOpenABuildBehindAnotherScreen(t *testing.T) 
 	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
 	require.Nil(t, m.watchCancel, "no watch starts behind another screen")
 	require.Nil(t, m.detail)
+}
+
+// planWithTree is the plan screen on PROJ-BUILD with build 44 open and its
+// tree preview delivered.
+func planWithTree(t *testing.T) Model {
+	t.Helper()
+	m, _ := treeTUIModel(t)
+	m.screen, m.focus = screenHome, focusPlans
+	require.True(t, m.plans.selectFirst(func(p provider.Plan) bool { return p.Key == "PROJ-BUILD" }))
+	m, _ = send(m, mkKey("enter"))
+	b := sampleBuild()
+	m, cmd := m.showBuild(b)
+	for _, msg := range runBatch(cmd) {
+		if tp, ok := msg.(treePreviewMsg); ok {
+			m, _ = send(m, tp)
+		}
+	}
+	require.True(t, m.plan.tree.have)
+	return m
+}
+
+func TestTreePanelListsDirectChildren(t *testing.T) {
+	m := planWithTree(t)
+	rows := m.treePreviewRows()
+	require.Len(t, rows, 1)
+	require.Equal(t, "PROJ-PROV-7", rows[0].Build.Key)
+}
+
+func TestEnterOnATreeRowOpensTheChildPlanAndEscComesBack(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, "PROJ-PROV", m.plan.key)
+	require.Equal(t, "PROJ-PROV-7", m.detail.Key)
+	require.Equal(t, focusStages, m.focus)
+	require.Len(t, m.plan.stack, 1)
+
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, focusBuilds, m.focus)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, "PROJ-BUILD", m.plan.key, "esc on Builds pops the drill stack")
+	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
+	require.Equal(t, focusTree, m.focus, "focus returns to where the drill started")
+	require.Empty(t, m.plan.stack)
+
+	m.focus = focusBuilds
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenHome, m.screen)
+}
+
+func TestALateTreePreviewIsDropped(t *testing.T) {
+	m := planWithTree(t)
+	stale := treePreviewMsg{Gen: m.treePreviewGen - 1, Key: "PROJ-BUILD-44"}
+	before := m.plan.tree
+	m, _ = send(m, stale)
+	require.Equal(t, before, m.plan.tree)
+
+	gen := m.treePreviewGen
+	next, _ := m.switchServer("lab")
+	m = next.(Model)
+	m, _ = send(m, treePreviewMsg{Gen: gen, Key: "PROJ-BUILD-44"})
+	require.False(t, m.plan.tree.have, "a preview from before a server switch is dropped")
+}
+
+func TestTreePreviewErrorStaysInItsPanel(t *testing.T) {
+	m := planWithTree(t)
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: m.detail.Key, Err: errBoom})
+	require.Equal(t, errBoom, m.plan.tree.err)
+	require.Nil(t, m.err, "the status bar is not the tree's")
+	require.NotNil(t, m.detail)
+}
+
+func TestRefreshOnTreeReadsItAgain(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	gen := m.treePreviewGen
+	m, cmd := send(m, mkKey("r"))
+	require.NotNil(t, cmd)
+	require.Greater(t, m.treePreviewGen, gen)
+	require.True(t, m.plan.tree.loading)
+}
+
+func TestTreeRowURLIsTheChildBuilds(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	require.Equal(t, labOrigin+"/browse/PROJ-PROV-7", m.selectionURL())
 }

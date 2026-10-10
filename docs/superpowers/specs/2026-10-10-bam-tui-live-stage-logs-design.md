@@ -1,6 +1,6 @@
 # bam: live stage logs in the terminal UI, searchable while they stream
 
-**Status:** Draft | **Date:** 2026-10-10
+**Status:** Implemented | **Date:** 2026-10-10
 **Issue:** #53
 **Builds on:** [`2026-09-18-bam-v0.2-tui-navigate-design.md`](2026-09-18-bam-v0.2-tui-navigate-design.md) §3.1 (the log screen) and the follow plumbing it describes
 

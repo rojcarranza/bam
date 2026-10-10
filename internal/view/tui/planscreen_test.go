@@ -764,3 +764,26 @@ func TestARestForTheOpenBuildDoesNothing(t *testing.T) {
 	require.Equal(t, gen, m.detailGen, "the open build is not read again")
 	require.Equal(t, treeGen, m.treePreviewGen)
 }
+
+// M3: on the plan screen only Builds has a filter; a Builds filter that
+// moves the cursor loads the build it lands on, as a cursor move does.
+func TestFilterIsForBuildsAndLoadsWhereItLands(t *testing.T) {
+	instantRest(t)
+	m := planOnBuilds(t)
+	for _, f := range []focus{focusStages, focusTree} {
+		m.focus = f
+		m, _ = send(m, mkKey("/"))
+		require.Equal(t, inputNone, m.inputFor, "no prompt that would be ignored")
+	}
+
+	m.focus = focusBuilds
+	m, _ = send(m, mkKey("/"))
+	require.Equal(t, inputFilter, m.inputFor)
+	m, _ = send(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("BUILD-42")})
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyEnter})
+	b, _ := m.builds.selected()
+	require.Equal(t, "PROJ-BUILD-42", b.Key)
+	require.NotNil(t, cmd, "the filtered cursor schedules a rest")
+	m, _ = send(m, cmd())
+	require.Equal(t, "PROJ-BUILD-42", m.detail.Key, "Stages shows a build the list shows")
+}

@@ -654,6 +654,9 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Enter):
 		return m.drill()
 	case key.Matches(msg, keys.Filter):
+		if m.screen == screenPlan && m.focus != focusBuilds {
+			return m, nil // Stages and Tree have no filter
+		}
 		return m.startInput()
 	case key.Matches(msg, keys.Command):
 		return m.startCommand()
@@ -735,7 +738,10 @@ func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.applyFilter(q)
-		return m, nil
+		// The filter may move the Builds cursor; Stages follows it as it
+		// follows a cursor move.
+		rest := m.restCmd()
+		return m, rest
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -173,4 +175,214 @@ func TestCurrentStage(t *testing.T) {
 		assert.Equal(t, tc.want, got, tc.name)
 		assert.Equal(t, tc.ok, ok, tc.name)
 	}
+}
+
+const liveKey = "PROJ-BUILD12-45"
+
+func liveJob(short string, st provider.State) provider.Job {
+	return provider.Job{Key: "PROJ-BUILD12-" + short + "-45", Name: short, State: st}
+}
+
+func liveStage(name string, st provider.State, jobs ...provider.Job) provider.Stage {
+	return provider.Stage{Name: name, State: st, Jobs: jobs}
+}
+
+func liveBuild(st provider.State, stages ...provider.Stage) provider.Build {
+	return provider.Build{Key: liveKey, PlanKey: "PROJ-BUILD12", Number: 45, State: st, Stages: stages}
+}
+
+func liveJobKey(short string) string { return "PROJ-BUILD12-" + short + "-45" }
+
+func recordTo(evs *[]LogEvent) func(LogEvent) {
+	return func(e LogEvent) { *evs = append(*evs, e) }
+}
+
+// logTrail flattens events to one readable string each.
+func logTrail(evs []LogEvent) []string {
+	var out []string
+	for _, e := range evs {
+		switch e.Kind {
+		case LogLines:
+			for _, l := range e.Lines {
+				out = append(out, e.Job.Name+" "+l)
+			}
+		case StageStart:
+			out = append(out, "stage "+e.Stage)
+		case LogStatus:
+			out = append(out, "status "+e.Stage+" "+string(stageState(e.Build, e.Stage)))
+		}
+	}
+	return out
+}
+
+const (
+	stRun  = provider.StateRunning
+	stOK   = provider.StateSuccess
+	stQue  = provider.StateQueued
+	stFail = provider.StateFailed
+)
+
+// TestFollowLogsInterleavesJobsWithOneBuildPollPerTick, spec §3.2.
+func TestFollowLogsInterleavesJobsWithOneBuildPollPerTick(t *testing.T) {
+	p := fakeBamboo()
+	p.Sequences = map[string][]provider.Build{liveKey: {
+		liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun), liveJob("INT", stRun), liveJob("E2E", stRun))),
+		liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stOK), liveJob("INT", stRun), liveJob("E2E", stRun))),
+		liveBuild(stOK, liveStage("Test", stOK, liveJob("UNIT", stOK), liveJob("INT", stOK), liveJob("E2E", stOK))),
+	}}
+	p.LogGrowth = map[string][][]string{
+		liveJobKey("UNIT"): {{"u1"}, {"u1", "u2"}},
+		liveJobKey("INT"):  {{"i1"}, {"i1", "i2"}, {"i1", "i2", "i3"}},
+	}
+	p.Logs = map[string][]string{liveJobKey("E2E"): {"e1"}}
+	s := newService(t, p)
+
+	var evs []LogEvent
+	err := s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0, liveJobKey("INT"): 0, liveJobKey("E2E"): 0}, false, recordTo(&evs))
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"status Test running", "UNIT u1", "INT i1", "E2E e1",
+		"UNIT u2", "INT i2",
+		"status Test success", "INT i3",
+	}, logTrail(evs))
+	waits := s.Clock.(*fakeClock).Waits()
+	assert.Equal(t, []time.Duration{MinPoll, MinPoll}, waits)
+	assert.Equal(t, len(waits)+1, p.GetCalls(liveKey), "one build request per tick, however many jobs")
+	last := evs[len(evs)-1]
+	assert.Equal(t, 3, last.Next, "LogLines carries the job's offset")
+}
+
+func TestFollowLogsAdvancesToTheNextStage(t *testing.T) {
+	p := fakeBamboo()
+	p.Sequences = map[string][]provider.Build{liveKey: {
+		liveBuild(stRun, liveStage("Build", stRun, liveJob("JOB1", stRun)), liveStage("Test", stQue, liveJob("UNIT", stQue))),
+		liveBuild(stRun, liveStage("Build", stOK, liveJob("JOB1", stOK)), liveStage("Test", stRun, liveJob("UNIT", stRun))),
+		liveBuild(stOK, liveStage("Build", stOK, liveJob("JOB1", stOK)), liveStage("Test", stOK, liveJob("UNIT", stOK))),
+	}}
+	p.LogGrowth = map[string][][]string{
+		liveJobKey("JOB1"): {{"c1"}, {"c1", "c2"}},
+		liveJobKey("UNIT"): {{"u1"}, {"u1", "u2"}},
+	}
+	s := newService(t, p)
+
+	var evs []LogEvent
+	err := s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("JOB1"): 0}, true, recordTo(&evs))
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"status Build running", "JOB1 c1",
+		"status Build success", "JOB1 c2", "stage Test", "UNIT u1",
+		"status Test success", "UNIT u2",
+	}, logTrail(evs))
+}
+
+func TestFollowLogsStopsWhenAStageFailsTheBuild(t *testing.T) {
+	p := fakeBamboo()
+	p.Sequences = map[string][]provider.Build{liveKey: {
+		liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun)), liveStage("Deploy", stQue, liveJob("DEP", stQue))),
+		liveBuild(stFail, liveStage("Test", stFail, liveJob("UNIT", stFail)), liveStage("Deploy", provider.StateNotBuilt, liveJob("DEP", provider.StateNotBuilt))),
+	}}
+	p.Logs = map[string][]string{liveJobKey("UNIT"): {"u1"}}
+	s := newService(t, p)
+
+	var evs []LogEvent
+	err := s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0}, true, recordTo(&evs))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"status Test running", "UNIT u1", "status Test failed"}, logTrail(evs))
+	assert.Zero(t, p.LogCalls(liveJobKey("DEP")))
+}
+
+func TestFollowLogsWaitsForQueuedJobsAndDropsSkippedOnes(t *testing.T) {
+	p := fakeBamboo()
+	skipped := provider.StateSkipped
+	p.Sequences = map[string][]provider.Build{liveKey: {
+		liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stQue), liveJob("SKIP", skipped))),
+		liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun), liveJob("SKIP", skipped))),
+		liveBuild(stOK, liveStage("Test", stOK, liveJob("UNIT", stOK), liveJob("SKIP", skipped))),
+	}}
+	p.Logs = map[string][]string{liveJobKey("UNIT"): {"u1"}}
+	s := newService(t, p)
+
+	var evs []LogEvent
+	err := s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0, liveJobKey("SKIP"): 0}, false, recordTo(&evs))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"status Test running", "UNIT u1", "status Test success"}, logTrail(evs))
+	assert.Equal(t, 2, p.LogCalls(liveJobKey("UNIT")), "not fetched while queued")
+	assert.Zero(t, p.LogCalls(liveJobKey("SKIP")))
+}
+
+// TestFollowLogsEndsWhenTheBuildStopsWithAJobQueued: Review Focus 2.
+func TestFollowLogsEndsWhenTheBuildStopsWithAJobQueued(t *testing.T) {
+	p := fakeBamboo()
+	p.Sequences = map[string][]provider.Build{liveKey: {
+		liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stQue))),
+		liveBuild(provider.StateStopped, liveStage("Test", provider.StateStopped, liveJob("UNIT", stQue))),
+	}}
+	s := newService(t, p)
+
+	err := s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0}, true, func(LogEvent) {})
+	require.NoError(t, err, "no log at all is not an error once the build is over")
+	assert.Equal(t, 1, p.LogCalls(liveJobKey("UNIT")), "one last read, then the follow ends")
+}
+
+func TestFollowLogsTreatsNotFoundOnARunningJobAsNoLinesYet(t *testing.T) {
+	p := fakeBamboo()
+	p.Sequences = map[string][]provider.Build{liveKey: {
+		liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun))),
+		liveBuild(stOK, liveStage("Test", stOK, liveJob("UNIT", stOK))),
+	}}
+	p.Logs = map[string][]string{liveJobKey("UNIT"): {"u1"}}
+	p.LogErrs = []error{errs.Bamboof("job not found").Wrap(errs.ErrNotFound)}
+	s := newService(t, p)
+
+	var evs []LogEvent
+	require.NoError(t, s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0}, false, recordTo(&evs)))
+	assert.Contains(t, logTrail(evs), "UNIT u1")
+}
+
+func TestFollowLogsReturnsOtherLogErrors(t *testing.T) {
+	p := fakeBamboo()
+	p.Sequences = map[string][]provider.Build{liveKey: {liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun)))}}
+	boom := errs.Bamboof("log read failed")
+	p.LogErrs = []error{boom}
+	s := newService(t, p)
+
+	err := s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0}, false, func(LogEvent) {})
+	require.ErrorIs(t, err, boom)
+}
+
+func TestFollowLogsReportsStatusOnlyOnAChange(t *testing.T) {
+	p := fakeBamboo()
+	same := liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun)))
+	p.Sequences = map[string][]provider.Build{liveKey: {same, same, same,
+		liveBuild(stOK, liveStage("Test", stOK, liveJob("UNIT", stOK)))}}
+	p.Logs = map[string][]string{liveJobKey("UNIT"): {"u1"}}
+	s := newService(t, p)
+
+	var evs []LogEvent
+	require.NoError(t, s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0}, false, recordTo(&evs)))
+	var statuses []string
+	for _, line := range logTrail(evs) {
+		if strings.HasPrefix(line, "status") {
+			statuses = append(statuses, line)
+		}
+	}
+	assert.Equal(t, []string{"status Test running", "status Test success"}, statuses)
+}
+
+func TestFollowLogsEndsWithTheContext(t *testing.T) {
+	p := fakeBamboo()
+	p.Sequences = map[string][]provider.Build{liveKey: {liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun)))}}
+	p.Logs = map[string][]string{liveJobKey("UNIT"): {"u1"}}
+	s := newService(t, p)
+	ctx, cancel := context.WithCancel(bg)
+	defer cancel()
+
+	err := s.FollowLogs(ctx, liveKey, map[string]int{liveJobKey("UNIT"): 0}, false, func(e LogEvent) {
+		if e.Kind == LogLines {
+			cancel()
+		}
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, s.Clock.(*fakeClock).Waits(), "a cancelled follow does not wait another tick")
+	assert.Empty(t, p.Stopped, "ending a follow never stops the build")
 }

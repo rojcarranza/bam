@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -173,6 +174,157 @@ func (s *Service) FollowLog(ctx context.Context, buildKey string, job provider.J
 		case <-s.Clock.After(MinPoll):
 		}
 	}
+}
+
+// LogEventKind tells a FollowLogs consumer what a LogEvent carries.
+type LogEventKind int
+
+const (
+	LogLines   LogEventKind = iota // new lines of one job
+	StageStart                     // following moved on to a new stage
+	LogStatus                      // the followed stage's or the build's state changed
+)
+
+// LogEvent is one thing FollowLogs saw.
+type LogEvent struct {
+	Kind  LogEventKind
+	Stage string         // the stage the event belongs to
+	Job   provider.Job   // LogLines only
+	Lines []string       // LogLines only
+	Next  int            // LogLines only: the job's offset after these lines
+	Build provider.Build // LogStatus and StageStart: the poll's snapshot
+}
+
+// FollowLogs emits new log lines of the jobs in from (job result key →
+// offset) until every one of them has finished. With advance set, while the
+// build is still running it then follows the next stage's jobs from offset 0,
+// emitting StageStart first. It polls the build once per tick, however many
+// jobs it follows, and never stops the build.
+func (s *Service) FollowLogs(ctx context.Context, buildKey string, from map[string]int, advance bool, emit func(LogEvent)) error {
+	offsets := maps.Clone(from)
+	if offsets == nil {
+		offsets = map[string]int{}
+	}
+	stage := ""
+	var lastStage, lastBuild provider.State
+	first := true
+	for {
+		b, err := s.Build(ctx, buildKey)
+		if err != nil {
+			return err
+		}
+		if stage == "" {
+			stage = followedStage(b, offsets)
+		}
+		if st := stageState(b, stage); first || st != lastStage || b.State != lastBuild {
+			emit(LogEvent{Kind: LogStatus, Stage: stage, Build: b})
+			first, lastStage, lastBuild = false, st, b.State
+		}
+		for {
+			if err := s.readFollowed(ctx, b, offsets, emit); err != nil {
+				return err
+			}
+			if len(offsets) > 0 {
+				break
+			}
+			if !advance || stage == "" || b.State.Finished() {
+				return nil
+			}
+			next, ok := stageAfter(b, stage)
+			if !ok {
+				return nil
+			}
+			stage, lastStage = next.Name, next.State
+			emit(LogEvent{Kind: StageStart, Stage: stage, Build: b})
+			for _, j := range next.Jobs {
+				offsets[j.Key] = 0
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-s.Clock.After(MinPoll):
+		}
+	}
+}
+
+// readFollowed reads every followed job once, in stage order, and drops the
+// jobs whose log will not grow again.
+func (s *Service) readFollowed(ctx context.Context, b provider.Build, offsets map[string]int, emit func(LogEvent)) error {
+	seen := make(map[string]bool, len(offsets))
+	for _, st := range b.Stages {
+		for _, j := range st.Jobs {
+			off, ok := offsets[j.Key]
+			if !ok {
+				continue
+			}
+			seen[j.Key] = true
+			if j.State == provider.StateSkipped || j.State == provider.StateNotBuilt {
+				delete(offsets, j.Key) // it will never have a log
+				continue
+			}
+			if j.State == provider.StateQueued && !b.State.Finished() {
+				continue
+			}
+			chunk, err := s.P.FetchLog(ctx, j.Key, provider.LogOptions{Offset: off})
+			if err != nil {
+				if !errors.Is(err, errs.ErrNotFound) {
+					return err
+				}
+				chunk = provider.LogChunk{Next: off} // no log yet
+			}
+			if len(chunk.Lines) > 0 {
+				emit(LogEvent{Kind: LogLines, Stage: st.Name, Job: j, Lines: chunk.Lines, Next: chunk.Next})
+			}
+			offsets[j.Key] = chunk.Next
+			// A finished job, or any job of a finished build, has had its
+			// last read. The second case ends a build stopped before some
+			// jobs ran.
+			if j.State.Finished() || b.State.Finished() {
+				delete(offsets, j.Key)
+			}
+		}
+	}
+	for k := range offsets {
+		if !seen[k] {
+			delete(offsets, k)
+		}
+	}
+	return nil
+}
+
+// followedStage is the last stage, in build order, holding a followed job.
+func followedStage(b provider.Build, offsets map[string]int) string {
+	name := ""
+	for _, st := range b.Stages {
+		for _, j := range st.Jobs {
+			if _, ok := offsets[j.Key]; ok {
+				name = st.Name
+			}
+		}
+	}
+	return name
+}
+
+func stageState(b provider.Build, name string) provider.State {
+	for _, st := range b.Stages {
+		if st.Name == name {
+			return st.State
+		}
+	}
+	return ""
+}
+
+func stageAfter(b provider.Build, name string) (provider.Stage, bool) {
+	for i, st := range b.Stages {
+		if st.Name == name && i+1 < len(b.Stages) {
+			return b.Stages[i+1], true
+		}
+	}
+	return provider.Stage{}, false
 }
 
 func jobFinished(b provider.Build, key string) bool {

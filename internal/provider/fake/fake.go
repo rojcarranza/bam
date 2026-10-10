@@ -13,20 +13,23 @@ var _ provider.Provider = (*Provider)(nil)
 
 // Provider returns whatever its fields hold. Zero value is usable.
 type Provider struct {
-	BaseURL       string
-	User          provider.User
-	UserErr       error
-	Info          provider.ServerInfo
-	Projects      []provider.Project
-	Plans         map[string][]provider.Plan     // by project key
-	Branches      map[string][]provider.Branch   // by master plan key
-	Variables     map[string][]provider.Variable // by plan key
-	VariablesErr  error
-	History       map[string][]provider.Build // by plan key, newest first
-	Sequences     map[string][]provider.Build // by build key; GetBuild walks it and repeats the last entry
-	BuildVars     map[string]map[string]string
-	BuildVarsErr  error
-	Logs          map[string][]string // by job result key
+	BaseURL      string
+	User         provider.User
+	UserErr      error
+	Info         provider.ServerInfo
+	Projects     []provider.Project
+	Plans        map[string][]provider.Plan     // by project key
+	Branches     map[string][]provider.Branch   // by master plan key
+	Variables    map[string][]provider.Variable // by plan key
+	VariablesErr error
+	History      map[string][]provider.Build // by plan key, newest first
+	Sequences    map[string][]provider.Build // by build key; GetBuild walks it and repeats the last entry
+	BuildVars    map[string]map[string]string
+	BuildVarsErr error
+	Logs         map[string][]string // by job result key
+	// LogGrowth is a log that grows: the n-th FetchLog of a key sees the n-th
+	// snapshot of the whole log, the last one repeating. It wins over Logs.
+	LogGrowth     map[string][][]string // by job result key
 	TriggerResult provider.Build
 	TriggerErr    error
 	// by plan key; TriggerResult and TriggerErr apply when a key is missing
@@ -49,6 +52,7 @@ type Provider struct {
 	getCalls     map[string]int
 	listCalls    map[string]int
 	progressCall map[string]int
+	logCalls     map[string]int
 }
 
 func notFound(what, key string) error {
@@ -232,6 +236,11 @@ func (f *Provider) RestartBuild(_ context.Context, key string) (provider.Build, 
 
 func (f *Provider) FetchLog(_ context.Context, key string, o provider.LogOptions) (provider.LogChunk, error) {
 	f.mu.Lock()
+	if f.logCalls == nil {
+		f.logCalls = map[string]int{}
+	}
+	n := f.logCalls[key]
+	f.logCalls[key] = n + 1
 	if len(f.LogErrs) > 0 {
 		err := f.LogErrs[0]
 		f.LogErrs = f.LogErrs[1:]
@@ -240,8 +249,14 @@ func (f *Provider) FetchLog(_ context.Context, key string, o provider.LogOptions
 			return provider.LogChunk{}, err
 		}
 	}
-	f.mu.Unlock()
 	lines, ok := f.Logs[key]
+	if seq := f.LogGrowth[key]; len(seq) > 0 {
+		if n >= len(seq) {
+			n = len(seq) - 1
+		}
+		lines, ok = seq[n], true
+	}
+	f.mu.Unlock()
 	if !ok {
 		return provider.LogChunk{}, notFound("job", key)
 	}
@@ -249,6 +264,13 @@ func (f *Provider) FetchLog(_ context.Context, key string, o provider.LogOptions
 		o.Offset = len(lines)
 	}
 	return provider.LogChunk{Lines: lines[o.Offset:], Next: len(lines)}, nil
+}
+
+// LogCalls reports how many times FetchLog was called for key.
+func (f *Provider) LogCalls(key string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.logCalls[key]
 }
 
 func (f *Provider) URL(key string) string { return f.BaseURL + "/browse/" + key }

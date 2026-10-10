@@ -108,3 +108,69 @@ func TestCancel(t *testing.T) {
 	assert.True(t, done, "already finished")
 	assert.Len(t, p.Stopped, 1)
 }
+
+func TestLogsOfOneStageWinOverFailed(t *testing.T) {
+	s := newService(t, logsProvider())
+	logs, err := s.Logs(bg, failedBuild(), LogsOptions{Stage: "Checkout", Failed: true})
+	require.NoError(t, err)
+	require.Len(t, logs, 1, "the stage's jobs, not only failed ones")
+	assert.Equal(t, "Checkout", logs[0].Stage)
+	assert.Equal(t, []string{"c1"}, logs[0].Lines)
+	assert.Equal(t, 1, logs[0].Next)
+}
+
+func TestLogsOfAnUnknownStage(t *testing.T) {
+	s := newService(t, logsProvider())
+	_, err := s.Logs(bg, failedBuild(), LogsOptions{Stage: "Nope"})
+	require.Error(t, err)
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+	assert.Contains(t, err.Error(), "stages: Checkout, Test")
+}
+
+// TestLogsOfARunningStageToleratesJobsWithNoLogYet, spec §3.1.
+func TestLogsOfARunningStageToleratesJobsWithNoLogYet(t *testing.T) {
+	p := logsProvider()
+	delete(p.Logs, "PROJ-BUILD12-UNIT-44") // running, but Bamboo has no log yet
+	b := failedBuild()
+	b.State = provider.StateRunning
+	b.Stages[1].Jobs[0].State = provider.StateRunning
+	b.Stages[1].Jobs[1].State = provider.StateQueued
+	s := newService(t, p)
+
+	logs, err := s.Logs(bg, b, LogsOptions{Stage: "Test"})
+	require.NoError(t, err)
+	require.Len(t, logs, 2)
+	for _, l := range logs {
+		assert.Empty(t, l.Lines, l.Job.Name)
+		assert.Zero(t, l.Next, l.Job.Name)
+	}
+	assert.Zero(t, p.LogCalls("PROJ-BUILD12-INT-44"), "a queued job is not fetched")
+}
+
+func TestLogsWithoutAStageStillFailOnAMissingLog(t *testing.T) {
+	p := logsProvider()
+	delete(p.Logs, "PROJ-BUILD12-UNIT-44")
+	s := newService(t, p)
+	_, err := s.Logs(bg, failedBuild(), LogsOptions{Failed: true})
+	require.ErrorIs(t, err, errs.ErrNotFound, "bam logs is unchanged")
+}
+
+func TestCurrentStage(t *testing.T) {
+	st := func(name string, s provider.State) provider.Stage { return provider.Stage{Name: name, State: s} }
+	for _, tc := range []struct {
+		name   string
+		stages []provider.Stage
+		want   string
+		ok     bool
+	}{
+		{"running wins", []provider.Stage{st("A", provider.StateSuccess), st("B", provider.StateQueued), st("C", provider.StateRunning)}, "C", true},
+		{"first not finished", []provider.Stage{st("A", provider.StateSuccess), st("B", provider.StateQueued)}, "B", true},
+		{"skipped is passed over", []provider.Stage{st("A", provider.StateSkipped), st("B", provider.StateQueued)}, "B", true},
+		{"all finished", []provider.Stage{st("A", provider.StateSuccess), st("B", provider.StateNotBuilt)}, "", false},
+		{"no stages", nil, "", false},
+	} {
+		got, ok := CurrentStage(provider.Build{Stages: tc.stages})
+		assert.Equal(t, tc.want, got, tc.name)
+		assert.Equal(t, tc.ok, ok, tc.name)
+	}
+}

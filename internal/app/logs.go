@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 type LogsOptions struct {
 	Failed bool   // only failed jobs
 	Job    string // JOB1, PROJ-PLAN-JOB1 or PROJ-PLAN-JOB1-44
+	Stage  string // one stage's jobs, read while they run; wins over Failed
 	Tail   int    // last N lines per job; 0 = all
 }
 
@@ -63,6 +65,20 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 		}
 		return nil, errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
 	}
+	if o.Stage != "" {
+		names := make([]string, 0, len(b.Stages))
+		for _, st := range b.Stages {
+			if st.Name == o.Stage {
+				out := make([]stagedJob, 0, len(st.Jobs))
+				for _, j := range st.Jobs {
+					out = append(out, stagedJob{st.Name, j})
+				}
+				return out, nil
+			}
+			names = append(names, st.Name)
+		}
+		return nil, errs.Usagef("stage %q is not in %s", o.Stage, b.Key).WithWhy("stages: " + strings.Join(names, ", "))
+	}
 	if !o.Failed {
 		return all, nil
 	}
@@ -83,9 +99,19 @@ func (s *Service) Logs(ctx context.Context, b provider.Build, o LogsOptions) ([]
 	}
 	out := make([]JobLog, 0, len(jobs))
 	for _, sj := range jobs {
+		// A stage is read while it runs: a job that has not started has no
+		// log, and a running one may not have one yet. Only then; bam logs
+		// keeps reporting a missing log.
+		if o.Stage != "" && notStarted(sj.job.State) {
+			out = append(out, JobLog{Job: sj.job, Stage: sj.stage})
+			continue
+		}
 		chunk, err := s.P.FetchLog(ctx, sj.job.Key, provider.LogOptions{})
 		if err != nil {
-			return nil, err
+			if o.Stage == "" || !errors.Is(err, errs.ErrNotFound) {
+				return nil, err
+			}
+			chunk = provider.LogChunk{}
 		}
 		lines := chunk.Lines
 		if o.Tail > 0 && len(lines) > o.Tail {
@@ -94,6 +120,26 @@ func (s *Service) Logs(ctx context.Context, b provider.Build, o LogsOptions) ([]
 		out = append(out, JobLog{Job: sj.job, Stage: sj.stage, Lines: lines, Next: chunk.Next})
 	}
 	return out, nil
+}
+
+func notStarted(s provider.State) bool {
+	return s == provider.StateQueued || s == provider.StateSkipped || s == provider.StateNotBuilt
+}
+
+// CurrentStage names the stage a live log shows: the first running stage, or
+// else the first that has neither finished nor been skipped.
+func CurrentStage(b provider.Build) (string, bool) {
+	for _, st := range b.Stages {
+		if st.State == provider.StateRunning {
+			return st.Name, true
+		}
+	}
+	for _, st := range b.Stages {
+		if !st.State.Finished() && st.State != provider.StateSkipped {
+			return st.Name, true
+		}
+	}
+	return "", false
 }
 
 // FollowLog emits new lines of job from offset until the job finishes.

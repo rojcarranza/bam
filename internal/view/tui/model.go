@@ -348,7 +348,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.builds.loading = false
 		m.buildsPlan = msg.PlanKey
 		m.builds.setItems(msg.Builds)
-		if m.screen == screenPlan {
+		if m.plan.key != "" {
 			return m.planBuildsLoaded()
 		}
 		return m, nil
@@ -1565,6 +1565,7 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	case m.screen == screenLogs && m.logsFromTree:
 		m.stopFollow()
 		m.logsFromTree, m.fromTree = false, false
+		m.stopWatch() // the build watch openTreeBuild started; the tree resumes its own
 		m.screen = screenTree
 		return m.watchTree() // watching paused while the logs were open
 	case m.screen == screenLogs:

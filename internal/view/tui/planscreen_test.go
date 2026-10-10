@@ -100,3 +100,51 @@ func TestServerSwitchLeavesThePlanScreen(t *testing.T) {
 	require.Equal(t, screenHome, m.screen)
 	require.Empty(t, m.plan.key)
 }
+
+func olderBuild() provider.Build {
+	b := sampleBuild()
+	b.Key, b.Number = "PROJ-BUILD-3", 3
+	return b
+}
+
+// The pin holds until the user moves off the build, across refreshes.
+func TestPinnedOlderBuildSurvivesARefresh(t *testing.T) {
+	m := planHome(t)
+	older := olderBuild()
+	m, _ = m.openPlan("PROJ-BUILD", "PROJ-BUILD", &older, focusStages)
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: []provider.Build{sampleBuild()}})
+	require.Equal(t, "PROJ-BUILD-3", m.plan.older)
+
+	m.buildsGen++
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: []provider.Build{sampleBuild()}})
+	rows := m.builds.rows()
+	require.Equal(t, "PROJ-BUILD-3", rows[0].Key)
+	require.Equal(t, 0, m.builds.cursor)
+	require.Equal(t, "PROJ-BUILD-3", m.plan.older)
+}
+
+// The list can arrive while the logs or the form are on screen.
+func TestWantedBuildIsPlacedWhileAnotherScreenIsCurrent(t *testing.T) {
+	m := planHome(t)
+	older := olderBuild()
+	m, _ = m.openPlan("PROJ-BUILD", "PROJ-BUILD", &older, focusStages)
+	m.screen = screenLogs
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: []provider.Build{sampleBuild()}})
+	require.Nil(t, m.plan.want)
+	require.Equal(t, "PROJ-BUILD-3", m.plan.older)
+	require.Equal(t, "PROJ-BUILD-3", m.builds.rows()[0].Key)
+}
+
+func TestEscFromTreeLogsStopsTheBuildWatch(t *testing.T) {
+	m, f := treeTUIModel(t)
+	running := f.History["PROJ-PROV"][0]
+	running.State = provider.StateRunning
+	f.History["PROJ-PROV"] = []provider.Build{running}
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("l"))
+	require.Equal(t, screenLogs, m.screen)
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenTree, m.screen)
+	require.Nil(t, m.watchCancel, "the tree watches itself; no build watch may linger")
+}

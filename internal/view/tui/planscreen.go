@@ -127,6 +127,15 @@ func (m Model) planBuildsLoaded() (Model, tea.Cmd) {
 		return m, nil
 	}
 	if m.detail != nil {
+		if o := m.plan.older; o != "" && m.detail.Key == o {
+			// A refresh brings the newest builds only; the pinned build
+			// stays on top until the user moves off it.
+			if !m.builds.selectFirst(func(b provider.Build) bool { return b.Key == o }) {
+				m.builds.setItems(append([]provider.Build{*m.detail}, m.builds.items...))
+				m.builds.top()
+			}
+			return m, nil
+		}
 		m.builds.selectFirst(func(b provider.Build) bool { return b.Key == m.detail.Key })
 		return m, nil
 	}

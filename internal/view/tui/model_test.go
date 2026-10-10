@@ -158,6 +158,7 @@ func TestGAndShiftGJumpToTheEnds(t *testing.T) {
 func TestEnterOnBuildsOpensDetailAndFocusesMain(t *testing.T) {
 	m := testModel()
 	m.svc = testService()
+	m.plan.key = "PROJ-BUILD"
 	m, cmd := send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: []provider.Build{sampleBuild()}})
 	require.NotNil(t, m.detail, "the newest build opens as soon as the list loads")
 	require.NotNil(t, cmd, "opening a build reads its stages")

@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -424,4 +426,47 @@ func TestPlanHeaderNamesABranchPlansMaster(t *testing.T) {
 
 	m.plan.key, m.buildsPlan = "LAB-OTHER", "LAB-OTHER"
 	require.Equal(t, " LAB-OTHER", strings.Split(m.View(), "\n")[0])
+}
+
+// TestBuildsRuleSaysStaleAfterAFailedReload: a failed Builds load leaves the
+// old rows on screen, so the rule says they are stale until a load lands.
+func TestBuildsRuleSaysStaleAfterAFailedReload(t *testing.T) {
+	m := planGolden(80, 24)
+	m, _ = send(m, errMsg{Err: errors.New("boom"), Where: "builds", Stream: streamBuilds, Gen: m.buildsGen})
+	require.Contains(t, strings.Split(m.View(), "\n")[2], "stale")
+
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: m.builds.items})
+	require.NotContains(t, strings.Split(m.View(), "\n")[2], "stale")
+}
+
+// TestDimRowsAreDimToTheEnd: a styled glyph inside a dim row would end the
+// dim at its reset, leaving the rest of the row bright.
+func TestDimRowsAreDimToTheEnd(t *testing.T) {
+	forceColour(t)
+	m := planGolden(80, 24)
+	m.plan.tree.tree.Root.Children = []*app.TreeNode{
+		{PlanKey: "PROJ-OTHER", Build: provider.Build{Key: "PROJ-OTHER-1", Number: 1, State: provider.StateFailed}},
+		{PlanKey: "PROJ-PROV", Superseded: true, Build: provider.Build{Key: "PROJ-PROV-7", Number: 7, State: provider.StateFailed}},
+	}
+	row := strings.Split(m.treeBody(46, 5), "\n")[1]
+	require.Equal(t, 1, strings.Count(row, "\x1b[0m"), "one reset: %q", row)
+
+	older := provider.Build{Key: "PROJ-BUILD-9", PlanKey: "PROJ-BUILD", Number: 9, State: provider.StateFailed,
+		FinishedAt: goldenNow.Add(-48 * time.Hour)}
+	m.builds.setItems(append(m.builds.items, older))
+	m.plan.older = older.Key
+	row = strings.Split(m.planBuildRows(40, 5), "\n")[2]
+	require.Equal(t, 1, strings.Count(row, "\x1b[0m"), "one reset: %q", row)
+}
+
+// TestALongReasonStaysOnItsLine: the panel wraps an over-long body line,
+// which would push Tree and the status bar off the screen.
+func TestALongReasonStaysOnItsLine(t *testing.T) {
+	m := planGolden(80, 24)
+	m.detail.Reason = strings.Repeat("Manual run by jdoe ", 11)[:200]
+	lines := strings.Split(m.View(), "\n")
+	require.Len(t, lines, 24)
+	for _, l := range lines {
+		require.LessOrEqual(t, lipgloss.Width(l), 80, l)
+	}
 }

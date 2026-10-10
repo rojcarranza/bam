@@ -66,7 +66,9 @@ func defaultExpanded(b provider.Build) map[string]bool {
 // header, so the panel does not repeat them.
 func (m Model) stagesBody(width, height int) string {
 	b := *m.detail
-	first := dimStyle.Render(strings.TrimSpace(b.Reason + " " + revisionShort(b)))
+	// Cut to the panel: the panel wraps an over-long line, which would push
+	// Tree and the status bar off the screen.
+	first := dimStyle.Render(cut(strings.TrimSpace(b.Reason+" "+revisionShort(b)), width))
 	// The estimate bar stays: it is the one thing about a running build the
 	// Builds row and the header do not say. It takes the columns the reason
 	// leaves, and is dropped when they cannot hold a readable one.

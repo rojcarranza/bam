@@ -345,6 +345,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.builds.loading = false
+		m.plan.buildsStale = false
 		m.buildsPlan = msg.PlanKey
 		m.builds.setItems(msg.Builds)
 		if m.plan.key != "" {
@@ -548,6 +549,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.plans.loading, m.builds.loading = false, false
 		if msg.Stream == streamDetail {
 			m.plan.stagesLoading = false
+		}
+		if msg.Stream == streamBuilds && m.plan.key != "" {
+			m.plan.buildsStale = true
 		}
 		if msg.Stream == streamProjects {
 			m.projects.loading = false

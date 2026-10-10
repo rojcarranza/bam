@@ -31,6 +31,7 @@ type planScreen struct {
 	treeCursor int
 
 	stagesLoading bool // the open build's stages are being read
+	buildsStale   bool // the last Builds load failed; the rows are older
 }
 
 // planFrame is one plan screen on the drill stack: enough to draw it again
@@ -373,8 +374,11 @@ func (m Model) planHeader(width int) []string {
 	}
 	title += fmt.Sprintf("[%d]", m.builds.len())
 	marker := ""
-	if m.builds.loading {
+	switch {
+	case m.builds.loading:
 		marker = "refreshing…"
+	case m.plan.buildsStale:
+		marker = "stale"
 	}
 	return append(lines, titleRule(width, title, marker))
 }
@@ -396,12 +400,19 @@ func (m Model) planBuildRows(width, height int) string {
 		bd := rows[i]
 		focused := m.focus == focusBuilds
 		b.WriteString(m.cursorFor(focused, m.builds.cursor == i))
-		head := stateStyle(bd.State).Render(stateGlyph(bd.State)) + fmt.Sprintf(" #%-4d", bd.Number)
+		// A dim row is drawn plain and dimmed once: a coloured glyph inside
+		// it would end the dim at its reset.
+		older := bd.Key == m.plan.older
+		glyph := stateGlyph(bd.State)
+		if !older {
+			glyph = stateStyle(bd.State).Render(glyph)
+		}
+		head := glyph + fmt.Sprintf(" #%-4d", bd.Number)
 		branch, age, by := branchOrDefault(bd), ageShort(m.now().Sub(bd.FinishedAt)), shortBy(bd.Reason)
 		if bd.FinishedAt.IsZero() {
 			age = "–"
 		}
-		if bd.Key == m.plan.older {
+		if older {
 			by = "(older)"
 		}
 		// Who goes first, then branch, when the panel is narrow (§3.3).
@@ -413,7 +424,7 @@ func (m Model) planBuildRows(width, height int) string {
 			line = head + "  " + age
 		}
 		line = truncate(line, inner)
-		if bd.Key == m.plan.older {
+		if older {
 			line = dimStyle.Render(line)
 		}
 		if m.builds.cursor == i {
@@ -462,13 +473,18 @@ func (m Model) treeBody(width, height int) string {
 		default:
 			// The glyph leads the row, so the state after the number is its
 			// label alone; names are padded so the numbers line up.
-			tail := fmt.Sprintf("  #%-4d %s", n.Build.Number,
-				stateStyle(n.Build.State).Render(style.Label(n.Build.State)))
+			// A superseded row is drawn plain and dimmed once: a coloured
+			// glyph inside it would end the dim at its reset.
+			st := stateStyle(n.Build.State)
+			if n.Superseded {
+				st = lipgloss.NewStyle()
+			}
+			tail := fmt.Sprintf("  #%-4d %s", n.Build.Number, st.Render(style.Label(n.Build.State)))
 			w := min(nameW, inner-2-lipgloss.Width(tail))
-			line = stateStyle(n.Build.State).Render(stateGlyph(n.Build.State)) + " " +
+			line = st.Render(stateGlyph(n.Build.State)) + " " +
 				lipgloss.NewStyle().Width(w).Render(cut(name, w)) + tail
 			if n.Superseded {
-				line = dimStyle.Render(line)
+				line = dimStyle.Render(truncate(line, inner))
 			}
 		}
 		line = truncate(line, inner)

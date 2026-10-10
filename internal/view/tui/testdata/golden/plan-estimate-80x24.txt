@@ -1,8 +1,8 @@
  Build and test
- PROJ › PROJ-BUILD                               ✗ failed last build #44 3m ago
+ PROJ › PROJ-BUILD                                   ▸ running last build #44 –
 ────────────────────────────────── builds[2] ───────────────────────────────────
 ┏━Builds━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #44─────────────────────────────────╮
-┃▸ ✗ #44    main  3m  –        ┃│Manual run by jdoe    50%  ~2m00s left        │
+┃▸ ▸ #44    main  –  –         ┃│Manual run by jdoe    50%  ~2m00s left        │
 ┃  ✓ #43    main  1h  –        ┃│                                              │
 ┃                              ┃│▸ ✓ Build                      42s            │
 ┃                              ┃│  ▸ Test                       2m30s          │

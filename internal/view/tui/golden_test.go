@@ -96,6 +96,10 @@ func TestPlanGoldenWithEstimate(t *testing.T) {
 	b := runningDetail()
 	m.detail = &b
 	m.progress = runningEstimate()
+	// The list's newest build is the one running, so the header and the
+	// Builds row agree with Stages.
+	m.builds.items[0].State, m.builds.items[0].FinishedAt = b.State, time.Time{}
+	m.builds.setItems(m.builds.items)
 	requireGolden(t, "plan-estimate-80x24", m.View())
 }
 

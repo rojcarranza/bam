@@ -87,7 +87,7 @@ func findCommand(name string) (command, error) {
 
 // startCommand opens the : prompt on Home or the panels.
 func (m Model) startCommand() (tea.Model, tea.Cmd) {
-	if m.screen != screenHome && m.screen != screenColumns {
+	if m.screen != screenHome && m.screen != screenPlan {
 		return m, nil
 	}
 	m.clearCmdErr()

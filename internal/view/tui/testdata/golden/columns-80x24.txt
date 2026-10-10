@@ -1,17 +1,17 @@
-┏━1 Plans━━━━━━━━━━┓╭─OPS-NIGHTLY · Nightly────────────────────────────────────╮
-┃▸ OPS-NIGHTLY     ┃│Nightly                                                   │
-┃  PROJ-BUILD      ┃│OPS · no builds yet                                       │
-┃  PROJ-DEPLOY     ┃│                                                          │
-┃                  ┃│press enter to show its builds                            │
-┃                  ┃│                                                          │
-┗━━━━━━━━━━━━━━━━━━┛│                                                          │
-╭─2 Builds · Build─╮│                                                          │
-│▸ ✗ #44 3m ago    ││                                                          │
-│  ✓ #43 1h ago    ││                                                          │
-│                  ││                                                          │
+╭─1 Plans──────────╮╭─PROJ-BUILD-44 · Build and test───────────────────────────╮
+│▸ OPS-NIGHTLY     ││press enter to open this build                            │
+│  PROJ-BUILD      ││                                                          │
+│  PROJ-DEPLOY     ││                                                          │
 │                  ││                                                          │
 │                  ││                                                          │
 ╰──────────────────╯│                                                          │
+┏━2 Builds · Build━┓│                                                          │
+┃▸ ✗ #44 3m ago    ┃│                                                          │
+┃  ✓ #43 1h ago    ┃│                                                          │
+┃                  ┃│                                                          │
+┃                  ┃│                                                          │
+┃                  ┃│                                                          │
+┗━━━━━━━━━━━━━━━━━━┛│                                                          │
 ╭─3 Presets────────╮│                                                          │
 │                  ││                                                          │
 │                  ││                                                          │

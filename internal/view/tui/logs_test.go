@@ -22,6 +22,7 @@ func logModel() Model {
 	m := goldenModel(80, 24)
 	m.svc = testService()
 	m.detail = ptr(sampleBuild())
+	m.focus = focusStages // the open build, not the Builds row, picks the job
 	m, _ = send(m, logsLoadedMsg{Gen: m.logsGen, JobKey: "PROJ-BUILD-INT-44", Title: "PROJ-BUILD-INT-44",
 		URL: labOrigin + "/browse/PROJ-BUILD-INT-44", Lines: logLines()})
 	m.screen = screenLogs
@@ -74,7 +75,7 @@ func TestAOpensEveryJobsLog(t *testing.T) {
 func TestEscLeavesTheLogScreen(t *testing.T) {
 	m := logModel()
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 }
 
 // TestLogHeaderNamesTheJobAndThePosition, spec §3.1's header.
@@ -101,7 +102,7 @@ func TestOpeningLogsWithNoBuildDoesNothing(t *testing.T) {
 	m.detail = nil
 	m.builds.setItems([]provider.Build{})
 	m, cmd := send(m, mkKey("l"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	require.Nil(t, cmd)
 }
 
@@ -162,13 +163,13 @@ func TestSlashInAPanelFiltersThatPanel(t *testing.T) {
 	m := goldenModel(80, 24)
 	m, _ = send(m, mkKey("/"))
 	require.Equal(t, inputFilter, m.inputFor)
-	for _, r := range "ops" {
+	for _, r := range "44" {
 		m, _ = send(m, mkKey(string(r)))
 	}
 	m, _ = send(m, mkKey("enter"))
-	require.Equal(t, 1, m.plans.len())
-	sel, _ := m.plans.selected()
-	require.Equal(t, "OPS-NIGHTLY", sel.Key)
+	require.Equal(t, 1, m.builds.len())
+	sel, _ := m.builds.selected()
+	require.Equal(t, "PROJ-BUILD-44", sel.Key)
 }
 
 // TestDrainFollowDeliversOneChunkPerCall, the same pattern the watch uses.
@@ -224,7 +225,7 @@ func TestLeavingTheLogScreenStopsFollowing(t *testing.T) {
 	stopped := false
 	m.followCancel = func() { stopped = true }
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	require.True(t, stopped)
 	require.Nil(t, m.followCancel)
 }

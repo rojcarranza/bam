@@ -37,7 +37,8 @@ func goldenModel(w, h int) Model {
 	})
 	m.buildsPlan = "PROJ-BUILD"
 	m.now = func() time.Time { return goldenNow }
-	m.screen = screenColumns // the v0.2 tests start on the panels; Home has its own tests
+	m.screen = screenPlan // the v0.2 tests start on the plan screen; Home has its own tests
+	m.focus = focusBuilds
 	return m
 }
 
@@ -86,7 +87,7 @@ func TestViewNeverExceedsTheTerminal(t *testing.T) {
 func TestFocusedPanelIsMarked(t *testing.T) {
 	m := goldenModel(80, 24)
 	first := m.View()
-	m.focus = focusBuilds
+	m.focus = focusStages
 	require.NotEqual(t, first, m.View(), "moving focus must change the rendering")
 }
 
@@ -99,7 +100,7 @@ func TestZeroSizeDoesNotPanic(t *testing.T) {
 // TestDetailGolden is the screen spec §3 draws.
 func TestDetailGolden(t *testing.T) {
 	m := goldenModel(80, 24)
-	m.focus = focusMain
+	m.focus = focusStages
 	m.detail = ptr(sampleBuild())
 	m.expanded = defaultExpanded(sampleBuild())
 	requireGolden(t, "detail-80x24", m.View())
@@ -114,7 +115,7 @@ func TestHelpGolden(t *testing.T) {
 // TestDetailWithEstimateGolden pins the bar in the detail header.
 func TestDetailWithEstimateGolden(t *testing.T) {
 	m := goldenModel(80, 24)
-	m.focus = focusMain
+	m.focus = focusStages
 	m.detail = ptr(runningDetail())
 	m.expanded = defaultExpanded(runningDetail())
 	m.progress = runningEstimate()

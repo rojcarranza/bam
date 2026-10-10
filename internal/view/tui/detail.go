@@ -99,7 +99,7 @@ func (m Model) detailBody(width, height int) string {
 		// the same column.
 		cell := indent + stateStyle(r.State).Render(stateGlyph(r.State)) + " " +
 			truncate(r.Name, nameWidth-len(indent))
-		line := m.cursorFor(m.focus == focusMain, m.treeCursor == i) +
+		line := m.cursorFor(m.focus == focusStages, m.treeCursor == i) +
 			lipgloss.NewStyle().Width(nameWidth+2).Render(cell) + " " + dur
 		lines = append(lines, strings.TrimRight(line, " "))
 	}

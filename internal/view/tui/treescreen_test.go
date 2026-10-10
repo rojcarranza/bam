@@ -83,13 +83,14 @@ func TestTreeScreenEnterAndBack(t *testing.T) {
 	m = firstTree(t, m)
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, "PROJ-PROV-7", m.detail.Key)
+	m, _ = send(m, mkKey("esc")) // Stages back to Builds
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenTree, m.screen, "esc from a tree's build returns to the tree")
 	require.NotNil(t, m.treeCh, "and watches it again")
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen, "esc from the tree returns where it was opened")
+	require.Equal(t, screenPlan, m.screen, "esc from the tree returns where it was opened")
 	require.Nil(t, m.treeCh, "closing the screen stops watching")
 }
 
@@ -188,9 +189,9 @@ func TestTreeScreenLateRerunResultIsDropped(t *testing.T) {
 	m, _ = send(m, mkKey("F"))
 	m, cmd := send(m, mkKey("y"))
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	m, _ = send(m, cmd())
-	require.Equal(t, screenColumns, m.screen, "a result after closing does not reopen the screen")
+	require.Equal(t, screenPlan, m.screen, "a result after closing does not reopen the screen")
 	require.Nil(t, m.treeCh)
 }
 
@@ -215,10 +216,11 @@ func TestTreeScreenRerunSurvivesABuildVisit(t *testing.T) {
 	m, _ = send(m, mkKey("F"))
 	m, cmd := send(m, mkKey("y"))
 	m, _ = send(m, mkKey("enter"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 	m, _ = send(m, cmd())
 	require.Empty(t, m.buildTree.restarting, "the result lands while the build is open")
 	require.Contains(t, m.status, "restarted 1 build")
+	m, _ = send(m, mkKey("esc")) // Stages back to Builds
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenTree, m.screen)
 }

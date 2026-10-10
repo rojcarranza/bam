@@ -83,7 +83,7 @@ func (m Model) closeTree() (tea.Model, tea.Cmd) {
 	m.rerunGen++ // a rerun result for the closed screen is dropped
 	m.screen = m.buildTree.from
 	if m.screen == screenTree {
-		m.screen = screenColumns
+		m.screen = screenPlan
 	}
 	return m, nil
 }
@@ -294,8 +294,8 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 	b := n.Build
 	m.stopTree()
 	m.fromTree = true
-	m.screen = screenColumns
-	m.focus = focusMain
+	m.screen = screenPlan
+	m.focus = focusStages
 	m.detail = &b
 	m.progress = provider.Progress{}
 	m.expanded = defaultExpanded(b)

@@ -160,7 +160,7 @@ func TestCurrentBuildFollowsTheBuildsCursorWhenBuildsHasFocus(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "PROJ-BUILD-43", b.Key)
 
-	m.focus = focusMain
+	m.focus = focusStages
 	b, _ = m.currentBuild()
 	require.Equal(t, "PROJ-BUILD-44", b.Key, "Main still acts on the open build")
 }
@@ -379,7 +379,7 @@ func TestTheDetailTreeScrollsWithItsCursor(t *testing.T) {
 			Name: "Stage" + string(rune('A'+i%26)) + string(rune('0'+i/26)), State: provider.StateSuccess})
 	}
 	m := goldenModel(80, 24)
-	m.detail, m.expanded, m.focus = &b, map[string]bool{}, focusMain
+	m.detail, m.expanded, m.focus = &b, map[string]bool{}, focusStages
 	m.treeCursor = len(m.treeRows()) - 1
 
 	last, ok := m.selectedTreeRow()
@@ -465,7 +465,7 @@ func TestLeavingABuildInvalidatesAPendingRefresh(t *testing.T) {
 	m.svc = testService()
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-BUILD"}, {Key: "PROJ-PROV"}}})
 	m.detail = ptr(sampleBuild())
-	m.focus = focusMain
+	m.focus = focusStages
 	m, _ = send(m, mkKey("r")) // a Main refresh is now in flight
 	pending := m.detailGen
 

@@ -41,22 +41,7 @@ func TestBuildsPanelNamesItsPlan(t *testing.T) {
 
 	// A plan outside the plans load has no name to show.
 	m.buildsPlan = "LAB-OTHER"
-	require.Contains(t, m.View(), "2 Builds─")
-}
-
-// TestBuildsTitleFollowsTheDrill: enter clears the Builds panel at once, so
-// its title must name the plan being loaded, not the one being left, even
-// when the load never answers.
-func TestBuildsTitleFollowsTheDrill(t *testing.T) {
-	m := goldenModel(120, 40)
-	m.svc = testService()
-	m.plans.cursor = 2 // PROJ-DEPLOY, after OPS-NIGHTLY and PROJ-BUILD
-	p, _ := m.plans.selected()
-	require.Equal(t, "PROJ-DEPLOY", p.Key)
-
-	m, _ = send(m, mkKey("enter"))
-	require.Equal(t, focusBuilds, m.focus)
-	require.Contains(t, m.View(), "2 Builds · Deploy")
+	require.NotContains(t, m.View(), "2 Builds ·")
 }
 
 func TestMainPanelNamesTheBuildsPlan(t *testing.T) {
@@ -64,32 +49,10 @@ func TestMainPanelNamesTheBuildsPlan(t *testing.T) {
 	m.focus = focusBuilds
 	require.Contains(t, m.View(), "PROJ-BUILD-44 · Build and test")
 
-	m.focus = focusMain
+	m.focus = focusStages
 	m.detail = ptr(sampleBuild())
 	m.expanded = defaultExpanded(sampleBuild())
 	require.Contains(t, m.View(), "PROJ-BUILD-44 · Build and test")
-}
-
-// TestMainPanelShowsThePlanUnderTheCursor: moving the Plans cursor loads
-// nothing, so the main panel says which plan enter would open rather than
-// describing a build from the plan the user is leaving.
-func TestMainPanelShowsThePlanUnderTheCursor(t *testing.T) {
-	m := goldenModel(120, 40)
-	m.plans.setItems([]provider.Plan{{
-		Key: "PROJ-BUILD", Name: "Build and test", ProjectKey: "PROJ",
-		LastBuild: &provider.BuildSummary{Number: 44, State: provider.StateFailed,
-			FinishedAt: goldenNow.Add(-3 * 60e9)},
-	}})
-	v := m.View()
-	require.Contains(t, v, "PROJ-BUILD · Build and test")
-	require.Contains(t, v, "last build ✗ failed #44 3m ago")
-	require.Contains(t, v, "press enter to show its builds")
-	require.NotContains(t, v, "press enter to open this build")
-
-	// An open build stays on screen while the user looks for another plan.
-	m.detail = ptr(sampleBuild())
-	m.expanded = defaultExpanded(sampleBuild())
-	require.NotContains(t, m.View(), "press enter to show its builds")
 }
 
 func TestPlanNameOf(t *testing.T) {
@@ -114,12 +77,12 @@ func barStart(focused bool) string {
 
 func TestPanelCursorRowsAreBars(t *testing.T) {
 	forceColour(t)
-	m := goldenModel(80, 24) // focus on Plans
-	plans := strings.Split(m.planRows(20, 5), "\n")
-	require.Contains(t, plans[0], barStart(true), "the focused panel's cursor row is the bright bar")
-	require.NotContains(t, plans[1], barStart(true))
+	m := goldenModel(80, 24) // focus on Builds
 	builds := strings.Split(m.buildRows(40, 5), "\n")
-	require.Contains(t, builds[0], barStart(false), "an unfocused panel shows where its cursor is")
+	require.Contains(t, builds[0], barStart(true), "the focused panel's cursor row is the bright bar")
+	require.NotContains(t, builds[1], barStart(true))
+	plans := strings.Split(m.planRows(20, 5), "\n")
+	require.Contains(t, plans[0], barStart(false), "an unfocused panel shows where its cursor is")
 }
 
 func TestBuildRowsTruncateToTheBar(t *testing.T) {

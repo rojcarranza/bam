@@ -198,8 +198,8 @@ func (m Model) openSetBuild() (tea.Model, tea.Cmd) {
 	}
 	b := rows[m.setView.cursor].Build
 	m.fromSet = true
-	m.screen = screenColumns
-	m.focus = focusMain
+	m.screen = screenPlan
+	m.focus = focusStages
 	m.detail = &b
 	m.progress = provider.Progress{}
 	m.expanded = defaultExpanded(b)

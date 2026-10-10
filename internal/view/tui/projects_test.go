@@ -214,8 +214,7 @@ func TestEscClearsThePlansFilterBeforeLeaving(t *testing.T) {
 func TestEscFromPanelsThenHomeStillReturnsToProjects(t *testing.T) {
 	m := fromOPS(t)
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "OPS-NIGHTLY", Name: "Nightly", ProjectKey: "OPS"}}})
-	m, _ = send(m, mkKey("enter")) // panels, Builds
-	m, _ = send(m, mkKey("esc"))   // Plans
+	m, _ = send(m, mkKey("enter")) // plan screen, Builds
 	m, _ = send(m, mkKey("esc"))   // Home
 	require.Equal(t, screenHome, m.screen)
 	require.Equal(t, homePlans, m.home.view)

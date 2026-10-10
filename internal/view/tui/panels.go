@@ -180,17 +180,17 @@ func (m Model) leftColumn(width, height int) string {
 // the build the Builds cursor is on.
 func (m Model) mainPanel(width, height int) string {
 	if m.detail != nil {
-		return panel(m.namedTitle(m.detail.Key, m.detail.PlanKey), m.focus == focusMain, width, height,
+		return panel(m.namedTitle(m.detail.Key, m.detail.PlanKey), m.focus == focusStages, width, height,
 			m.detailBody(width-2, height-2))
 	}
 	if p, ok := m.plans.selected(); ok && m.focus == focusPlans {
 		return panel(m.namedTitle(p.Key, p.Key), false, width, height, m.planSummary(p, width-2))
 	}
 	if b, ok := m.builds.selected(); ok {
-		return panel(m.namedTitle(b.Key, b.PlanKey), m.focus == focusMain, width, height,
+		return panel(m.namedTitle(b.Key, b.PlanKey), m.focus == focusStages, width, height,
 			dimStyle.Render("press enter to open this build"))
 	}
-	return panel("bam", m.focus == focusMain, width, height, dimStyle.Render("select a plan"))
+	return panel("bam", m.focus == focusStages, width, height, dimStyle.Render("select a plan"))
 }
 
 // namedTitle follows a panel title with the name of the plan it is about:

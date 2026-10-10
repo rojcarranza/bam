@@ -532,13 +532,13 @@ func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		next, cmd := m.drillFromHome(focusBuilds)
 		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Panel1):
-		next, cmd := m.drillFromHome(focusPlans)
-		return next.(Model), cmd, true
-	case key.Matches(msg, keys.Panel2):
 		next, cmd := m.drillFromHome(focusBuilds)
 		return next.(Model), cmd, true
+	case key.Matches(msg, keys.Panel2):
+		next, cmd := m.drillFromHome(focusStages)
+		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Panel3):
-		next, cmd := m.drillFromHome(focusPresets)
+		next, cmd := m.drillFromHome(focusTree)
 		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Sort):
 		m.setHomeSort(m.currentHomeSort().next())
@@ -565,7 +565,7 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 	} else if _, ok := m.plans.selected(); !ok {
 		return m, nil
 	}
-	m.screen = screenColumns
+	m.screen = screenPlan
 	m.home.tickGen++
 	m.focus = m.homeFocus()
 	next, cmd := m.drill()

@@ -1,20 +1,7 @@
-┏━1 Plans━━━━━━━━━━━━━━━━━━━━┓╭─OPS-NIGHTLY · Nightly──────────────────────────────────────────────────────────────────╮
-┃▸ OPS-NIGHTLY  Nightly      ┃│Nightly                                                                                 │
-┃  PROJ-BUILD  Build and test┃│OPS · no builds yet                                                                     │
-┃  PROJ-DEPLOY  Deploy       ┃│                                                                                        │
-┃                            ┃│press enter to show its builds                                                          │
-┃                            ┃│                                                                                        │
-┃                            ┃│                                                                                        │
-┃                            ┃│                                                                                        │
-┃                            ┃│                                                                                        │
-┃                            ┃│                                                                                        │
-┃                            ┃│                                                                                        │
-┃                            ┃│                                                                                        │
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│                                                                                        │
-╭─2 Builds · Build and test──╮│                                                                                        │
-│▸ ✗ #44 3m ago              ││                                                                                        │
-│  ✓ #43 1h ago              ││                                                                                        │
-│                            ││                                                                                        │
+╭─1 Plans────────────────────╮╭─PROJ-BUILD-44 · Build and test─────────────────────────────────────────────────────────╮
+│▸ OPS-NIGHTLY  Nightly      ││press enter to open this build                                                          │
+│  PROJ-BUILD  Build and test││                                                                                        │
+│  PROJ-DEPLOY  Deploy       ││                                                                                        │
 │                            ││                                                                                        │
 │                            ││                                                                                        │
 │                            ││                                                                                        │
@@ -24,6 +11,19 @@
 │                            ││                                                                                        │
 │                            ││                                                                                        │
 ╰────────────────────────────╯│                                                                                        │
+┏━2 Builds · Build and test━━┓│                                                                                        │
+┃▸ ✗ #44 3m ago              ┃│                                                                                        │
+┃  ✓ #43 1h ago              ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┃                            ┃│                                                                                        │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│                                                                                        │
 ╭─3 Presets──────────────────╮│                                                                                        │
 │                            ││                                                                                        │
 │                            ││                                                                                        │

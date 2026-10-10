@@ -225,17 +225,17 @@ func TestStaleFormLoadIsDropped(t *testing.T) {
 func TestEscLeavesTheForm(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 }
 
 // TestROnNothingDoesNothing.
 func TestROnNothingDoesNothing(t *testing.T) {
 	m := New(Deps{})
 	m.width, m.height = 80, 24
-	m.screen = screenColumns
+	m.screen = screenPlan
 	m, cmd := send(m, mkKey("R"))
 	require.Nil(t, cmd)
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 }
 
 // TestRIsNotReachableFromTheLogScreen: the log screen is for reading.
@@ -303,7 +303,7 @@ func TestEscWhileEditingLeavesTheFieldNotTheForm(t *testing.T) {
 	require.Equal(t, screenForm, m.screen)
 
 	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenColumns, m.screen)
+	require.Equal(t, screenPlan, m.screen)
 }
 
 // TestEscWhileEditingKeepsTheOldValue.
@@ -495,8 +495,8 @@ func TestASuccessfulRunOpensAndWatchesTheNewBuild(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, triggeredMsg{Gen: m.formGen,
 		Build: provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9}})
-	require.Equal(t, screenColumns, m.screen)
-	require.Equal(t, focusMain, m.focus)
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, focusStages, m.focus)
 	require.NotNil(t, m.detail)
 	require.Equal(t, "PROJ-PROV12-9", m.detail.Key)
 	require.NotNil(t, m.watchCancel, "the new build is watched")
@@ -878,10 +878,10 @@ func TestCIsIgnoredOutsideBuildsAndMain(t *testing.T) {
 // TestCStillWorksFromBuildsAndMain is the other half: the guard must not
 // take away the two focuses the design gives C.
 func TestCStillWorksFromBuildsAndMain(t *testing.T) {
-	for _, f := range []focus{focusBuilds, focusMain} {
+	for _, f := range []focus{focusBuilds, focusStages} {
 		m := cancelModel()
 		m.focus = f
-		if f == focusMain {
+		if f == focusStages {
 			b := m.builds.items[0]
 			m.detail = &b
 		}

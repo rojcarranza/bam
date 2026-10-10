@@ -133,6 +133,7 @@ type Model struct {
 	setsGen, setGen              int
 	projectsGen                  int
 	treeGen                      int
+	treePreviewGen               int
 	rerunGen                     int // the tree screen opened now; only opening or closing it moves on
 
 	watchCancel context.CancelFunc
@@ -164,6 +165,7 @@ type Model struct {
 	setVars      setVarsState
 	setDry       []string // the set dry run the overlay shows on the vars prompt
 	buildTree    treeScreen
+	plan         planScreen
 	fromTree     bool // the panels were opened from the tree screen; esc returns there
 	logsFromTree bool // the log screen was opened from the tree screen; esc returns there
 	fromProjects bool // Home's plans were reached from the projects view; esc returns there
@@ -346,6 +348,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.builds.loading = false
 		m.buildsPlan = msg.PlanKey
 		m.builds.setItems(msg.Builds)
+		if m.screen == screenPlan {
+			return m.planBuildsLoaded()
+		}
 		return m, nil
 	case presetsLoadedMsg:
 		if msg.Gen != m.presetsGen {
@@ -673,15 +678,14 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.picker.setItems(nil)
 		return m, loadProjectsCmd(m.baseCtx(), m.svc, streamPicker, m.pickerGen)
 	case key.Matches(msg, keys.Branch):
-		p, ok := m.plans.selected()
-		if !ok || m.svc == nil {
+		if m.screen != screenPlan || m.plan.key == "" || m.svc == nil {
 			return m, nil
 		}
 		m.overlay = overlayBranches
 		m.pickerGen++
 		m.picker.setQuery("")
 		m.picker.setItems(nil)
-		return m, loadBranchesCmd(m.baseCtx(), m.svc, p.Key, m.pickerGen)
+		return m, loadBranchesCmd(m.baseCtx(), m.svc, m.plan.key, m.pickerGen)
 	}
 	return m, nil
 }
@@ -886,6 +890,7 @@ func (m Model) chooseOverlay() (tea.Model, tea.Cmd) {
 	case overlayBranches:
 		m.overlay = overlayNone
 		m.leaveBuild()
+		m.plan.want, m.plan.older = nil, "" // the pinned build belonged to the branch being left
 		m.focus = focusBuilds
 		cmd := m.loadBuilds(it.Value, true)
 		return m, cmd
@@ -908,8 +913,10 @@ func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
 	m.buildsGen++
 	m.builds.setItems(nil)
 	m.plans.setItems(nil)
-	if m.screen != screenHome {
-		m.focus = focusPlans
+	if m.screen == screenPlan {
+		m.closePlan()
+		m.screen = screenHome
+		m.focus = m.homeFocus()
 	}
 	load := m.loadPlans()
 	tick := m.restartHomeTick()
@@ -940,6 +947,12 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 		// The tree is the old server's; a build key means another build here.
 		m.stopTree()
 		m.screen = m.buildTree.from
+	}
+	if m.screen == screenPlan {
+		// The plan and its builds are the old server's.
+		m.closePlan()
+		m.screen = screenHome
+		m.focus = m.homeFocus()
 	}
 	m.server, m.svc = alias, nil
 	m.buildsPlan = ""
@@ -1070,48 +1083,16 @@ func (m *Model) leaveBuild() {
 // drill is spec §4.1. Each row moves focus and starts the load its panel needs.
 func (m Model) drill() (tea.Model, tea.Cmd) {
 	switch m.focus {
-	case focusPlans:
-		p, ok := m.plans.selected()
-		if !ok || m.svc == nil {
-			return m, nil
-		}
-		m.focus = focusBuilds
-		m.leaveBuild()
-		cmd := m.loadBuilds(p.Key, true)
-		return m, cmd
 	case focusBuilds:
 		b, ok := m.builds.selected()
 		if !ok || m.svc == nil {
 			return m, nil
 		}
 		m.focus = focusStages
-		m.detail = &b
-		m.progress = provider.Progress{}
-		m.expanded = defaultExpanded(b)
-		m.treeCursor = 0
-		return m.startWatch(b.Key)
-	case focusPresets:
-		t, ok := m.presets.selected()
-		if !ok || m.svc == nil || t.Plan == "" {
+		if m.detail != nil && m.detail.Key == b.Key {
 			return m, nil
 		}
-		// Move the Plans cursor onto the preset's plan when it is listed, so
-		// the panels agree about what the main panel is showing.
-		for i, p := range m.plans.rows() {
-			if p.Key == t.Plan {
-				m.plans.cursor = i
-				break
-			}
-		}
-		m.focus = focusBuilds
-		m.leaveBuild()
-		m.buildsGen++
-		m.builds.loading = true
-		m.builds.setItems(nil)
-		// A preset may name a branch, and its builds live under the branch
-		// plan, not the master. ResolvePlan is what turns the two into a plan
-		// key, exactly as bam run does it.
-		return m, resolveTargetBuildsCmd(m.baseCtx(), m.svc, t, m.buildsGen)
+		return m.showBuild(b)
 	case focusStages:
 		row, ok := m.selectedTreeRow()
 		if !ok {
@@ -1467,7 +1448,7 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 	// C is a Builds and Main key. currentBuild falls back to the Builds
 	// cursor, so without this a C struck in Plans or Presets would offer to
 	// stop a build from the row the user is no longer looking at.
-	if m.focus != focusBuilds && m.focus != focusStages {
+	if m.screen != screenPlan {
 		return m, nil
 	}
 	b, ok := m.currentBuild()
@@ -1487,26 +1468,14 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 // openTriggered shows the build that was just started and watches it. It is
 // the drill-into-a-build path, so at most one watch still runs.
 func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
-	m.screen = screenPlan
 	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
 	m.form = formState{}
-	m.focus = focusStages
-	m.detail = &b
-	m.progress = provider.Progress{}
-	m.expanded = defaultExpanded(b)
-	m.treeCursor = 0
-	m.status = "queued " + b.Key
-
-	next, watch := m.startWatch(b.Key)
-	m = next.(Model)
-	// startWatch stops whatever was being watched before, which clears the
-	// old marker; note this build's only after, so it survives.
+	m, cmd := m.openPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
+	// showBuild started the watch; note the build only after, since
+	// stopping the previous watch clears the marker.
 	m.noteLive(b)
-	cmds := []tea.Cmd{watch}
-	if b.PlanKey != "" {
-		cmds = append(cmds, m.loadBuilds(b.PlanKey, false))
-	}
-	return m, tea.Batch(cmds...)
+	m.status = "queued " + b.Key
+	return m, cmd
 }
 
 // openForm opens the run form for whatever the cursor is on: a preset by its
@@ -1534,11 +1503,11 @@ func (m Model) openForm() (tea.Model, tea.Cmd) {
 		}
 		planKey = p.Key
 	default:
-		b, ok := m.currentBuild()
-		if !ok {
-			return m, nil
+		if b, ok := m.currentBuild(); ok {
+			planKey = b.PlanKey
+		} else {
+			planKey = m.buildsPlan
 		}
-		planKey = b.PlanKey
 	}
 	if target == nil && planKey == "" {
 		return m, nil

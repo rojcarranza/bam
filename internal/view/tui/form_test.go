@@ -862,26 +862,26 @@ func TestAZeroVariablePlanCanStillBeRun(t *testing.T) {
 	require.Contains(t, m3.View(), "no variables would be sent")
 }
 
-// TestCIsIgnoredOutsideBuildsAndMain: currentBuild falls back to the Builds
-// cursor, so without a focus guard a C struck in Plans offers to stop a build
-// from a panel the user is not operating on.
-func TestCIsIgnoredOutsideBuildsAndMain(t *testing.T) {
+// TestCIsIgnoredOffThePlanScreen: currentBuild falls back to the Builds
+// cursor, so without a screen guard a C struck on Home offers to stop a build
+// from a table the user is not operating on.
+func TestCIsIgnoredOffThePlanScreen(t *testing.T) {
 	for _, f := range []focus{focusPlans, focusPresets} {
 		m := cancelModel()
-		m.focus = f
+		m.screen, m.focus = screenHome, f
 		m, cmd := send(m, mkKey("C"))
 		require.Equal(t, overlayNone, m.overlay, "focus %v must not open the confirmation", f)
 		require.Nil(t, cmd)
 	}
 }
 
-// TestCStillWorksFromBuildsAndMain is the other half: the guard must not
-// take away the two focuses the design gives C.
-func TestCStillWorksFromBuildsAndMain(t *testing.T) {
-	for _, f := range []focus{focusBuilds, focusStages} {
+// TestCStillWorksFromEveryPlanScreenPanel is the other half: C acts on the
+// open build from Builds, Stages and Tree.
+func TestCStillWorksFromEveryPlanScreenPanel(t *testing.T) {
+	for _, f := range []focus{focusBuilds, focusStages, focusTree} {
 		m := cancelModel()
 		m.focus = f
-		if f == focusStages {
+		if f != focusBuilds {
 			b := m.builds.items[0]
 			m.detail = &b
 		}

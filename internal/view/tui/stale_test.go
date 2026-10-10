@@ -124,6 +124,7 @@ func TestBranchSwitchClearsTheBuildsRows(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-PROV"}}})
+	m.plan.key = "PROJ-PROV"
 	require.Positive(t, m.builds.len())
 
 	m, _ = send(m, mkKey("b"))
@@ -282,27 +283,27 @@ func TestOpeningAnotherPlanStopsTheWatchAndClearsTheDetail(t *testing.T) {
 	stopped := false
 	m.watchCancel = func() { stopped = true }
 
-	m.focus = focusPlans
+	m.screen, m.focus = screenHome, focusPlans
 	m, _ = send(m, mkKey("enter"))
 	require.True(t, stopped)
 	require.Nil(t, m.detail)
 	require.Nil(t, m.watchCancel)
 }
 
-// TestOpeningAPresetStopsTheWatchToo.
+// TestOpeningAPresetStopsTheWatchToo: Enter on a preset in Home's presets view
+// ends the watch of the build the plan screen was showing.
 func TestOpeningAPresetStopsTheWatchToo(t *testing.T) {
-	m := goldenModel(80, 24)
+	m := presetModel()
 	m.svc = testService()
-	m, _ = send(m, presetsLoadedMsg{Gen: m.presetsGen,
-		Targets: []app.TargetInfo{{Name: "smoke", Plan: "PROJ-PROV", Branch: "develop"}}})
 	m.detail = ptr(sampleBuild())
 	stopped := false
 	m.watchCancel = func() { stopped = true }
 
-	m.focus = focusPresets
 	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, screenPlan, m.screen)
 	require.True(t, stopped)
 	require.Nil(t, m.detail)
+	require.Nil(t, m.watchCancel)
 }
 
 // TestSwitchingServerClearsThePresetsAndTheProjectFilter: both are keyed to
@@ -469,7 +470,7 @@ func TestLeavingABuildInvalidatesAPendingRefresh(t *testing.T) {
 	m, _ = send(m, mkKey("r")) // a Main refresh is now in flight
 	pending := m.detailGen
 
-	m.focus = focusPlans
+	m.screen, m.focus = screenHome, focusPlans
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter")) // a different plan
 	require.Nil(t, m.detail)
@@ -529,7 +530,7 @@ func TestAPresetResolutionFailureIsShown(t *testing.T) {
 	m.svc = testService()
 	m, _ = send(m, presetsLoadedMsg{Gen: m.presetsGen,
 		Targets: []app.TargetInfo{{Name: "gone", Plan: "PROJ-PROV", Branch: "no-such-branch"}}})
-	m.focus = focusPresets
+	m.screen, m.focus, m.home.view = screenHome, focusPresets, homePresets
 
 	m, cmd := send(m, mkKey("enter"))
 	require.NotNil(t, cmd)

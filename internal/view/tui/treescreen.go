@@ -294,17 +294,13 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 	b := n.Build
 	m.stopTree()
 	m.fromTree = true
-	m.screen = screenPlan
-	m.focus = focusStages
-	m.detail = &b
-	m.progress = provider.Progress{}
-	m.expanded = defaultExpanded(b)
-	m.treeCursor = 0
-	if logs {
-		m.logsFromTree = true
-		return m.openLogs("", all)
+	next, cmd := m.openPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
+	if !logs {
+		return next, cmd
 	}
-	return m.startWatch(b.Key)
+	next.logsFromTree = true
+	after, logsCmd := next.openLogs("", all)
+	return after, tea.Batch(cmd, logsCmd)
 }
 
 func (m Model) treeScreenView() string {

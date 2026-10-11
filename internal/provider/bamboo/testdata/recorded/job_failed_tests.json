@@ -1,0 +1,199 @@
+{
+  "artifacts": {
+    "max-result": 1,
+    "size": 1,
+    "start-index": 0
+  },
+  "buildCompletedDate": "2026-10-11T14:50:31.147Z",
+  "buildCompletedTime": "2026-10-11T14:50:31.147Z",
+  "buildDuration": 6926,
+  "buildDurationDescription": "6 seconds",
+  "buildDurationInSeconds": 6,
+  "buildNumber": 3,
+  "buildReason": "Dependency build",
+  "buildRelativeTime": "59 minutes ago",
+  "buildResultKey": "LAB-FLAKY-TEST-3",
+  "buildStartedTime": "2026-10-11T14:50:24.221Z",
+  "buildState": "Failed",
+  "buildTestSummary": "2 of 3 failed",
+  "changes": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "comments": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "expand": "changes,testResults,metadata,plan,vcsRevisions,artifacts,comments,labels,jiraIssues,variables,logFiles",
+  "failedTestCount": 2,
+  "id": 5865532,
+  "jiraIssues": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "key": "LAB-FLAKY-TEST-3",
+  "labels": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "lifeCycleState": "Finished",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/result/LAB-FLAKY-TEST-3",
+    "rel": "self"
+  },
+  "logFiles": [
+    "http://bamboo.example.com/download/LAB-FLAKY-TEST/build_logs/plan-6225926-TEST-3.log"
+  ],
+  "metadata": {
+    "max-result": 43,
+    "size": 43,
+    "start-index": 0
+  },
+  "number": 3,
+  "onceOff": false,
+  "parent": {
+    "href": "http://bamboo.example.com/rest/api/latest/result/LAB-FLAKY-3",
+    "rel": "parent"
+  },
+  "plan": {
+    "enabled": true,
+    "id": 6225928,
+    "key": "LAB-FLAKY-TEST",
+    "link": {
+      "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-FLAKY-TEST",
+      "rel": "self"
+    },
+    "name": "lab - Flaky - Test",
+    "planKey": {
+      "key": "LAB-FLAKY-TEST"
+    },
+    "shortKey": "FLAKY-TEST",
+    "shortName": "Test",
+    "type": "job"
+  },
+  "planName": "Test",
+  "planResultKey": {
+    "entityKey": {
+      "key": "LAB-FLAKY-TEST"
+    },
+    "key": "LAB-FLAKY-TEST-3",
+    "resultNumber": 3
+  },
+  "prettyBuildCompletedTime": "Sun, 11 Oct, 02:50 PM",
+  "prettyBuildStartedTime": "Sun, 11 Oct, 02:50 PM",
+  "prettyQueueDuration": "1 min",
+  "prettyQueueStartedTime": "Sun, 11 Oct, 02:49 PM",
+  "prettyVcsUpdateDuration": "< 1 sec",
+  "prettyVcsUpdateStartedTime": "Sun, 11 Oct, 02:50 PM",
+  "projectName": "lab",
+  "quarantinedTestCount": 0,
+  "queueDuration": 73459,
+  "queueStartedTime": "2026-10-11T14:49:10.765Z",
+  "queueTimeInSeconds": 73,
+  "reasonSummary": "Child of <a href=\"http://bamboo.example.com/browse/LAB-LAB4-3\">LAB-LAB4-3</a>",
+  "skippedTestCount": 0,
+  "specsResult": false,
+  "stage": "Test",
+  "state": "Failed",
+  "successfulTestCount": 1,
+  "testResults": {
+    "all": 3,
+    "allTests": {
+      "max-result": 3,
+      "size": 3,
+      "start-index": 0
+    },
+    "existingFailed": 0,
+    "existingFailedTests": {
+      "max-result": 0,
+      "size": 0,
+      "start-index": 0
+    },
+    "expand": "allTests,successfulTests,failedTests,newFailedTests,existingFailedTests,fixedTests,quarantinedTests,skippedTests",
+    "failed": 2,
+    "failedTests": {
+      "expand": "testResult",
+      "max-result": 2,
+      "size": 2,
+      "start-index": 0,
+      "testResult": [
+        {
+          "className": "LAB.LAB-FLAKY",
+          "duration": 100,
+          "durationInSeconds": 0,
+          "errors": {
+            "max-result": 1,
+            "size": 1,
+            "start-index": 0
+          },
+          "expand": "errors",
+          "methodName": "parses_config",
+          "status": "failed",
+          "testCaseId": 6586373
+        },
+        {
+          "className": "LAB.LAB-FLAKY",
+          "duration": 100,
+          "durationInSeconds": 0,
+          "errors": {
+            "max-result": 1,
+            "size": 1,
+            "start-index": 0
+          },
+          "expand": "errors",
+          "methodName": "talks_to_bamboo",
+          "status": "failed",
+          "testCaseId": 6586372
+        }
+      ]
+    },
+    "fixed": 0,
+    "fixedTests": {
+      "max-result": 0,
+      "size": 0,
+      "start-index": 0
+    },
+    "newFailed": 2,
+    "newFailedTests": {
+      "max-result": 2,
+      "size": 2,
+      "start-index": 0
+    },
+    "quarantined": 0,
+    "quarantinedTests": {
+      "max-result": 0,
+      "size": 0,
+      "start-index": 0
+    },
+    "skipped": 0,
+    "skippedTests": {
+      "max-result": 0,
+      "size": 0,
+      "start-index": 0
+    },
+    "successful": 1,
+    "successfulTests": {
+      "max-result": 1,
+      "size": 1,
+      "start-index": 0
+    }
+  },
+  "variables": {
+    "max-result": 0,
+    "size": 0,
+    "start-index": 0
+  },
+  "vcsRevisionKey": "df6d9f0acac865ba6df88af6304583d106ada737",
+  "vcsRevisions": {
+    "max-result": 1,
+    "size": 1,
+    "start-index": 0
+  },
+  "vcsUpdateDuration": -3,
+  "vcsUpdateInSeconds": 0,
+  "vcsUpdateStartedTime": "2026-10-11T14:50:24.224Z"
+}

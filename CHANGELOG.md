@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - A set run that cannot save its record now always ends with `set_error`; a `run_event` from a build still running could arrive after it.
+- `bam build list`, `bam plan show`, `bam plan stats` and the terminal UI's build lists include queued and running builds, so `bam build list` shows the `ETA` of a running build; Bamboo leaves them out unless asked.
 
 ## [0.2.1] - 2026-10-08
 

@@ -236,12 +236,13 @@ type treeScan struct {
 	plans   []string
 	builds  map[string][]provider.Build
 	windows map[string]planWindow
-	parents map[string]string // build key to parent key; "" for none
+	parents map[string]string // build key to parent key; "" for none or given up
+	misses  map[string]int    // failed parent reads in a row, by build key
 }
 
 // first is the scan of a first search: its builds and their windows.
 func (sc *treeScan) first(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, builds: got, windows: map[string]planWindow{}, parents: map[string]string{}}
+	out := &treeScan{plans: sc.plans, builds: got, windows: map[string]planWindow{}, parents: map[string]string{}, misses: map[string]int{}}
 	for plan, bs := range got {
 		w := planWindow{full: len(bs) >= treeWindow}
 		for _, b := range bs {
@@ -258,7 +259,7 @@ func (sc *treeScan) first(got map[string][]provider.Build) *treeScan {
 // again replaces its older copy, a new build is added, and a plan that
 // could not be read keeps what was found before.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents)}
+	out := &treeScan{plans: sc.plans, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses)}
 	for plan, bs := range sc.builds {
 		out.builds[plan] = bs
 	}
@@ -298,11 +299,24 @@ func (sc *treeScan) index() map[string][]provider.Build {
 	return idx
 }
 
+// unresolved reports whether a restarted build's parent is still unknown: a
+// watch must not settle then, since the build may belong to the tree.
+func (sc *treeScan) unresolved() bool {
+	for _, plan := range sc.plans {
+		for _, b := range sc.builds[plan] {
+			if _, asked := sc.parents[b.Key]; !asked && rebuiltRe.MatchString(b.Reason) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // treeParents reads, with GetBuild, the parent of each restarted build the
 // scan has not asked about yet: a restart rewrites a child's reason to
 // "Rebuilt by ...", and only the build's metadata still names its parent. A
 // parent never changes, so each build is asked once; one that cannot be read
-// is asked again on the next refresh.
+// is asked again on the next refresh, up to treeTries times in a row.
 func (s *Service) treeParents(ctx context.Context, sc *treeScan) []string {
 	var keys []string
 	for _, plan := range sc.plans {
@@ -331,12 +345,23 @@ func (s *Service) treeParents(ctx context.Context, sc *treeScan) []string {
 	var warnings []string
 	for i, k := range keys {
 		if readErrs[i] != nil {
-			if ctx.Err() == nil {
-				warnings = append(warnings, fmt.Sprintf("%s: its parent could not be read: %s", k, describeErr(readErrs[i])))
+			if ctx.Err() != nil {
+				continue
+			}
+			warnings = append(warnings, fmt.Sprintf("%s: its parent could not be read: %s", k, describeErr(readErrs[i])))
+			if sc.misses[k]++; sc.misses[k] >= treeTries {
+				sc.parents[k] = "" // give up, so the build cannot hold a watch open
 			}
 			continue
 		}
+		delete(sc.misses, k)
 		sc.parents[k] = parents[i]
+	}
+	// A build given up on stays named, so the final tree says what it may miss.
+	for k, n := range sc.misses {
+		if n >= treeTries && !slices.Contains(keys, k) {
+			warnings = append(warnings, fmt.Sprintf("%s: its parent could not be read, so it is left out", k))
+		}
 	}
 	return warnings
 }
@@ -544,7 +569,7 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 					}
 					last = sig
 				}
-				if t.State == provider.StateRunning {
+				if t.State == provider.StateRunning || scan.unresolved() {
 					settled = ""
 				} else if settled == sig {
 					send(TreeEvent{Type: TreeDone, Tree: t})

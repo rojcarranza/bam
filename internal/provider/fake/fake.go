@@ -41,6 +41,7 @@ type Provider struct {
 	RestartErr     error
 	RestartResults map[string]provider.Build // by build key; RestartResult and RestartErr apply when a key is missing
 	RestartErrs    map[string]error
+	GetErrs        map[string][]error             // returned by GetBuild for a key in order, one per call; then the build
 	LogErrs        []error                        // returned by FetchLog in order, one per call; nil entries succeed
 	Progressions   map[string][]provider.Progress // by build key; BuildProgress walks it and repeats the last entry
 	ProgressErr    error
@@ -140,6 +141,10 @@ func (f *Provider) GetBuild(_ context.Context, key string) (provider.Build, erro
 	}
 	n := f.getCalls[key]
 	f.getCalls[key] = n + 1
+	if errs := f.GetErrs[key]; len(errs) > 0 {
+		f.GetErrs[key] = errs[1:]
+		return provider.Build{}, errs[0]
+	}
 	if seq, ok := f.Sequences[key]; ok && len(seq) > 0 {
 		if n >= len(seq) {
 			n = len(seq) - 1

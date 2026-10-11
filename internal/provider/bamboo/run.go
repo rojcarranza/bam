@@ -229,15 +229,42 @@ func (c *Client) FetchLog(ctx context.Context, jobKey string, o provider.LogOpti
 }
 
 func (c *Client) logEntries(ctx context.Context, jobKey string, offset int) (provider.LogChunk, error) {
+	lines, size, err := c.readLogEntries(ctx, jobKey, logMax)
+	if err != nil {
+		return provider.LogChunk{}, err
+	}
+	// base is the line number of the first entry read. A log longer than one
+	// read comes back as one end of it; one entry more tells which end, so
+	// offsets stay right and a follow neither repeats nor stalls. The lines
+	// before a last-N page cannot be read from the entries. The download is
+	// not used here: it counts agent lines the entries leave out, so an
+	// offset from one is wrong in the other.
+	base := 0
+	if size > len(lines) && len(lines) > 0 {
+		last, _, err := c.readLogEntries(ctx, jobKey, 1)
+		if err != nil {
+			return provider.LogChunk{}, err
+		}
+		if len(last) == 1 && last[0] == lines[len(lines)-1] {
+			base = size - len(lines)
+		}
+	}
+	from := min(max(offset, base), base+len(lines)) - base
+	return provider.LogChunk{Lines: lines[from:], Next: base + len(lines)}, nil
+}
+
+// readLogEntries reads up to n log entries of a job result, and how many
+// the log holds.
+func (c *Client) readLogEntries(ctx context.Context, jobKey string, n int) ([]string, int, error) {
 	var r struct {
 		LogEntries *envelope `json:"logEntries"`
 	}
-	q := url.Values{"expand": {"logEntries"}, "max-result": {strconv.Itoa(logMax)}}
+	q := url.Values{"expand": {"logEntries"}, "max-result": {strconv.Itoa(n)}}
 	if err := c.getJSON(ctx, api+"/result/"+url.PathEscape(jobKey), q, &r); err != nil {
-		return provider.LogChunk{}, err
+		return nil, 0, err
 	}
 	if r.LogEntries == nil {
-		return provider.LogChunk{}, errs.ErrUnsupported
+		return nil, 0, errs.ErrUnsupported
 	}
 	var entries []struct {
 		Log      string `json:"log"`
@@ -245,7 +272,7 @@ func (c *Client) logEntries(ctx context.Context, jobKey string, offset int) (pro
 	}
 	if len(r.LogEntries.Items) > 0 {
 		if err := json.Unmarshal(r.LogEntries.Items, &entries); err != nil {
-			return provider.LogChunk{}, err
+			return nil, 0, err
 		}
 	}
 	lines := make([]string, 0, len(entries))
@@ -256,16 +283,7 @@ func (c *Client) logEntries(ctx context.Context, jobKey string, offset int) (pro
 		}
 		lines = append(lines, line)
 	}
-	if r.LogEntries.Size > len(lines) {
-		// Longer than one read: which end the entries came from is unknown,
-		// so the whole log comes from the download, once the job has
-		// finished. While it runs the download is empty; keep what was read.
-		if chunk, err := c.logDownload(ctx, jobKey, offset); err == nil && chunk.Next > 0 {
-			return chunk, nil
-		}
-	}
-	offset = min(offset, len(lines))
-	return provider.LogChunk{Lines: lines[offset:], Next: len(lines)}, nil
+	return lines, r.LogEntries.Size, nil
 }
 
 // logDownload reads the raw log artifact. Its lines look like

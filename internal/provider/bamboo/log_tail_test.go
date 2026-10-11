@@ -23,6 +23,7 @@ type bamboo12Log struct {
 	mu       sync.Mutex
 	lines    []string
 	download string
+	firstN   bool // answer max-result with the FIRST entries instead, as a server might
 }
 
 func (b *bamboo12Log) grow(n int) {
@@ -54,7 +55,11 @@ func (b *bamboo12Log) client(t *testing.T) *Client {
 			Unstyled string `json:"unstyledLog"`
 		}
 		var es []entry
-		for _, l := range b.lines[len(b.lines)-n:] {
+		page := b.lines[len(b.lines)-n:]
+		if b.firstN {
+			page = b.lines[:n]
+		}
+		for _, l := range page {
 			es = append(es, entry{l, l})
 		}
 		body, _ := json.Marshal(map[string]any{"key": "LAB-VARS-RUN-1", "logEntries": map[string]any{
@@ -108,23 +113,52 @@ func TestFollowingAGrowingLogNeitherRepeatsNorSkips(t *testing.T) {
 	}
 }
 
-func TestFetchLogPastTheReadLimitUsesTheDownload(t *testing.T) {
+func TestFetchLogPastTheReadLimitKeepsLineNumbersRight(t *testing.T) {
+	// Bamboo 12 answers with the LAST logMax entries: they are lines 3 to 12
+	// of 12, and following on from there neither repeats nor stalls.
+	defer func(n int) { logMax = n }(logMax)
+	logMax = 10
+	b := &bamboo12Log{}
+	b.grow(12)
+	c := b.client(t)
+	chunk, err := c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "line 3", chunk.Lines[0])
+	assert.Equal(t, "line 12", chunk.Lines[len(chunk.Lines)-1])
+	assert.Equal(t, 12, chunk.Next)
+
+	b.grow(3)
+	chunk, err = c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{Offset: chunk.Next})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"line 13", "line 14", "line 15"}, chunk.Lines)
+	assert.Equal(t, 15, chunk.Next)
+
+	chunk, err = c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{Offset: 8})
+	require.NoError(t, err)
+	assert.Equal(t, "line 9", chunk.Lines[0], "an offset inside the page starts there")
+}
+
+func TestFetchLogPastTheReadLimitOfAServerThatCountsFromTheStart(t *testing.T) {
+	defer func(n int) { logMax = n }(logMax)
+	logMax = 10
+	b := &bamboo12Log{firstN: true}
+	b.grow(12)
+	chunk, err := b.client(t).FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "line 1", chunk.Lines[0])
+	assert.Len(t, chunk.Lines, 10)
+	assert.Equal(t, 10, chunk.Next)
+}
+
+func TestFetchLogPastTheReadLimitNeverMixesInTheDownload(t *testing.T) {
+	// The download counts agent lines the entries leave out, so an offset
+	// from one is wrong in the other.
 	defer func(n int) { logMax = n }(logMax)
 	logMax = 10
 	b := &bamboo12Log{download: "simple\t11-Oct-2026 16:26:37\tagent ready\nbuild\t11-Oct-2026 16:26:38\tline 1\n"}
 	b.grow(12)
 	chunk, err := b.client(t).FetchLog(ctx, "LAB-VARS-RUN-1", provider.LogOptions{})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"agent ready", "line 1"}, chunk.Lines, "more entries than one read holds: the whole log comes from the download")
-}
-
-func TestFetchLogPastTheReadLimitOfARunningJobKeepsWhatItRead(t *testing.T) {
-	// The download stays empty until the job finishes.
-	defer func(n int) { logMax = n }(logMax)
-	logMax = 10
-	b := &bamboo12Log{}
-	b.grow(12)
-	chunk, err := b.client(t).FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{})
-	require.NoError(t, err)
-	assert.Len(t, chunk.Lines, 10)
+	assert.NotContains(t, chunk.Lines, "agent ready")
+	assert.Equal(t, 12, chunk.Next)
 }

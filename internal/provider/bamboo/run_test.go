@@ -59,7 +59,7 @@ func TestStopBuildUnsupported(t *testing.T) {
 
 func TestFetchLogFromEntries(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/result/PROJ-BUILD12-INT-44?expand=logEntries[0:500]": {fixture: "log_entries.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-INT-44?expand=logEntries": {fixture: "log_entries.json"},
 	})
 	saved := knownCaps(c, Capabilities{})
 	chunk, err := c.FetchLog(ctx, "PROJ-BUILD12-INT-44", provider.LogOptions{})
@@ -106,7 +106,7 @@ func TestRecordedLogEntriesDecode(t *testing.T) {
 		t.Skipf("%s not recorded", f)
 	}
 	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/result/REC-PLAN-JOB1-1?expand=logEntries[0:500]": {fixture: f},
+		"GET /rest/api/latest/result/REC-PLAN-JOB1-1?expand=logEntries": {fixture: f},
 	})
 	knownCaps(c, Capabilities{})
 	chunk, err := c.FetchLog(ctx, "REC-PLAN-JOB1-1", provider.LogOptions{})

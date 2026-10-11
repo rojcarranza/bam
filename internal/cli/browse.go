@@ -193,7 +193,7 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 			} else {
 				d.Vars = vars
 			}
-			if d.Builds, err = svc.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: 5}); err != nil {
+			if d.Builds, err = svc.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: 5, Unfinished: true}); err != nil {
 				return err
 			}
 			if r.flags.json {
@@ -386,7 +386,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			builds, err := svc.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: limit, State: st})
+			builds, err := svc.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: limit, State: st, Unfinished: true})
 			if err != nil {
 				return err
 			}

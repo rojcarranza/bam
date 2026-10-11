@@ -58,10 +58,12 @@ func (p PlanStats) SuccessRate() (float64, bool) {
 	return float64(p.Passed) / float64(d), true
 }
 
-// PlanStats reads the last n builds of ref and what failed in the failed
-// ones. Queued and running builds are left out of every figure.
+// PlanStats reads the last n builds of ref, in every state, and what failed
+// in the failed ones. Builds and the range count every build read; queued and
+// running builds are left out of every other figure. Not-built builds, which
+// Bamboo lists only when asked for every state, count under Other.
 func (s *Service) PlanStats(ctx context.Context, ref PlanRef, n int) (PlanStats, error) {
-	builds, err := s.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: n})
+	builds, err := s.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: n, Unfinished: true})
 	if err != nil {
 		return PlanStats{}, err
 	}

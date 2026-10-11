@@ -278,3 +278,31 @@ func TestTreeStateSkippedIsFinishedAndNotAFailure(t *testing.T) {
 	require.True(t, TreeFinished(provider.StateFailed))
 	require.False(t, TreeFinished(provider.StateRunning))
 }
+
+// rebuilt is a child build after a restart: Bamboo rewrites its reason, and
+// only GetBuild still reports the parent.
+func rebuilt(key, parent string, st provider.State, minutes int) provider.Build {
+	b := tb(key, "Rebuilt     by J Doe", st, minutes)
+	b.Parent = parent
+	return b
+}
+
+func TestBuildTreeFindsARestartedChildThroughItsParent(t *testing.T) {
+	p := treeFake()
+	p.History["OPS-DEPLOY"] = []provider.Build{rebuilt("OPS-DEPLOY-88", "PROJ-API-142", provider.StateSuccess, 5)}
+	tr, err := treeService(t, p).BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88(OPS-SMOKE-51),PROJ-DOCS-30)", shape(tr.Root))
+}
+
+func TestBuildTreeAsksOnlyRestartedBuildsForTheirParent(t *testing.T) {
+	p := treeFake()
+	p.History["OPS-DEPLOY"] = []provider.Build{
+		rebuilt("OPS-DEPLOY-89", "", provider.StateSuccess, 6), // a restarted top-level build
+		tb("OPS-DEPLOY-88", childOf("PROJ-API-142"), provider.StateSuccess, 5),
+	}
+	_, err := treeService(t, p).BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
+	require.NoError(t, err)
+	require.Equal(t, 1, p.GetCalls("OPS-DEPLOY-89"), "its reason names no parent, so GetBuild is asked once")
+	require.Equal(t, 0, p.GetCalls("PROJ-API-141"), "a manual build is never asked")
+}

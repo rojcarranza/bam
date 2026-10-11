@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -213,4 +214,64 @@ func TestWatchTreeEndsWhenAChildWasSkipped(t *testing.T) {
 	p.History["PROJ-DOCS"][0].State = provider.StateSkipped
 	evs := collectTree(treeService(t, p).WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
 	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
+}
+
+func TestWatchTreeKeepsARestartedChildUntilItFinishes(t *testing.T) {
+	// After --rerun-failed: the restarted build runs again under a rewritten
+	// reason, and the watch must follow it rather than end without it.
+	p := treeFake()
+	p.History = map[string][]provider.Build{
+		"PROJ-API":   {tb("PROJ-API-142", "Manual run by jdoe", provider.StateSuccess, 0)},
+		"OPS-DEPLOY": {rebuilt("OPS-DEPLOY-88", "PROJ-API-142", provider.StateRunning, 5)},
+	}
+	p.Sequences = map[string][]provider.Build{"OPS-DEPLOY-88": {
+		rebuilt("OPS-DEPLOY-88", "PROJ-API-142", provider.StateRunning, 5),
+		rebuilt("OPS-DEPLOY-88", "PROJ-API-142", provider.StateRunning, 5),
+		rebuilt("OPS-DEPLOY-88", "PROJ-API-142", provider.StateFailed, 5),
+	}}
+	svc := treeService(t, p)
+	svc.Clock = newClock()
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	require.GreaterOrEqual(t, len(evs), 2)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88)", shape(evs[0].Tree.Root))
+	require.Equal(t, provider.StateRunning, evs[0].Tree.State)
+	last := evs[len(evs)-1]
+	require.Equal(t, TreeDone, last.Type)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88)", shape(last.Tree.Root))
+	require.Equal(t, provider.StateFailed, last.Tree.State, "the restarted build's own result decides")
+}
+
+func TestWatchTreeDoesNotSettleWhileARestartedChildsParentIsUnknown(t *testing.T) {
+	// Two failed parent lookups in a row left the same tree twice, and the
+	// watch ended without the restarted child.
+	p := treeFake()
+	p.History = map[string][]provider.Build{
+		"PROJ-API":   {tb("PROJ-API-142", "Manual run by jdoe", provider.StateSuccess, 0)},
+		"OPS-DEPLOY": {rebuilt("OPS-DEPLOY-88", "PROJ-API-142", provider.StateSuccess, 5)},
+	}
+	boom := errs.Bamboof("boom")
+	p.GetErrs = map[string][]error{"OPS-DEPLOY-88": {boom, boom}}
+	svc := treeService(t, p)
+	svc.Clock = newClock()
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	last := evs[len(evs)-1]
+	require.Equal(t, TreeDone, last.Type)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88)", shape(last.Tree.Root))
+}
+
+func TestWatchTreeGivesUpOnAParentThatCannotBeRead(t *testing.T) {
+	p := treeFake()
+	p.History = map[string][]provider.Build{
+		"PROJ-API":   {tb("PROJ-API-142", "Manual run by jdoe", provider.StateSuccess, 0)},
+		"OPS-DEPLOY": {rebuilt("OPS-DEPLOY-88", "PROJ-API-142", provider.StateSuccess, 5)},
+	}
+	boom := errs.Bamboof("boom")
+	p.GetErrs = map[string][]error{"OPS-DEPLOY-88": {boom, boom, boom, boom, boom, boom}}
+	svc := treeService(t, p)
+	svc.Clock = newClock()
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	last := evs[len(evs)-1]
+	require.Equal(t, TreeDone, last.Type, "a parent that never answers does not hold the watch open")
+	require.Equal(t, treeTries, p.GetCalls("OPS-DEPLOY-88"))
+	require.Contains(t, strings.Join(last.Tree.Warnings, "\n"), "OPS-DEPLOY-88: its parent could not be read")
 }

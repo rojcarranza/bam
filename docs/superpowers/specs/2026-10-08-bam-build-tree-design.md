@@ -85,7 +85,9 @@ The candidate plans are, without duplicates, sorted:
 
 ### 5.2 Index
 
-For every candidate plan, `ListBuilds(plan, Limit: 25)`, at most 4 requests at a time. Each build whose reason matches `^Child of ([A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[0-9]+)$` is indexed under that parent key. A build that cannot be read for one plan (an error other than cancellation) leaves that plan out and adds a warning; the tree still renders.
+For every candidate plan, `ListBuilds(plan, Limit: 25, Unfinished: true)`, at most 4 requests at a time. `Unfinished` matters: without `includeAllStates=true`, Bamboo's result list holds finished builds only, so a queued or running child would never reach the tree, and a watch would end as soon as the root finished. Each build whose reason matches `^Child of ([A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[0-9]+)$` is indexed under that parent key. A build that cannot be read for one plan (an error other than cancellation) leaves that plan out and adds a warning; the tree still renders.
+
+A restart rewrites a child's reason to `Rebuilt by <user>`, so a restarted child no longer names its parent in the list. For each build whose reason matches `^Rebuilt\s+by\b`, one `GetBuild` (4 at a time) reads the parent from the build's metadata (`dependency.parent.0`, exposed as `provider.Build.Parent`), and the build is indexed under it. A build's parent never changes, so a watch asks each restarted build once; one whose parent cannot be read adds a warning and is asked again on the next refresh.
 
 ### 5.3 Building the tree
 

@@ -114,6 +114,7 @@ type Build struct {
 	Number        int
 	State         State
 	Reason        string // plain text, no HTML
+	Parent        string // the build that triggered this one as a child; GetBuild only, empty when none
 	CustomBuild   bool
 	Labels        []string
 	QueuedAt      time.Time
@@ -156,6 +157,9 @@ type Progress struct {
 type ListOptions struct {
 	Limit int   // 0 means the provider default
 	State State // empty means all states
+	// Unfinished also lists queued and running builds. Without it a provider
+	// lists finished builds only, as Bamboo does by default.
+	Unfinished bool
 }
 
 type TriggerRequest struct {

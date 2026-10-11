@@ -117,3 +117,11 @@ func TestBuildShow(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "no build triggered from this repository")
 	assert.Equal(t, 2, h.run("build", "show"))
 }
+
+func TestPlanShowListsARunningBuild(t *testing.T) {
+	// Bamboo leaves a running build out of a result list unless asked.
+	h := newHarness(t)
+	runningLab(h)
+	assert.Equal(t, 0, h.run("plan", "show", "provision-lab"))
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV12-8")
+}

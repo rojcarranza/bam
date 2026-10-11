@@ -141,6 +141,9 @@ func (c *Client) ListBuilds(ctx context.Context, key string, o provider.ListOpti
 	if p, ok := buildStateParam[o.State]; ok {
 		q.Set("buildstate", p)
 	}
+	if o.Unfinished {
+		q.Set("includeAllStates", "true")
+	}
 	limit := o.Limit
 	if limit == 0 {
 		limit = 10

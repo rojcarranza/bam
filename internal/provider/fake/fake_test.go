@@ -85,3 +85,32 @@ func TestLogGrowthWalksSnapshotsAndCountsCalls(t *testing.T) {
 	require.Equal(t, 3, f.LogCalls("PROJ-P-J-1"))
 	require.Equal(t, 0, f.LogCalls("PROJ-P-OTHER-1"))
 }
+
+func TestListBuildsLeavesOutUnfinishedBuildsUnlessAsked(t *testing.T) {
+	// Like Bamboo: queued and running builds only with Unfinished, and the
+	// parent only from GetBuild.
+	p := &Provider{History: map[string][]provider.Build{"OPS-DEPLOY": {
+		{Key: "OPS-DEPLOY-90", State: provider.StateQueued},
+		{Key: "OPS-DEPLOY-89", State: provider.StateRunning},
+		{Key: "OPS-DEPLOY-88", State: provider.StateSuccess, Parent: "PROJ-API-142"},
+	}}}
+	keys := func(bs []provider.Build) []string {
+		var out []string
+		for _, b := range bs {
+			out = append(out, b.Key)
+		}
+		return out
+	}
+	finished, err := p.ListBuilds(context.Background(), "OPS-DEPLOY", provider.ListOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []string{"OPS-DEPLOY-88"}, keys(finished))
+	require.Empty(t, finished[0].Parent)
+
+	all, err := p.ListBuilds(context.Background(), "OPS-DEPLOY", provider.ListOptions{Unfinished: true, Limit: 2})
+	require.NoError(t, err)
+	require.Equal(t, []string{"OPS-DEPLOY-90", "OPS-DEPLOY-89"}, keys(all))
+
+	b, err := p.GetBuild(context.Background(), "OPS-DEPLOY-88")
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-API-142", b.Parent)
+}

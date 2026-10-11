@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"sort"
@@ -23,7 +24,12 @@ const (
 	treeFetch   = 4
 )
 
-var childOfRe = regexp.MustCompile(`^Child of ([A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[0-9]+)$`)
+var (
+	childOfRe = regexp.MustCompile(`^Child of ([A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[0-9]+)$`)
+	// rebuiltRe is the reason Bamboo gives a build it restarted, replacing
+	// the "Child of" reason a child build had.
+	rebuiltRe = regexp.MustCompile(`^Rebuilt\s+by\b`)
+)
 
 // ParentOf returns the build a build reason names as its parent: Bamboo
 // gives a child build the reason "Child of PROJ-API-142".
@@ -160,6 +166,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	} else {
 		scan = scan.merged(got)
 	}
+	warnings = append(warnings, s.treeParents(ctx, scan)...)
 	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}}
 	treeGrow(t.Root, scan.index(), configured, o.Depth, 0, map[string]bool{root.Key: true})
 	warnings = append(warnings, s.treeDetails(ctx, t.Root, done)...)
@@ -223,16 +230,18 @@ type planWindow struct {
 }
 
 // treeScan is what a tree search has read: the candidate plans, each plan's
-// builds, newest first, and the first search's windows.
+// builds, newest first, the first search's windows, and the parents of
+// restarted builds, read once each.
 type treeScan struct {
 	plans   []string
 	builds  map[string][]provider.Build
 	windows map[string]planWindow
+	parents map[string]string // build key to parent key; "" for none
 }
 
 // first is the scan of a first search: its builds and their windows.
 func (sc *treeScan) first(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, builds: got, windows: map[string]planWindow{}}
+	out := &treeScan{plans: sc.plans, builds: got, windows: map[string]planWindow{}, parents: map[string]string{}}
 	for plan, bs := range got {
 		w := planWindow{full: len(bs) >= treeWindow}
 		for _, b := range bs {
@@ -249,7 +258,7 @@ func (sc *treeScan) first(got map[string][]provider.Build) *treeScan {
 // again replaces its older copy, a new build is added, and a plan that
 // could not be read keeps what was found before.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, builds: map[string][]provider.Build{}, windows: sc.windows}
+	out := &treeScan{plans: sc.plans, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents)}
 	for plan, bs := range sc.builds {
 		out.builds[plan] = bs
 	}
@@ -271,17 +280,65 @@ func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
 	return out
 }
 
-// index is every child build under the parent its reason names.
+// index is every child build under its parent: the one its reason names,
+// or for a restarted build the one its metadata names.
 func (sc *treeScan) index() map[string][]provider.Build {
 	idx := map[string][]provider.Build{}
 	for _, plan := range sc.plans {
 		for _, b := range sc.builds[plan] {
-			if parent, ok := ParentOf(b.Reason); ok {
+			parent, ok := ParentOf(b.Reason)
+			if !ok {
+				parent = sc.parents[b.Key]
+			}
+			if parent != "" {
 				idx[parent] = append(idx[parent], b)
 			}
 		}
 	}
 	return idx
+}
+
+// treeParents reads, with GetBuild, the parent of each restarted build the
+// scan has not asked about yet: a restart rewrites a child's reason to
+// "Rebuilt by ...", and only the build's metadata still names its parent. A
+// parent never changes, so each build is asked once; one that cannot be read
+// is asked again on the next refresh.
+func (s *Service) treeParents(ctx context.Context, sc *treeScan) []string {
+	var keys []string
+	for _, plan := range sc.plans {
+		for _, b := range sc.builds[plan] {
+			if _, asked := sc.parents[b.Key]; asked || !rebuiltRe.MatchString(b.Reason) {
+				continue
+			}
+			keys = append(keys, b.Key)
+		}
+	}
+	parents := make([]string, len(keys))
+	readErrs := make([]error, len(keys))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, treeFetch)
+	for i, k := range keys {
+		wg.Add(1)
+		go func(i int, k string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			b, err := s.P.GetBuild(ctx, k)
+			parents[i], readErrs[i] = b.Parent, err
+		}(i, k)
+	}
+	wg.Wait()
+	var warnings []string
+	for i, k := range keys {
+		if readErrs[i] != nil {
+			if ctx.Err() == nil {
+				warnings = append(warnings, fmt.Sprintf("%s: its parent could not be read: %s", k, describeErr(readErrs[i])))
+			}
+			continue
+		}
+		sc.parents[k] = parents[i]
+	}
+	return warnings
 }
 
 // treeRead reads the newest limit builds of every plan, treeFetch at a time.
@@ -299,7 +356,8 @@ func (s *Service) treeRead(ctx context.Context, plans []string, limit int) (map[
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			b, err := s.P.ListBuilds(ctx, p, provider.ListOptions{Limit: limit})
+			// Unfinished: a child that is queued or running is part of the tree.
+			b, err := s.P.ListBuilds(ctx, p, provider.ListOptions{Limit: limit, Unfinished: true})
 			results[i] = result{builds: b, err: err}
 		}(i, p)
 	}

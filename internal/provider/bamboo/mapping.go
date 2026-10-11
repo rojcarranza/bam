@@ -12,7 +12,9 @@ import (
 )
 
 // buildExpand is what GetBuild asks for.
-const buildExpand = "stages.stage.results.result,labels,vcsRevisions"
+// metadata carries the parent of a child build, which a restart drops from
+// its reason ("Rebuilt by ...").
+const buildExpand = "stages.stage.results.result,labels,vcsRevisions,metadata"
 
 var (
 	tagRe   = regexp.MustCompile(`<[^>]*>`)
@@ -131,6 +133,11 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 		b.Branch = r.Plan.ShortName
 	}
 	b.CustomBuild = strings.Contains(strings.ToLower(b.Reason), "custom build")
+	for _, m := range r.Metadata.Item {
+		if m.Key == "dependency.parent.0" {
+			b.Parent = m.Value
+		}
+	}
 	for _, l := range r.Labels.Label {
 		b.Labels = append(b.Labels, l.Name)
 	}

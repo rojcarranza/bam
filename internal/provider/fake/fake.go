@@ -107,12 +107,22 @@ func (f *Provider) ListBuilds(_ context.Context, key string, o provider.ListOpti
 		if o.State != "" && b.State != o.State {
 			continue
 		}
+		if !o.Unfinished && unfinished(b.State) {
+			continue
+		}
+		b.Parent = "" // like Bamboo's result list; GetBuild reports it
 		out = append(out, b)
 		if o.Limit > 0 && len(out) == o.Limit {
 			break
 		}
 	}
 	return out, nil
+}
+
+// unfinished is what Bamboo leaves out of a result list unless asked for
+// every state: queued and running builds, and builds stopped before they ran.
+func unfinished(s provider.State) bool {
+	return s == provider.StateQueued || s == provider.StateRunning || s == provider.StateNotBuilt
 }
 
 // ListCalls reports how many times ListBuilds was called for key.

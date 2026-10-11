@@ -1,0 +1,42 @@
+{
+  "results": {
+    "size": 3,
+    "start-index": 0,
+    "max-result": 25,
+    "result": [
+      {
+        "key": "OPS-DEPLOY-90",
+        "buildResultKey": "OPS-DEPLOY-90",
+        "buildNumber": 90,
+        "state": "Unknown",
+        "buildState": "Unknown",
+        "lifeCycleState": "Queued",
+        "buildReason": "Child of <a href=\"https://bamboo.example.com/browse/PROJ-API-143\">PROJ-API-143</a>",
+        "plan": {"key": "OPS-DEPLOY", "shortName": "Deploy"}
+      },
+      {
+        "key": "OPS-DEPLOY-89",
+        "buildResultKey": "OPS-DEPLOY-89",
+        "buildNumber": 89,
+        "state": "Unknown",
+        "buildState": "Unknown",
+        "lifeCycleState": "InProgress",
+        "buildStartedTime": "2026-10-08T09:05:00.000Z",
+        "buildReason": "Child of <a href=\"https://bamboo.example.com/browse/PROJ-API-142\">PROJ-API-142</a>",
+        "plan": {"key": "OPS-DEPLOY", "shortName": "Deploy"}
+      },
+      {
+        "key": "OPS-DEPLOY-88",
+        "buildResultKey": "OPS-DEPLOY-88",
+        "buildNumber": 88,
+        "state": "Successful",
+        "buildState": "Successful",
+        "lifeCycleState": "Finished",
+        "buildStartedTime": "2026-10-08T08:05:00.000Z",
+        "buildCompletedTime": "2026-10-08T08:06:00.000Z",
+        "buildReason": "Rebuilt     by <a href=\"https://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+        "plan": {"key": "OPS-DEPLOY", "shortName": "Deploy"}
+      }
+    ]
+  }
+}

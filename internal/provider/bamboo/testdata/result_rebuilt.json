@@ -1,0 +1,25 @@
+{
+  "key": "OPS-DEPLOY-88",
+  "buildResultKey": "OPS-DEPLOY-88",
+  "buildNumber": 88,
+  "state": "Successful",
+  "buildState": "Successful",
+  "lifeCycleState": "Finished",
+  "restartCount": 1,
+  "buildStartedTime": "2026-10-08T08:05:00.000Z",
+  "buildCompletedTime": "2026-10-08T08:06:00.000Z",
+  "buildReason": "Rebuilt     by <a href=\"https://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+  "plan": {"key": "OPS-DEPLOY", "shortName": "Deploy"},
+  "metadata": {
+    "size": 4,
+    "start-index": 0,
+    "max-result": 4,
+    "item": [
+      {"key": "dependency.parent.total", "value": "1"},
+      {"key": "RerunBuildTriggerReason.noOfRetries", "value": "1"},
+      {"key": "dependency.parent.0", "value": "PROJ-API-142"},
+      {"key": "DependencyTriggerReason.triggeringBuildResultKey", "value": "PROJ-API-142"}
+    ]
+  },
+  "stages": {"stage": []}
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -189,4 +190,31 @@ func TestRecordedChildReason(t *testing.T) {
 	b, err := c.GetBuild(ctx, "LAB-CHILD-1")
 	require.NoError(t, err)
 	assert.Equal(t, "Child of LAB-PARENT-2", b.Reason)
+}
+
+func TestListBuildsAsksForUnfinishedBuildsOnlyWhenTold(t *testing.T) {
+	// Without includeAllStates, Bamboo returns finished builds only, so a
+	// queued or running child would never reach a build tree.
+	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/result/OPS-DEPLOY": {fixture: "results_unfinished.json"}})
+	bs, err := c.ListBuilds(ctx, "OPS-DEPLOY", provider.ListOptions{Unfinished: true})
+	require.NoError(t, err)
+	assert.Equal(t, "true", rec.all()[0].URL.Query().Get("includeAllStates"))
+	require.Len(t, bs, 3)
+	assert.Equal(t, []provider.State{provider.StateQueued, provider.StateRunning, provider.StateSuccess},
+		[]provider.State{bs[0].State, bs[1].State, bs[2].State})
+	assert.Equal(t, "Child of PROJ-API-142", bs[1].Reason)
+
+	_, err = c.ListBuilds(ctx, "OPS-DEPLOY", provider.ListOptions{})
+	require.NoError(t, err)
+	assert.False(t, rec.all()[1].URL.Query().Has("includeAllStates"))
+}
+
+func TestGetBuildReadsTheParentFromMetadata(t *testing.T) {
+	// A restart rewrites the reason to "Rebuilt by ..."; the parent is still
+	// in the build's metadata.
+	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/result/OPS-DEPLOY-88": {fixture: "result_rebuilt.json"}})
+	b, err := c.GetBuild(ctx, "OPS-DEPLOY-88")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-API-142", b.Parent)
+	assert.Contains(t, strings.Split(rec.all()[0].URL.Query().Get("expand"), ","), "metadata")
 }

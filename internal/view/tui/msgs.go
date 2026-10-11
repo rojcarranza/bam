@@ -142,7 +142,7 @@ func loadPlansCmd(ctx context.Context, svc *app.Service, project string, gen int
 
 func loadBuildsCmd(ctx context.Context, svc *app.Service, planKey string, limit int, gen int) tea.Cmd {
 	return func() tea.Msg {
-		builds, err := svc.P.ListBuilds(ctx, planKey, provider.ListOptions{Limit: limit})
+		builds, err := svc.P.ListBuilds(ctx, planKey, provider.ListOptions{Limit: limit, Unfinished: true})
 		if err != nil {
 			return errMsg{Err: err, Where: "builds", Stream: streamBuilds, Gen: gen}
 		}
@@ -305,7 +305,7 @@ func resolveTargetBuildsCmd(ctx context.Context, svc *app.Service, target app.Ta
 			// a real error as stale.
 			return errMsg{Err: err, Where: "presets", Stream: streamBuilds, Gen: gen}
 		}
-		builds, err := svc.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: buildsPerPlan})
+		builds, err := svc.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: buildsPerPlan, Unfinished: true})
 		if err != nil {
 			return errMsg{Err: err, Where: "builds", Stream: streamBuilds, Gen: gen}
 		}

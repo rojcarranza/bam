@@ -69,6 +69,12 @@ type resultDTO struct {
 	Stages struct {
 		Stage []stageDTO `json:"stage"`
 	} `json:"stages"`
+	Metadata struct {
+		Item []struct {
+			Key   string `json:"key"`
+			Value string `json:"value"`
+		} `json:"item"`
+	} `json:"metadata"`
 }
 
 type stageDTO struct {

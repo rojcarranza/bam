@@ -276,3 +276,27 @@ func TestLoadProjectsCmdMissesNothingWhenNoneConfigured(t *testing.T) {
 	require.Empty(t, got.Missing)
 	require.Equal(t, streamPicker, got.Stream)
 }
+
+// withRunningBuild puts a running build at the top of PROJ-BUILD's history.
+func withRunningBuild(svc *app.Service) {
+	f := svc.P.(*fake.Provider)
+	running := provider.Build{Key: "PROJ-BUILD-45", PlanKey: "PROJ-BUILD", Number: 45, State: provider.StateRunning}
+	f.History["PROJ-BUILD"] = append([]provider.Build{running}, f.History["PROJ-BUILD"]...)
+}
+
+func TestLoadBuildsCmdListsARunningBuild(t *testing.T) {
+	// The live stage log opens from a running build in this list.
+	svc := testService()
+	withRunningBuild(svc)
+	got := loadBuildsCmd(context.Background(), svc, "PROJ-BUILD", 25, 0)().(buildsLoadedMsg)
+	require.Equal(t, "PROJ-BUILD-45", got.Builds[0].Key)
+}
+
+func TestResolveTargetBuildsCmdListsARunningBuild(t *testing.T) {
+	svc := testService()
+	withRunningBuild(svc)
+	got := resolveTargetBuildsCmd(context.Background(), svc, app.TargetInfo{Name: "build", Plan: "PROJ-BUILD"}, 0)()
+	msg, ok := got.(buildsLoadedMsg)
+	require.True(t, ok, "got %#v", got)
+	require.Equal(t, "PROJ-BUILD-45", msg.Builds[0].Key)
+}

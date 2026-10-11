@@ -13,15 +13,18 @@ import (
 // Capabilities records which optional Bamboo REST features a server supports.
 // Empty strings mean "not yet known".
 type Capabilities struct {
-	Version     string    `json:"version,omitempty"`
-	CheckedAt   time.Time `json:"checked_at,omitempty"`
-	PlanVars    string    `json:"plan_vars,omitempty"`    // variables | variable | none
-	BuildVars   string    `json:"build_vars,omitempty"`   // yes | no
-	FailedTests string    `json:"failed_tests,omitempty"` // yes | no
-	Log         string    `json:"log,omitempty"`          // entries | download
-	Stop        string    `json:"stop,omitempty"`         // yes | no
-	Rerun       string    `json:"rerun,omitempty"`        // yes | no
-	Progress    string    `json:"progress,omitempty"`     // yes | no
+	Version   string    `json:"version,omitempty"`
+	CheckedAt time.Time `json:"checked_at,omitempty"`
+	PlanVars  string    `json:"plan_vars,omitempty"`  // variables | variable | none
+	BuildVars string    `json:"build_vars,omitempty"` // yes | no
+	// FailedTestsFrom is where failed tests are read: the build's result, or
+	// each failed job's (Bamboo 12 reports them per job only). It replaced
+	// failed_tests, which learned "no" from build results on such servers.
+	FailedTestsFrom string `json:"failed_tests_from,omitempty"` // build | jobs | no
+	Log             string `json:"log,omitempty"`               // entries | download
+	Stop            string `json:"stop,omitempty"`              // yes | no
+	Rerun           string `json:"rerun,omitempty"`             // yes | no
+	Progress        string `json:"progress,omitempty"`          // yes | no
 }
 
 const capsMaxAge = 7 * 24 * time.Hour

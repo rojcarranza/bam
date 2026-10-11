@@ -174,7 +174,7 @@ func (c *Client) GetBuild(ctx context.Context, key string) (provider.Build, erro
 	}
 	b := c.mapBuild(r)
 	if b.State == provider.StateFailed {
-		b.FailedTests = c.failedTests(ctx, key)
+		b.FailedTests = c.failedTests(ctx, b)
 	}
 	return b, nil
 }

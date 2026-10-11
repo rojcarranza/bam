@@ -683,6 +683,12 @@ func (r *recorder) recordFailed(buildKey string) error {
 				continue
 			}
 			jobKey := j.Key[:cut]
+			// Bamboo 12 reports failed tests on the job's result only, so
+			// failedTests asks here when the build's own result has none.
+			if err := r.record("job_failed_tests.json", http.MethodGet, "/rest/api/latest/result/"+j.Key,
+				url.Values{"expand": {"testResults.failedTests.testResult"}}); err != nil {
+				return err
+			}
 			if err := r.record("log_entries.json", http.MethodGet, "/rest/api/latest/result/"+j.Key,
 				url.Values{"expand": {"logEntries[0:50]"}}); err != nil {
 				return err

@@ -2,6 +2,8 @@ package bamboo
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -118,4 +120,76 @@ func TestDecodeVarListShapes(t *testing.T) {
 	}
 	_, ok := decodeVariables([]byte(`{"key":"X"}`))
 	assert.False(t, ok)
+}
+
+// failedTestRoutes is a failed build whose result carries no testResults,
+// as on Bamboo 12; its failed job PROJ-BUILD12-INT-44 answers with job.
+func failedTestRoutes(job *route) map[string]*route {
+	return map[string]*route{
+		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=" + buildExpand:                         {fixture: "result_detail.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=testResults.failedTests.testResult":     {body: `{"key":"PROJ-BUILD12-44","buildResultKey":"PROJ-BUILD12-44"}`},
+		"GET /rest/api/latest/result/PROJ-BUILD12-INT-44?expand=testResults.failedTests.testResult": job,
+	}
+}
+
+func TestGetBuildReadsFailedTestsFromFailedJobsWhenTheBuildHasNone(t *testing.T) {
+	c, rec := newTestServer(t, failedTestRoutes(&route{fixture: "job_failed_tests.json"}))
+	saved := knownCaps(c, Capabilities{})
+	b, err := c.GetBuild(ctx, "PROJ-BUILD12-44")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"app.ApiTest.parses_config", "app.ApiTest.talks_to_bamboo"}, b.FailedTests)
+	assert.Equal(t, "jobs", (*saved)[len(*saved)-1].FailedTestsFrom)
+	assert.Zero(t, countPath(rec, "/rest/api/latest/result/PROJ-BUILD12-UNIT-44"), "a job that passed is not asked")
+}
+
+func TestFailedTestsLearnsNoOnlyWhenTheJobsHaveNoneEither(t *testing.T) {
+	c, _ := newTestServer(t, failedTestRoutes(&route{body: `{"key":"PROJ-BUILD12-INT-44"}`}))
+	saved := knownCaps(c, Capabilities{})
+	b, err := c.GetBuild(ctx, "PROJ-BUILD12-44")
+	require.NoError(t, err)
+	assert.Empty(t, b.FailedTests)
+	assert.Equal(t, "no", (*saved)[len(*saved)-1].FailedTestsFrom)
+}
+
+func TestFailedTestsDoesNotLearnFromAJobThatCannotBeRead(t *testing.T) {
+	c, _ := newTestServer(t, failedTestRoutes(&route{status: 500, body: `{"message":"boom"}`}))
+	saved := knownCaps(c, Capabilities{})
+	_, err := c.GetBuild(ctx, "PROJ-BUILD12-44")
+	require.NoError(t, err)
+	assert.Empty(t, *saved, "an outage is not a missing capability")
+}
+
+func TestFailedTestsOnceLearnedPerJobSkipsTheBuildRequest(t *testing.T) {
+	c, rec := newTestServer(t, failedTestRoutes(&route{fixture: "job_failed_tests.json"}))
+	knownCaps(c, Capabilities{FailedTestsFrom: "jobs"})
+	b, err := c.GetBuild(ctx, "PROJ-BUILD12-44")
+	require.NoError(t, err)
+	assert.Len(t, b.FailedTests, 2)
+	for _, r := range rec.all() {
+		if r.URL.Path == "/rest/api/latest/result/PROJ-BUILD12-44" {
+			assert.NotContains(t, r.URL.Query().Get("expand"), "testResults")
+		}
+	}
+}
+
+// TestRecordedFailedTestsShapes reads the recorded failed build's and failed
+// job's test results the way failedTests does, so the hand-written
+// failed_tests.json and job_failed_tests.json stay true to a real server.
+// It skips what is not recorded.
+func TestRecordedFailedTestsShapes(t *testing.T) {
+	for _, f := range []string{"recorded/failed_tests.json", "recorded/job_failed_tests.json"} {
+		if _, err := os.Stat(filepath.Join("testdata", f)); err != nil {
+			t.Skipf("%s not recorded", f)
+		}
+	}
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/REC-PLAN-1":      {fixture: "recorded/failed_tests.json"},
+		"GET /rest/api/latest/result/REC-PLAN-JOB1-1": {fixture: "recorded/job_failed_tests.json"},
+	})
+	_, _, err := c.readFailedTests(ctx, "REC-PLAN-1")
+	require.NoError(t, err, "a build's test results decode, present or not")
+	names, has, err := c.readFailedTests(ctx, "REC-PLAN-JOB1-1")
+	require.NoError(t, err)
+	assert.True(t, has, "a failed job's result carries testResults")
+	assert.NotEmpty(t, names)
 }

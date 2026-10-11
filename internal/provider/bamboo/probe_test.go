@@ -13,6 +13,7 @@ func TestProbeHappyPath(t *testing.T) {
 		"GET /rest/api/latest/result/PROJ-BUILD":                                               {fixture: "results.json"},
 		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=variables":                          {fixture: "result_variables.json"},
 		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=" + buildExpand:                     {fixture: "result_detail.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=" + buildExpand:                     {body: failed481},
 		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult": {fixture: "failed_tests.json"},
 		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries":                   {fixture: "log_entries.json"},
 		"GET /rest/api/latest/result/status/PROJ-BUILD-482":                                    {fixture: "status_running.json"},
@@ -145,4 +146,27 @@ func TestProbeSkipsDurationEstimateWithoutBuilds(t *testing.T) {
 		}
 	}
 	t.Fatal("no duration estimate row")
+}
+
+// failed481 is the failed build of results.json, with one failed job.
+const failed481 = `{"key":"PROJ-BUILD-481","buildResultKey":"PROJ-BUILD-481","buildNumber":481,"state":"Failed","lifeCycleState":"Finished",
+"stages":{"stage":[{"name":"Test","state":"Failed","lifeCycleState":"Finished","results":{"result":[
+{"key":"PROJ-BUILD-JOB1-481","buildResultKey":"PROJ-BUILD-JOB1-481","state":"Failed","lifeCycleState":"Finished","plan":{"shortName":"Test"}}]}}]}}`
+
+func TestProbeFindsFailedTestsPerJob(t *testing.T) {
+	// Bamboo 12: the build's result carries no tests; its failed job's does.
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/info":                                                                 {fixture: "info.json"},
+		"GET /rest/api/latest/plan/PROJ-BUILD/variables":                                            {fixture: "plan_variables.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD":                                                    {fixture: "results.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=" + buildExpand:                          {body: failed481},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult":      {body: `{"key":"PROJ-BUILD-481"}`},
+		"GET /rest/api/latest/result/PROJ-BUILD-JOB1-481?expand=testResults.failedTests.testResult": {fixture: "job_failed_tests.json"},
+	})
+	for _, r := range c.Probe(ctx, "PROJ-BUILD") {
+		if r.Name == "failed tests" {
+			assert.Equal(t, ProbeOK, r.Status)
+			assert.Equal(t, "read from PROJ-BUILD-481 (per job)", r.Detail)
+		}
+	}
 }

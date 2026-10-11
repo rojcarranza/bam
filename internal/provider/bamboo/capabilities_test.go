@@ -1,6 +1,7 @@
 package bamboo
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -62,4 +63,15 @@ func TestOldCapabilitiesDiscarded(t *testing.T) {
 	_, err := c.ListVariables(ctx, "PROJ-BUILD")
 	require.NoError(t, err)
 	assert.NotEmpty(t, rec.all())
+}
+
+func TestAnOldCachedFailedTestsNoIsForgotten(t *testing.T) {
+	// failed_tests: no was learned from build results, which carry no tests
+	// on Bamboo 12; it must not keep failed tests off for a week.
+	path := filepath.Join(t.TempDir(), "capabilities.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"https://bamboo.example.com":{"version":"12.1.8","failed_tests":"no","log":"entries"}}`), 0o600))
+	caps, err := LoadCapabilities(path, "https://bamboo.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "", caps.FailedTestsFrom)
+	assert.Equal(t, "entries", caps.Log, "the rest of the cache is kept")
 }

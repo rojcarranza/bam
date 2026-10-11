@@ -14,7 +14,7 @@ func TestProbeHappyPath(t *testing.T) {
 		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=variables":                          {fixture: "result_variables.json"},
 		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=" + buildExpand:                     {fixture: "result_detail.json"},
 		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult": {fixture: "failed_tests.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries[0:500]":            {fixture: "log_entries.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries":                   {fixture: "log_entries.json"},
 		"GET /rest/api/latest/result/status/PROJ-BUILD-482":                                    {fixture: "status_running.json"},
 	})
 	results := c.Probe(ctx, "PROJ-BUILD")
@@ -93,7 +93,7 @@ func TestProbeReportsDurationEstimate(t *testing.T) {
 		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=variables":                          {fixture: "result_variables.json"},
 		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=" + buildExpand:                     {fixture: "result_detail.json"},
 		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult": {fixture: "failed_tests.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries[0:500]":            {fixture: "log_entries.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries":                   {fixture: "log_entries.json"},
 	}
 	supported := map[string]*route{"GET /rest/api/latest/result/status/PROJ-BUILD-482": {fixture: "status_running.json"}}
 	missing := map[string]*route{"GET /rest/api/latest/result/status/PROJ-BUILD-482": {status: 404, body: `{"message":"no"}`}}

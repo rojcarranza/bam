@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"html"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -16,7 +16,11 @@ import (
 
 var _ provider.Provider = (*Client)(nil)
 
-const logPage = 500
+// logMax is how many log entries one read asks for. Bamboo 12 ignores the
+// logEntries[start:end] range and start-index, and answers max-result with
+// the LAST entries; asking for more than the log holds returns all of it,
+// whichever end a server counts from. The offset is then applied here.
+var logMax = 100000
 
 // customRevisionReason is Bamboo's triggerReason for a build queued with
 // customRevision. Any other reason means the server ignored the parameter.
@@ -225,40 +229,43 @@ func (c *Client) FetchLog(ctx context.Context, jobKey string, o provider.LogOpti
 }
 
 func (c *Client) logEntries(ctx context.Context, jobKey string, offset int) (provider.LogChunk, error) {
-	var lines []string
-	next := offset
-	for {
-		var r struct {
-			LogEntries *envelope `json:"logEntries"`
-		}
-		expand := fmt.Sprintf("logEntries[%d:%d]", next, next+logPage)
-		if err := c.getJSON(ctx, api+"/result/"+url.PathEscape(jobKey), url.Values{"expand": {expand}}, &r); err != nil {
+	var r struct {
+		LogEntries *envelope `json:"logEntries"`
+	}
+	q := url.Values{"expand": {"logEntries"}, "max-result": {strconv.Itoa(logMax)}}
+	if err := c.getJSON(ctx, api+"/result/"+url.PathEscape(jobKey), q, &r); err != nil {
+		return provider.LogChunk{}, err
+	}
+	if r.LogEntries == nil {
+		return provider.LogChunk{}, errs.ErrUnsupported
+	}
+	var entries []struct {
+		Log      string `json:"log"`
+		Unstyled string `json:"unstyledLog"`
+	}
+	if len(r.LogEntries.Items) > 0 {
+		if err := json.Unmarshal(r.LogEntries.Items, &entries); err != nil {
 			return provider.LogChunk{}, err
 		}
-		if r.LogEntries == nil {
-			return provider.LogChunk{}, errs.ErrUnsupported
+	}
+	lines := make([]string, 0, len(entries))
+	for _, e := range entries {
+		line := e.Unstyled
+		if line == "" {
+			line = html.UnescapeString(e.Log)
 		}
-		var entries []struct {
-			Log      string `json:"log"`
-			Unstyled string `json:"unstyledLog"`
-		}
-		if len(r.LogEntries.Items) > 0 {
-			if err := json.Unmarshal(r.LogEntries.Items, &entries); err != nil {
-				return provider.LogChunk{}, err
-			}
-		}
-		for _, e := range entries {
-			line := e.Unstyled
-			if line == "" {
-				line = html.UnescapeString(e.Log)
-			}
-			lines = append(lines, line)
-		}
-		next += len(entries)
-		if len(entries) < logPage || next >= r.LogEntries.Size {
-			return provider.LogChunk{Lines: lines, Next: next}, nil
+		lines = append(lines, line)
+	}
+	if r.LogEntries.Size > len(lines) {
+		// Longer than one read: which end the entries came from is unknown,
+		// so the whole log comes from the download, once the job has
+		// finished. While it runs the download is empty; keep what was read.
+		if chunk, err := c.logDownload(ctx, jobKey, offset); err == nil && chunk.Next > 0 {
+			return chunk, nil
 		}
 	}
+	offset = min(offset, len(lines))
+	return provider.LogChunk{Lines: lines[offset:], Next: len(lines)}, nil
 }
 
 // logDownload reads the raw log artifact. Its lines look like

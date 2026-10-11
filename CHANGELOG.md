@@ -22,6 +22,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - A set run that cannot save its record now always ends with `set_error`; a `run_event` from a build still running could arrive after it.
+- `bam logs`, `--follow` and the terminal UI's log screens show a job's whole log on Bamboo 12 instead of its last 25 lines.
 
 ## [0.2.1] - 2026-10-08
 

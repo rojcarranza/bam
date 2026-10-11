@@ -167,3 +167,14 @@ func TestRunningBuildReportsProgress(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, done.Valid, "a finished build has no estimate")
 }
+
+// TestFailedTestsComePerJobLikeBamboo12: a build's result carries no tests
+// and its failed job's result does, as on Bamboo 12, so trying bam locally
+// takes the same path as a real server.
+func TestFailedTestsComePerJobLikeBamboo12(t *testing.T) {
+	_, c := testStub(t)
+	b, err := c.GetBuild(context.Background(), "PROJ-BUILD12-44")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"app.ApiTest.parses_config", "app.ApiTest.talks_to_bamboo"}, b.FailedTests)
+	assert.Equal(t, "jobs", c.Capabilities().FailedTestsFrom)
+}

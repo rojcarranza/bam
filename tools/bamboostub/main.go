@@ -124,6 +124,10 @@ func writeJSON(w http.ResponseWriter, body []byte) {
 // the former ends in a build number.
 var buildKeyRe = regexp.MustCompile(`-\d+$`)
 
+// jobKeyRe matches a job result key, PROJ-PLAN-JOB-44: one part more than a
+// build key.
+var jobKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-\d+$`)
+
 func stamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
 
 // liveDetail renders a simulated build the way Bamboo's result detail reads,
@@ -170,7 +174,13 @@ func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 		s.serve(w, "log_entries.json", fixtureJob, key)
 		return
 	case strings.Contains(expand, "testResults"):
-		s.serve(w, "failed_tests.json", fixtureBuild, key)
+		// As Bamboo 12 does: a build's result carries no tests, each
+		// job's result carries its own.
+		if jobKeyRe.MatchString(key) {
+			s.serve(w, "job_failed_tests.json", fixtureJob, key)
+		} else {
+			writeJSON(w, []byte(fmt.Sprintf(`{"key":%q,"buildResultKey":%q}`, key, key)))
+		}
 		return
 	case expand == "variables":
 		s.serve(w, "result_variables.json", fixtureResult, key)

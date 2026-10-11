@@ -104,10 +104,17 @@ func (c *Client) Probe(ctx context.Context, planKey string) []ProbeResult {
 	case len(failed) == 0:
 		skip("failed tests", "no failed build of "+planKey+" to read")
 	default:
-		c.failedTests(ctx, failed[0].Key)
-		switch c.Capabilities().FailedTests {
-		case "yes":
+		// GetBuild reads the failed tests, and gives the jobs to ask when
+		// the build's own result carries none.
+		if _, err := c.GetBuild(ctx, failed[0].Key); err != nil {
+			add("failed tests", err, "", "")
+			break
+		}
+		switch c.Capabilities().FailedTestsFrom {
+		case "build":
 			add("failed tests", nil, "read from "+failed[0].Key, "")
+		case "jobs":
+			add("failed tests", nil, "read from "+failed[0].Key+" (per job)", "")
 		case "no":
 			add("failed tests", errs.ErrUnsupported, "", "build show lists failed jobs only")
 		default:

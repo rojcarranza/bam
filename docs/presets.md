@@ -121,15 +121,15 @@ To see what a build used before choosing:
 
     bam ui
 
-1. **From the last build.** Press `:` and type `presets` (or `:plans`), move to your preset or plan, and press `R`. The run form opens filled from the last build.
+1. **From the last build.** Press `:` and type `presets` (or `plans`) and `enter`, move to your preset or plan, and press `R`. The run form opens filled from the last build.
 2. **From a specific build.** Open the plan with `enter`, move to the build in the Builds panel, and press `R`. The form opens filled from the selected build, and the header says which one.
 3. In the form:
 
    | Key | Does |
    | --- | --- |
    | `tab` / `↓` / `↑` | move between variables |
-   | `enter` | edit the value; `enter` again to accept |
-   | `space` | cycle a variable that has `options` |
+   | `enter` | on a free-text variable: edit the value, then `enter` again to accept; on a variable with `options`: cycle to the next allowed value |
+   | `space` | cycle a variable that has `options` (never opens a text field) |
    | `f` | on the revision row: build the source build's commit |
    | `d` | dry-run: show what would be sent |
    | `ctrl-R` | run the build |

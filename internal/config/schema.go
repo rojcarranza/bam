@@ -11,13 +11,15 @@ import (
 
 // ProjectFile is .bam.yaml, committed with a repository.
 type ProjectFile struct {
-	Version       int                 `yaml:"version"`
-	Servers       map[string]Server   `yaml:"servers,omitempty"`
-	DefaultServer string              `yaml:"default_server,omitempty"`
-	Projects      []string            `yaml:"projects,omitempty"`
-	Targets       map[string]Target   `yaml:"targets,omitempty"`
-	Sets          map[string]Set      `yaml:"sets,omitempty"`
-	Children      map[string][]string `yaml:"children,omitempty"`
+	Version       int               `yaml:"version"`
+	Servers       map[string]Server `yaml:"servers,omitempty"`
+	DefaultServer string            `yaml:"default_server,omitempty"`
+	Projects      []string          `yaml:"projects,omitempty"`
+	// DefaultProject is the project the terminal UI opens on.
+	DefaultProject string              `yaml:"default_project,omitempty"`
+	Targets        map[string]Target   `yaml:"targets,omitempty"`
+	Sets           map[string]Set      `yaml:"sets,omitempty"`
+	Children       map[string][]string `yaml:"children,omitempty"`
 }
 
 // MachineFile is the per-machine config.yaml, never committed.
@@ -38,6 +40,8 @@ type Server struct {
 	URL      string   `yaml:"url,omitempty"`
 	AuthEnv  string   `yaml:"auth_env,omitempty"`
 	Projects []string `yaml:"projects,omitempty"`
+	// DefaultProject is the project the terminal UI opens on.
+	DefaultProject string `yaml:"default_project,omitempty"`
 }
 
 // Target is a run preset.
@@ -53,11 +57,13 @@ type Target struct {
 }
 
 type Repo struct {
-	Server   string              `yaml:"server,omitempty"`
-	Projects []string            `yaml:"projects,omitempty"`
-	Targets  map[string]Target   `yaml:"targets,omitempty"`
-	Sets     map[string]Set      `yaml:"sets,omitempty"`
-	Children map[string][]string `yaml:"children,omitempty"`
+	Server   string   `yaml:"server,omitempty"`
+	Projects []string `yaml:"projects,omitempty"`
+	// DefaultProject is the project the terminal UI opens on.
+	DefaultProject string              `yaml:"default_project,omitempty"`
+	Targets        map[string]Target   `yaml:"targets,omitempty"`
+	Sets           map[string]Set      `yaml:"sets,omitempty"`
+	Children       map[string][]string `yaml:"children,omitempty"`
 }
 
 // StringMap decodes any YAML scalar values as strings; Bamboo variables are strings.

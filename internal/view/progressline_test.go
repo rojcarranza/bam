@@ -32,3 +32,9 @@ func TestProgressLineClearIsANoOpWhenNothingShows(t *testing.T) {
 	nilLine.Show("x")
 	nilLine.Clear()
 }
+
+func TestProgressLineOnAOneColumnTerminalShowsNothing(t *testing.T) {
+	var b bytes.Buffer
+	NewProgressLine(&b, 1).Show("reading builds 12/40 plans")
+	require.Empty(t, b.String(), "any text would wrap")
+}

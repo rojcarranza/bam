@@ -23,7 +23,7 @@ func (l *ProgressLine) Show(text string) {
 	if l == nil {
 		return
 	}
-	if l.width > 1 {
+	if l.width > 0 {
 		text = cut(text, l.width-1)
 	}
 	if text == l.shown {

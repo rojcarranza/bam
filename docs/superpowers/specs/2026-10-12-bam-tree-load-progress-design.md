@@ -41,7 +41,7 @@ type TreeCount struct{ Done, Total int }
 type TreeProgress struct {
 	Projects TreeCount // projects whose plans were listed
 	Plans    TreeCount // plan build reads, the deeper reads included
-	Builds   TreeCount // build detail reads, restarted builds' parent reads included
+	Builds   TreeCount // build reads: details, restarted builds' parents, builds a log links to
 	Jobs     TreeCount // job logs read for the builds a script started
 }
 
@@ -76,7 +76,7 @@ Where each phase is counted:
 | --- | --- | --- |
 | `Projects` | `treeCandidates` and `treeAddProjects`, one per project listed | after each `ListPlans` |
 | `Plans` | each `treeRead` call (first window, each deeper read, `treeAddProjects`), one per plan | after each `ListBuilds` |
-| `Builds` | `treeParents` and each `treeDetails` call, one per build actually read (not one reused from `done`) | after each `GetBuild` |
+| `Builds` | `treeParents`, each `treeDetails` call and each round of builds a log links to, one per build actually read (not one reused from `done`) | after each `GetBuild` |
 | `Jobs` | each `treeReadLinks` round, one per job log actually read (not one cached in `logLinks`) | after each `FetchLog` |
 
 Reading the root build itself is one request and is not counted.

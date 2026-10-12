@@ -1,6 +1,6 @@
 # bam: progress while a build tree loads
 
-**Status:** Draft | **Date:** 2026-10-12
+**Status:** Implemented | **Date:** 2026-10-12
 **Issue:** #81
 **Builds on:** [`2026-10-08-bam-build-tree-design.md`](2026-10-08-bam-build-tree-design.md) (the tree search) and [`2026-10-10-bam-tui-plan-screen-design.md`](2026-10-10-bam-tui-plan-screen-design.md) (the Tree panel)
 

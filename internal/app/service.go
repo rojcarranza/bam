@@ -49,6 +49,15 @@ func (s *Service) ProjectKeys() []string {
 	return s.Cfg.ProjectKeys(s.Server)
 }
 
+// DefaultProject is the project the terminal UI opens on for this server
+// (config.DefaultProject), or "" for every project.
+func (s *Service) DefaultProject() string {
+	if s.Cfg == nil {
+		return ""
+	}
+	return s.Cfg.DefaultProject(s.Server)
+}
+
 // Build fetches a build. When the last build recorded for this repository no
 // longer exists on the server, the record is removed and the error says so.
 func (s *Service) Build(ctx context.Context, key string) (provider.Build, error) {

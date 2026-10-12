@@ -13,3 +13,12 @@ func TestProjectKeysComesFromTheConfiguration(t *testing.T) {
 
 	assert.Nil(t, (&Service{}).ProjectKeys(), "no configuration means no scope")
 }
+
+func TestDefaultProjectComesFromTheConfiguration(t *testing.T) {
+	cfg := testConfig(t.TempDir())
+	cfg.Project.DefaultProject = "proj"
+	s := &Service{Cfg: cfg, Server: config.ResolvedServer{Alias: "work"}}
+	assert.Equal(t, "PROJ", s.DefaultProject())
+
+	assert.Empty(t, (&Service{}).DefaultProject(), "no configuration means every project")
+}

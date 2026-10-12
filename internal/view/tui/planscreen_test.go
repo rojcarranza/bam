@@ -598,8 +598,7 @@ func TestServerSwitchFromATreeScreenDropsThePlanCache(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	m.screen, m.focus = screenHome, focusPlans
 	next, cmd := m.openTree("PROJ-BUILD-44")
-	m = next.(Model)
-	m, _ = send(m, cmd())
+	m = untilTree(t, next.(Model), cmd)
 	m, _ = send(m, mkKey("enter")) // the root, PROJ-BUILD-44
 	require.Equal(t, screenPlan, m.screen)
 	m, _ = send(m, buildLoadedMsg{Gen: m.detailGen, Build: sampleBuild()})
@@ -735,8 +734,7 @@ func TestEscOffATreeFromHomeLeavesNoPlanBehind(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	m.screen, m.focus = screenHome, focusPlans
 	next, cmd := m.openTree("PROJ-BUILD-44")
-	m = next.(Model)
-	m, _ = send(m, cmd())
+	m = untilTree(t, next.(Model), cmd)
 	m, _ = send(m, mkKey("enter"))
 	m, _ = send(m, mkKey("esc"))
 	m, _ = send(m, mkKey("esc"))
@@ -893,8 +891,7 @@ func TestATreeFromAPlanFromATreeKeepsTheWayBack(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	m.screen, m.focus = screenHome, focusPlans
 	next, cmd := m.openTree("PROJ-BUILD-44")
-	m = next.(Model)
-	m, _ = send(m, cmd())
+	m = untilTree(t, next.(Model), cmd)
 	require.True(t, m.buildTree.have)
 
 	m, _ = send(m, mkKey("enter")) // the root build: its plan screen, from tree A

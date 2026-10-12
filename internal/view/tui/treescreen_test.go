@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/fake"
@@ -26,14 +27,22 @@ func treeTUIModel(t *testing.T) (Model, *fake.Provider) {
 	return m, f
 }
 
-// firstTree opens the screen with t and delivers the first tree.
+// firstTree opens the screen with t and delivers events until the first
+// tree; the progress before it is delivered too.
 func firstTree(t *testing.T, m Model) Model {
 	t.Helper()
 	m, cmd := send(m, mkKey("t"))
 	require.Equal(t, screenTree, m.screen)
-	require.NotNil(t, cmd)
-	m, _ = send(m, cmd())
-	require.True(t, m.buildTree.have)
+	return untilTree(t, m, cmd)
+}
+
+// untilTree delivers the watch's events from cmd until the first tree.
+func untilTree(t *testing.T, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	for !m.buildTree.have {
+		require.NotNil(t, cmd)
+		m, cmd = send(m, cmd())
+	}
 	return m
 }
 
@@ -284,4 +293,20 @@ func TestTreeScreenNestsALinkedBuildUnderItsStage(t *testing.T) {
 	require.Same(t, in, lines[2].node)
 	require.NotContains(t, lines[2].text, "started by stage")
 	require.Contains(t, lines[3].text, "└─ ✓ stage Publish")
+}
+
+func TestTreeScreenShowsProgressUntilTheFirstTree(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m, _ = send(m, mkKey("t"))
+	loading := func(gen, done int) treeEventMsg {
+		return treeEventMsg{Gen: gen, Event: app.TreeEvent{Type: app.TreeLoading,
+			Progress: app.TreeProgress{Plans: app.TreeCount{Done: done, Total: 40}}}}
+	}
+	m, cmd := send(m, loading(m.treeGen, 12))
+	require.NotNil(t, cmd, "the screen keeps reading the watch")
+	require.False(t, m.buildTree.have)
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · reading builds 12/40 plans")
+
+	m, _ = send(m, loading(m.treeGen-1, 39))
+	require.Contains(t, m.View(), "12/40", "a stale watch's progress is dropped")
 }

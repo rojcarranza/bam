@@ -195,18 +195,39 @@ func TestBuildTreeReadsEachNodesDetail(t *testing.T) {
 func TestBuildTreeWindowWarning(t *testing.T) {
 	p := treeFake()
 	var docs []provider.Build
-	for i := 0; i < 25; i++ {
-		docs = append(docs, tb(fmt.Sprintf("PROJ-DOCS-%d", 100-i), "Manual run by jdoe", provider.StateSuccess, 30+i))
+	for i := 0; i < treeDeep+10; i++ {
+		docs = append(docs, tb(fmt.Sprintf("PROJ-DOCS-%d", 1000-i), "Manual run by jdoe", provider.StateSuccess, 30+treeDeep+10-i))
 	}
 	p.History["PROJ-DOCS"] = docs
 	tr, err := treeService(t, p).BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
 	require.NoError(t, err)
-	require.Equal(t, []string{"PROJ-DOCS: only its last 25 builds were searched; older children may be missing"}, tr.Warnings)
+	require.Equal(t, []string{fmt.Sprintf("PROJ-DOCS: only its last %d builds were searched; older children may be missing", treeDeep)}, tr.Warnings)
 
-	docs[24].StartedAt = treeT0.Add(-time.Hour) // the window reaches past the root
+	docs[treeDeep-1].StartedAt = treeT0.Add(-time.Hour) // the deepest read reaches past the root
 	tr, err = treeService(t, p).BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
 	require.NoError(t, err)
 	require.Empty(t, tr.Warnings)
+}
+
+// TestBuildTreeReadsPastTheWindow: a busy child plan ran more than a
+// window of builds since the root started, so the root's child is older
+// than the newest 25. The search reads further back until it passes the
+// root's start.
+func TestBuildTreeReadsPastTheWindow(t *testing.T) {
+	p := treeFake()
+	var docs []provider.Build
+	for i := 0; i < 60; i++ {
+		docs = append(docs, tb(fmt.Sprintf("PROJ-DOCS-%d", 200-i), "Manual run by jdoe", provider.StateSuccess, 200-i))
+	}
+	docs = append(docs, tb("PROJ-DOCS-140", childOf("PROJ-API-142"), provider.StateSuccess, 5),
+		tb("PROJ-DOCS-139", "Manual run by jdoe", provider.StateSuccess, -5))
+	p.History["PROJ-DOCS"] = docs
+	tr, err := treeService(t, p).BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
+	require.NoError(t, err)
+	require.Empty(t, tr.Warnings)
+	var keys []string
+	tr.Root.Walk(func(n *TreeNode, _ int) { keys = append(keys, n.Build.Key) })
+	require.Contains(t, keys, "PROJ-DOCS-140")
 }
 
 func TestBuildTreeAProjectThatCannotBeListed(t *testing.T) {

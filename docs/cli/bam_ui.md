@@ -9,7 +9,8 @@ bam ui [flags]
 ### Options
 
 ```
-  -h, --help   help for ui
+  -h, --help             help for ui
+      --project string   project the UI opens on (all: every project; default: default_project)
 ```
 
 ### Options inherited from parent commands

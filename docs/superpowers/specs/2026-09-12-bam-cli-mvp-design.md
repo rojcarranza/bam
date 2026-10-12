@@ -140,6 +140,7 @@ servers:
     url: https://bamboo.example.com
 default_server: work
 projects: [PROJ, OPS]          # first entry is the default where one project is needed
+default_project: PROJ          # optional; the project the terminal UI opens on
 targets:
   build:
     plan: PROJ-BUILD
@@ -168,6 +169,7 @@ servers:
   home:
     url: http://bamboo.lab.example:8085
     projects: [LAB]
+    default_project: LAB                  # the project the terminal UI opens on
   work:
     url: https://bamboo-eu.example.com    # overrides the project file's url on this machine
     auth_env: BAM_WORK_TOKEN              # read the token from this variable first
@@ -206,6 +208,8 @@ Repository-scoped settings (4–6) rank above the machine file's global default 
 **Server fields.** A server alias defined in both layers is merged field by field; machine values win. Overriding `url` keeps the other fields.
 
 **Projects list**, first match wins: machine `repos.<root>.projects`, project `projects`, machine `servers.<alias>.projects`.
+
+**Default project**, the project the terminal UI opens on: the `--project` flag of `bam` and `bam ui` (`all` means every project), then, first match wins, machine `repos.<root>.default_project`, project `default_project`, machine `servers.<alias>.default_project`; otherwise every configured project. Keys are uppercased. The flag applies only to the server the UI opens on; switching server inside the UI applies that server's `default_project`. A default project need not be in the projects list. One the server does not have opens on every project, and the status bar says `project OPS not found on work`.
 
 **Targets.** Merged by name, field by field, in increasing precedence: project `targets`, machine top-level `targets`, machine `repos.<root>.targets`. `defaults`, `options` merge per variable name; `required` is replaced as a whole list.
 

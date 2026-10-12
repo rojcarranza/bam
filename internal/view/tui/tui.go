@@ -30,6 +30,7 @@ type Deps struct {
 	Getenv    func(name string) string // for ${ENV} references in a preset
 	Clipboard io.Writer
 	Output    io.Writer // the tea.Program's output; nil means os.Stdout
+	Version   string    // bam's own version, shown beside Bamboo's in the header
 }
 
 // Run opens the UI and returns when the user quits. Ending ctx closes the UI;

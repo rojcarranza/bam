@@ -452,6 +452,13 @@ func TestHomeHeaderBlockNamesContextKeysAndTitle(t *testing.T) {
 	}
 }
 
+func TestHomeHeaderBlockNamesBamAndBambooVersions(t *testing.T) {
+	m := goldenHome(120, 30)
+	m.deps.Version = "v0.3.0"
+	require.Contains(t, m.View(), "bam v0.3.0 · Bamboo 9.6.4")
+	require.Contains(t, m.homeHeader(), "bam v0.3.0 · lab · 9.6.4 · jdoe")
+}
+
 func TestHomeTitleCarriesProjectFilterAndCount(t *testing.T) {
 	m := goldenHome(120, 30)
 	m.project = "PROJ"

@@ -85,9 +85,10 @@ func TestProbePlansRecordsBothPagesAndTheFallback(t *testing.T) {
 	assert.Equal(t, []string{
 		"GET /rest/api/latest/project/PROJ",
 		"GET /rest/api/latest/project/PROJ",
+		"GET /rest/api/latest/project/PROJ",
 		"GET /rest/api/latest/plan",
 	}, calls())
-	for _, f := range []string{"plans_page1.json", "plans_page2.json", "plans_all_page2.json"} {
+	for _, f := range []string{"plans_page1.json", "plans_page2.json", "plans_page2_index.json", "plans_all_page2.json"} {
 		b, err := os.ReadFile(filepath.Join(r.out, f))
 		require.NoError(t, err, f)
 		assert.NotContains(t, string(b), "REAL", f)
@@ -104,5 +105,6 @@ func TestProbePlansQueries(t *testing.T) {
 	require.NoError(t, r.probePlans("PROJ"))
 	assert.Equal(t, "/rest/api/latest/project/PROJ?expand=plans.plan", queries[0])
 	assert.True(t, strings.HasSuffix(queries[1], "expand=plans%5B25%3A125%5D.plan"), queries[1])
-	assert.Equal(t, "/rest/api/latest/plan?max-result=25&start-index=25", queries[2])
+	assert.Equal(t, "/rest/api/latest/project/PROJ?expand=plans.plan&max-result=100&start-index=25", queries[2])
+	assert.Equal(t, "/rest/api/latest/plan?max-result=25&start-index=25", queries[3])
 }

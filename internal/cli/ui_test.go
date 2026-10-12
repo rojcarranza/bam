@@ -20,6 +20,7 @@ func TestBareBamOpensTheUIOnATerminal(t *testing.T) {
 	require.NotEmpty(t, h.tuiRuns[0].Servers)
 	require.NotNil(t, h.tuiRuns[0].Connect)
 	require.NotNil(t, h.tuiRuns[0].Targets)
+	require.NotEmpty(t, h.tuiRuns[0].Version, "the header shows bam's version")
 }
 
 // TestBareBamOnAPipePrintsHelp keeps the CLI scriptable.

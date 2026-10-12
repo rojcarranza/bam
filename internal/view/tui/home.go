@@ -701,7 +701,11 @@ func (m Model) homeHeader() string {
 	if m.home.view == homeProjects {
 		count, sortLabel, query = countOf(m.projectCount(), "project"), m.home.projectSort.label(homeProjects), m.projects.query
 	}
-	parts := []string{"bam", m.server, m.info.Version, m.user.Name, "project " + project,
+	bam := "bam"
+	if m.deps.Version != "" {
+		bam += " " + m.deps.Version
+	}
+	parts := []string{bam, m.server, m.info.Version, m.user.Name, "project " + project,
 		count, "sort " + sortLabel}
 	if m.home.view == homeSets || m.home.view == homeProjects {
 		// Sets are not filtered by project.
@@ -796,7 +800,11 @@ func (m Model) homeHeaderBlock(width int) []string {
 	if h := m.serverHost(); h != "" {
 		server += " [" + h + "]"
 	}
-	ctx := [3][2]string{{"Server:", server}, {"Version:", m.info.Version}, {"User:", m.user.Name}}
+	version := m.info.Version
+	if m.deps.Version != "" {
+		version = "bam " + m.deps.Version + " · Bamboo " + m.info.Version
+	}
+	ctx := [3][2]string{{"Server:", server}, {"Version:", version}, {"User:", m.user.Name}}
 	leftW := 0
 	for _, c := range ctx {
 		leftW = max(leftW, 9+lipgloss.Width(c[1]))

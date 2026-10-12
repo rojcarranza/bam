@@ -3,8 +3,8 @@ package bamboo
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
+	"strconv"
 	"sync"
 
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -41,30 +41,13 @@ func (c *Client) ListProjects(ctx context.Context) ([]provider.Project, error) {
 }
 
 // ListPlans returns a project's plans with their latest build. Plans past the
-// first page are fetched with Bamboo's expand range syntax plans[a:b].plan.
+// first page are asked for with start-index and max-result: Bamboo 9.6
+// answers the expand range plans[a:b].plan with the right size and no plans.
 func (c *Client) ListPlans(ctx context.Context, project string) ([]provider.Plan, error) {
-	var items []planDTO
-	expand := "plans.plan"
-	for {
-		var res struct {
-			Plans envelope `json:"plans"`
-		}
-		if err := c.getJSON(ctx, api+"/project/"+url.PathEscape(project), url.Values{"expand": {expand}}, &res); err != nil {
-			return nil, c.notFoundAs(err, "project", project, "bam project list --all")
-		}
-		var page []planDTO
-		if len(res.Plans.Items) > 0 {
-			if err := json.Unmarshal(res.Plans.Items, &page); err != nil {
-				return nil, err
-			}
-		}
-		items = append(items, page...)
-		if len(page) == 0 || len(items) >= res.Plans.Size {
-			break
-		}
-		expand = fmt.Sprintf("plans[%d:%d].plan", len(items), len(items)+pageSize)
+	items, err := c.projectPlans(ctx, project)
+	if err != nil {
+		return nil, c.notFoundAs(err, "project", project, "bam project list --all")
 	}
-
 	plans := make([]provider.Plan, len(items))
 	for i, p := range items {
 		name := p.ShortName
@@ -74,6 +57,48 @@ func (c *Client) ListPlans(ctx context.Context, project string) ([]provider.Plan
 		plans[i] = provider.Plan{Key: p.Key, Name: name, ProjectKey: project, URL: c.URL(p.Key)}
 	}
 	return plans, c.fillLastBuilds(ctx, plans)
+}
+
+// projectPlans pages through a project's plans. It trusts size as the total
+// only once a page holds fewer plans than size says, since a server that
+// reports size as the page's count would otherwise end the list at 25.
+// Without that proof it asks until a page comes back empty, and a page that
+// repeats plans already held (a server ignoring start-index) ends it too.
+func (c *Client) projectPlans(ctx context.Context, project string) ([]planDTO, error) {
+	var out []planDTO
+	seen := map[string]bool{}
+	sizeIsTotal := false
+	for start := 0; ; {
+		q := url.Values{"expand": {"plans.plan"}, "start-index": {strconv.Itoa(start)}, "max-result": {strconv.Itoa(pageSize)}}
+		var res struct {
+			Plans envelope `json:"plans"`
+		}
+		if err := c.getJSON(ctx, api+"/project/"+url.PathEscape(project), q, &res); err != nil {
+			return nil, err
+		}
+		var page []planDTO
+		if len(res.Plans.Items) > 0 {
+			if err := json.Unmarshal(res.Plans.Items, &page); err != nil {
+				return nil, err
+			}
+		}
+		added := 0
+		for _, p := range page {
+			if !seen[p.Key] {
+				seen[p.Key] = true
+				out = append(out, p)
+				added++
+			}
+		}
+		if added == 0 {
+			return out, nil
+		}
+		sizeIsTotal = sizeIsTotal || res.Plans.Size > len(page)
+		start += len(page)
+		if sizeIsTotal && start >= res.Plans.Size {
+			return out, nil
+		}
+	}
 }
 
 // fillLastBuilds fetches the latest build of each plan, eight at a time.

@@ -269,7 +269,7 @@ func run() error {
 
 	project := strings.SplitN(plan, "-", 2)[0]
 	latest, err := r.latestBuild(plan)
-	if err != nil {
+	if err != nil && !*probePlans { // the plans probe reads no build
 		return err
 	}
 	names, err := r.placeholderNames(project, latest, *asKey)
@@ -480,9 +480,12 @@ func (r *recorder) placeholderNames(project, build, as string) (map[string]strin
 		}
 	}
 
-	repos, err := r.repositoryNames(build)
-	if err != nil {
-		return nil, err
+	var repos []string
+	if build != "" {
+		repos, err = r.repositoryNames(build)
+		if err != nil {
+			return nil, err
+		}
 	}
 	for i, repo := range repos {
 		add(repo, fmt.Sprintf("%s-repo-%d", lower, i+1))

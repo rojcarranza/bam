@@ -1,0 +1,163 @@
+{
+  "expand": "plans",
+  "plans": {
+    "expand": "plan",
+    "max-result": 19,
+    "plan": [
+      {
+        "enabled": false,
+        "key": "OPS-P14",
+        "name": "OPS - Plan 14",
+        "projectKey": "OPS",
+        "shortKey": "P14",
+        "shortName": "Plan 14"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P15",
+        "name": "OPS - Plan 15",
+        "projectKey": "OPS",
+        "shortKey": "P15",
+        "shortName": "Plan 15"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P16",
+        "name": "OPS - Plan 16",
+        "projectKey": "OPS",
+        "shortKey": "P16",
+        "shortName": "Plan 16"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P17",
+        "name": "OPS - Plan 17",
+        "projectKey": "OPS",
+        "shortKey": "P17",
+        "shortName": "Plan 17"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P18",
+        "name": "OPS - Plan 18",
+        "projectKey": "OPS",
+        "shortKey": "P18",
+        "shortName": "Plan 18"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P19",
+        "name": "OPS - Plan 19",
+        "projectKey": "OPS",
+        "shortKey": "P19",
+        "shortName": "Plan 19"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P20",
+        "name": "OPS - Plan 20",
+        "projectKey": "OPS",
+        "shortKey": "P20",
+        "shortName": "Plan 20"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P21",
+        "name": "OPS - Plan 21",
+        "projectKey": "OPS",
+        "shortKey": "P21",
+        "shortName": "Plan 21"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P22",
+        "name": "OPS - Plan 22",
+        "projectKey": "OPS",
+        "shortKey": "P22",
+        "shortName": "Plan 22"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P23",
+        "name": "OPS - Plan 23",
+        "projectKey": "OPS",
+        "shortKey": "P23",
+        "shortName": "Plan 23"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P24",
+        "name": "OPS - Plan 24",
+        "projectKey": "OPS",
+        "shortKey": "P24",
+        "shortName": "Plan 24"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P25",
+        "name": "OPS - Plan 25",
+        "projectKey": "OPS",
+        "shortKey": "P25",
+        "shortName": "Plan 25"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P26",
+        "name": "OPS - Plan 26",
+        "projectKey": "OPS",
+        "shortKey": "P26",
+        "shortName": "Plan 26"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P27",
+        "name": "OPS - Plan 27",
+        "projectKey": "OPS",
+        "shortKey": "P27",
+        "shortName": "Plan 27"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P28",
+        "name": "OPS - Plan 28",
+        "projectKey": "OPS",
+        "shortKey": "P28",
+        "shortName": "Plan 28"
+      },
+      {
+        "enabled": false,
+        "key": "OPS-P29",
+        "name": "OPS - Plan 29",
+        "projectKey": "OPS",
+        "shortKey": "P29",
+        "shortName": "Plan 29"
+      },
+      {
+        "enabled": true,
+        "key": "OPS-P30",
+        "name": "OPS - Plan 30",
+        "projectKey": "OPS",
+        "shortKey": "P30",
+        "shortName": "Plan 30"
+      },
+      {
+        "enabled": true,
+        "key": "OPS-P31",
+        "name": "OPS - Plan 31",
+        "projectKey": "OPS",
+        "shortKey": "P31",
+        "shortName": "Plan 31"
+      },
+      {
+        "enabled": true,
+        "key": "OPS-P32",
+        "name": "OPS - Plan 32",
+        "projectKey": "OPS",
+        "shortKey": "P32",
+        "shortName": "Plan 32"
+      }
+    ],
+    "size": 44,
+    "start-index": 25
+  }
+}

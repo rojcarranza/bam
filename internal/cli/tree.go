@@ -106,7 +106,7 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 			return err
 		}
 		if out.TTY {
-			rend = view.NewTreeLive(out, failed)
+			rend = view.NewTreeLive(out, nil, failed)
 		} else {
 			rend = view.NewTreeLines(out, failed)
 		}

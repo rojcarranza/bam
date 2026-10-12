@@ -162,3 +162,19 @@ func TestTreeTextNestsALinkedBuildUnderItsStage(t *testing.T) {
 	require.NotContains(t, lines[3], "started by stage", "the stage above says it")
 	require.Contains(t, lines[4], "└─ stage Publish")
 }
+
+func TestTreeProgressText(t *testing.T) {
+	c := func(d, n int) app.TreeCount { return app.TreeCount{Done: d, Total: n} }
+	for _, tc := range []struct {
+		p    app.TreeProgress
+		want string
+	}{
+		{app.TreeProgress{}, "reading the tree"},
+		{app.TreeProgress{Projects: c(1, 2)}, "listing plans 1/2 projects"},
+		{app.TreeProgress{Projects: c(2, 2), Plans: c(12, 40)}, "reading builds 12/40 plans"},
+		{app.TreeProgress{Projects: c(3, 3), Plans: c(2, 6), Builds: c(4, 4), Jobs: c(3, 9)}, "reading builds 2/6 plans · reading logs 3/9 jobs"},
+		{app.TreeProgress{Projects: c(2, 2), Plans: c(4, 4), Builds: c(3, 3)}, "reading details 3/3 builds"},
+	} {
+		require.Equal(t, tc.want, TreeProgressText(tc.p))
+	}
+}

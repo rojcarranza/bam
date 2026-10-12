@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -32,10 +35,30 @@ func BuildLinks(lines []string) []string {
 	return out
 }
 
-// treeAt is a node of a tree and its depth below the root.
+// treeAt is a node of a tree, its depth below the root, and the builds
+// from the root to it.
 type treeAt struct {
 	n     *TreeNode
 	level int
+	path  []string
+}
+
+// treeOpen is every node at or below n that can have children of its own,
+// with its depth and path, and marks every build at or below n in inTree.
+func treeOpen(n *TreeNode, level int, path []string, inTree map[string]bool) []treeAt {
+	if n.NotRun {
+		return nil
+	}
+	inTree[n.Build.Key] = true
+	if n.Loop || n.Superseded {
+		return nil
+	}
+	path = append(slices.Clone(path), n.Build.Key)
+	out := []treeAt{{n, level, path}}
+	for _, k := range n.Children {
+		out = append(out, treeOpen(k, level+1, path, inTree)...)
+	}
+	return out
 }
 
 // logLink is a build a job's log links to, and the stage of that job.
@@ -49,20 +72,13 @@ type logLink struct {
 // own children by reason, and has its logs read in turn. A link to a build
 // already in the tree, to a build Bamboo does not know, or to a build that
 // started before the build whose log names it (one the log only mentions)
-// is skipped. Finished jobs' links are kept in sc, so a watch reads each
-// finished log once.
-func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan, idx map[string][]provider.Build, configured map[string][]string, depth int, done map[string]provider.Build) []string {
+// is skipped. A linked build of a project the search has not listed adds
+// that project's plans to sc, so its children by reason are found, and a
+// watch keeps reading them. Finished jobs' links are kept in sc, so a watch
+// reads each finished log once.
+func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan, configured map[string][]string, depth int, done map[string]provider.Build) []string {
 	inTree := map[string]bool{}
-	var frontier []treeAt
-	root.Walk(func(n *TreeNode, level int) {
-		if n.NotRun {
-			return
-		}
-		inTree[n.Build.Key] = true
-		if !n.Loop && !n.Superseded {
-			frontier = append(frontier, treeAt{n, level})
-		}
-	})
+	frontier := treeOpen(root, 0, nil, inTree)
 	var warnings []string
 	for len(frontier) > 0 && ctx.Err() == nil {
 		var open []treeAt
@@ -106,6 +122,15 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 		}
 		wg.Wait()
 
+		var fetched []provider.Build
+		for i, b := range builds {
+			if readErrs[i] == nil {
+				fetched = append(fetched, b)
+			}
+		}
+		warnings = append(warnings, s.treeAddProjects(ctx, sc, fetched, root.Build)...)
+		idx := sc.index()
+
 		frontier = nil
 		grown := map[*TreeNode]bool{}
 		for i, f := range todo {
@@ -120,24 +145,66 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 				continue
 			}
 			kid := &TreeNode{PlanKey: b.PlanKey, Build: b, FromLog: true, Stage: f.link.stage}
-			treeGrow(kid, idx, configured, depth, f.at.level+1, map[string]bool{kid.Build.Key: true})
+			path := map[string]bool{kid.Build.Key: true}
+			for _, k := range f.at.path {
+				path[k] = true
+			}
+			treeGrow(kid, idx, configured, depth, f.at.level+1, path)
 			warnings = append(warnings, s.treeDetails(ctx, kid, done)...)
 			f.at.n.Children = append(f.at.n.Children, kid)
 			grown[f.at.n] = true
-			kid.Walk(func(n *TreeNode, level int) {
-				if n.NotRun {
-					return
-				}
-				inTree[n.Build.Key] = true
-				if !n.Loop && !n.Superseded {
-					frontier = append(frontier, treeAt{n, f.at.level + 1 + level})
-				}
-			})
+			frontier = append(frontier, treeOpen(kid, f.at.level+1, f.at.path, inTree)...)
 		}
 		for n := range grown {
 			sortKids(n.Children)
 		}
 	}
+	return warnings
+}
+
+// treeAddProjects lists the projects of builds the search has not listed,
+// and reads the newest builds of their plans not yet in sc, as the first
+// search reads every candidate (deeper for a busy plan, back to root's
+// start). It adds them to sc and returns the warnings.
+func (s *Service) treeAddProjects(ctx context.Context, sc *treeScan, builds []provider.Build, root provider.Build) []string {
+	var warnings []string
+	var plans []string
+	for _, b := range builds {
+		project, _, ok := strings.Cut(b.PlanKey, "-")
+		if !ok || sc.listed[project] {
+			continue
+		}
+		sc.listed[project] = true
+		ps, err := s.P.ListPlans(ctx, project)
+		if err != nil {
+			if ctx.Err() == nil {
+				warnings = append(warnings, fmt.Sprintf("project %s: its plans could not be listed: %s", project, describeErr(err)))
+			}
+			continue
+		}
+		for _, p := range ps {
+			if !slices.Contains(sc.plans, p.Key) && !slices.Contains(plans, p.Key) {
+				plans = append(plans, p.Key)
+			}
+		}
+	}
+	if len(plans) == 0 {
+		return warnings
+	}
+	got, failed := s.treeRead(ctx, plans, treeWindow)
+	depths := s.treeDeepen(ctx, got, root)
+	for _, p := range plans {
+		if err, ok := failed[p]; ok {
+			warnings = append(warnings, fmt.Sprintf("%s: its builds could not be read: %s", p, describeErr(err)))
+			continue
+		}
+		bs := got[p]
+		read := depth(depths, p)
+		sc.builds[p] = bs
+		sc.windows[p] = planWindow{read: read, full: len(bs) >= read, oldest: oldestStart(bs)}
+		sc.plans = append(sc.plans, p)
+	}
+	sort.Strings(sc.plans)
 	return warnings
 }
 

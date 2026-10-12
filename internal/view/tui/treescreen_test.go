@@ -268,3 +268,20 @@ func TestLogsFromTheTreeReturnToTheTree(t *testing.T) {
 		require.NotNil(t, m.treeCh, "and watches it again (%s)", k)
 	}
 }
+
+func TestTreeScreenNestsALinkedBuildUnderItsStage(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	in := &app.TreeNode{PlanKey: "LAB-INT", FromLog: true, Stage: "Run integration builds",
+		Build: provider.Build{Key: "LAB-INT-46", PlanKey: "LAB-INT", Number: 46, State: provider.StateSuccess}}
+	root := &app.TreeNode{PlanKey: "PROJ-BUILD", Children: []*app.TreeNode{in},
+		Build: provider.Build{Key: "PROJ-BUILD-44", PlanKey: "PROJ-BUILD", Number: 44, State: provider.StateSuccess, Stages: []provider.Stage{
+			{Name: "Run integration builds", State: provider.StateSuccess}, {Name: "Publish", State: provider.StateSuccess}}}}
+	m.buildTree.tree = app.Tree{Root: root}
+	lines := m.treeLines()
+	require.Len(t, lines, 4)
+	require.Contains(t, lines[1].text, "├─ ✓ stage Run integration builds")
+	require.Contains(t, lines[2].text, "│  └─ LAB-INT-46")
+	require.Same(t, in, lines[2].node)
+	require.NotContains(t, lines[2].text, "started by stage")
+	require.Contains(t, lines[3].text, "└─ ✓ stage Publish")
+}

@@ -101,7 +101,7 @@ Each node then gets `GetBuild` (stages, jobs, failed tests), 4 at a time. A node
 
 Some pipelines start their sub-plans from a script in a job, through the REST API, rather than through child dependencies: the script triggers a plan, prints the build's page, and often waits for it. Those builds name no parent in their reason. So once the tree is built from reasons (§5.3), bam reads the log of every started job of every node, 4 at a time, and takes each link to a build's page, `/browse/PROJ-PLAN-42`, as a build that job started. A job's page (`PROJ-PLAN-JOB1-42`) and a plan's page (`PROJ-PLAN`) are not builds.
 
-Each linked build is read with `GetBuild` and becomes a child of the node whose log linked it, marked `from_log` with the stage of that job. It then gets its own children by reason (§5.3), and its logs are read in turn, so a script-started build that starts more builds is followed too. A link is skipped when the build is already in the tree, when Bamboo does not know it (another server's build, say), or when it started before the node whose log names it: a log that mentions an earlier build did not start it. `Depth` applies as in §5.3: a node at the limit has its logs left unread.
+Each linked build is read with `GetBuild` and becomes a child of the node whose log linked it, marked `from_log` with the stage of that job. It then gets its own children by reason (§5.3), with the builds from the root to it as its path, so a reason pointing back at an ancestor is a `loop`. A linked build of a project the search has not listed adds that project's plans to the candidates, read as in §5.2, so its children by reason are found there and a watch keeps reading them. Its logs are read in turn, so a script-started build that starts more builds is followed too. A link is skipped when the build is already in the tree, when Bamboo does not know it (another server's build, say), or when it started before the node whose log names it: a log that mentions an earlier build did not start it. `Depth` applies as in §5.3: a node at the limit has its logs left unread.
 
 A finished job's links are kept for the rest of a watch, so its log is read once. A running job's log is read again on each refresh, so a build its script starts appears while the parent still runs.
 
@@ -141,7 +141,20 @@ next: bam logs OPS-SMOKE-51 --failed
 
 - A build line: key (a link where links are on), state glyph and title from `view/style`, duration (elapsed for a running build).
 - A stage line under its build: the stage's state and duration; a failed stage names its failed jobs and, when Bamboo reports them, the count of failed tests.
-- Children follow their build's stages.
+- Children follow their build's stages. A build a job's script started (§5.3a) sits under the stage of that job instead, so the stage reads as running it:
+
+```
+LAB-NWINT-487                    ✓ success  1h18m
+├─ stage Validate                ✓ success    30s
+├─ stage Run integration builds  ✓ success  1h16m
+│  └─ LAB-INT-47                 ✓ success  1h16m
+│     ├─ stage Deploy            ✓ success  1h14m
+│     │  └─ LAB-PKG-35           ✓ success  1h13m
+│     └─ stage Run tests         ✓ success     2s
+└─ stage Publish                 ✓ success    45s
+```
+
+  When its stages are not shown (`--failed` on a tree with no failure under it), such a build follows them as other children do and says `started by stage <stage>`. The tree screen draws the same lines.
 - `next:` lines: one `bam logs KEY --failed` per failed build that has a failed job, in tree order.
 - A loop node: `PROJ-API-142   ↺ already shown above`.
 

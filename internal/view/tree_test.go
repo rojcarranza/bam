@@ -141,3 +141,22 @@ func TestTreeJSONMarksALinkedBuild(t *testing.T) {
 	require.True(t, doc.Root.Children[0].FromLog)
 	require.Equal(t, "Run integration builds", doc.Root.Children[0].Stage)
 }
+
+// TestTreeTextNestsALinkedBuildUnderItsStage: a build a job's script started
+// sits under the stage of that job, so the stage reads as running it.
+func TestTreeTextNestsALinkedBuildUnderItsStage(t *testing.T) {
+	tr := logTree()
+	tr.Root.Build.Stages = []provider.Stage{
+		stage("Validate", provider.StateSuccess, 30*time.Second),
+		stage("Run integration builds", provider.StateSuccess, 60*time.Second),
+		stage("Publish", provider.StateSuccess, 30*time.Second),
+	}
+	o, buf := testOut(false)
+	require.NoError(t, TreeText(o, tr, false))
+	lines := strings.Split(buf.String(), "\n")
+	require.Contains(t, lines[1], "├─ stage Validate")
+	require.Contains(t, lines[2], "├─ stage Run integration builds")
+	require.Contains(t, lines[3], "│  └─ LAB-INT-46")
+	require.NotContains(t, lines[3], "started by stage", "the stage above says it")
+	require.Contains(t, lines[4], "└─ stage Publish")
+}

@@ -24,13 +24,14 @@ func logTreeFake() *fake.Provider {
 	root := withStage(tb("PROJ-API-142", "Manual run by jdoe", provider.StateSuccess, 0), "Run integration builds", "PROJ-API-RUN-142", provider.StateSuccess)
 	p.History["PROJ-API"][0] = root
 	p.Plans["OPS"] = append(p.Plans["OPS"], provider.Plan{Key: "OPS-NOTIFY"})
+	p.Plans["LAB"] = []provider.Plan{{Key: "LAB-INT"}, {Key: "LAB-K8S0"}, {Key: "LAB-SUB"}}
 	p.History["OPS-NOTIFY"] = []provider.Build{tb("OPS-NOTIFY-3", childOf("LAB-INT-46"), provider.StateSuccess, 40)}
 	p.History["LAB-INT"] = []provider.Build{
-		withStage(tb("LAB-INT-46", "Manual run by sa-ci", provider.StateSuccess, 2), "Deploy", "LAB-INT-JOB1-46", provider.StateSuccess),
-		tb("LAB-INT-40", "Manual run by sa-ci", provider.StateSuccess, -600),
+		withStage(tb("LAB-INT-46", "Manual run by jdoe", provider.StateSuccess, 2), "Deploy", "LAB-INT-JOB1-46", provider.StateSuccess),
+		tb("LAB-INT-40", "Manual run by jdoe", provider.StateSuccess, -600),
 	}
-	p.History["LAB-K8S0"] = []provider.Build{tb("LAB-K8S0-30", "Manual run by sa-ci", provider.StateFailed, 3)}
-	p.History["LAB-SUB"] = []provider.Build{tb("LAB-SUB-7", "Manual run by sa-ci", provider.StateSuccess, 10)}
+	p.History["LAB-K8S0"] = []provider.Build{tb("LAB-K8S0-30", "Manual run by jdoe", provider.StateFailed, 3)}
+	p.History["LAB-SUB"] = []provider.Build{tb("LAB-SUB-7", "Manual run by jdoe", provider.StateSuccess, 10)}
 	p.Logs = map[string][]string{
 		"PROJ-API-RUN-142": {
 			"PlanCaller.py | The previous run https://bamboo.example.com/browse/LAB-INT-40 failed",
@@ -105,4 +106,33 @@ func TestBuildLinks(t *testing.T) {
 		"branch <https://bamboo.example.com/browse/LAB-K8S0-30>, again /browse/LAB-INT-46.",
 		"lowercase /browse/lab-int-46",
 	}))
+}
+
+// TestBuildTreeSearchesALinkedBuildsProject: LAB is not a project the tree
+// searches, but a script started LAB-INT-46, and LAB-NOTE-3 is a Child of
+// it. The linked build's project is searched for its children too.
+func TestBuildTreeSearchesALinkedBuildsProject(t *testing.T) {
+	p := logTreeFake()
+	p.Plans["LAB"] = append(p.Plans["LAB"], provider.Plan{Key: "LAB-NOTE"})
+	p.History["LAB-NOTE"] = []provider.Build{tb("LAB-NOTE-3", childOf("LAB-INT-46"), provider.StateSuccess, 50)}
+	svc := treeService(t, p)
+	tr, scan, err := svc.buildTree(context.Background(), "PROJ-API-142", TreeOptions{}, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-API-142(LAB-INT-46(LAB-NOTE-3,LAB-SUB-7,OPS-NOTIFY-3),LAB-K8S0-30,OPS-DEPLOY-88(OPS-SMOKE-51),PROJ-DOCS-30)", shape(tr.Root))
+	require.Contains(t, scan.plans, "LAB-NOTE", "a watch keeps reading the plans it added")
+
+	tr, _, err = svc.buildTree(context.Background(), "PROJ-API-142", TreeOptions{}, nil, scan)
+	require.NoError(t, err)
+	require.Contains(t, shape(tr.Root), "LAB-INT-46(LAB-NOTE-3,")
+}
+
+// TestBuildTreeALinkedBuildsChildThatIsAnAncestor: the root names LAB-INT-46
+// as its parent, so growing LAB-INT-46 by reason reaches the root again,
+// which is a loop, not a second copy of the tree.
+func TestBuildTreeALinkedBuildsChildThatIsAnAncestor(t *testing.T) {
+	p := logTreeFake()
+	p.History["PROJ-API"][0].Reason = childOf("LAB-INT-46")
+	tr, err := treeService(t, p).BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-API-142(LAB-INT-46(LAB-SUB-7,OPS-NOTIFY-3,PROJ-API-142^),LAB-K8S0-30,OPS-DEPLOY-88(OPS-SMOKE-51),PROJ-DOCS-30)", shape(tr.Root))
 }

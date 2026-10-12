@@ -216,7 +216,7 @@ func TestEnvRefDefaultSkipsOptionsCheck(t *testing.T) {
 
 func TestDefaultProjectOrder(t *testing.T) {
 	c := baseConfig()
-	c.Machine.Servers["work"] = Server{URL: "https://bamboo-eu.example.com", DefaultProject: "lab"}
+	c.Machine.Servers["work"] = Server{URL: "https://bamboo.example.com", DefaultProject: "lab"}
 	work := c.Servers()["work"]
 	assert.Equal(t, "LAB", c.DefaultProject(work), "server entry, uppercased")
 

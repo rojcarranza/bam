@@ -43,7 +43,7 @@ func TestTreeLinesPrintsChangesThenTheTree(t *testing.T) {
 func TestTreeLiveRedrawsInPlace(t *testing.T) {
 	first, last := twoTrees()
 	o, buf := testOut(true)
-	l := NewTreeLive(o, false)
+	l := NewTreeLive(o, nil, false)
 	l.Event(treeEv(app.TreeUpdate, first))
 	l.Event(treeEv(app.TreeUpdate, last))
 	require.Contains(t, buf.String(), "\x1b[1A\x1b[J", "the one-line first tree is redrawn")
@@ -62,4 +62,50 @@ func TestTreeNDJSONWritesATreePerUpdate(t *testing.T) {
 	var doc map[string]any
 	require.NoError(t, json.Unmarshal([]byte(lines[1]), &doc))
 	require.Equal(t, "success", doc["state"])
+}
+
+func loadingEv(done, total int) app.TreeEvent {
+	return app.TreeEvent{Type: app.TreeLoading, Progress: app.TreeProgress{Plans: app.TreeCount{Done: done, Total: total}}}
+}
+
+func TestTreeLiveShowsProgressOnItsOwnWriterAndClearsIt(t *testing.T) {
+	first, _ := twoTrees()
+	o, out := testOut(true)
+	var prog bytes.Buffer
+	l := NewTreeLive(o, &prog, false)
+	l.Event(loadingEv(1, 4))
+	require.Empty(t, out.String(), "no tree yet")
+	require.Equal(t, "\r\x1b[Kreading builds 1/4 plans", prog.String())
+	l.Event(treeEv(app.TreeUpdate, first))
+	require.Equal(t, "\r\x1b[Kreading builds 1/4 plans\r\x1b[K", prog.String(), "cleared before the tree")
+	require.NotEmpty(t, out.String())
+}
+
+// An interrupted watch ends without a tree: Stop must clear the line before
+// the CLI prints its "still running" note.
+func TestTreeLiveStopClearsAShownLine(t *testing.T) {
+	o, _ := testOut(true)
+	var prog bytes.Buffer
+	l := NewTreeLive(o, &prog, false)
+	l.Event(loadingEv(1, 4))
+	l.Stop()
+	require.True(t, strings.HasSuffix(prog.String(), "\r\x1b[K"), "%q", prog.String())
+	var none *TreeLive
+	none.Stop()
+}
+
+func TestTreeLiveWithoutAProgressWriterDropsLoading(t *testing.T) {
+	o, out := testOut(true)
+	l := NewTreeLive(o, nil, false)
+	l.Event(app.TreeEvent{Type: app.TreeLoading})
+	l.Stop()
+	require.Empty(t, out.String())
+}
+
+func TestPipeAndNDJSONRenderersIgnoreLoading(t *testing.T) {
+	var b bytes.Buffer
+	o := Out{W: &b}
+	NewTreeLines(o, false).Event(app.TreeEvent{Type: app.TreeLoading})
+	NewTreeNDJSON(o, false).Event(app.TreeEvent{Type: app.TreeLoading})
+	require.Empty(t, b.String())
 }

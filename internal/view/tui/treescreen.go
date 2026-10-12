@@ -19,7 +19,8 @@ type treeScreen struct {
 	root       string
 	tree       app.Tree
 	have       bool
-	cursor     int // over build rows only
+	progress   app.TreeProgress // how far the first refresh got, until have
+	cursor     int              // over build rows only
 	from       screen
 	back       *planReturn     // the plan screen t was pressed on, when from is screenPlan
 	restarting map[string]bool // builds a rerun is restarting now
@@ -136,6 +137,9 @@ func (m Model) handleTreeEvent(msg treeEventMsg) (tea.Model, tea.Cmd) {
 	case app.TreeError:
 		m.err = e.Err
 		return m, nil
+	case app.TreeLoading:
+		m.buildTree.progress = e.Progress
+		return m, treeCmd(m.treeCh, m.treeGen)
 	case app.TreeUpdate, app.TreeDone:
 		selected := ""
 		if n, ok := m.treeSelected(); ok {
@@ -349,7 +353,7 @@ func (m Model) treeScreenView() string {
 	if m.buildTree.have {
 		head += " · " + stateCell(t.State)
 	} else {
-		head += " · loading"
+		head += " · " + view.TreeProgressText(m.buildTree.progress)
 	}
 	lines := []string{head, " " + m.treeCounts()}
 	rows := m.treeLines()

@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `bam build tree --rerun-failed` and `bam build rerun` restart failed builds; only the newest run of a child plan counts toward the tree.
 - The terminal UI shows a build's tree (`t`, `:tree`) and reruns its failed builds with `F`.
 - The terminal UI streams a running build's stage logs live (`l` on a stage, or on a running build) and search highlights and counts matches as lines arrive.
+- `bam build tree` and the terminal UI's tree views show what bam is reading while a tree loads.
 
 ### Changed
 

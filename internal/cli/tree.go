@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -27,7 +28,8 @@ func newBuildTreeCmd(r *runtime) *cobra.Command {
 bam finds a child build by its reason, "Child of <parent>", in the last 25
 builds of each plan of the configured projects and of the build's project.
 A children: map in the configuration narrows a plan's children and shows a
-configured child that never ran. Interrupting --watch never stops a build.`,
+configured child that never ran. Interrupting --watch never stops a build.
+On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -49,7 +51,7 @@ configured child that never ran. Interrupting --watch never stops a build.`,
 			if watch {
 				return r.treeLoop(ctx, svc, key, o, failed)
 			}
-			t, err := svc.BuildTree(ctx, key, o)
+			t, err := r.loadTree(ctx, svc, key, o)
 			if err != nil {
 				return err
 			}
@@ -82,6 +84,32 @@ configured child that never ran. Interrupting --watch never stops a build.`,
 	return cmd
 }
 
+// progressOn reports whether a slow read may draw a progress line on
+// stderr: both outputs are terminals, the output is not JSON, and no
+// --debug log lines share stderr with it.
+func (r *runtime) progressOn() bool {
+	return r.env.StdoutTTY && r.env.StderrTTY && !r.flags.json && !r.flags.debug && r.env.Getenv("TERM") != "dumb"
+}
+
+// treeProgress is the line a tree load reports on, or nil when progressOn
+// is false.
+func (r *runtime) treeProgress() *view.ProgressLine {
+	if !r.progressOn() {
+		return nil
+	}
+	return view.NewProgressLine(r.env.Stderr, r.env.Width())
+}
+
+// loadTree reads key's tree, showing on a terminal what it is reading, and
+// clears that line before returning.
+func (r *runtime) loadTree(ctx context.Context, svc *app.Service, key string, o app.TreeOptions) (app.Tree, error) {
+	if pl := r.treeProgress(); pl != nil {
+		o.OnProgress = func(p app.TreeProgress) { pl.Show(view.TreeProgressText(p)) }
+		defer pl.Clear()
+	}
+	return svc.BuildTree(ctx, key, o)
+}
+
 // treeResult maps a tree to the exit: 0 when it succeeded or still runs,
 // 1 when any build did not succeed or a configured child did not run.
 func (r *runtime) treeResult(t app.Tree, key string) error {
@@ -98,6 +126,7 @@ func (r *runtime) treeResult(t app.Tree, key string) error {
 // treeLoop renders a watched tree. Interrupts stop watching only.
 func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o app.TreeOptions, failed bool) error {
 	var rend view.TreeRenderer
+	var live *view.TreeLive
 	if r.flags.json {
 		rend = view.NewTreeNDJSON(view.Out{W: r.env.Stdout}, failed)
 	} else {
@@ -106,7 +135,12 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 			return err
 		}
 		if out.TTY {
-			rend = view.NewTreeLive(out, failed)
+			var progress io.Writer
+			if r.progressOn() {
+				progress = r.env.Stderr
+			}
+			live = view.NewTreeLive(out, progress, failed)
+			rend = live
 		} else {
 			rend = view.NewTreeLines(out, failed)
 		}
@@ -121,6 +155,7 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 			return e.Err
 		}
 	}
+	live.Stop()
 	fmt.Fprintf(r.env.Stderr, "still running: bam build tree %s --watch\n", key)
 	return ctx.Err()
 }
@@ -128,7 +163,7 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 // rerunTree restarts the topmost failed builds of key's tree, after asking,
 // then follows the tree unless noWatch.
 func (r *runtime) rerunTree(ctx context.Context, svc *app.Service, key string, failed, yes, noWatch bool) error {
-	t, err := svc.BuildTree(ctx, key, app.TreeOptions{})
+	t, err := r.loadTree(ctx, svc, key, app.TreeOptions{})
 	if err != nil {
 		return err
 	}

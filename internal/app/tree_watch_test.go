@@ -33,7 +33,18 @@ func (c *hookClock) After(d time.Duration) <-chan time.Time {
 	return c.fakeClock.After(d)
 }
 
+// collectTree is a watch's events, its first refresh's progress left out.
 func collectTree(ch <-chan TreeEvent) []TreeEvent {
+	var out []TreeEvent
+	for _, e := range collectTreeAll(ch) {
+		if e.Type != TreeLoading {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func collectTreeAll(ch <-chan TreeEvent) []TreeEvent {
 	var out []TreeEvent
 	for e := range ch {
 		out = append(out, e)

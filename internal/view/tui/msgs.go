@@ -541,13 +541,47 @@ type treePreviewMsg struct {
 	Err  error
 }
 
+// treePreviewProgressMsg is how far the Tree panel's read of Key has got;
+// next waits for the snapshot after it.
+type treePreviewProgressMsg struct {
+	Gen      int
+	Key      string
+	Progress app.TreeProgress
+	next     tea.Cmd
+}
+
 // treePreviewCmd reads what build key triggered, one level down. It is read
 // once, not watched: the plan screen reads it again on r and when the open
-// build finishes.
+// build finishes. The read starts at once; its result comes from the first
+// command of the batch and its progress from the second, which keeps only
+// the newest snapshot and ends with the read.
 func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.Cmd {
+	progress := make(chan app.TreeProgress, 1)
+	result := make(chan treePreviewMsg, 1)
+	go func() {
+		defer close(progress)
+		t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1, OnProgress: func(p app.TreeProgress) {
+			// Calls are serialized, so after the drain there is room.
+			select {
+			case <-progress:
+			default:
+			}
+			progress <- p
+		}})
+		result <- treePreviewMsg{Gen: gen, Key: key, Tree: t, Err: err}
+	}()
+	return tea.Batch(func() tea.Msg { return <-result }, treePreviewProgress(progress, key, gen))
+}
+
+// treePreviewProgress waits for the next snapshot of a Tree panel read; it
+// returns nil once the read has ended.
+func treePreviewProgress(ch <-chan app.TreeProgress, key string, gen int) tea.Cmd {
 	return func() tea.Msg {
-		t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1})
-		return treePreviewMsg{Gen: gen, Key: key, Tree: t, Err: err}
+		p, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return treePreviewProgressMsg{Gen: gen, Key: key, Progress: p, next: treePreviewProgress(ch, key, gen)}
 	}
 }
 

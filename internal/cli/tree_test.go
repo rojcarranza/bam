@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,4 +75,61 @@ func TestBuildTreeWatchInterrupted(t *testing.T) {
 	assert.Equal(t, 130, h.runCtx(ctx, "build", "tree", "PROJ-BUILD-482", "--watch"))
 	assert.Contains(t, h.stderr.String(), "still running: bam build tree PROJ-BUILD-482 --watch")
 	assert.Empty(t, h.fake.Stopped)
+}
+
+const clearLine = "\r\x1b[K"
+
+func TestBuildTreeShowsProgressOnATerminal(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	h.tty = true
+	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482"))
+	assert.Contains(t, h.stderr.String(), clearLine+"reading builds")
+	assert.True(t, strings.HasSuffix(h.stderr.String(), clearLine), "the line is cleared: %q", h.stderr.String())
+	assert.NotContains(t, h.stdout.String(), "\x1b[K", "stdout carries only the tree")
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV-9", "the tree (keys are links on a terminal)")
+}
+
+func TestBuildTreeShowsNoProgressOnAPipeOrWithJSON(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482"))
+	assert.NotContains(t, h.stderr.String(), "\x1b[K")
+
+	h.tty = true
+	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--json"))
+	assert.NotContains(t, h.stderr.String(), "\x1b[K")
+
+	h.vars["TERM"] = "dumb"
+	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482"))
+	assert.NotContains(t, h.stderr.String(), "\x1b[K")
+}
+
+func TestBuildTreeWatchShowsProgressOnStderr(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	h.tty = true
+	assert.Equal(t, 1, h.run("build", "tree", "PROJ-BUILD-482", "--watch"))
+	assert.Contains(t, h.stderr.String(), clearLine+"reading")
+	assert.NotContains(t, h.stdout.String(), clearLine+"reading", "progress is not drawn into the tree")
+}
+
+func TestAnInterruptedWatchClearsItsProgressFirst(t *testing.T) {
+	h := treeHarness(t, provider.StateRunning)
+	h.tty = true
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	assert.Equal(t, 130, h.runCtx(ctx, "build", "tree", "PROJ-BUILD-482", "--watch"))
+	stderr := h.stderr.String()
+	i := strings.Index(stderr, "still running")
+	require.GreaterOrEqual(t, i, 0)
+	if j := strings.LastIndex(stderr[:i], "\r"); j >= 0 {
+		assert.Equal(t, clearLine, stderr[j:i], "a shown line is cleared before the note")
+	}
+}
+
+// --debug writes log lines to stderr from the transport; a progress line
+// there would glue itself to them.
+func TestBuildTreeShowsNoProgressWithDebug(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	h.tty = true
+	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--debug"))
+	assert.NotContains(t, h.stderr.String(), "\x1b[K")
 }

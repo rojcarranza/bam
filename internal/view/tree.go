@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -230,16 +231,71 @@ type TreeRenderer interface {
 	Event(e app.TreeEvent)
 }
 
-// TreeLive redraws the tree in place on a TTY.
-type TreeLive struct {
-	o      Out
-	failed bool
-	lines  int
+// TreeProgressText says what a tree load is reading: every phase that has
+// started and not finished, or the last one started once all have.
+func TreeProgressText(p app.TreeProgress) string {
+	phases := []struct {
+		c          app.TreeCount
+		verb, unit string
+	}{
+		{p.Projects, "listing plans", "projects"},
+		{p.Plans, "reading builds", "plans"},
+		{p.Builds, "reading details", "builds"},
+		{p.Jobs, "reading logs", "jobs"},
+	}
+	var open []string
+	last := ""
+	for _, ph := range phases {
+		if ph.c.Total == 0 {
+			continue
+		}
+		s := fmt.Sprintf("%s %d/%d %s", ph.verb, ph.c.Done, ph.c.Total, ph.unit)
+		last = s
+		if ph.c.Done < ph.c.Total {
+			open = append(open, s)
+		}
+	}
+	switch {
+	case len(open) > 0:
+		return strings.Join(open, " · ")
+	case last != "":
+		return last
+	}
+	return "reading the tree"
 }
 
-func NewTreeLive(o Out, failedOnly bool) *TreeLive { return &TreeLive{o: o, failed: failedOnly} }
+// TreeLive redraws the tree in place on a TTY, and shows the first
+// refresh's progress on its own line until the tree arrives.
+type TreeLive struct {
+	o        Out
+	failed   bool
+	lines    int
+	progress *ProgressLine
+}
+
+// NewTreeLive draws on o. Progress goes to progress, usually stderr; nil
+// shows none.
+func NewTreeLive(o Out, progress io.Writer, failedOnly bool) *TreeLive {
+	l := &TreeLive{o: o, failed: failedOnly}
+	if progress != nil {
+		l.progress = NewProgressLine(progress, o.Width)
+	}
+	return l
+}
+
+// Stop clears the progress line, for a watch that ends without a tree.
+func (l *TreeLive) Stop() {
+	if l != nil {
+		l.progress.Clear()
+	}
+}
 
 func (l *TreeLive) Event(e app.TreeEvent) {
+	if e.Type == app.TreeLoading {
+		l.progress.Show(TreeProgressText(e.Progress))
+		return
+	}
+	l.progress.Clear()
 	if e.Type == app.TreeError {
 		return
 	}

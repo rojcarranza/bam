@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -568,7 +569,9 @@ func TestATreePreviewLandsWhileTheLogsAreOpen(t *testing.T) {
 	m, cmd := m.loadTreePreview(m.detail.Key, true)
 	require.NotNil(t, cmd)
 	m.screen = screenLogs
-	m, _ = send(m, cmd())
+	for _, msg := range runBatch(cmd) {
+		m, _ = send(m, msg)
+	}
 	require.True(t, m.plan.tree.have, "the preview read for this build is kept")
 	require.False(t, m.plan.tree.loading)
 }
@@ -911,4 +914,49 @@ func TestATreeFromAPlanFromATreeKeepsTheWayBack(t *testing.T) {
 	require.Equal(t, screenTree, m.screen, "esc returns to tree A, not Home")
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenHome, m.screen)
+}
+
+func noMsg() tea.Msg { return nil }
+
+func TestTreePanelShowsProgressWhileReading(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	m, _ = send(m, mkKey("r"))
+	require.True(t, m.plan.tree.loading)
+	m, cmd := send(m, treePreviewProgressMsg{Gen: m.treePreviewGen, Key: m.plan.tree.key,
+		Progress: app.TreeProgress{Plans: app.TreeCount{Done: 3, Total: 4}}, next: noMsg})
+	require.NotNil(t, cmd, "it keeps listening")
+	require.Contains(t, m.treeBody(80, 10), "reading the tree… reading builds 3/4 plans")
+}
+
+func TestAStaleTreeProgressIsDropped(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	m, _ = send(m, mkKey("r"))
+	p := app.TreeProgress{Plans: app.TreeCount{Done: 3, Total: 4}}
+	m, cmd := send(m, treePreviewProgressMsg{Gen: m.treePreviewGen - 1, Key: m.plan.tree.key, Progress: p, next: noMsg})
+	require.Nil(t, cmd)
+	m, cmd = send(m, treePreviewProgressMsg{Gen: m.treePreviewGen, Key: "PROJ-BUILD-1", Progress: p, next: noMsg})
+	require.Nil(t, cmd)
+	require.Equal(t, app.TreeProgress{}, m.plan.tree.progress)
+}
+
+func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	var result *treePreviewMsg
+	var prog *treePreviewProgressMsg
+	for _, msg := range runBatch(treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7)) {
+		switch v := msg.(type) {
+		case treePreviewMsg:
+			result = &v
+		case treePreviewProgressMsg:
+			prog = &v
+		}
+	}
+	require.NotNil(t, result)
+	require.NoError(t, result.Err)
+	require.NotNil(t, prog, "the read's last snapshot is waiting")
+	require.Equal(t, 7, prog.Gen)
+	require.Positive(t, prog.Progress.Plans.Total)
+	require.Nil(t, prog.next(), "the progress ends with the read")
 }

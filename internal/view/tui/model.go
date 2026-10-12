@@ -528,6 +528,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleTreeEvent(msg)
 	case treePreviewMsg:
 		return m.treePreviewLoaded(msg)
+	case treePreviewProgressMsg:
+		return m.treePreviewProgressed(msg)
 	case treeClosedMsg:
 		return m, nil
 	case treeRerunMsg:

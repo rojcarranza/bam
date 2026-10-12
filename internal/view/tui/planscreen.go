@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/r0jjames/bam-cli/internal/view/style"
 )
 
@@ -103,11 +104,12 @@ func (f planFrame) wantOf() *provider.Build {
 
 // treePreview is the Tree panel: the direct children of one build.
 type treePreview struct {
-	key     string
-	tree    app.Tree
-	have    bool
-	loading bool
-	err     error
+	key      string
+	tree     app.Tree
+	have     bool
+	loading  bool
+	progress app.TreeProgress // how far the read got, while loading
+	err      error
 }
 
 // openPlan shows the plan screen on key, listing buildsPlan's builds (the
@@ -360,6 +362,16 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// treePreviewProgressed shows how far the Tree panel's read has got, if it
+// is still this panel's read.
+func (m Model) treePreviewProgressed(msg treePreviewProgressMsg) (Model, tea.Cmd) {
+	if msg.Gen != m.treePreviewGen || m.plan.key == "" || msg.Key != m.plan.tree.key || !m.plan.tree.loading {
+		return m, nil
+	}
+	m.plan.tree.progress = msg.Progress
+	return m, msg.next
+}
+
 // treePreviewRows is the Tree panel's rows: the open build's direct children.
 func (m Model) treePreviewRows() []*app.TreeNode {
 	if !m.plan.tree.have || m.plan.tree.tree.Root == nil {
@@ -535,7 +547,11 @@ func (m Model) treeBody(width, height int) string {
 	case m.detail == nil:
 		return dimStyle.Render("no builds yet")
 	case t.loading:
-		return dimStyle.Render("reading the tree…")
+		text := "reading the tree…"
+		if t.progress != (app.TreeProgress{}) {
+			text += " " + view.TreeProgressText(t.progress)
+		}
+		return dimStyle.Render(cut(text, width-4))
 	case t.err != nil:
 		// Cut to the panel, as every other row is: a wrapped error would
 		// push the screen past the terminal's bottom.

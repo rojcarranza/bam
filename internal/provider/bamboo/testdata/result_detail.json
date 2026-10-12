@@ -1,7 +1,7 @@
 {"key": "PROJ-BUILD12-44", "buildResultKey": "PROJ-BUILD12-44", "buildNumber": 44, "state": "Failed", "lifeCycleState": "Finished",
  "buildStartedTime": "2026-09-12T11:00:00.000+02:00", "buildCompletedTime": "2026-09-12T11:03:40.000+02:00", "buildDuration": 220000,
  "buildReason": "Custom build by <a href=\"https://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
- "plan": {"key": "PROJ-BUILD12", "shortName": "develop", "master": {"key": "PROJ-BUILD"}},
+ "planName": "develop", "plan": {"key": "PROJ-BUILD12", "shortName": "develop", "master": {"key": "PROJ-BUILD", "shortName": "Build and test"}},
  "labels": {"size": 1, "label": [{"name": "nightly"}]},
  "vcsRevisions": {"size": 1, "vcsRevision": [{"repositoryName": "app", "vcsRevisionKey": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"}]},
  "stages": {"size": 3, "stage": [

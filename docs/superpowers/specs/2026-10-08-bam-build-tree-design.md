@@ -97,10 +97,19 @@ A build that already appears on the path from the root is a `loop` node and is n
 
 Each node then gets `GetBuild` (stages, jobs, failed tests), 4 at a time. A node whose `GetBuild` fails keeps the build from the list and adds a warning.
 
+### 5.3a Builds a job log started
+
+Some pipelines start their sub-plans from a script in a job, through the REST API, rather than through child dependencies: the script triggers a plan, prints the build's page, and often waits for it. Those builds name no parent in their reason. So once the tree is built from reasons (§5.3), bam reads the log of every started job of every node, 4 at a time, and takes each link to a build's page, `/browse/PROJ-PLAN-42`, as a build that job started. A job's page (`PROJ-PLAN-JOB1-42`) and a plan's page (`PROJ-PLAN`) are not builds.
+
+Each linked build is read with `GetBuild` and becomes a child of the node whose log linked it, marked `from_log` with the stage of that job. It then gets its own children by reason (§5.3), with the builds from the root to it as its path, so a reason pointing back at an ancestor is a `loop`. A linked build of a project the search has not listed adds that project's plans to the candidates, read as in §5.2, so its children by reason are found there and a watch keeps reading them. Its logs are read in turn, so a script-started build that starts more builds is followed too. A link is skipped when the build is already in the tree, when Bamboo does not know it (another server's build, say), or when it started before the node whose log names it: a log that mentions an earlier build did not start it. `Depth` applies as in §5.3: a node at the limit has its logs left unread.
+
+A finished job's links are kept for the rest of a watch, so its log is read once. A running job's log is read again on each refresh, so a build its script starts appears while the parent still runs.
+
 ### 5.4 Warnings
 
 - **Window.** A candidate plan whose deepest read (§5.2, at most 1600 builds) was full and started after the root build started may hold older builds that are children: `PROJ-DOCS: only its last 1600 builds were searched; older children may be missing`. The number is the depth actually read. A plan that returned fewer builds than asked for, or whose oldest fetched build started before the root, gets no warning.
 - **Unreadable plan or node**, as above.
+- **Unreadable job log** (§5.3a): `PROJ-API-RUN-142: its log could not be read for the builds it started: ...`. A job with no log yet adds nothing. A linked build that cannot be read for a reason other than not found: `LAB-INT-46: linked from PROJ-API-142's log, but it could not be read: ...`.
 - Warnings go to stderr in text and to `warnings` in JSON. They never change the exit code.
 
 ### 5.5 Errors
@@ -130,9 +139,22 @@ PROJ-API-142            ✗ failed     12m03s
 next: bam logs OPS-SMOKE-51 --failed
 ```
 
-- A build line: key (a link where links are on), state glyph and title from `view/style`, duration (elapsed for a running build).
+- A build line: key (a link where links are on), then the plan's name in parentheses, with the branch for a branch build (`LAB-INT-47 (Integrate.ForNextRelease)`, `LAB-K8S0-30 (Deploy.K8s · wr03k)`), state glyph and title from `view/style`, duration (elapsed for a running build).
 - A stage line under its build: the stage's state and duration; a failed stage names its failed jobs and, when Bamboo reports them, the count of failed tests.
-- Children follow their build's stages.
+- Children follow their build's stages. A build a job's script started (§5.3a) sits under the stage of that job instead, so the stage reads as running it:
+
+```
+LAB-NWINT-487                    ✓ success  1h18m
+├─ stage Validate                ✓ success    30s
+├─ stage Run integration builds  ✓ success  1h16m
+│  └─ LAB-INT-47                 ✓ success  1h16m
+│     ├─ stage Deploy            ✓ success  1h14m
+│     │  └─ LAB-PKG-35           ✓ success  1h13m
+│     └─ stage Run tests         ✓ success     2s
+└─ stage Publish                 ✓ success    45s
+```
+
+  When its stages are not shown (`--failed` on a tree with no failure under it), such a build follows them as other children do and says `started by stage <stage>`. The tree screen draws the same lines.
 - `next:` lines: one `bam logs KEY --failed` per failed build that has a failed job, in tree order.
 - A loop node: `PROJ-API-142   ↺ already shown above`.
 
@@ -183,6 +205,7 @@ The tree's state: `success` when every build node succeeded and there is no `not
 ```
 
 - `status`: the build's state, or `not_run`, or `loop`.
+- `from_log`: `true` for a build linked by its parent's job log (§5.3a), `false` for one found by its reason. `stage`, only with `from_log`, names the parent's stage whose job started it.
 - `build`: exactly the `bam build show --json` document (`BuildDoc`, without `progress`); `null` for `not_run`; for `loop`, the build again, with `children` empty.
 - `children`: always an array.
 - `--watch --json`: one such document per line, each a full tree.

@@ -108,3 +108,57 @@ func TestTreeJSON(t *testing.T) {
 	require.NotNil(t, audit.Children)
 	require.NotContains(t, string(data), `"progress"`)
 }
+
+// logTree is a root whose "Run integration builds" job started LAB-INT-46
+// with a script.
+func logTree() app.Tree {
+	in := tnode("LAB-INT-46", provider.StateSuccess, 60*time.Second)
+	in.FromLog, in.Stage = true, "Run integration builds"
+	in.Build.PlanName = "Integrate.ForNextRelease"
+	root := tnode("PROJ-API-142", provider.StateSuccess, 120*time.Second, in)
+	return app.Tree{Root: root, State: app.TreeState(root)}
+}
+
+func TestTreeTextNamesTheStageThatStartedALinkedBuild(t *testing.T) {
+	o, buf := testOut(false)
+	require.NoError(t, TreeText(o, logTree(), false))
+	require.Regexp(t, `LAB-INT-46 \(Integrate.ForNextRelease\) +✓ success +1m0?0?s? +started by stage Run integration builds`, buf.String())
+}
+
+func TestTreeJSONMarksALinkedBuild(t *testing.T) {
+	data, err := json.Marshal(TreeJSON(logTree(), false))
+	require.NoError(t, err)
+	var doc struct {
+		Root struct {
+			FromLog  bool `json:"from_log"`
+			Children []struct {
+				FromLog bool   `json:"from_log"`
+				Stage   string `json:"stage"`
+			} `json:"children"`
+		} `json:"root"`
+	}
+	require.NoError(t, json.Unmarshal(data, &doc))
+	require.False(t, doc.Root.FromLog)
+	require.True(t, doc.Root.Children[0].FromLog)
+	require.Contains(t, string(data), `"plan_name":"Integrate.ForNextRelease"`)
+	require.Equal(t, "Run integration builds", doc.Root.Children[0].Stage)
+}
+
+// TestTreeTextNestsALinkedBuildUnderItsStage: a build a job's script started
+// sits under the stage of that job, so the stage reads as running it.
+func TestTreeTextNestsALinkedBuildUnderItsStage(t *testing.T) {
+	tr := logTree()
+	tr.Root.Build.Stages = []provider.Stage{
+		stage("Validate", provider.StateSuccess, 30*time.Second),
+		stage("Run integration builds", provider.StateSuccess, 60*time.Second),
+		stage("Publish", provider.StateSuccess, 30*time.Second),
+	}
+	o, buf := testOut(false)
+	require.NoError(t, TreeText(o, tr, false))
+	lines := strings.Split(buf.String(), "\n")
+	require.Contains(t, lines[1], "├─ stage Validate")
+	require.Contains(t, lines[2], "├─ stage Run integration builds")
+	require.Contains(t, lines[3], "│  └─ LAB-INT-46 (Integrate.ForNextRelease)")
+	require.NotContains(t, lines[3], "started by stage", "the stage above says it")
+	require.Contains(t, lines[4], "└─ stage Publish")
+}

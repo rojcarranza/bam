@@ -170,45 +170,46 @@ func (m Model) treeLines() []treeLine {
 	if t.Root == nil {
 		return nil
 	}
-	out := []treeLine{{text: m.treeNodeText(t.Root), node: t.Root}}
+	out := []treeLine{{text: m.treeNodeText(t.Root, false), node: t.Root}}
 	var add func(n *app.TreeNode, indent string)
+	node := func(k *app.TreeNode, indent, branch, more string, underStage bool) {
+		out = append(out, treeLine{text: indent + branch + m.treeNodeText(k, underStage), node: k})
+		add(k, indent+more)
+	}
 	add = func(n *app.TreeNode, indent string) {
-		type item struct {
-			stage *provider.Stage
-			node  *app.TreeNode
+		if n.NotRun || n.Loop || n.Superseded {
+			return
 		}
-		var items []item
-		if !n.NotRun && !n.Loop && !n.Superseded {
-			for i := range n.Build.Stages {
-				items = append(items, item{stage: &n.Build.Stages[i]})
-			}
-			for _, c := range n.Children {
-				items = append(items, item{node: c})
-			}
-		}
+		items := view.TreeItems(n, true)
 		for i, it := range items {
 			branch, more := "├─ ", "│  "
 			if i == len(items)-1 {
 				branch, more = "└─ ", "   "
 			}
-			if it.stage != nil {
-				out = append(out, treeLine{text: indent + branch + stageText(*it.stage)})
+			if it.Stage == nil {
+				node(it.Node, indent, branch, more, false)
 				continue
 			}
-			out = append(out, treeLine{text: indent + branch + m.treeNodeText(it.node), node: it.node})
-			add(it.node, indent+more)
+			out = append(out, treeLine{text: indent + branch + stageText(*it.Stage)})
+			for j, k := range it.Under {
+				b, mo := "├─ ", "│  "
+				if j == len(it.Under)-1 {
+					b, mo = "└─ ", "   "
+				}
+				node(k, indent+more, b, mo, true)
+			}
 		}
 	}
 	add(t.Root, "")
 	return out
 }
 
-func (m Model) treeNodeText(n *app.TreeNode) string {
+func (m Model) treeNodeText(n *app.TreeNode, underStage bool) string {
 	switch {
 	case n.NotRun:
 		return dimStyle.Render("· " + n.PlanKey + "  not run")
 	case n.Loop:
-		return "↺ " + n.Build.Key + "  already shown above"
+		return "↺ " + n.Build.Key + view.TreePlanName(n.Build) + "  already shown above"
 	case n.Superseded:
 		return dimStyle.Render(stateGlyph(n.Build.State) + " " + n.Build.Key + "  earlier run")
 	}
@@ -217,9 +218,9 @@ func (m Model) treeNodeText(n *app.TreeNode) string {
 	if !app.TreeFinished(b.State) && !b.StartedAt.IsZero() {
 		d = m.now().Sub(b.StartedAt)
 	}
-	text := b.Key + "  " + stateCell(b.State) + "  " + view.Duration(d)
-	if c := len(b.FailedTests); c > 0 {
-		text += fmt.Sprintf("  %d tests failed", c)
+	text := b.Key + view.TreePlanName(b) + "  " + stateCell(b.State) + "  " + view.Duration(d)
+	if note := view.TreeNodeNote(n, underStage); note != "" {
+		text += "  " + note
 	}
 	if m.buildTree.restarting[b.Key] {
 		text += "  restarting…"

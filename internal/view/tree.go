@@ -40,43 +40,42 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	}
 	showStages := !failedOnly || len(root.Children) > 0 || treeBad(root)
 	tb := Table{Headers: []string{"", "", "", ""}}
-	tb.Rows = append(tb.Rows, treeRow(o, root, ""))
+	tb.Rows = append(tb.Rows, treeRow(o, root, "", false))
 	var next []string
 	if root.Build.State == provider.StateFailed && len(root.Build.FailedJobs()) > 0 {
 		next = append(next, root.Build.Key)
 	}
 	var add func(n *app.TreeNode, indent string, stages bool)
+	// node is one build's line, and everything under it.
+	node := func(k *app.TreeNode, indent, branch, more string, underStage bool) {
+		tb.Rows = append(tb.Rows, treeRow(o, k, indent+branch, underStage))
+		if k.Superseded {
+			return
+		}
+		if !k.NotRun && !k.Loop && k.Build.State == provider.StateFailed && len(k.Build.FailedJobs()) > 0 {
+			next = append(next, k.Build.Key)
+		}
+		add(k, indent+more, true)
+	}
 	add = func(n *app.TreeNode, indent string, stages bool) {
-		type item struct {
-			stage *provider.Stage
-			node  *app.TreeNode
-		}
-		var items []item
-		if stages && !n.NotRun && !n.Loop && !n.Superseded {
-			for i := range n.Build.Stages {
-				items = append(items, item{stage: &n.Build.Stages[i]})
-			}
-		}
-		for _, k := range n.Children {
-			items = append(items, item{node: k})
-		}
+		items := TreeItems(n, stages && !n.NotRun && !n.Loop && !n.Superseded)
 		for i, it := range items {
 			branch, more := "├─ ", "│  "
 			if i == len(items)-1 {
 				branch, more = "└─ ", "   "
 			}
-			if it.stage != nil {
-				tb.Rows = append(tb.Rows, stageRow(o, n.Build, *it.stage, indent+branch))
+			if it.Stage == nil {
+				node(it.Node, indent, branch, more, false)
 				continue
 			}
-			tb.Rows = append(tb.Rows, treeRow(o, it.node, indent+branch))
-			if it.node.Superseded {
-				continue
+			tb.Rows = append(tb.Rows, stageRow(o, n.Build, *it.Stage, indent+branch))
+			for j, k := range it.Under {
+				b, m := "├─ ", "│  "
+				if j == len(it.Under)-1 {
+					b, m = "└─ ", "   "
+				}
+				node(k, indent+more, b, m, true)
 			}
-			if !it.node.NotRun && !it.node.Loop && it.node.Build.State == provider.StateFailed && len(it.node.Build.FailedJobs()) > 0 {
-				next = append(next, it.node.Build.Key)
-			}
-			add(it.node, indent+more, true)
 		}
 	}
 	add(root, "", showStages)
@@ -91,7 +90,42 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	return nil
 }
 
-func treeRow(o Out, n *app.TreeNode, prefix string) []string {
+// TreeItem is one line under a build in a tree: a stage, with the builds
+// its jobs started under it, or a child build.
+type TreeItem struct {
+	Stage *provider.Stage
+	Under []*app.TreeNode // builds the stage's jobs started, linked from their logs
+	Node  *app.TreeNode
+}
+
+// TreeItems is what sits under n: with stages, each stage followed by the
+// builds its jobs started, then every other child; without, the children.
+func TreeItems(n *app.TreeNode, stages bool) []TreeItem {
+	var items []TreeItem
+	placed := map[*app.TreeNode]bool{}
+	if stages {
+		for i := range n.Build.Stages {
+			it := TreeItem{Stage: &n.Build.Stages[i]}
+			for _, k := range n.Children {
+				if k.FromLog && k.Stage == it.Stage.Name && !placed[k] {
+					it.Under = append(it.Under, k)
+					placed[k] = true
+				}
+			}
+			items = append(items, it)
+		}
+	}
+	for _, k := range n.Children {
+		if !placed[k] {
+			items = append(items, TreeItem{Node: k})
+		}
+	}
+	return items
+}
+
+// treeRow is one build's line. underStage: it is drawn under the stage that
+// started it, which then need not be named again.
+func treeRow(o Out, n *app.TreeNode, prefix string, underStage bool) []string {
 	switch {
 	case n.Superseded:
 		return []string{prefix + style.Dim(o.Style, n.Build.Key), style.Dim(o.Style, style.Glyph(n.Build.State)+" "+style.Label(n.Build.State)),
@@ -99,13 +133,36 @@ func treeRow(o Out, n *app.TreeNode, prefix string) []string {
 	case n.NotRun:
 		return []string{prefix + n.PlanKey, style.Pending(o.Style) + " not run", "", ""}
 	case n.Loop:
-		return []string{prefix + o.Key(n.Build.Key, n.Build.URL), "↺ already shown above", "", ""}
+		return []string{prefix + o.Key(n.Build.Key, n.Build.URL) + TreePlanName(n.Build), "↺ already shown above", "", ""}
 	}
-	extra := ""
+	return []string{prefix + o.Key(n.Build.Key, n.Build.URL) + TreePlanName(n.Build), o.State(n.Build.State), Duration(elapsed(o, n.Build)), TreeNodeNote(n, underStage)}
+}
+
+// TreePlanName is what follows a build's key on its tree line: its
+// pipeline's name, and its branch for a branch build, " (Build and test ·
+// develop)"; empty when the provider gave no name.
+func TreePlanName(b provider.Build) string {
+	switch {
+	case b.PlanName == "":
+		return ""
+	case b.Branch != "":
+		return " (" + b.PlanName + " · " + b.Branch + ")"
+	}
+	return " (" + b.PlanName + ")"
+}
+
+// TreeNodeNote is what a build's tree line says after its duration: the
+// stage whose job started it, for a build linked from a log that is not
+// drawn under that stage, and its count of failed tests.
+func TreeNodeNote(n *app.TreeNode, underStage bool) string {
+	var parts []string
+	if n.FromLog && n.Stage != "" && !underStage {
+		parts = append(parts, "started by stage "+n.Stage)
+	}
 	if c := len(n.Build.FailedTests); c > 0 {
-		extra = fmt.Sprintf("%d tests failed", c)
+		parts = append(parts, fmt.Sprintf("%d tests failed", c))
 	}
-	return []string{prefix + o.Key(n.Build.Key, n.Build.URL), o.State(n.Build.State), Duration(elapsed(o, n.Build)), extra}
+	return strings.Join(parts, " · ")
 }
 
 func stageRow(o Out, b provider.Build, s provider.Stage, prefix string) []string {
@@ -131,6 +188,8 @@ type TreeDoc struct {
 type TreeNodeDoc struct {
 	PlanKey  string        `json:"plan_key"`
 	Status   string        `json:"status"`
+	FromLog  bool          `json:"from_log"`        // linked by its parent's job log, not its reason
+	Stage    string        `json:"stage,omitempty"` // for from_log, the parent's stage that started it
 	Build    *BuildDoc     `json:"build"`
 	Children []TreeNodeDoc `json:"children"`
 }
@@ -145,7 +204,7 @@ func TreeJSON(t app.Tree, failedOnly bool) TreeDoc {
 }
 
 func treeNodeDoc(n *app.TreeNode) TreeNodeDoc {
-	d := TreeNodeDoc{PlanKey: n.PlanKey, Status: string(n.Build.State), Children: []TreeNodeDoc{}}
+	d := TreeNodeDoc{PlanKey: n.PlanKey, Status: string(n.Build.State), FromLog: n.FromLog, Stage: n.Stage, Children: []TreeNodeDoc{}}
 	switch {
 	case n.NotRun:
 		d.Status = "not_run"

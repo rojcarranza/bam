@@ -2,6 +2,7 @@
   "key": "PROJ-BUILD12-44",
   "url": "https://bamboo.example.com/browse/PROJ-BUILD12-44",
   "plan_key": "PROJ-BUILD12",
+  "plan_name": "",
   "branch": "develop",
   "number": 44,
   "state": "failed",

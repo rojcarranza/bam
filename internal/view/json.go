@@ -35,6 +35,7 @@ type BuildDoc struct {
 	Key             string        `json:"key"`
 	URL             string        `json:"url"`
 	PlanKey         string        `json:"plan_key"`
+	PlanName        string        `json:"plan_name"`
 	Branch          string        `json:"branch"`
 	Number          int           `json:"number"`
 	State           string        `json:"state"`
@@ -160,7 +161,7 @@ func BuildJSON(b provider.Build) BuildDoc {
 
 // BuildJSONWithProgress is BuildJSON with the server's estimate attached.
 func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
-	d := BuildDoc{Key: b.Key, URL: b.URL, PlanKey: b.PlanKey, Branch: b.Branch, Number: b.Number, State: string(b.State),
+	d := BuildDoc{Key: b.Key, URL: b.URL, PlanKey: b.PlanKey, PlanName: b.PlanName, Branch: b.Branch, Number: b.Number, State: string(b.State),
 		Reason: b.Reason, CustomBuild: b.CustomBuild, Labels: nonNil(b.Labels), QueuedAt: timePtr(b.QueuedAt),
 		StartedAt: timePtr(b.StartedAt), FinishedAt: timePtr(b.FinishedAt), QueueDurationMS: ms(b.QueueDuration),
 		DurationMS: ms(b.Duration), Agent: b.Agent, Revisions: []RevisionDoc{}, Stages: []StageDoc{}, FailedTests: nonNil(b.FailedTests),

@@ -56,6 +56,8 @@ type TreeNode struct {
 	NotRun     bool           // a configured child plan with no build that names the parent
 	Loop       bool           // the build already appears above; its children are not followed
 	Superseded bool           // an older run of the same child plan; it does not count toward the tree
+	FromLog    bool           // linked by a job log of its parent, not by its reason: a script started it
+	Stage      string         // for FromLog, the parent's stage whose job log linked it
 	Children   []*TreeNode    // by plan key, then build number, newest first
 }
 
@@ -142,12 +144,12 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	scan := prev
 	limit := treeRefresh
 	if scan == nil {
-		plans, more, err := s.treeCandidates(ctx, root.PlanKey, configured)
+		plans, projects, more, err := s.treeCandidates(ctx, root.PlanKey, configured)
 		if err != nil {
 			return Tree{}, nil, err
 		}
 		warnings = more
-		scan = &treeScan{plans: plans}
+		scan = &treeScan{plans: plans, listed: projects}
 		limit = treeWindow
 	}
 	got, failed := s.treeRead(ctx, scan.plans, limit)
@@ -177,6 +179,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}}
 	treeGrow(t.Root, scan.index(), configured, o.Depth, 0, map[string]bool{root.Key: true})
 	warnings = append(warnings, s.treeDetails(ctx, t.Root, done)...)
+	warnings = append(warnings, s.treeLogLinks(ctx, t.Root, scan, configured, o.Depth, done)...)
 	warnings = append(warnings, windowWarnings(scan.windows, root)...)
 	if err := ctx.Err(); err != nil {
 		return Tree{}, nil, err
@@ -187,8 +190,9 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 }
 
 // treeCandidates is every plan of the scoped projects and of the root's
-// project, and every plan the children map names, sorted.
-func (s *Service) treeCandidates(ctx context.Context, rootPlan string, configured map[string][]string) ([]string, []string, error) {
+// project, and every plan the children map names, sorted. It also returns
+// the projects it listed.
+func (s *Service) treeCandidates(ctx context.Context, rootPlan string, configured map[string][]string) ([]string, map[string]bool, []string, error) {
 	set := map[string]bool{}
 	projects := slices.Clone(s.ProjectKeys())
 	if p, _, ok := strings.Cut(rootPlan, "-"); ok && !slices.Contains(projects, p) {
@@ -200,7 +204,7 @@ func (s *Service) treeCandidates(ctx context.Context, rootPlan string, configure
 		plans, err := s.P.ListPlans(ctx, p)
 		if err != nil {
 			if ctx.Err() != nil {
-				return nil, nil, ctx.Err()
+				return nil, nil, nil, ctx.Err()
 			}
 			if firstErr == nil {
 				firstErr = err
@@ -219,14 +223,18 @@ func (s *Service) treeCandidates(ctx context.Context, rootPlan string, configure
 		}
 	}
 	if len(set) == 0 && firstErr != nil {
-		return nil, nil, firstErr
+		return nil, nil, nil, firstErr
 	}
 	out := make([]string, 0, len(set))
 	for k := range set {
 		out = append(out, k)
 	}
 	sort.Strings(out)
-	return out, warnings, nil
+	listed := map[string]bool{}
+	for _, p := range projects {
+		listed[p] = true
+	}
+	return out, listed, warnings, nil
 }
 
 // planWindow is what the first search saw of one plan: how many builds it
@@ -292,17 +300,19 @@ func depth(depths map[string]int, plan string) int {
 // builds, newest first, the first search's windows, and the parents of
 // restarted builds, read once each.
 type treeScan struct {
-	plans   []string
-	builds  map[string][]provider.Build
-	windows map[string]planWindow
-	parents map[string]string // build key to parent key; "" for none or given up
-	misses  map[string]int    // failed parent reads in a row, by build key
+	plans    []string
+	listed   map[string]bool // projects whose plans are in plans
+	builds   map[string][]provider.Build
+	windows  map[string]planWindow
+	parents  map[string]string   // build key to parent key; "" for none or given up
+	misses   map[string]int      // failed parent reads in a row, by build key
+	logLinks map[string][]string // build keys a finished job's log links to, by job key
 }
 
 // first is the scan of a first search: its builds and their windows.
 // depths holds the plans treeDeepen read deeper than a window.
 func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int) *treeScan {
-	out := &treeScan{plans: sc.plans, builds: got, windows: map[string]planWindow{}, parents: map[string]string{}, misses: map[string]int{}}
+	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: got, windows: map[string]planWindow{}, parents: map[string]string{}, misses: map[string]int{}, logLinks: map[string][]string{}}
 	for plan, bs := range got {
 		read := depth(depths, plan)
 		out.windows[plan] = planWindow{read: read, full: len(bs) >= read, oldest: oldestStart(bs)}
@@ -314,7 +324,7 @@ func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int
 // again replaces its older copy, a new build is added, and a plan that
 // could not be read keeps what was found before.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses)}
+	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks}
 	for plan, bs := range sc.builds {
 		out.builds[plan] = bs
 	}
@@ -454,6 +464,20 @@ func (s *Service) treeRead(ctx context.Context, plans []string, limit int) (map[
 	return got, failed
 }
 
+// sortKids orders children by plan key, then build number, newest first,
+// and marks every run of a child plan but the newest as superseded.
+func sortKids(kids []*TreeNode) {
+	sort.SliceStable(kids, func(i, j int) bool {
+		if kids[i].PlanKey != kids[j].PlanKey {
+			return kids[i].PlanKey < kids[j].PlanKey
+		}
+		return kids[i].Build.Number > kids[j].Build.Number
+	})
+	for i := 1; i < len(kids); i++ {
+		kids[i].Superseded = !kids[i].NotRun && kids[i].PlanKey == kids[i-1].PlanKey
+	}
+}
+
 // treeGrow adds the children of n from the index, then theirs. path holds
 // the builds from the root to n.
 func treeGrow(n *TreeNode, idx map[string][]provider.Build, configured map[string][]string, depth, level int, path map[string]bool) {
@@ -473,18 +497,7 @@ func treeGrow(n *TreeNode, idx map[string][]provider.Build, configured map[strin
 			kids = append(kids, &TreeNode{PlanKey: p, NotRun: true})
 		}
 	}
-	sort.SliceStable(kids, func(i, j int) bool {
-		if kids[i].PlanKey != kids[j].PlanKey {
-			return kids[i].PlanKey < kids[j].PlanKey
-		}
-		return kids[i].Build.Number > kids[j].Build.Number
-	})
-	// The newest run of a child plan is current; older ones are superseded.
-	for i := 1; i < len(kids); i++ {
-		if !kids[i].NotRun && kids[i].PlanKey == kids[i-1].PlanKey {
-			kids[i].Superseded = true
-		}
-	}
+	sortKids(kids)
 	n.Children = kids
 	for _, k := range kids {
 		if k.NotRun {

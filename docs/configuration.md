@@ -147,7 +147,7 @@ The file holds one set in the shape of an entry under `sets:`, plus an optional 
 
 ## Child plans (`children`)
 
-`bam build tree` finds the builds a build triggered by their reason, "Child of <build>", in the last 25 builds of each plan of your projects. A plan that ran more than 25 builds since the root started is read further back, up to 1600 builds, until it reaches the root's start. A `children` map narrows that for a plan and shows a configured child that never ran:
+`bam build tree` finds the builds a build triggered by their reason, "Child of <build>", in the last 25 builds of each plan of your projects. A plan that ran more than 25 builds since the root started is read further back, up to 1600 builds, until it reaches the root's start. It also follows builds a job started with a script through the REST API, which name no parent in their reason: a link to a build's page in a job's log, such as `https://bamboo.example.com/browse/PROJ-API-42`, makes that build a child, drawn under the stage whose job started it. A `children` map narrows that for a plan and shows a configured child that never ran:
 
 ```yaml
 children:

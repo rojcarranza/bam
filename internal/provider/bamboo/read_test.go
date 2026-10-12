@@ -34,11 +34,13 @@ func TestRecordedShapesDecode(t *testing.T) {
 	require.NotEmpty(t, builds)
 	for _, b := range builds {
 		assert.NotEmpty(t, b.Key)
+		assert.NotEmpty(t, b.PlanName, b.Key)
 		assert.NotEqual(t, provider.StateUnknown, b.State, b.Key)
 		assert.False(t, b.StartedAt.IsZero(), b.Key)
 	}
 	b, err := c.GetBuild(ctx, "REC-PLAN-1")
 	require.NoError(t, err)
+	assert.Equal(t, "Provision Cluster", b.PlanName)
 	require.NotEmpty(t, b.Stages)
 	require.NotEmpty(t, b.Stages[0].Jobs)
 	assert.NotEmpty(t, b.Stages[0].Jobs[0].Name)
@@ -138,6 +140,7 @@ func TestListBuildsFiltersState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []provider.State{provider.StateSuccess, provider.StateFailed, provider.StateStopped},
 		[]provider.State{all[0].State, all[1].State, all[2].State})
+	assert.Equal(t, "Build and test", all[0].PlanName)
 }
 
 func TestGetBuildMapsEverything(t *testing.T) {
@@ -149,6 +152,7 @@ func TestGetBuildMapsEverything(t *testing.T) {
 	assert.Equal(t, c.URL("PROJ-BUILD12-44"), b.URL)
 	assert.Equal(t, "PROJ-BUILD12", b.PlanKey)
 	assert.Equal(t, "develop", b.Branch)
+	assert.Equal(t, "Build and test", b.PlanName, "a branch build is named after its master plan, not the branch")
 	assert.Equal(t, 44, b.Number)
 	assert.Equal(t, provider.StateFailed, b.State)
 	assert.Equal(t, "Custom build by J Doe", b.Reason)

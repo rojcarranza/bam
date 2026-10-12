@@ -35,7 +35,8 @@ type resultPlanDTO struct {
 	Key       string `json:"key"`
 	ShortName string `json:"shortName"`
 	Master    *struct {
-		Key string `json:"key"`
+		Key       string `json:"key"`
+		ShortName string `json:"shortName"`
 	} `json:"master"`
 }
 
@@ -43,6 +44,7 @@ type resultDTO struct {
 	Key                    string        `json:"key"`
 	BuildResultKey         string        `json:"buildResultKey"`
 	BuildNumber            int           `json:"buildNumber"`
+	PlanName               string        `json:"planName"`
 	State                  string        `json:"state"`
 	BuildState             string        `json:"buildState"`
 	LifeCycleState         string        `json:"lifeCycleState"`

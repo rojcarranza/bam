@@ -2,8 +2,6 @@ package bamboo
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/url"
 	"sync"
 
@@ -41,37 +39,27 @@ func (c *Client) ListProjects(ctx context.Context) ([]provider.Project, error) {
 }
 
 // ListPlans returns a project's plans with their latest build. Plans past the
-// first page are fetched with Bamboo's expand range syntax plans[a:b].plan.
+// first page are asked for with start-index and max-result: Bamboo 9.6
+// answers the expand range plans[a:b].plan with the right size and no plans.
 func (c *Client) ListPlans(ctx context.Context, project string) ([]provider.Plan, error) {
-	var items []planDTO
-	expand := "plans.plan"
-	for {
-		var res struct {
-			Plans envelope `json:"plans"`
-		}
-		if err := c.getJSON(ctx, api+"/project/"+url.PathEscape(project), url.Values{"expand": {expand}}, &res); err != nil {
-			return nil, c.notFoundAs(err, "project", project, "bam project list --all")
-		}
-		var page []planDTO
-		if len(res.Plans.Items) > 0 {
-			if err := json.Unmarshal(res.Plans.Items, &page); err != nil {
-				return nil, err
-			}
-		}
-		items = append(items, page...)
-		if len(page) == 0 || len(items) >= res.Plans.Size {
-			break
-		}
-		expand = fmt.Sprintf("plans[%d:%d].plan", len(items), len(items)+pageSize)
+	items, err := pageAll[planDTO](ctx, c, api+"/project/"+url.PathEscape(project), url.Values{"expand": {"plans.plan"}}, "plans", 0)
+	if err != nil {
+		return nil, c.notFoundAs(err, "project", project, "bam project list --all")
 	}
 
-	plans := make([]provider.Plan, len(items))
-	for i, p := range items {
+	// A server that ignores start-index answers every page with the first.
+	plans := make([]provider.Plan, 0, len(items))
+	seen := make(map[string]bool, len(items))
+	for _, p := range items {
+		if seen[p.Key] {
+			continue
+		}
+		seen[p.Key] = true
 		name := p.ShortName
 		if name == "" {
 			name = p.Name
 		}
-		plans[i] = provider.Plan{Key: p.Key, Name: name, ProjectKey: project, URL: c.URL(p.Key)}
+		plans = append(plans, provider.Plan{Key: p.Key, Name: name, ProjectKey: project, URL: c.URL(p.Key)})
 	}
 	return plans, c.fillLastBuilds(ctx, plans)
 }

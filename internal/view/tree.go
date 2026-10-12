@@ -133,9 +133,22 @@ func treeRow(o Out, n *app.TreeNode, prefix string, underStage bool) []string {
 	case n.NotRun:
 		return []string{prefix + n.PlanKey, style.Pending(o.Style) + " not run", "", ""}
 	case n.Loop:
-		return []string{prefix + o.Key(n.Build.Key, n.Build.URL), "↺ already shown above", "", ""}
+		return []string{prefix + o.Key(n.Build.Key, n.Build.URL) + TreePlanName(n.Build), "↺ already shown above", "", ""}
 	}
-	return []string{prefix + o.Key(n.Build.Key, n.Build.URL), o.State(n.Build.State), Duration(elapsed(o, n.Build)), TreeNodeNote(n, underStage)}
+	return []string{prefix + o.Key(n.Build.Key, n.Build.URL) + TreePlanName(n.Build), o.State(n.Build.State), Duration(elapsed(o, n.Build)), TreeNodeNote(n, underStage)}
+}
+
+// TreePlanName is what follows a build's key on its tree line: its
+// pipeline's name, and its branch for a branch build, " (Build and test ·
+// develop)"; empty when the provider gave no name.
+func TreePlanName(b provider.Build) string {
+	switch {
+	case b.PlanName == "":
+		return ""
+	case b.Branch != "":
+		return " (" + b.PlanName + " · " + b.Branch + ")"
+	}
+	return " (" + b.PlanName + ")"
 }
 
 // TreeNodeNote is what a build's tree line says after its duration: the

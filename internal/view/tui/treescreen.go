@@ -209,7 +209,7 @@ func (m Model) treeNodeText(n *app.TreeNode, underStage bool) string {
 	case n.NotRun:
 		return dimStyle.Render("· " + n.PlanKey + "  not run")
 	case n.Loop:
-		return "↺ " + n.Build.Key + "  already shown above"
+		return "↺ " + n.Build.Key + view.TreePlanName(n.Build) + "  already shown above"
 	case n.Superseded:
 		return dimStyle.Render(stateGlyph(n.Build.State) + " " + n.Build.Key + "  earlier run")
 	}
@@ -218,7 +218,7 @@ func (m Model) treeNodeText(n *app.TreeNode, underStage bool) string {
 	if !app.TreeFinished(b.State) && !b.StartedAt.IsZero() {
 		d = m.now().Sub(b.StartedAt)
 	}
-	text := b.Key + "  " + stateCell(b.State) + "  " + view.Duration(d)
+	text := b.Key + view.TreePlanName(b) + "  " + stateCell(b.State) + "  " + view.Duration(d)
 	if note := view.TreeNodeNote(n, underStage); note != "" {
 		text += "  " + note
 	}

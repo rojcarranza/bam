@@ -129,8 +129,15 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 			b.PlanKey = key[:i]
 		}
 	}
+	// A branch build's planName and plan short name are the branch's; the
+	// pipeline's own name is its master plan's.
+	b.PlanName = r.Plan.ShortName
+	if b.PlanName == "" {
+		b.PlanName = r.PlanName
+	}
 	if r.Plan.Master != nil {
 		b.Branch = r.Plan.ShortName
+		b.PlanName = r.Plan.Master.ShortName
 	}
 	b.CustomBuild = strings.Contains(strings.ToLower(b.Reason), "custom build")
 	for _, m := range r.Metadata.Item {

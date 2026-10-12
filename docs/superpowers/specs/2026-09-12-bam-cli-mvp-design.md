@@ -447,7 +447,7 @@ Plan    { key, url, name, project_key, last_build: { key, number, state, finishe
 Branch  { key, url, name, short_name, plan_key }
 Variable{ name, value, masked, source, last_used }
 Target  { name, plan_key, server, branch, defaults, options, required, watch, timeout_ms, defined_in[] }
-Build   { key, url, plan_key, branch, number, state, reason, custom_build, labels[],
+Build   { key, url, plan_key, plan_name, branch, number, state, reason, custom_build, labels[],
           queued_at, started_at, finished_at, queue_duration_ms, duration_ms, agent,
           revisions[{ repository, revision, short }],
           stages[{ name, state, duration_ms, jobs[{ key, url, name, state, duration_ms }] }],

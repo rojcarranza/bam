@@ -110,6 +110,7 @@ type Build struct {
 	Key           string // e.g. PROJ-PLAN-44 or PROJ-PLAN12-5
 	URL           string
 	PlanKey       string // plan (or branch plan) the build belongs to
+	PlanName      string // the plan's short name; for a branch build, its master plan's, not the branch's
 	Branch        string // branch short name; empty for the default branch
 	Number        int
 	State         State

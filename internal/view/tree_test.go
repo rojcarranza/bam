@@ -114,6 +114,7 @@ func TestTreeJSON(t *testing.T) {
 func logTree() app.Tree {
 	in := tnode("LAB-INT-46", provider.StateSuccess, 60*time.Second)
 	in.FromLog, in.Stage = true, "Run integration builds"
+	in.Build.PlanName = "Integrate.ForNextRelease"
 	root := tnode("PROJ-API-142", provider.StateSuccess, 120*time.Second, in)
 	return app.Tree{Root: root, State: app.TreeState(root)}
 }
@@ -121,7 +122,7 @@ func logTree() app.Tree {
 func TestTreeTextNamesTheStageThatStartedALinkedBuild(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, TreeText(o, logTree(), false))
-	require.Regexp(t, `LAB-INT-46 +✓ success +1m0?0?s? +started by stage Run integration builds`, buf.String())
+	require.Regexp(t, `LAB-INT-46 \(Integrate.ForNextRelease\) +✓ success +1m0?0?s? +started by stage Run integration builds`, buf.String())
 }
 
 func TestTreeJSONMarksALinkedBuild(t *testing.T) {
@@ -139,6 +140,7 @@ func TestTreeJSONMarksALinkedBuild(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &doc))
 	require.False(t, doc.Root.FromLog)
 	require.True(t, doc.Root.Children[0].FromLog)
+	require.Contains(t, string(data), `"plan_name":"Integrate.ForNextRelease"`)
 	require.Equal(t, "Run integration builds", doc.Root.Children[0].Stage)
 }
 
@@ -156,7 +158,7 @@ func TestTreeTextNestsALinkedBuildUnderItsStage(t *testing.T) {
 	lines := strings.Split(buf.String(), "\n")
 	require.Contains(t, lines[1], "├─ stage Validate")
 	require.Contains(t, lines[2], "├─ stage Run integration builds")
-	require.Contains(t, lines[3], "│  └─ LAB-INT-46")
+	require.Contains(t, lines[3], "│  └─ LAB-INT-46 (Integrate.ForNextRelease)")
 	require.NotContains(t, lines[3], "started by stage", "the stage above says it")
 	require.Contains(t, lines[4], "└─ stage Publish")
 }

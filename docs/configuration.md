@@ -147,7 +147,7 @@ The file holds one set in the shape of an entry under `sets:`, plus an optional 
 
 ## Child plans (`children`)
 
-`bam build tree` finds the builds a build triggered by their reason, "Child of <build>", in the last 25 builds of each plan of your projects. A `children` map narrows that for a plan and shows a configured child that never ran:
+`bam build tree` finds the builds a build triggered by their reason, "Child of <build>", in the last 25 builds of each plan of your projects. A plan that ran more than 25 builds since the root started is read further back, up to 1600 builds, until it reaches the root's start. A `children` map narrows that for a plan and shows a configured child that never ran:
 
 ```yaml
 children:

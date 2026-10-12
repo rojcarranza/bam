@@ -17,9 +17,12 @@ import (
 )
 
 // treeWindow is how many recent builds of each candidate plan are searched
-// for children; treeFetch is how many requests run at a time.
+// for children; a plan whose window does not reach back to the root's start
+// is read again, four times deeper each time, up to treeDeep builds.
+// treeFetch is how many requests run at a time.
 const (
 	treeWindow  = 25
+	treeDeep    = 1600
 	treeRefresh = 5 // a watch's later refreshes: a new child is among its plan's newest builds
 	treeFetch   = 4
 )
@@ -148,6 +151,10 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		limit = treeWindow
 	}
 	got, failed := s.treeRead(ctx, scan.plans, limit)
+	var depths map[string]int
+	if prev == nil {
+		depths = s.treeDeepen(ctx, got, root)
+	}
 	if err := ctx.Err(); err != nil {
 		return Tree{}, nil, err
 	}
@@ -162,7 +169,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	warnings = append(warnings, readWarnings...)
 	if prev == nil {
-		scan = scan.first(got)
+		scan = scan.first(got, depths)
 	} else {
 		scan = scan.merged(got)
 	}
@@ -222,11 +229,63 @@ func (s *Service) treeCandidates(ctx context.Context, rootPlan string, configure
 	return out, warnings, nil
 }
 
-// planWindow is what the first search saw of one plan: whether it
-// returned a full window, and when its oldest returned build started.
+// planWindow is what the first search saw of one plan: how many builds it
+// asked for, whether it got that many, and when its oldest returned build
+// started.
 type planWindow struct {
+	read   int
 	full   bool
 	oldest time.Time
+}
+
+// oldestStart is when the earliest started of bs started; zero if none did.
+func oldestStart(bs []provider.Build) time.Time {
+	var t time.Time
+	for _, b := range bs {
+		if !b.StartedAt.IsZero() && (t.IsZero() || b.StartedAt.Before(t)) {
+			t = b.StartedAt
+		}
+	}
+	return t
+}
+
+// treeDeepen reads again, deeper, each plan whose full window started after
+// the root: a busy child plan can run more than a window of builds after
+// the root started, which pushes the root's own child out of the newest 25.
+// It returns how many builds were asked for of each plan read deeper. A
+// deeper read that fails keeps the window already read.
+func (s *Service) treeDeepen(ctx context.Context, got map[string][]provider.Build, root provider.Build) map[string]int {
+	depths := map[string]int{}
+	if root.StartedAt.IsZero() {
+		return depths
+	}
+	for read := treeWindow; read < treeDeep && ctx.Err() == nil; {
+		var short []string
+		for plan, bs := range got {
+			if depth(depths, plan) == read && len(bs) >= read && oldestStart(bs).After(root.StartedAt) {
+				short = append(short, plan)
+			}
+		}
+		if len(short) == 0 {
+			break
+		}
+		sort.Strings(short)
+		read = min(read*4, treeDeep)
+		more, _ := s.treeRead(ctx, short, read)
+		for plan, bs := range more {
+			got[plan], depths[plan] = bs, read
+		}
+	}
+	return depths
+}
+
+// depth is how many builds of plan were asked for: treeWindow unless
+// treeDeepen read it deeper.
+func depth(depths map[string]int, plan string) int {
+	if d, ok := depths[plan]; ok {
+		return d
+	}
+	return treeWindow
 }
 
 // treeScan is what a tree search has read: the candidate plans, each plan's
@@ -241,16 +300,12 @@ type treeScan struct {
 }
 
 // first is the scan of a first search: its builds and their windows.
-func (sc *treeScan) first(got map[string][]provider.Build) *treeScan {
+// depths holds the plans treeDeepen read deeper than a window.
+func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int) *treeScan {
 	out := &treeScan{plans: sc.plans, builds: got, windows: map[string]planWindow{}, parents: map[string]string{}, misses: map[string]int{}}
 	for plan, bs := range got {
-		w := planWindow{full: len(bs) >= treeWindow}
-		for _, b := range bs {
-			if !b.StartedAt.IsZero() && (w.oldest.IsZero() || b.StartedAt.Before(w.oldest)) {
-				w.oldest = b.StartedAt
-			}
-		}
-		out.windows[plan] = w
+		read := depth(depths, plan)
+		out.windows[plan] = planWindow{read: read, full: len(bs) >= read, oldest: oldestStart(bs)}
 	}
 	return out
 }
@@ -490,7 +545,7 @@ func windowWarnings(windows map[string]planWindow, root provider.Build) []string
 	var out []string
 	for plan, w := range windows {
 		if w.full && w.oldest.After(root.StartedAt) {
-			out = append(out, fmt.Sprintf("%s: only its last %d builds were searched; older children may be missing", plan, treeWindow))
+			out = append(out, fmt.Sprintf("%s: only its last %d builds were searched; older children may be missing", plan, w.read))
 		}
 	}
 	return out

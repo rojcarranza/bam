@@ -701,7 +701,11 @@ func (m Model) homeHeader() string {
 	if m.home.view == homeProjects {
 		count, sortLabel, query = countOf(m.projectCount(), "project"), m.home.projectSort.label(homeProjects), m.projects.query
 	}
-	parts := []string{"bam", m.server, m.info.Version, m.user.Name, "project " + project,
+	bam := "bam"
+	if m.deps.Version != "" {
+		bam += " " + m.deps.Version
+	}
+	parts := []string{bam, m.server, m.info.Version, m.user.Name, "project " + project,
 		count, "sort " + sortLabel}
 	if m.home.view == homeSets || m.home.view == homeProjects {
 		// Sets are not filtered by project.

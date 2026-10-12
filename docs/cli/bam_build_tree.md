@@ -10,6 +10,7 @@ bam finds a child build by its reason, "Child of <parent>", in the last 25
 builds of each plan of the configured projects and of the build's project.
 A children: map in the configuration narrows a plan's children and shows a
 configured child that never ran. Interrupting --watch never stops a build.
+On a terminal, bam shows on stderr what it is reading while the tree loads.
 
 ```
 bam build tree [<build>|<plan>|<target>] [flags]

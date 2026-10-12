@@ -40,6 +40,7 @@ type Env struct {
 	Stderr      io.Writer
 	Getenv      func(string) string
 	StdoutTTY   bool
+	StderrTTY   bool
 	StdinTTY    bool
 	Width       func() int
 	WorkDir     string
@@ -73,6 +74,7 @@ func SystemEnv() Env {
 		Stderr:    os.Stderr,
 		Getenv:    os.Getenv,
 		StdoutTTY: term.IsTerminal(out),
+		StderrTTY: term.IsTerminal(int(os.Stderr.Fd())),
 		StdinTTY:  term.IsTerminal(int(os.Stdin.Fd())),
 		Width: func() int {
 			if w, _, err := term.GetSize(out); err == nil && w > 0 {

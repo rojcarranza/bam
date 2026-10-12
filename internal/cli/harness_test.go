@@ -213,6 +213,7 @@ func (h *harness) run(args ...string) int {
 	env.Stdin = strings.NewReader(h.stdin)
 	env.StdoutTTY = h.tty
 	env.StdinTTY = h.tty
+	env.StderrTTY = h.tty
 	return Execute(context.Background(), args, env)
 }
 
@@ -224,5 +225,6 @@ func (h *harness) runCtx(ctx context.Context, args ...string) int {
 	env.Stdin = strings.NewReader(h.stdin)
 	env.StdoutTTY = h.tty
 	env.StdinTTY = h.tty
+	env.StderrTTY = h.tty
 	return Execute(ctx, args, env)
 }

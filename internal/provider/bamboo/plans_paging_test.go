@@ -1,9 +1,12 @@
 package bamboo
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -87,5 +90,76 @@ func TestListPlansServerIgnoringStartIndex(t *testing.T) {
 	plans, err := c.ListPlans(ctx, "PROJ")
 	require.NoError(t, err)
 	require.Len(t, plans, 25)
-	assert.Equal(t, 2, n, "stops once start-index passes size")
+	assert.Equal(t, 2, n, "stops once a page brings no new plan")
+}
+
+// TestListPlansSizeAsPageCount: a server that reports size as the page's
+// count, not the total, still gets asked for the next page until one comes
+// back empty.
+func TestListPlansSizeAsPageCount(t *testing.T) {
+	const total = 60
+	var starts []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/rest/api/latest/result/") {
+			_, _ = w.Write([]byte(`{"results":{"size":0,"result":[]}}`))
+			return
+		}
+		start, _ := strconv.Atoi(r.URL.Query().Get("start-index"))
+		starts = append(starts, r.URL.Query().Get("start-index"))
+		var items []string
+		for i := start; i < min(start+25, total); i++ {
+			items = append(items, fmt.Sprintf(`{"key":"PROJ-P%d"}`, i+1))
+		}
+		fmt.Fprintf(w, `{"plans":{"size":%d,"start-index":%d,"plan":[%s]}}`, len(items), start, strings.Join(items, ","))
+	}))
+	t.Cleanup(srv.Close)
+	c, err := New(Options{BaseURL: srv.URL, Token: "test-token", Now: time.Now})
+	require.NoError(t, err)
+
+	plans, err := c.ListPlans(ctx, "PROJ")
+	require.NoError(t, err)
+	require.Len(t, plans, total)
+	assert.Equal(t, []string{"0", "25", "50", "60"}, starts)
+}
+
+// TestListPlansReplaysTheRecordedPages serves the probe's recording of a
+// 30-plan lab project (make record ARGS='-probe-plans ...'): page 1 by
+// expand alone, page 2 by start-index. The recorded expand range page holds
+// no plans, which is the shape that cut the list at 25.
+func TestListPlansReplaysTheRecordedPages(t *testing.T) {
+	read := func(name string) []byte {
+		b, err := os.ReadFile(filepath.Join("testdata", "recorded", name))
+		require.NoError(t, err)
+		return b
+	}
+	var empty struct {
+		Plans struct {
+			Size int               `json:"size"`
+			Plan []json.RawMessage `json:"plan"`
+		} `json:"plans"`
+	}
+	require.NoError(t, json.Unmarshal(read("plans_page2.json"), &empty))
+	require.Equal(t, 30, empty.Plans.Size)
+	require.Empty(t, empty.Plans.Plan, "Bamboo answers the expand range with no plans")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/rest/api/latest/result/"):
+			_, _ = w.Write([]byte(`{"results":{"size":0,"result":[]}}`))
+		case r.URL.Query().Get("start-index") == "25":
+			_, _ = w.Write(read("plans_page2_index.json"))
+		case r.URL.Query().Get("start-index") == "0":
+			_, _ = w.Write(read("plans_page1.json"))
+		default:
+			_, _ = w.Write(read("plans_page2.json"))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c, err := New(Options{BaseURL: srv.URL, Token: "test-token", Now: time.Now})
+	require.NoError(t, err)
+
+	plans, err := c.ListPlans(ctx, "LAB")
+	require.NoError(t, err)
+	require.Len(t, plans, 30)
+	assert.Equal(t, "Plan 26", plans[25].Name)
 }

@@ -46,7 +46,9 @@ func ParentOf(reason string) (string, bool) {
 
 // TreeOptions shape a build tree.
 type TreeOptions struct {
-	Depth int // levels of builds below the root; 0 means all
+	Depth      int                // levels of builds below the root; 0 means all
+	OnProgress func(TreeProgress) // BuildTree reports how far it got; calls are serialized and end before it returns
+	track      *treeTracker       // set by BuildTree and WatchTree
 }
 
 // TreeNode is one build of a tree, or a configured child that never ran.
@@ -120,6 +122,7 @@ func TreeState(root *TreeNode) provider.State {
 // BuildTree reads build key and every build it caused. It never triggers or
 // stops anything.
 func (s *Service) BuildTree(ctx context.Context, key string, o TreeOptions) (Tree, error) {
+	o.track = newTreeTracker(o.OnProgress)
 	t, _, err := s.buildTree(ctx, key, o, nil, nil)
 	return t, err
 }
@@ -140,11 +143,12 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	if err != nil {
 		return Tree{}, nil, err
 	}
+	tr := o.track
 	var warnings []string
 	scan := prev
 	limit := treeRefresh
 	if scan == nil {
-		plans, projects, more, err := s.treeCandidates(ctx, root.PlanKey, configured)
+		plans, projects, more, err := s.treeCandidates(ctx, tr, root.PlanKey, configured)
 		if err != nil {
 			return Tree{}, nil, err
 		}
@@ -152,10 +156,10 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		scan = &treeScan{plans: plans, listed: projects}
 		limit = treeWindow
 	}
-	got, failed := s.treeRead(ctx, scan.plans, limit)
+	got, failed := s.treeRead(ctx, tr, scan.plans, limit)
 	var depths map[string]int
 	if prev == nil {
-		depths = s.treeDeepen(ctx, got, root)
+		depths = s.treeDeepen(ctx, tr, got, root)
 	}
 	if err := ctx.Err(); err != nil {
 		return Tree{}, nil, err
@@ -175,11 +179,11 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	} else {
 		scan = scan.merged(got)
 	}
-	warnings = append(warnings, s.treeParents(ctx, scan)...)
+	warnings = append(warnings, s.treeParents(ctx, tr, scan)...)
 	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}}
 	treeGrow(t.Root, scan.index(), configured, o.Depth, 0, map[string]bool{root.Key: true})
-	warnings = append(warnings, s.treeDetails(ctx, t.Root, done)...)
-	warnings = append(warnings, s.treeLogLinks(ctx, t.Root, scan, configured, o.Depth, done)...)
+	warnings = append(warnings, s.treeDetails(ctx, tr, t.Root, done)...)
+	warnings = append(warnings, s.treeLogLinks(ctx, tr, t.Root, scan, configured, o.Depth, done)...)
 	warnings = append(warnings, windowWarnings(scan.windows, root)...)
 	if err := ctx.Err(); err != nil {
 		return Tree{}, nil, err
@@ -192,7 +196,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 // treeCandidates is every plan of the scoped projects and of the root's
 // project, and every plan the children map names, sorted. It also returns
 // the projects it listed.
-func (s *Service) treeCandidates(ctx context.Context, rootPlan string, configured map[string][]string) ([]string, map[string]bool, []string, error) {
+func (s *Service) treeCandidates(ctx context.Context, tr *treeTracker, rootPlan string, configured map[string][]string) ([]string, map[string]bool, []string, error) {
 	set := map[string]bool{}
 	projects := slices.Clone(s.ProjectKeys())
 	if p, _, ok := strings.Cut(rootPlan, "-"); ok && !slices.Contains(projects, p) {
@@ -200,8 +204,10 @@ func (s *Service) treeCandidates(ctx context.Context, rootPlan string, configure
 	}
 	var warnings []string
 	var firstErr error
+	tr.add(treeProjects, len(projects))
 	for _, p := range projects {
 		plans, err := s.P.ListPlans(ctx, p)
+		tr.done(treeProjects)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, nil, nil, ctx.Err()
@@ -262,7 +268,7 @@ func oldestStart(bs []provider.Build) time.Time {
 // the root started, which pushes the root's own child out of the newest 25.
 // It returns how many builds were asked for of each plan read deeper. A
 // deeper read that fails keeps the window already read.
-func (s *Service) treeDeepen(ctx context.Context, got map[string][]provider.Build, root provider.Build) map[string]int {
+func (s *Service) treeDeepen(ctx context.Context, tr *treeTracker, got map[string][]provider.Build, root provider.Build) map[string]int {
 	depths := map[string]int{}
 	if root.StartedAt.IsZero() {
 		return depths
@@ -279,7 +285,7 @@ func (s *Service) treeDeepen(ctx context.Context, got map[string][]provider.Buil
 		}
 		sort.Strings(short)
 		read = min(read*4, treeDeep)
-		more, _ := s.treeRead(ctx, short, read)
+		more, _ := s.treeRead(ctx, tr, short, read)
 		for plan, bs := range more {
 			got[plan], depths[plan] = bs, read
 		}
@@ -382,7 +388,7 @@ func (sc *treeScan) unresolved() bool {
 // "Rebuilt by ...", and only the build's metadata still names its parent. A
 // parent never changes, so each build is asked once; one that cannot be read
 // is asked again on the next refresh, up to treeTries times in a row.
-func (s *Service) treeParents(ctx context.Context, sc *treeScan) []string {
+func (s *Service) treeParents(ctx context.Context, tr *treeTracker, sc *treeScan) []string {
 	var keys []string
 	for _, plan := range sc.plans {
 		for _, b := range sc.builds[plan] {
@@ -396,6 +402,7 @@ func (s *Service) treeParents(ctx context.Context, sc *treeScan) []string {
 	readErrs := make([]error, len(keys))
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, treeFetch)
+	tr.add(treeBuilds, len(keys))
 	for i, k := range keys {
 		wg.Add(1)
 		go func(i int, k string) {
@@ -403,6 +410,7 @@ func (s *Service) treeParents(ctx context.Context, sc *treeScan) []string {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			b, err := s.P.GetBuild(ctx, k)
+			tr.done(treeBuilds)
 			parents[i], readErrs[i] = b.Parent, err
 		}(i, k)
 	}
@@ -432,7 +440,7 @@ func (s *Service) treeParents(ctx context.Context, sc *treeScan) []string {
 }
 
 // treeRead reads the newest limit builds of every plan, treeFetch at a time.
-func (s *Service) treeRead(ctx context.Context, plans []string, limit int) (map[string][]provider.Build, map[string]error) {
+func (s *Service) treeRead(ctx context.Context, tr *treeTracker, plans []string, limit int) (map[string][]provider.Build, map[string]error) {
 	type result struct {
 		builds []provider.Build
 		err    error
@@ -440,6 +448,7 @@ func (s *Service) treeRead(ctx context.Context, plans []string, limit int) (map[
 	results := make([]result, len(plans))
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, treeFetch)
+	tr.add(treePlans, len(plans))
 	for i, p := range plans {
 		wg.Add(1)
 		go func(i int, p string) {
@@ -448,6 +457,7 @@ func (s *Service) treeRead(ctx context.Context, plans []string, limit int) (map[
 			defer func() { <-sem }()
 			// Unfinished: a child that is queued or running is part of the tree.
 			b, err := s.P.ListBuilds(ctx, p, provider.ListOptions{Limit: limit, Unfinished: true})
+			tr.done(treePlans)
 			results[i] = result{builds: b, err: err}
 		}(i, p)
 	}
@@ -515,7 +525,7 @@ func treeGrow(n *TreeNode, idx map[string][]provider.Build, configured map[strin
 
 // treeDetails reads every build node below the root with GetBuild, for its
 // stages, jobs and failed tests; done builds are reused.
-func (s *Service) treeDetails(ctx context.Context, root *TreeNode, done map[string]provider.Build) []string {
+func (s *Service) treeDetails(ctx context.Context, tr *treeTracker, root *TreeNode, done map[string]provider.Build) []string {
 	var nodes []*TreeNode
 	root.Walk(func(n *TreeNode, depth int) {
 		if depth > 0 && !n.NotRun && !n.Loop {
@@ -523,6 +533,13 @@ func (s *Service) treeDetails(ctx context.Context, root *TreeNode, done map[stri
 		}
 	})
 	warnings := make([]string, len(nodes))
+	reads := 0
+	for _, n := range nodes {
+		if _, ok := done[n.Build.Key]; !ok {
+			reads++
+		}
+	}
+	tr.add(treeBuilds, reads)
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, treeFetch)
 	for i, n := range nodes {
@@ -536,6 +553,7 @@ func (s *Service) treeDetails(ctx context.Context, root *TreeNode, done map[stri
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			b, err := s.P.GetBuild(ctx, n.Build.Key)
+			tr.done(treeBuilds)
 			if err != nil {
 				if ctx.Err() == nil {
 					warnings[i] = fmt.Sprintf("%s: its stages could not be read: %s", n.Build.Key, describeErr(err))

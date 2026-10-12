@@ -76,7 +76,7 @@ type logLink struct {
 // that project's plans to sc, so its children by reason are found, and a
 // watch keeps reading them. Finished jobs' links are kept in sc, so a watch
 // reads each finished log once.
-func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan, configured map[string][]string, depth int, done map[string]provider.Build) []string {
+func (s *Service) treeLogLinks(ctx context.Context, tr *treeTracker, root *TreeNode, sc *treeScan, configured map[string][]string, depth int, done map[string]provider.Build) []string {
 	inTree := map[string]bool{}
 	frontier := treeOpen(root, 0, nil, inTree)
 	var warnings []string
@@ -87,7 +87,7 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 				open = append(open, at)
 			}
 		}
-		links, w := s.treeReadLinks(ctx, open, sc)
+		links, w := s.treeReadLinks(ctx, tr, open, sc)
 		warnings = append(warnings, w...)
 
 		type found struct {
@@ -103,6 +103,13 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 				}
 			}
 		}
+		reads := 0
+		for _, f := range todo {
+			if _, ok := done[f.link.key]; !ok {
+				reads++
+			}
+		}
+		tr.add(treeBuilds, reads)
 		builds := make([]provider.Build, len(todo))
 		readErrs := make([]error, len(todo))
 		var wg sync.WaitGroup
@@ -118,6 +125,7 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 				sem <- struct{}{}
 				defer func() { <-sem }()
 				builds[i], readErrs[i] = s.P.GetBuild(ctx, key)
+				tr.done(treeBuilds)
 			}(i, f.link.key)
 		}
 		wg.Wait()
@@ -128,7 +136,7 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 				fetched = append(fetched, b)
 			}
 		}
-		warnings = append(warnings, s.treeAddProjects(ctx, sc, fetched, root.Build)...)
+		warnings = append(warnings, s.treeAddProjects(ctx, tr, sc, fetched, root.Build)...)
 		idx := sc.index()
 
 		frontier = nil
@@ -150,7 +158,7 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 				path[k] = true
 			}
 			treeGrow(kid, idx, configured, depth, f.at.level+1, path)
-			warnings = append(warnings, s.treeDetails(ctx, kid, done)...)
+			warnings = append(warnings, s.treeDetails(ctx, tr, kid, done)...)
 			f.at.n.Children = append(f.at.n.Children, kid)
 			grown[f.at.n] = true
 			frontier = append(frontier, treeOpen(kid, f.at.level+1, f.at.path, inTree)...)
@@ -166,7 +174,7 @@ func (s *Service) treeLogLinks(ctx context.Context, root *TreeNode, sc *treeScan
 // and reads the newest builds of their plans not yet in sc, as the first
 // search reads every candidate (deeper for a busy plan, back to root's
 // start). It adds them to sc and returns the warnings.
-func (s *Service) treeAddProjects(ctx context.Context, sc *treeScan, builds []provider.Build, root provider.Build) []string {
+func (s *Service) treeAddProjects(ctx context.Context, tr *treeTracker, sc *treeScan, builds []provider.Build, root provider.Build) []string {
 	var warnings []string
 	var plans []string
 	for _, b := range builds {
@@ -175,7 +183,9 @@ func (s *Service) treeAddProjects(ctx context.Context, sc *treeScan, builds []pr
 			continue
 		}
 		sc.listed[project] = true
+		tr.add(treeProjects, 1)
 		ps, err := s.P.ListPlans(ctx, project)
+		tr.done(treeProjects)
 		if err != nil {
 			if ctx.Err() == nil {
 				warnings = append(warnings, fmt.Sprintf("project %s: its plans could not be listed: %s", project, describeErr(err)))
@@ -191,8 +201,8 @@ func (s *Service) treeAddProjects(ctx context.Context, sc *treeScan, builds []pr
 	if len(plans) == 0 {
 		return warnings
 	}
-	got, failed := s.treeRead(ctx, plans, treeWindow)
-	depths := s.treeDeepen(ctx, got, root)
+	got, failed := s.treeRead(ctx, tr, plans, treeWindow)
+	depths := s.treeDeepen(ctx, tr, got, root)
 	for _, p := range plans {
 		if err, ok := failed[p]; ok {
 			warnings = append(warnings, fmt.Sprintf("%s: its builds could not be read: %s", p, describeErr(err)))
@@ -211,7 +221,7 @@ func (s *Service) treeAddProjects(ctx context.Context, sc *treeScan, builds []pr
 // treeReadLinks reads the logs of the started jobs of each node, treeFetch
 // at a time, and returns the builds each node's logs link to. A job with no
 // log yet adds nothing; one whose log cannot be read adds a warning.
-func (s *Service) treeReadLinks(ctx context.Context, nodes []treeAt, sc *treeScan) ([][]logLink, []string) {
+func (s *Service) treeReadLinks(ctx context.Context, tr *treeTracker, nodes []treeAt, sc *treeScan) ([][]logLink, []string) {
 	type jobAt struct {
 		node  int
 		stage string
@@ -227,6 +237,13 @@ func (s *Service) treeReadLinks(ctx context.Context, nodes []treeAt, sc *treeSca
 			}
 		}
 	}
+	reads := 0
+	for _, j := range jobs {
+		if _, ok := sc.logLinks[j.job.Key]; !ok {
+			reads++
+		}
+	}
+	tr.add(treeJobs, reads)
 	keys := make([][]string, len(jobs))
 	readErrs := make([]error, len(jobs))
 	var wg sync.WaitGroup
@@ -242,6 +259,7 @@ func (s *Service) treeReadLinks(ctx context.Context, nodes []treeAt, sc *treeSca
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			chunk, err := s.P.FetchLog(ctx, j.job.Key, provider.LogOptions{})
+			tr.done(treeJobs)
 			if err != nil {
 				if !errors.Is(err, errs.ErrNotFound) {
 					readErrs[i] = err

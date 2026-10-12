@@ -9,8 +9,8 @@ import (
 
 // probePlans records how Bamboo pages a project's plans, for issue #43: the
 // first page of GET project/{key}?expand=plans.plan, the second page asked
-// for with the expand range plans[25:125].plan, and the second page of the
-// server-wide GET plan as a fallback. Plans are replaced by synthetic ones
+// for with the expand range plans[25:125].plan and with start-index (what
+// ListPlans sends), and the second page of the server-wide GET plan. Plans are replaced by synthetic ones
 // (see synthPlans), so a work server's plan names never reach a recording.
 // It triggers nothing.
 func (r *recorder) probePlans(project string) error {
@@ -20,6 +20,7 @@ func (r *recorder) probePlans(project string) error {
 	}{
 		{"plans_page1.json", "/rest/api/latest/project/" + project, url.Values{"expand": {"plans.plan"}}},
 		{"plans_page2.json", "/rest/api/latest/project/" + project, url.Values{"expand": {"plans[25:125].plan"}}},
+		{"plans_page2_index.json", "/rest/api/latest/project/" + project, url.Values{"expand": {"plans.plan"}, "start-index": {"25"}, "max-result": {"100"}}},
 		{"plans_all_page2.json", "/rest/api/latest/plan", url.Values{"start-index": {"25"}, "max-result": {"25"}}},
 	}
 	ids := map[string]int{}

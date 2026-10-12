@@ -1,0 +1,12 @@
+{
+  "expand": "plans",
+  "key": "LAB",
+  "name": "lab",
+  "plans": {
+    "expand": "plan",
+    "max-result": 25,
+    "plan": [],
+    "size": 30,
+    "start-index": 0
+  }
+}

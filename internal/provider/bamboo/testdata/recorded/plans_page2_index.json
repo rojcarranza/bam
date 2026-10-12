@@ -1,0 +1,53 @@
+{
+  "expand": "plans",
+  "key": "LAB",
+  "name": "lab",
+  "plans": {
+    "expand": "plan",
+    "max-result": 5,
+    "plan": [
+      {
+        "enabled": false,
+        "key": "LAB-P26",
+        "name": "LAB - Plan 26",
+        "projectKey": "LAB",
+        "shortKey": "P26",
+        "shortName": "Plan 26"
+      },
+      {
+        "enabled": false,
+        "key": "LAB-P27",
+        "name": "LAB - Plan 27",
+        "projectKey": "LAB",
+        "shortKey": "P27",
+        "shortName": "Plan 27"
+      },
+      {
+        "enabled": false,
+        "key": "LAB-P28",
+        "name": "LAB - Plan 28",
+        "projectKey": "LAB",
+        "shortKey": "P28",
+        "shortName": "Plan 28"
+      },
+      {
+        "enabled": false,
+        "key": "LAB-P29",
+        "name": "LAB - Plan 29",
+        "projectKey": "LAB",
+        "shortKey": "P29",
+        "shortName": "Plan 29"
+      },
+      {
+        "enabled": true,
+        "key": "LAB-P30",
+        "name": "LAB - Plan 30",
+        "projectKey": "LAB",
+        "shortKey": "P30",
+        "shortName": "Plan 30"
+      }
+    ],
+    "size": 30,
+    "start-index": 25
+  }
+}

@@ -23,7 +23,7 @@ The owner compares the UI with k9s, where the selected row is a solid colour bar
 | Picking one project | A projects view on Home, Enter drills into its plans | The owner's choice; mirrors k9s namespaces |
 | Per-project plan and failing counts | Not shown | Needs every plan's last build in every project: N requests to draw a list |
 | Rejected | Project hotkeys `<0> <1> <2>` in the header | Not chosen; `P` and the projects view cover it |
-| Rejected | Remembering the last project between runs | Not chosen; can come later as config |
+| Rejected | Remembering the last project between runs | Not chosen; can come later as config. A configured `default_project` and `--project` flag (MVP spec §3.5) cover it without bam writing state |
 
 ## 3. Selected-row highlight
 

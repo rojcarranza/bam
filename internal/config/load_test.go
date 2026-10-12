@@ -130,3 +130,23 @@ func TestLoadMachineEditor(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "code --wait", cfg.Machine.Editor)
 }
+
+func TestLoadDefaultProjectInEveryLayer(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, ".bam.yaml"), "version: 1\nprojects: [PROJ, OPS]\ndefault_project: OPS\n")
+	machine := filepath.Join(dir, "m.yaml")
+	writeFile(t, machine, `version: 1
+servers:
+  work:
+    url: https://bamboo.example.com
+    default_project: PROJ
+repos:
+  `+dir+`:
+    default_project: LAB
+`)
+	cfg, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, Getenv: noEnv})
+	require.NoError(t, err)
+	assert.Equal(t, "OPS", cfg.Project.DefaultProject)
+	assert.Equal(t, "PROJ", cfg.Machine.Servers["work"].DefaultProject)
+	assert.Equal(t, "LAB", cfg.Machine.Repos[dir].DefaultProject)
+}

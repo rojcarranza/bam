@@ -14,12 +14,14 @@ const EnvServerAlias = "env"
 
 // ResolvedServer is one server alias after merging both layers.
 type ResolvedServer struct {
-	Alias     string
-	URL       string
-	AuthEnv   string
-	Token     string // only for the BAM_URL server
-	Projects  []string
-	DefinedIn []string // "project", "machine", "env"
+	Alias    string
+	URL      string
+	AuthEnv  string
+	Token    string // only for the BAM_URL server
+	Projects []string
+	// DefaultProject is the server entries' default_project, as written.
+	DefaultProject string
+	DefinedIn      []string // "project", "machine", "env"
 }
 
 // Servers returns every configured alias, merged field by field with the
@@ -48,6 +50,9 @@ func (c *Config) Servers() map[string]ResolvedServer {
 			}
 			if len(s.Projects) > 0 {
 				r.Projects = s.Projects
+			}
+			if s.DefaultProject != "" {
+				r.DefaultProject = s.DefaultProject
 			}
 			r.DefinedIn = append(r.DefinedIn, layer)
 			out[alias] = r
@@ -141,6 +146,19 @@ func (c *Config) ProjectKeys(s ResolvedServer) []string {
 		return c.Project.Projects
 	}
 	return s.Projects
+}
+
+// DefaultProject returns the project the terminal UI opens on for server s,
+// uppercased, or "" for every project. It is looked up in the same order as
+// ProjectKeys: the repos entry, the project file, the server entry.
+func (c *Config) DefaultProject(s ResolvedServer) string {
+	if repo, ok := c.RepoEntry(); ok && repo.DefaultProject != "" {
+		return strings.ToUpper(repo.DefaultProject)
+	}
+	if c.Project != nil && c.Project.DefaultProject != "" {
+		return strings.ToUpper(c.Project.DefaultProject)
+	}
+	return strings.ToUpper(s.DefaultProject)
 }
 
 // ResolvedTarget is a target after merging every layer that defines it.

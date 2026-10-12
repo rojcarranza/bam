@@ -21,8 +21,11 @@ type Server struct {
 // Deps is everything the UI needs. Every field is injectable, so the model
 // tests need no network, no keychain and no terminal.
 type Deps struct {
-	Servers   []Server
-	Initial   string // alias to open with
+	Servers []Server
+	Initial string // alias to open with
+	// Project is the project to open on, for the Initial server only: a key,
+	// "all" for every project, or "" for that server's default_project.
+	Project   string
 	Connect   func(ctx context.Context, alias string) (*app.Service, error)
 	Targets   func() ([]app.TargetInfo, error)
 	Sets      func() ([]app.SetInfo, error) // re-read on every load, as Targets is

@@ -165,3 +165,25 @@ func TestBamUIWithNoServerConfiguredSaysSo(t *testing.T) {
 	require.NotContains(t, h.stderr.String(), "add  --url", "no empty alias in the suggestion")
 	require.Contains(t, strings.ToLower(h.stderr.String()), "server")
 }
+
+// TestProjectFlagReachesTheUI: the flag goes through as written; the UI
+// uppercases it and falls back to default_project when it is empty.
+func TestProjectFlagReachesTheUI(t *testing.T) {
+	for _, args := range [][]string{{"--project", "proj"}, {"ui", "--project", "proj"}} {
+		h := newHarness(t)
+		h.tty = true
+		require.Equal(t, 0, h.run(args...), args)
+		require.Len(t, h.tuiRuns, 1)
+		require.Equal(t, "proj", h.tuiRuns[0].Project, args)
+	}
+
+	h := newHarness(t)
+	h.tty = true
+	require.Equal(t, 0, h.run("ui", "--project", "all"))
+	require.Equal(t, "all", h.tuiRuns[0].Project)
+
+	h = newHarness(t)
+	h.tty = true
+	require.Equal(t, 0, h.run())
+	require.Empty(t, h.tuiRuns[0].Project, "no flag leaves the choice to default_project")
+}

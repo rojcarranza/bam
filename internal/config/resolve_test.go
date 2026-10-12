@@ -213,3 +213,20 @@ func TestEnvRefDefaultSkipsOptionsCheck(t *testing.T) {
 	_, err := c.Targets()
 	assert.NoError(t, err)
 }
+
+func TestDefaultProjectOrder(t *testing.T) {
+	c := baseConfig()
+	c.Machine.Servers["work"] = Server{URL: "https://bamboo.example.com", DefaultProject: "lab"}
+	work := c.Servers()["work"]
+	assert.Equal(t, "LAB", c.DefaultProject(work), "server entry, uppercased")
+
+	c.Project.DefaultProject = "ops"
+	assert.Equal(t, "OPS", c.DefaultProject(work), "project file beats the server entry")
+
+	c.Machine.Repos = map[string]Repo{"~/src/repo": {DefaultProject: "proj"}}
+	assert.Equal(t, "PROJ", c.DefaultProject(work), "repos entry beats the project file")
+
+	c.Machine.Repos = nil
+	c.Project = nil
+	assert.Empty(t, c.DefaultProject(c.Servers()["home"]), "nothing set means all projects")
+}

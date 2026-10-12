@@ -36,6 +36,9 @@ type plansLoadedMsg struct {
 	Err    error
 	// Missing is the configured projects the server does not have.
 	Missing []string
+	// ProjectMissing is the project filter when the server does not have
+	// it; the plans are then every project's.
+	ProjectMissing string
 }
 
 type buildsLoadedMsg struct {
@@ -117,14 +120,24 @@ func loadPlansCmd(ctx context.Context, svc *app.Service, project string, gen int
 				keys = append(keys, p.Key)
 			}
 		}
+		var load []string
 		for _, k := range keys {
 			if !onServer[k] {
 				msg.Missing = append(msg.Missing, k)
 				continue
 			}
-			if project != "" && k != project {
-				continue
-			}
+			load = append(load, k)
+		}
+		// A filter names one project on the server, configured or not: the
+		// --project flag and default_project may pick one outside the list.
+		switch {
+		case project == "":
+		case onServer[project]:
+			load = []string{project}
+		default:
+			msg.ProjectMissing = project
+		}
+		for _, k := range load {
 			plans, err := svc.P.ListPlans(ctx, k)
 			if err != nil {
 				msg.Failed = append(msg.Failed, k)

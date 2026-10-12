@@ -123,9 +123,14 @@ func TestLoadPlansCmdFlattensEveryProject(t *testing.T) {
 }
 
 func TestLoadPlansCmdHonoursTheProjectFilter(t *testing.T) {
-	msg := loadPlansCmd(context.Background(), testService(), "OPS", 0)()
+	svc := testService()
+	f := svc.P.(*fake.Provider)
+	f.Projects = append(f.Projects, provider.Project{Key: "OPS", Name: "Operations"})
+	f.Plans["OPS"] = []provider.Plan{{Key: "OPS-NIGHTLY", Name: "Nightly", ProjectKey: "OPS"}}
+	msg := loadPlansCmd(context.Background(), svc, "OPS", 0)()
 	got := msg.(plansLoadedMsg)
-	require.Empty(t, got.Plans)
+	require.Len(t, got.Plans, 1)
+	require.Equal(t, "OPS-NIGHTLY", got.Plans[0].Key)
 }
 
 func TestLoadPlansCmdUsesTheConfiguredProjects(t *testing.T) {

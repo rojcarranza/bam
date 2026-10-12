@@ -83,6 +83,8 @@ Terminals under 20 rows or 60 columns keep the one-line header.
 
 `:projects` (or `:proj`) lists the projects, `(all)` first, `●` on the one the plans are narrowed to. `enter` shows that project's plans; `esc` goes back to the list. A configured project the server does not have is marked `missing`.
 
+To open the UI on one project, pass `bam --project PROJ` (or `bam ui --project PROJ`), or set `default_project: PROJ` in `.bam.yaml`, under a server in the machine file, or under a `repos` entry. `--project all` opens on every project.
+
 No lowercase key changes anything on the server. `R` only opens the run form,
 `ctrl-R` inside that form is the only key that starts a build, and `C` always
 asks before it cancels one.

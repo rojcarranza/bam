@@ -153,6 +153,10 @@ func (m Model) plansLoaded(msg plansLoadedMsg) Model {
 		}
 		m.home.missing = missing
 	}
+	if msg.ProjectMissing != "" && msg.ProjectMissing == m.project {
+		m.project = ""
+		m.status = "project " + msg.ProjectMissing + " not found on " + m.server
+	}
 	if m.home.view == homePresets {
 		m.sortPresets()
 	}

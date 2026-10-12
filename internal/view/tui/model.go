@@ -157,6 +157,9 @@ type Model struct {
 	// clears; an error from anywhere else is not the bar's to clear.
 	cmdErr bool
 	status string
+	// projectStarted is set once Deps.Project has been applied, so a later
+	// connection opens on its own server's default_project.
+	projectStarted bool
 
 	home homeState
 
@@ -285,6 +288,7 @@ func (m Model) withContext(ctx context.Context) Model {
 // does not dial a second time.
 func (m Model) connected(msg connectedMsg) Model {
 	m.svc, m.info, m.user, m.server = msg.Svc, msg.Info, msg.User, msg.Alias
+	m.startProject()
 	// Init loads the plans of this connection, so the panel is already
 	// waiting on them here. Init's receiver is a copy, so it cannot say so.
 	m.plans.loading = true
@@ -329,6 +333,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.svc, m.info, m.user, m.server = msg.Svc, msg.Info, msg.User, msg.Alias
+		m.startProject()
 		m.err = nil
 		cmd := m.loadPlans()
 		if m.home.view == homeProjects {
@@ -935,6 +940,24 @@ func (m Model) chooseOverlay() (tea.Model, tea.Cmd) {
 	}
 	m.overlay = overlayNone
 	return m, nil
+}
+
+// startProject sets the project a new connection opens on: Deps.Project on
+// the first connection, then the server's default_project.
+func (m *Model) startProject() {
+	if !m.projectStarted {
+		m.projectStarted = true
+		switch p := strings.ToUpper(m.deps.Project); p {
+		case "":
+		case "ALL":
+			m.project = ""
+			return
+		default:
+			m.project = p
+			return
+		}
+	}
+	m.project = m.svc.DefaultProject()
 }
 
 // setProject narrows the plans to one project, or to all with "". The

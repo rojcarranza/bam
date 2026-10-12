@@ -124,3 +124,12 @@ func TestAnInterruptedWatchClearsItsProgressFirst(t *testing.T) {
 		assert.Equal(t, clearLine, stderr[j:i], "a shown line is cleared before the note")
 	}
 }
+
+// --debug writes log lines to stderr from the transport; a progress line
+// there would glue itself to them.
+func TestBuildTreeShowsNoProgressWithDebug(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	h.tty = true
+	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--debug"))
+	assert.NotContains(t, h.stderr.String(), "\x1b[K")
+}

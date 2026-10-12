@@ -25,7 +25,7 @@ A slow load looks like a hang.
 | How `app` reports | A callback, `TreeOptions.OnProgress`, plus a `TreeLoading` event on the `WatchTree` channel | `BuildTree` callers stay synchronous; the tree screen already reads the watch channel. A channel-only `LoadTree` would add a second way to read a tree; polling a counter would add tickers in two UIs |
 | What a report holds | A snapshot of four counters, each `Done/Total` | Phases overlap: a log link to a new project reads builds while logs are still being counted |
 | Totals | Grow as the search learns more; never a percentage | Deeper reads and log links add work mid-load |
-| When the CLI shows it | Stdout and stderr are both terminals, no `--json`, `TERM` is not `dumb` | `bam build tree X \| less` and `2>log` stay clean; issue #81 asks for nothing on a pipe or with `--json` |
+| When the CLI shows it | Stdout and stderr are both terminals, no `--json`, no `--debug`, `TERM` is not `dumb` | `bam build tree X \| less` and `2>log` stay clean; issue #81 asks for nothing on a pipe or with `--json` |
 | Where the CLI writes it | One line on stderr, rewritten in place, cleared before anything else prints | stdout carries only the tree |
 
 ## 3. `app`: reporting progress
@@ -114,7 +114,7 @@ In `internal/view/tree.go`:
 ## 5. CLI
 
 - `Env.StderrTTY bool`, set with `term.IsTerminal` on stderr like `StdoutTTY`.
-- `runtime.treeProgress() *view.ProgressLine` returns a line on stderr when `StdoutTTY && StderrTTY && !--json && TERM != dumb`, else nil. A nil `*ProgressLine` is valid and does nothing.
+- `runtime.treeProgress() *view.ProgressLine` returns a line on stderr when `StdoutTTY && StderrTTY && !--json && !--debug && TERM != dumb`, else nil (`--debug` log lines share stderr and would glue to the line). A nil `*ProgressLine` is valid and does nothing.
 - Plain `bam build tree`: `TreeOptions.OnProgress` shows `TreeProgressText` on that line; the line is cleared when `BuildTree` returns, before warnings, the tree or an error print.
 - `--watch`: `treeLoop` hands the same stderr writer to `NewTreeLive` when progress is on, nil otherwise.
 - `--rerun-failed`: its first `BuildTree` shows progress like the plain tree; the line is cleared before the rerun list and the prompt. The follow after restarting goes through `treeLoop` and shows progress as `--watch` does.

@@ -85,9 +85,10 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 }
 
 // progressOn reports whether a slow read may draw a progress line on
-// stderr: both outputs are terminals and the output is not JSON.
+// stderr: both outputs are terminals, the output is not JSON, and no
+// --debug log lines share stderr with it.
 func (r *runtime) progressOn() bool {
-	return r.env.StdoutTTY && r.env.StderrTTY && !r.flags.json && r.env.Getenv("TERM") != "dumb"
+	return r.env.StdoutTTY && r.env.StderrTTY && !r.flags.json && !r.flags.debug && r.env.Getenv("TERM") != "dumb"
 }
 
 // treeProgress is the line a tree load reports on, or nil when progressOn

@@ -16,11 +16,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, version and user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.
+- The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, the bam and Bamboo versions and the user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.
 - The terminal UI's three-panel screen is replaced by a plan screen: the plan's full name on top, its builds, the selected build's stages, and the plans that build triggered. The run form and log screen name the plan too.
 
 ### Fixed
 
+- `bam plan list` and the terminal UI list every plan of a project, not only the first 25.
 - A set run that cannot save its record now always ends with `set_error`; a `run_event` from a build still running could arrive after it.
 - `bam build list`, `bam plan show`, `bam plan stats` and the terminal UI's build lists include queued and running builds, so `bam build list` shows the `ETA` of a running build; Bamboo leaves them out unless asked.
 - `bam build show`, the build tree and the terminal UI list a failed build's failed tests on Bamboo 12, which reports them per job; `bam doctor` no longer calls failed tests unsupported there.

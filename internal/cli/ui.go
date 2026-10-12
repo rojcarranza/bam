@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"runtime/debug"
 	"sort"
 
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -81,6 +82,7 @@ func (r *runtime) openUI(ctx context.Context) error {
 		Getenv:    r.env.Getenv,
 		Clipboard: r.env.Stdout,
 		Output:    r.env.Stdout,
+		Version:   resolveVersion(version, debug.ReadBuildInfo),
 	}
 	for alias := range servers {
 		deps.Servers = append(deps.Servers, tui.Server{Alias: alias, URL: servers[alias].URL})

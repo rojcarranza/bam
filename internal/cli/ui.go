@@ -12,7 +12,7 @@ import (
 )
 
 func newUICmd(r *runtime) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:     "ui",
 		Short:   "Open the terminal UI",
 		GroupID: groupBrowse,
@@ -26,6 +26,15 @@ func newUICmd(r *runtime) *cobra.Command {
 			return r.openUI(cmd.Context())
 		}),
 	}
+	addProjectFlag(cmd, r)
+	return cmd
+}
+
+// addProjectFlag is a local flag, not a global one: init and server add
+// have a --project of their own.
+func addProjectFlag(cmd *cobra.Command, r *runtime) {
+	cmd.Flags().StringVar(&r.flags.project, "project", "",
+		"project the UI opens on (all: every project; default: default_project)")
 }
 
 // tuiAllowed says whether bare bam may open the UI. A pipe, a dumb terminal,
@@ -49,6 +58,7 @@ func (r *runtime) openUI(ctx context.Context) error {
 	}
 	servers := cfg.Servers()
 	deps := tui.Deps{
+		Project: r.flags.project,
 		// Connect takes the alias the UI asks for rather than resolving one,
 		// because inside the UI the server picker is what chooses.
 		Connect: func(_ context.Context, alias string) (*app.Service, error) {

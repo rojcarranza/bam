@@ -23,6 +23,8 @@ type globalFlags struct {
 	json   bool
 	debug  bool
 	noTUI  bool
+	// project is the terminal UI's --project, on bam and bam ui only.
+	project string
 }
 
 // runtime holds what commands share: the Env, global flags and the lazily

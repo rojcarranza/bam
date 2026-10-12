@@ -78,6 +78,7 @@ func newRoot(r *runtime) *cobra.Command {
 	pf.StringVar(&r.flags.color, "color", "", "color output: auto, always or never")
 	pf.BoolVar(&r.flags.debug, "debug", false, "log HTTP requests to stderr")
 	pf.BoolVar(&r.flags.noTUI, "no-tui", false, "never open the terminal UI")
+	addProjectFlag(root, r)
 
 	root.AddGroup(
 		&cobra.Group{ID: groupSetup, Title: "Setup:"},

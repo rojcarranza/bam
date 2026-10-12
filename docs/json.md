@@ -66,6 +66,7 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 - `state`: `success`, `failed` or `running`.
 - `status`: the build's state, `not_run` for a configured child that never ran, or `loop` for a build already shown above (its `children` is empty). `superseded` marks an older run of the same child plan: its `build` and `children` are kept, and it does not count toward `state`.
+- `from_log`: `true` for a build its parent's job log links to (a script started it through the REST API and printed its page), `false` for one whose reason names its parent. `stage` names the parent's stage whose job started it, and is present only with `from_log`.
 - `build`: the `bam build show --json` document, without `progress`; `null` for `not_run`.
 - `--watch --json` writes one such document per change, one per line.
 

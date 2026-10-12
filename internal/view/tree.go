@@ -101,11 +101,21 @@ func treeRow(o Out, n *app.TreeNode, prefix string) []string {
 	case n.Loop:
 		return []string{prefix + o.Key(n.Build.Key, n.Build.URL), "↺ already shown above", "", ""}
 	}
-	extra := ""
-	if c := len(n.Build.FailedTests); c > 0 {
-		extra = fmt.Sprintf("%d tests failed", c)
+	return []string{prefix + o.Key(n.Build.Key, n.Build.URL), o.State(n.Build.State), Duration(elapsed(o, n.Build)), TreeNodeNote(n)}
+}
+
+// TreeNodeNote is what a build's tree line says after its duration: the
+// stage whose job started it, for a build linked from a log, and its count
+// of failed tests.
+func TreeNodeNote(n *app.TreeNode) string {
+	var parts []string
+	if n.FromLog && n.Stage != "" {
+		parts = append(parts, "started by stage "+n.Stage)
 	}
-	return []string{prefix + o.Key(n.Build.Key, n.Build.URL), o.State(n.Build.State), Duration(elapsed(o, n.Build)), extra}
+	if c := len(n.Build.FailedTests); c > 0 {
+		parts = append(parts, fmt.Sprintf("%d tests failed", c))
+	}
+	return strings.Join(parts, " · ")
 }
 
 func stageRow(o Out, b provider.Build, s provider.Stage, prefix string) []string {
@@ -131,6 +141,8 @@ type TreeDoc struct {
 type TreeNodeDoc struct {
 	PlanKey  string        `json:"plan_key"`
 	Status   string        `json:"status"`
+	FromLog  bool          `json:"from_log"`        // linked by its parent's job log, not its reason
+	Stage    string        `json:"stage,omitempty"` // for from_log, the parent's stage that started it
 	Build    *BuildDoc     `json:"build"`
 	Children []TreeNodeDoc `json:"children"`
 }
@@ -145,7 +157,7 @@ func TreeJSON(t app.Tree, failedOnly bool) TreeDoc {
 }
 
 func treeNodeDoc(n *app.TreeNode) TreeNodeDoc {
-	d := TreeNodeDoc{PlanKey: n.PlanKey, Status: string(n.Build.State), Children: []TreeNodeDoc{}}
+	d := TreeNodeDoc{PlanKey: n.PlanKey, Status: string(n.Build.State), FromLog: n.FromLog, Stage: n.Stage, Children: []TreeNodeDoc{}}
 	switch {
 	case n.NotRun:
 		d.Status = "not_run"

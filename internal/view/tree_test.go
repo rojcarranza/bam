@@ -108,3 +108,36 @@ func TestTreeJSON(t *testing.T) {
 	require.NotNil(t, audit.Children)
 	require.NotContains(t, string(data), `"progress"`)
 }
+
+// logTree is a root whose "Run integration builds" job started LAB-INT-46
+// with a script.
+func logTree() app.Tree {
+	in := tnode("LAB-INT-46", provider.StateSuccess, 60*time.Second)
+	in.FromLog, in.Stage = true, "Run integration builds"
+	root := tnode("PROJ-API-142", provider.StateSuccess, 120*time.Second, in)
+	return app.Tree{Root: root, State: app.TreeState(root)}
+}
+
+func TestTreeTextNamesTheStageThatStartedALinkedBuild(t *testing.T) {
+	o, buf := testOut(false)
+	require.NoError(t, TreeText(o, logTree(), false))
+	require.Regexp(t, `LAB-INT-46 +✓ success +1m0?0?s? +started by stage Run integration builds`, buf.String())
+}
+
+func TestTreeJSONMarksALinkedBuild(t *testing.T) {
+	data, err := json.Marshal(TreeJSON(logTree(), false))
+	require.NoError(t, err)
+	var doc struct {
+		Root struct {
+			FromLog  bool `json:"from_log"`
+			Children []struct {
+				FromLog bool   `json:"from_log"`
+				Stage   string `json:"stage"`
+			} `json:"children"`
+		} `json:"root"`
+	}
+	require.NoError(t, json.Unmarshal(data, &doc))
+	require.False(t, doc.Root.FromLog)
+	require.True(t, doc.Root.Children[0].FromLog)
+	require.Equal(t, "Run integration builds", doc.Root.Children[0].Stage)
+}

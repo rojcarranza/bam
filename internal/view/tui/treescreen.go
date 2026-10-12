@@ -218,8 +218,8 @@ func (m Model) treeNodeText(n *app.TreeNode) string {
 		d = m.now().Sub(b.StartedAt)
 	}
 	text := b.Key + "  " + stateCell(b.State) + "  " + view.Duration(d)
-	if c := len(b.FailedTests); c > 0 {
-		text += fmt.Sprintf("  %d tests failed", c)
+	if note := view.TreeNodeNote(n); note != "" {
+		text += "  " + note
 	}
 	if m.buildTree.restarting[b.Key] {
 		text += "  restarting…"

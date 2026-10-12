@@ -182,6 +182,8 @@ and `bam build cancel` on the command line, stop a build.
 | run with the previous build's variables | `bam run provision-lab --from last` |
 | check variables without running | `bam run provision-lab --dry-run` |
 | review and change variables in your editor, then run | `bam run provision-lab --edit` |
+| save my own variable values as a preset | `bam target add NAME --plan KEY --machine` (see [presets](docs/presets.md)) |
+| change the last (or build #41's) variables, then run | `bam run provision-lab --from 41 --edit` |
 | build a chosen commit instead of the newest | `bam run provision-lab --revision abc1234` |
 | rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |
 | see recent builds | `bam build list provision-lab` |
@@ -259,6 +261,7 @@ Bamboo's API does not list a plan's child plans, so bam finds a child by its rea
 ## More
 
 - [Configuration and presets](docs/configuration.md)
+- [Presets and re-running with other variables](docs/presets.md)
 - [Authentication](docs/authentication.md)
 - [Using bam in CI](docs/ci.md)
 - [JSON output](docs/json.md)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,4 +111,63 @@ func TestBuildTreeDoesNotCountBuildsAWatchAlreadyHas(t *testing.T) {
 	require.NoError(t, err)
 	got := rec.snapshots()
 	require.Equal(t, TreeCount{2, 2}, got[len(got)-1].Builds, "OPS-SMOKE-51 is reused, not read")
+}
+
+// finishedTreeFake is treeFake with every build finished, so a watch ends.
+func finishedTreeFake() *fake.Provider {
+	p := treeFake()
+	p.History["PROJ-DOCS"][0].State = provider.StateSuccess
+	return p
+}
+
+func TestWatchTreeReportsItsFirstRefreshOnly(t *testing.T) {
+	svc := treeService(t, finishedTreeFake())
+	called := false
+	evs := collectTreeAll(svc.WatchTree(context.Background(), "PROJ-API-142",
+		TreeOptions{OnProgress: func(TreeProgress) { called = true }}))
+	require.False(t, called, "a watch reports on its channel only")
+	first := -1
+	loading := 0
+	for i, e := range evs {
+		if e.Type == TreeLoading {
+			require.Equal(t, -1, first, "event %d: no progress after the first tree", i)
+			loading++
+			continue
+		}
+		if first < 0 {
+			first = i
+		}
+	}
+	require.Positive(t, loading)
+	require.Equal(t, TreeUpdate, evs[first].Type)
+	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
+}
+
+// signalProvider closes hit once GetBuild has read key.
+type signalProvider struct {
+	*fake.Provider
+	key  string
+	once sync.Once
+	hit  chan struct{}
+}
+
+func (p *signalProvider) GetBuild(ctx context.Context, key string) (provider.Build, error) {
+	b, err := p.Provider.GetBuild(ctx, key)
+	if key == p.key {
+		p.once.Do(func() { close(p.hit) })
+	}
+	return b, err
+}
+
+func TestWatchTreeProgressNeverBlocksTheLoad(t *testing.T) {
+	p := finishedTreeFake()
+	svc := treeService(t, p)
+	sp := &signalProvider{Provider: p, key: "OPS-SMOKE-51", hit: make(chan struct{})}
+	svc.P = sp
+	ch := svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{})
+	// Nobody reads yet. Listing and reading builds report more snapshots
+	// than the channel holds; a blocking send would never reach the details.
+	<-sp.hit
+	evs := collectTree(ch)
+	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
 }

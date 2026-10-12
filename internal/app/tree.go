@@ -593,23 +593,27 @@ const (
 type TreeEventType string
 
 const (
-	TreeUpdate TreeEventType = "update" // the tree changed (always sent for the first refresh)
-	TreeDone   TreeEventType = "done"   // every build finished and nothing new appeared; last event
-	TreeError  TreeEventType = "error"  // refreshes kept failing; last event
+	TreeLoading TreeEventType = "loading" // the first refresh is still reading; Progress says how far
+	TreeUpdate  TreeEventType = "update"  // the tree changed (always sent for the first refresh)
+	TreeDone    TreeEventType = "done"    // every build finished and nothing new appeared; last event
+	TreeError   TreeEventType = "error"   // refreshes kept failing; last event
 )
 
 // TreeEvent is one step of a watched tree.
 type TreeEvent struct {
-	Type TreeEventType
-	Time time.Time
-	Tree Tree
-	Err  error
+	Type     TreeEventType
+	Time     time.Time
+	Tree     Tree
+	Progress TreeProgress // for TreeLoading
+	Err      error
 }
 
 // WatchTree refreshes the tree of key every treePoll and emits it when it
 // changed. It ends once every build has finished and one more refresh
 // found nothing new, since Bamboo queues children when their parent ends.
-// Ending ctx stops watching; no build is stopped.
+// Until the first tree, it sends TreeLoading events saying how far the
+// search got; o.OnProgress is not called. Ending ctx stops watching; no
+// build is stopped.
 func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-chan TreeEvent {
 	ch := make(chan TreeEvent, 4)
 	go func() {
@@ -628,7 +632,20 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 		var scan *treeScan
 		fails := 0
 		for {
-			t, next, err := s.buildTree(ctx, key, o, done, scan)
+			ro := o
+			ro.track = nil
+			if scan == nil {
+				// The first refresh is the slow one: say how far it got. A
+				// full channel drops the snapshot rather than hold up the
+				// load; a newer one follows.
+				ro.track = newTreeTracker(func(p TreeProgress) {
+					select {
+					case ch <- TreeEvent{Type: TreeLoading, Time: s.Clock.Now(), Progress: p}:
+					default:
+					}
+				})
+			}
+			t, next, err := s.buildTree(ctx, key, ro, done, scan)
 			if ctx.Err() != nil {
 				return
 			}

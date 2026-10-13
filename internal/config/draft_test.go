@@ -47,6 +47,6 @@ func TestRenderDraftWithBranchAndNote(t *testing.T) {
 }
 
 func TestDraftYAMLIsStandaloneDocument(t *testing.T) {
-	out := DraftYAML(TargetDraft{Name: "b", Plan: "PROJ-B"})
+	out := DraftYAML("targets", TargetDraft{Name: "b", Plan: "PROJ-B"})
 	assert.Equal(t, "targets:\n  b:\n    plan: PROJ-B\n    # branch: develop\n    # watch: true\n", out)
 }

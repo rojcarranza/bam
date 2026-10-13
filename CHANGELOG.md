@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Personal presets live in `~/bam/presets.yaml` (or `BAM_PRESETS`) and work from any directory; in WSL, bam uses the presets file in your Windows home, so Git Bash and WSL share one file. Presets can write their variables under `variables:`.
 - `bam --project KEY` and `bam ui --project KEY` open the terminal UI on one project, and `default_project` in `.bam.yaml` or the machine file makes that the default.
 - The terminal UI's `:projects` view lists the projects; `enter` shows one project's plans and `esc` goes back.
 - `bam build tree` shows a build and every build it triggered, with their stages and failures, and `--watch` follows them to the end.
@@ -18,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `bam preset add` writes to your presets file by default; `--shared` writes `.bam.yaml`. `--machine` is removed.
 - `bam target` is now `bam preset` (`bam preset add`, `list`, `show`, `sync`); `bam target` is removed. Config files keep the `targets:` key.
 - The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, the bam and Bamboo versions and the user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.
 - The terminal UI's three-panel screen is replaced by a plan screen: the plan's full name on top, its builds, the selected build's stages, and the plans that build triggered. The run form and log screen name the plan too.

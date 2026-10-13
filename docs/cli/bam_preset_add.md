@@ -13,9 +13,9 @@ bam preset add <name> --plan KEY [flags]
       --force           replace an existing preset
       --from string     build whose values fill the comments: number, key or last
   -h, --help            help for add
-      --machine         write to the machine config instead of .bam.yaml
       --plan string     plan key to generate from
       --print           print the YAML and write nothing
+      --shared          write to the repository's .bam.yaml instead of your presets file
 ```
 
 ### Options inherited from parent commands

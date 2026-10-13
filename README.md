@@ -182,7 +182,7 @@ and `bam build cancel` on the command line, stop a build.
 | run with the previous build's variables | `bam run provision-lab --from last` |
 | check variables without running | `bam run provision-lab --dry-run` |
 | review and change variables in your editor, then run | `bam run provision-lab --edit` |
-| save my own variable values as a preset | `bam preset add NAME --plan KEY --machine` (see [presets](docs/presets.md)) |
+| save my own variable values as a preset | `bam preset add NAME --plan KEY` (see [presets](docs/presets.md)) |
 | change the last (or build #41's) variables, then run | `bam run provision-lab --from 41 --edit` |
 | build a chosen commit instead of the newest | `bam run provision-lab --revision abc1234` |
 | rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |

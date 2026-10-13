@@ -57,7 +57,8 @@ func (r *runtime) config() (*config.Config, error) {
 // terminal UI uses it so refreshing its Presets panel shows an edit made to
 // .bam.yaml while the UI is open.
 func (r *runtime) loadConfig() (*config.Config, error) {
-	return config.Load(config.LoadOptions{WorkDir: r.env.WorkDir, Home: r.env.Home, MachineFile: r.env.Paths.MachineConfig, Getenv: r.env.Getenv})
+	return config.Load(config.LoadOptions{WorkDir: r.env.WorkDir, Home: r.env.Home, MachineFile: r.env.Paths.MachineConfig,
+		PresetsFile: r.presets().Path, Getenv: r.env.Getenv})
 }
 
 func (r *runtime) out() (view.Out, error) {
@@ -224,4 +225,24 @@ func exitCode(err error) int {
 		return 6
 	}
 	return 2 // cobra's own command, flag and argument errors
+}
+
+// presets locates the personal presets file.
+func (r *runtime) presets() config.PresetsLocation {
+	return config.LocatePresets(config.PresetsLookup{Home: r.env.Home, Getenv: r.env.Getenv, Glob: r.env.Glob})
+}
+
+// presetsWritePath is where preset add writes. In WSL, with no presets file
+// anywhere yet, it creates one in the Windows home so that bam.exe in Git
+// Bash reads the same file.
+func (r *runtime) presetsWritePath() string {
+	loc := r.presets()
+	if loc.Exists || loc.Note != "" || r.env.Getenv(config.PresetsEnv) != "" || !config.IsWSL(r.env.Getenv) || r.env.WindowsHome == nil {
+		return loc.Path
+	}
+	win, err := r.env.WindowsHome()
+	if err != nil || win == "" {
+		return loc.Path
+	}
+	return config.DefaultPresetsPath(win)
 }

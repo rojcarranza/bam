@@ -47,6 +47,13 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			loc := r.presets()
+			if !r.flags.json {
+				fmt.Fprintln(r.env.Stderr, "presets file: "+loc.Path)
+				if loc.Note != "" {
+					fmt.Fprintln(r.env.Stderr, "  note: "+loc.Note)
+				}
+			}
 			if r.flags.json {
 				docs := []view.TargetDoc{}
 				for _, t := range infos {
@@ -96,7 +103,7 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 
 func newTargetAddCmd(r *runtime) *cobra.Command {
 	var plan, from, branch string
-	var machine, printOnly, force bool
+	var shared, printOnly, force bool
 	cmd := &cobra.Command{
 		Use:   "add <name> --plan KEY",
 		Short: "Generate a run preset from a plan's declared variables",
@@ -114,15 +121,20 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if printOnly {
-				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(d))
+				key := "presets"
+				if shared {
+					key = "targets"
+				}
+				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
 				return err
 			}
-			path, keyPath := r.cfg.ProjectPath, []string{"targets"}
-			if machine {
-				path, keyPath = r.env.Paths.MachineConfig, []string{"repos", r.cfg.RepoRoot, "targets"}
-			} else if path == "" {
-				return errs.Usagef("no .bam.yaml in this repository").
-					WithTry("bam init --server ALIAS --project KEY, or pass --machine")
+			path, keyPath := r.presetsWritePath(), []string{"presets"}
+			if shared {
+				path, keyPath = r.cfg.ProjectPath, []string{"targets"}
+				if path == "" {
+					return errs.Usagef("no .bam.yaml in this repository").
+						WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
+				}
 			}
 			if err := config.WriteTarget(path, keyPath, d, force); err != nil {
 				return err
@@ -139,7 +151,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&plan, "plan", "", "plan key to generate from")
 	f.StringVar(&from, "from", "", "build whose values fill the comments: number, key or last")
 	f.StringVar(&branch, "branch", "", "default branch for the preset")
-	f.BoolVar(&machine, "machine", false, "write to the machine config instead of .bam.yaml")
+	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets file")
 	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&force, "force", false, "replace an existing preset")
 	return cmd

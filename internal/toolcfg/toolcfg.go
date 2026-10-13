@@ -72,6 +72,7 @@ func Load(o Options) (*Loaded, error) {
 		WorkDir:     o.WorkDir,
 		Home:        o.Home,
 		MachineFile: o.MachineFile,
+		PresetsFile: config.LocatePresets(config.PresetsLookup{Home: o.Home, Getenv: o.Getenv, Glob: filepath.Glob}).Path,
 		Getenv:      o.Getenv,
 	})
 	if err != nil {

@@ -50,9 +50,9 @@ The server alias `env` is reserved for the server defined by `BAM_URL` and is re
 
 Generate a target from a plan's declared variables instead of typing it:
 
-    bam preset add provision-lab --plan PROJ-PROV --branch develop
-    bam preset add mine --plan PROJ-PROV --machine     # personal, not committed
-    bam preset add x --plan PROJ-PROV --print          # show only
+    bam preset add mine --plan PROJ-PROV                        # personal: ~/bam/presets.yaml
+    bam preset add provision-lab --plan PROJ-PROV --branch develop --shared   # .bam.yaml, committed
+    bam preset add x --plan PROJ-PROV --print                   # show only
 
 When the plan's variables change later, bring the preset up to date:
 

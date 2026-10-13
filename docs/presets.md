@@ -9,13 +9,14 @@ The examples use the plan `PROJ-DEPLOY` and the variables `target_env`, `region`
 
 ## 1. Create a personal preset
 
-A preset is a named entry under `targets:` in a configuration file. Generate it from the plan instead of typing the variable names:
+A preset is a named entry in your **presets file**, `~/bam/presets.yaml`. Generate it from the plan instead of typing the variable names:
 
-    bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --machine
+    bam preset add deploy-qa --plan PROJ-DEPLOY --branch main
 
 - `deploy-qa` is a name you choose. It is what you type later in `bam run deploy-qa`, and what the terminal UI lists under presets. It is not a Bamboo name: lowercase letters, digits, `-` and `_`, starting with a letter.
 - `--plan` is the Bamboo plan key. `--branch` is optional and sets the plan branch the preset runs.
-- `--machine` writes to your **machine file** (`~/.config/bam/config.yaml` on Linux and WSL; `bam preset show` prints the path as "Defined in"). Without it, bam writes `.bam.yaml` at the repository root, which is meant to be committed and shared. Use `--machine` for anything personal, and whenever the plan key or host should not enter the repository.
+- By default bam writes your presets file, and its presets work from any directory. `bam preset list` prints its path.
+- `--shared` writes `.bam.yaml` at the repository root instead, which is meant to be committed and shared with the team. Keep personal presets, and any plan key or host that should not enter the repository, in your presets file.
 - `--print` shows the generated YAML and writes nothing. Use it to look first.
 
 The server is chosen the usual way (`--server`, or your only configured server; see [Configuration](configuration.md#which-server-is-used)).
@@ -24,11 +25,11 @@ The server is chosen the usual way (`--server`, or your only configured server; 
 
 The preset lists every variable the plan declares, with a comment saying where the value came from:
 
-    targets:
+    presets:
       deploy-qa:
         plan: PROJ-DEPLOY
         branch: "main"
-        defaults:
+        variables:
           target_env: "qa"  # plan default
           region: ""  # no plan default; last used "eu" in PROJ-DEPLOY-41
           version: ""  # no plan default; last used "2.4.0" in PROJ-DEPLOY-41
@@ -44,9 +45,9 @@ The preset lists every variable the plan declares, with a comment saying where t
 
 ### Set the values
 
-Edit the file and fill in `defaults`. Delete variables you never change, so they keep the plan's value. Uncomment `required` and `options` if you want bam to check values before it triggers:
+Edit the file and fill in `variables`. Delete variables you never change, so they keep the plan's value. Uncomment `required` and `options` if you want bam to check values before it triggers:
 
-    defaults:
+    variables:
       target_env: "qa"
       region: "eu"
       version: "2.4.0"
@@ -66,8 +67,20 @@ When the plan later gains variables, `bam preset sync deploy-qa` appends them wi
 
 Make one preset per set, each pointing at the same plan:
 
-    bam preset add deploy-qa      --plan PROJ-DEPLOY --machine
-    bam preset add deploy-staging --plan PROJ-DEPLOY --machine
+    bam preset add deploy-qa      --plan PROJ-DEPLOY
+    bam preset add deploy-staging --plan PROJ-DEPLOY
+
+### One presets file for Git Bash, WSL and macOS
+
+The path is `~/bam/presets.yaml` on every system, so one setup works everywhere:
+
+- **Git Bash** runs `bam.exe`, whose `~` is `C:\Users\<you>`. That file is the one to keep.
+- **WSL** has its own home. When `~/bam/presets.yaml` does not exist there, bam in WSL uses `/mnt/c/Users/<you>/bam/presets.yaml`, the same file Git Bash uses. If `preset add` creates the file from WSL, it creates it in the Windows home. If several Windows users have a presets file, bam uses none of them and `bam preset list` asks you to set `BAM_PRESETS`.
+- **Another machine, such as a Mac,** cannot reach that file directly. Keep it in a synced folder (OneDrive, iCloud, a dotfiles repository) and point bam at it on each machine:
+
+      export BAM_PRESETS="$HOME/OneDrive/bam/presets.yaml"
+
+Logins stay per environment: run `bam login` in each one, and give the server the same alias everywhere (for example `work`) so presets that name a `server` resolve. Files under `/mnt/c` cannot be made private from WSL, so keep secrets out of the presets file and use `${ENV}` references.
 
 ## 2. Re-run with the last build's variables, changed
 

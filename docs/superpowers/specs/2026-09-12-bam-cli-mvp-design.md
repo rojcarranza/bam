@@ -37,7 +37,7 @@ Setup
 Presets
   bam preset list
   bam preset show <name>
-  bam preset add <name> --plan KEY [--from N|last] [--branch B] [--machine] [--print] [--force]
+  bam preset add <name> --plan KEY [--from N|last] [--branch B] [--shared] [--print] [--force]
 
 Browse
   bam project list [--all]
@@ -116,6 +116,7 @@ A target with `watch: true` makes watching the default for that target; `--watch
 | --- | --- | --- | --- |
 | Project | `.bam.yaml` at the repository root | yes | servers, projects, targets |
 | Machine | `$XDG_CONFIG_HOME/bam/config.yaml`, overridable by `BAM_CONFIG` | no | server overrides and additions, repository mappings, personal targets, preferences |
+| Presets | `~/bam/presets.yaml`, overridable by `BAM_PRESETS` (§3.4, Presets file) | no | personal presets, usable in every directory |
 | Credentials | OS keychain, a named environment variable, or `$XDG_CONFIG_HOME/bam/credentials.yaml` (0600) | never | tokens only |
 
 Generated data is kept out of files that people edit:
@@ -189,6 +190,21 @@ color: auto
 pager: less -FRX
 ```
 
+
+#### Presets file
+
+`~/bam/presets.yaml` is the home-relative path on Linux, macOS and Windows alike, unlike the XDG paths above, so the same instructions work everywhere. Lookup: `BAM_PRESETS`; else `~/bam/presets.yaml` if it exists; else, in WSL (`WSL_DISTRO_NAME` set), the single match of `/mnt/c/Users/*/bam/presets.yaml`, so bam in WSL and `bam.exe` in Git Bash share one file (several matches: none is used, and `preset list` says so); else `~/bam/presets.yaml`. When `preset add` creates the file from WSL and none exists, it asks Windows for `%USERPROFILE%` once and creates it there.
+
+```yaml
+presets:
+  provision-mine:
+    plan: PROJ-PROV
+    variables:
+      cluster_name: jdoe-lab
+```
+
+`version` is optional; a missing or empty file has no presets. Literal secrets are allowed, as in the machine file, but files under `/mnt/c` cannot be 0600 from WSL, so `${ENV}` references are recommended.
+
 ### 3.5 Resolution rules
 
 **Server selection**, first match wins:
@@ -211,7 +227,7 @@ Repository-scoped settings (4–6) rank above the machine file's global default 
 
 **Default project**, the project the terminal UI opens on: the `--project` flag of `bam` and `bam ui` (`all` means every project), then, first match wins, machine `repos.<root>.default_project`, project `default_project`, machine `servers.<alias>.default_project`; otherwise every configured project. Keys are uppercased. The flag applies only to the server the UI opens on; switching server inside the UI applies that server's `default_project`. A default project need not be in the projects list. A default project that the server does not have opens on every configured project, and the status bar says `project OPS not found on work`.
 
-**Targets.** Merged by name, field by field, in increasing precedence: project `targets`, machine top-level `targets`, machine `repos.<root>.targets`. `defaults`, `options` merge per variable name; `required` is replaced as a whole list.
+**Targets.** Merged by name, field by field, in increasing precedence: project `targets`, machine top-level `targets`, presets file `presets`, machine `repos.<root>.targets`. In every layer a preset's variables may be written `variables` or `defaults` (its older name), not both. `defaults`, `options` merge per variable name; `required` is replaced as a whole list.
 
 **Other settings.** Flags beat environment variables, which beat the machine file, which beats the project file, which beats built-in defaults.
 
@@ -256,7 +272,7 @@ Output rules:
 - The file is edited through the `yaml.v3` Node API so existing comments and key order survive.
 - After writing, stderr prints `review before commit: values copied from Bamboo`.
 
-`preset add` writes to the discovered project file; with no project file it fails and suggests `bam init`. `--machine` writes to machine `repos.<root>.targets`. `--print` writes the YAML to stdout and touches no file. An existing target name fails unless `--force`.
+`preset add` writes to the presets file (§3.4) under `presets:`, creating it when needed. `--shared` writes to the discovered project file under `targets:`; with no project file it fails and suggests `bam init`. `--print` writes the YAML to stdout and touches no file. An existing target name fails unless `--force`.
 
 `init` writes `.bam.yaml` at the repository root with `version`, the server alias and URL (from `--url`, or copied from the machine file's alias), `default_server`, `projects`, and one generated target per `--plan`. A target name defaults to the lowercased plan part of the key (`PROJ-PROV` → `prov`); `=name` overrides it. An existing `.bam.yaml` fails unless `--force`. `init` without `--plan` makes no network call.
 
@@ -653,6 +669,7 @@ Development is test-driven.
 | Unknown `--var` names warn instead of failing | Plans can override Bamboo global variables that the plan variable endpoint does not list |
 | Targets grew into presets: `server`, `branch`, `options`, `required`, `timeout`, env references; allowed in the machine file | Presets are the core productivity feature, and Bamboo has no allowed-value or required-variable concept |
 | `bam preset add` and `bam init` generate presets from declared plan variables | Nobody transcribes a plan's variables by hand |
+| Personal presets in `~/bam/presets.yaml`, the default for `preset add`; `--machine` replaced by `--shared` | One home-relative path for Git Bash, WSL and macOS; most presets are personal, and repos-scoped ones did not work outside their repository |
 | `bam target` renamed `bam preset`, with no alias; error messages say "preset". Config keys stay `targets`/`defaults` | "Target" read as a deploy target; the docs already called them presets |
 | `--dry-run` on `run` | Resolution and validation can be checked without spending a build |
 | Exit codes split by class (2 usage, 3 config, 4 auth, 5 Bamboo, 6 timeout) | CI must tell a failed build (1) from a failed tool |

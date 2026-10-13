@@ -56,12 +56,18 @@ func SyncTarget(path string, keyPath []string, name string, e TargetEdit, write 
 		return ch, errs.Configf("no target %q under %s in %s", name, strings.Join(keyPath, "."), path)
 	}
 
-	defaults := mappingValue(target, "defaults")
+	key := VarsKey(keyPath)
+	if mappingValue(target, "variables") != nil {
+		key = "variables"
+	} else if mappingValue(target, "defaults") != nil {
+		key = "defaults"
+	}
+	defaults := mappingValue(target, key)
 	if defaults != nil && defaults.Tag == "!!null" {
 		defaults = nil // "defaults:" with no value; ensureMapping replaces it
 	}
 	if defaults != nil && defaults.Kind != yaml.MappingNode {
-		return ch, errs.Configf("preset %q in %s: defaults must be a mapping", name, path)
+		return ch, errs.Configf("preset %q in %s: %s must be a mapping", name, path, key)
 	}
 	marker := StaleMarker(e.Plan)
 	for _, n := range e.Mark {
@@ -101,7 +107,7 @@ func SyncTarget(path string, keyPath []string, name string, e TargetEdit, write 
 			return ch, fmt.Errorf("generated YAML for %q does not parse: %w", d.Name, err)
 		}
 		if defaults == nil {
-			defaults = ensureMapping(target, "defaults")
+			defaults = ensureMapping(target, key)
 		}
 		m := snippet.Content[0]
 		defaults.Content = append(defaults.Content, m.Content[0], m.Content[1])

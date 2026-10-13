@@ -159,6 +159,11 @@ func validateFiles(c *Config) error {
 	if err := checkSetNames(c.MachinePath, "sets", c.Machine.Sets); err != nil {
 		return err
 	}
+	if c.Presets != nil {
+		if err := checkTargetNames(c.PresetsPath, "presets", c.Presets.Presets); err != nil {
+			return err
+		}
+	}
 	for _, root := range sortedKeys(c.Machine.Repos) {
 		if err := checkTargetNames(c.MachinePath, "repos."+root+".targets", c.Machine.Repos[root].Targets); err != nil {
 			return err

@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TargetEdit is what bam target sync changes in one layer's entry of a target.
+// TargetEdit is what bam preset sync changes in one layer's entry of a target.
 type TargetEdit struct {
 	Add    []DraftVar // names to append to defaults
 	Mark   []string   // names to mark as no longer declared on Plan
@@ -61,7 +61,7 @@ func SyncTarget(path string, keyPath []string, name string, e TargetEdit, write 
 		defaults = nil // "defaults:" with no value; ensureMapping replaces it
 	}
 	if defaults != nil && defaults.Kind != yaml.MappingNode {
-		return ch, errs.Configf("target %q in %s: defaults must be a mapping", name, path)
+		return ch, errs.Configf("preset %q in %s: defaults must be a mapping", name, path)
 	}
 	marker := StaleMarker(e.Plan)
 	for _, n := range e.Mark {

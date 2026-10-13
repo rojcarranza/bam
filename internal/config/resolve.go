@@ -261,13 +261,13 @@ func mergeTarget(base, over Target) Target {
 func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 	where := strings.Join(t.DefinedIn, ", ")
 	if t.Plan == "" {
-		return errs.Configf("target %q has no plan", t.Name).
+		return errs.Configf("preset %q has no plan", t.Name).
 			WithWhy("defined in " + where).
 			WithTry(fmt.Sprintf("add plan: PROJ-PLAN under targets.%s", t.Name))
 	}
 	if t.Server != "" {
 		if _, ok := servers[t.Server]; !ok {
-			return errs.Configf("target %q uses unknown server %q", t.Name, t.Server).
+			return errs.Configf("preset %q uses unknown server %q", t.Name, t.Server).
 				WithTry(fmt.Sprintf("bam server add %s --url URL", t.Server))
 		}
 	}
@@ -284,7 +284,7 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 			if IsMaskedName(name) {
 				display = "********"
 			}
-			return errs.Configf("target %q: default %s=%q is not one of %s", t.Name, name, display, strings.Join(t.Options[name], ", ")).
+			return errs.Configf("preset %q: default %s=%q is not one of %s", t.Name, name, display, strings.Join(t.Options[name], ", ")).
 				WithWhy("defined in " + where)
 		}
 	}

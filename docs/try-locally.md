@@ -120,7 +120,7 @@ Point `BAM_CONFIG` at a throwaway one instead of your real machine file:
     YAML
     export BAM_CONFIG=/tmp/bam-local.yaml
 
-    bam target list
+    bam preset list
     bam run smoke --dry-run                          # refused: cluster_name is required
     bam run smoke --var cluster_name=beta --watch --no-tui
 

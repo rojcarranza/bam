@@ -1,16 +1,16 @@
-## bam target add
+## bam preset add
 
 Generate a run preset from a plan's declared variables
 
 ```
-bam target add <name> --plan KEY [flags]
+bam preset add <name> --plan KEY [flags]
 ```
 
 ### Options
 
 ```
       --branch string   default branch for the preset
-      --force           replace an existing target
+      --force           replace an existing preset
       --from string     build whose values fill the comments: number, key or last
   -h, --help            help for add
       --machine         write to the machine config instead of .bam.yaml
@@ -30,5 +30,5 @@ bam target add <name> --plan KEY [flags]
 
 ### SEE ALSO
 
-* [bam target](bam_target.md)	 - Run presets: list, show, add, sync
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync
 

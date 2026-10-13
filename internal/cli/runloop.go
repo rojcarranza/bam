@@ -415,14 +415,14 @@ func (r *runtime) urlFor(args []string, last bool) (string, error) {
 		}
 		return rec.Origin + "/browse/" + rec.BuildKey, nil
 	case len(args) == 0:
-		return "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a target, or --last")
+		return "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a preset, or --last")
 	case config.ValidTargetName(args[0]):
 		t, ok, err := cfg.Target(args[0])
 		if err != nil {
 			return "", err
 		}
 		if !ok {
-			return "", errs.Usagef("unknown target %q", args[0]).WithTry("bam target list")
+			return "", errs.Usagef("unknown preset %q", args[0]).WithTry("bam preset list")
 		}
 		key, targetServer = t.Plan, t.Server
 	case anyKeyRe.MatchString(args[0]):

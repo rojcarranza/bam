@@ -34,7 +34,7 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 
 - **Intent first.** `bam run build` instead of finding the plan and opening the run dialog.
 - **Variables are remembered and validated.** Presets in `.bam.yaml` hold a plan's variables, allowed values and required names. `--from last` reuses the previous build's values.
-- **Presets are generated.** `bam target add` reads the plan's declared variables from Bamboo and writes the preset, so nobody transcribes variables by hand.
+- **Presets are generated.** `bam preset add` reads the plan's declared variables from Bamboo and writes the preset, so nobody transcribes variables by hand.
 - **Failure in one command.** `bam logs --last --failed` prints only the failed jobs' logs.
 - **Always one step from Bamboo.** Every entity carries its Bamboo URL; `bam open` opens it.
 - **Safe in CI.** `bam watch` exits non-zero when the build fails, and tool errors have their own exit codes.
@@ -64,7 +64,7 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 - Server registry, `login` / `logout` / `whoami`, `doctor` with the capability probe.
 - Browse: projects, plans, plan branches, plan variables, builds, build detail.
 - Run presets (targets) with branch, default variables, allowed values, required variables, environment references, watch and timeout; in the project file and in the machine file.
-- Preset generation: `bam init` and `bam target add` read declared plan variables from Bamboo and write presets.
+- Preset generation: `bam init` and `bam preset add` read declared plan variables from Bamboo and write presets.
 - Run: `--var`, `--from`, `--branch`, `--watch`, `--timeout`, `--dry-run`.
 - Watch with live stage and job state; logs with `--failed`, `--job`, `--follow`, `--tail`; cancel.
 - `open` and `url` for every entity.
@@ -82,7 +82,7 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 
 - Duration estimate and progress bar from Bamboo's own progress endpoint, in both the commands and the UI.
 - `run --edit`, and `run --revision` to build a chosen commit (Bamboo's REST queue takes `customRevision`; confirmed on Bamboo 12.1.8).
-- `bam target sync` to refresh a preset when the plan's variables change.
+- `bam preset sync` to refresh a preset when the plan's variables change.
 
 ### Future
 

@@ -15,7 +15,7 @@ const (
 	SyncError     = "error"
 )
 
-// SyncResult is one target's outcome of bam target sync.
+// SyncResult is one target's outcome of bam preset sync.
 type SyncResult struct {
 	Sync       app.SyncPlan
 	File       string   // Sync.File as shown in text: relative to the repository when inside it

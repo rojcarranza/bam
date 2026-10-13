@@ -35,9 +35,9 @@ Setup
   bam completion bash|zsh|fish|powershell
 
 Presets
-  bam target list
-  bam target show <name>
-  bam target add <name> --plan KEY [--from N|last] [--branch B] [--machine] [--print] [--force]
+  bam preset list
+  bam preset show <name>
+  bam preset add <name> --plan KEY [--from N|last] [--branch B] [--machine] [--print] [--force]
 
 Browse
   bam project list [--all]
@@ -231,7 +231,7 @@ A configuration error (exit 3) names the file, the key path, and the fix:
 
 ### 3.7 Environment references
 
-A `defaults` value that is exactly `${NAME}`, with `NAME` matching `^[A-Za-z_][A-Za-z0-9_]*$`, is read from the environment at run time. Partial interpolation is not supported, so a literal `$` elsewhere needs no escaping. `target show` prints the reference unresolved and marks it `set` or `unset`.
+A `defaults` value that is exactly `${NAME}`, with `NAME` matching `^[A-Za-z_][A-Za-z0-9_]*$`, is read from the environment at run time. Partial interpolation is not supported, so a literal `$` elsewhere needs no escaping. `preset show` prints the reference unresolved and marks it `set` or `unset`.
 
 ### 3.8 State file
 
@@ -239,7 +239,7 @@ A `defaults` value that is exactly `${NAME}`, with `NAME` matching `^[A-Za-z_][A
 
 ### 3.9 Preset generation
 
-`bam target add <name> --plan KEY` and `bam init --plan KEY[=name]` share one generator.
+`bam preset add <name> --plan KEY` and `bam init --plan KEY[=name]` share one generator.
 
 Sources for variable names, in order:
 
@@ -256,7 +256,7 @@ Output rules:
 - The file is edited through the `yaml.v3` Node API so existing comments and key order survive.
 - After writing, stderr prints `review before commit: values copied from Bamboo`.
 
-`target add` writes to the discovered project file; with no project file it fails and suggests `bam init`. `--machine` writes to machine `repos.<root>.targets`. `--print` writes the YAML to stdout and touches no file. An existing target name fails unless `--force`.
+`preset add` writes to the discovered project file; with no project file it fails and suggests `bam init`. `--machine` writes to machine `repos.<root>.targets`. `--print` writes the YAML to stdout and touches no file. An existing target name fails unless `--force`.
 
 `init` writes `.bam.yaml` at the repository root with `version`, the server alias and URL (from `--url`, or copied from the machine file's alias), `default_server`, `projects`, and one generated target per `--plan`. A target name defaults to the lowercased plan part of the key (`PROJ-PROV` → `prov`); `=name` overrides it. An existing `.bam.yaml` fails unless `--force`. `init` without `--plan` makes no network call.
 
@@ -597,7 +597,7 @@ Development is test-driven.
 | `provider/bamboo` | `httptest` replaying recorded fixtures; 200, 400, 401, 403, 404, 429, 500, empty body, unexpected JSON; retry only on 429 and 5xx; pagination; each capability fallback; both log paths; form-body trigger |
 | `app` | fake Provider and fake clock: argument resolution, variable precedence and validation, masking, watch backoff and reset, timeout, interrupt without stopping the build, finished-build watch, failed-job selection, generator output for each variable source and masked values, state expiry on 404 |
 | `view` | golden files for TTY and pipe output, color on and off, width truncation, JSON and NDJSON shapes; a test that every state renders its glyph with color off |
-| `cli` | the cobra root in-process against a fake Bamboo server: `init`, `target add`, `plan list`, `run --watch`, `logs --failed`, `open` (injected opener); one test per exit code |
+| `cli` | the cobra root in-process against a fake Bamboo server: `init`, `preset add`, `plan list`, `run --watch`, `logs --failed`, `open` (injected opener); one test per exit code |
 | end to end | `//go:build e2e`, against the personal Bamboo, server and token read from bam's own config by `internal/toolcfg` (`make e2e ARGS='-target smoke'`), excluded from default runs |
 
 **Fixture guard.** `make record` captures fixtures from the personal server and scrubs hosts to `bamboo.example.com` and user names to `jdoe`. `make check-fixtures` fails if any URL host in `testdata/` is outside the allowlist (`bamboo.example.com`, `localhost`, `127.0.0.1`). CI runs it on every change.
@@ -652,7 +652,8 @@ Development is test-driven.
 | A `<plan>` argument means "latest build" wherever a build is expected | `bam logs build --failed` works after a CI-triggered build with no key lookup |
 | Unknown `--var` names warn instead of failing | Plans can override Bamboo global variables that the plan variable endpoint does not list |
 | Targets grew into presets: `server`, `branch`, `options`, `required`, `timeout`, env references; allowed in the machine file | Presets are the core productivity feature, and Bamboo has no allowed-value or required-variable concept |
-| `bam target add` and `bam init` generate presets from declared plan variables | Nobody transcribes a plan's variables by hand |
+| `bam preset add` and `bam init` generate presets from declared plan variables | Nobody transcribes a plan's variables by hand |
+| `bam target` renamed `bam preset`, with no alias; error messages say "preset". Config keys stay `targets`/`defaults` | "Target" read as a deploy target; the docs already called them presets |
 | `--dry-run` on `run` | Resolution and validation can be checked without spending a build |
 | Exit codes split by class (2 usage, 3 config, 4 auth, 5 Bamboo, 6 timeout) | CI must tell a failed build (1) from a failed tool |
 | NDJSON for watch | A stream of events cannot be one JSON document |

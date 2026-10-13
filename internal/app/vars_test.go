@@ -68,7 +68,7 @@ func TestResolveVarsValidationOrder(t *testing.T) {
 	withEnv(s, map[string]string{"LAB_DB_PASSWORD": "x"})
 	_, err = s.ResolveVars(bg, ref, VarOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cluster_name is required by target provision-lab")
+	assert.Contains(t, err.Error(), "cluster_name is required by preset provision-lab")
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "--var cluster_name=VALUE", e.Try)
@@ -372,7 +372,7 @@ func TestValidateEditedAppliesTheRulesToEdits(t *testing.T) {
 
 	_, err = ValidateEdited(ref, base, []string{"cluster_name=a"}, []Edit{{Name: "cluster_name", Value: ""}}, emptyEnv)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cluster_name is required by target provision-lab")
+	assert.Contains(t, err.Error(), "cluster_name is required by preset provision-lab")
 }
 
 func TestValidateEditedWarnsOnceForAnUndeclaredName(t *testing.T) {

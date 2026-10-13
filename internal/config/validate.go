@@ -173,8 +173,8 @@ func validateFiles(c *Config) error {
 func checkTargetNames(path, where string, targets map[string]Target) error {
 	for _, name := range sortedKeys(targets) {
 		if !ValidTargetName(name) {
-			return errs.Configf("%s: %s: invalid target name %q", path, where, name).
-				WithWhy("target names are lowercase letters, digits, - and _, starting with a letter").
+			return errs.Configf("%s: %s: invalid preset name %q", path, where, name).
+				WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter").
 				WithTry(fmt.Sprintf("rename it, for example %q", strings.ToLower(nonAlnumRe.ReplaceAllString(name, "-"))))
 		}
 	}

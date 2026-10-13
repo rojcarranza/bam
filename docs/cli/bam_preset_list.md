@@ -1,15 +1,15 @@
-## bam target show
+## bam preset list
 
-Show a run preset with its defaults, options and origin
+List run presets from .bam.yaml and the machine config
 
 ```
-bam target show <name> [flags]
+bam preset list [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for show
+  -h, --help   help for list
 ```
 
 ### Options inherited from parent commands
@@ -24,5 +24,5 @@ bam target show <name> [flags]
 
 ### SEE ALSO
 
-* [bam target](bam_target.md)	 - Run presets: list, show, add, sync
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync
 

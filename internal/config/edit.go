@@ -25,7 +25,7 @@ func WriteTarget(path string, keyPath []string, d TargetDraft, force bool) error
 		parent = ensureMapping(parent, k)
 	}
 	if mappingValue(parent, d.Name) != nil && !force {
-		return errs.Usagef("target %q already exists in %s", d.Name, path).WithTry("pass --force to replace it")
+		return errs.Usagef("preset %q already exists in %s", d.Name, path).WithTry("pass --force to replace it")
 	}
 	var snippet yaml.Node
 	if err := yaml.Unmarshal([]byte(d.Render("")), &snippet); err != nil {
@@ -74,7 +74,7 @@ type InitFile struct {
 // WriteInitFile writes a new .bam.yaml.
 func WriteInitFile(path string, f InitFile, drafts []TargetDraft, force bool) error {
 	if _, err := os.Stat(path); err == nil && !force {
-		return errs.Usagef("%s already exists", path).WithTry("pass --force to overwrite it, or use bam target add")
+		return errs.Usagef("%s already exists", path).WithTry("pass --force to overwrite it, or use bam preset add")
 	}
 	var b strings.Builder
 	b.WriteString("version: 1\n")

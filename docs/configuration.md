@@ -50,16 +50,16 @@ The server alias `env` is reserved for the server defined by `BAM_URL` and is re
 
 Generate a target from a plan's declared variables instead of typing it:
 
-    bam target add provision-lab --plan PROJ-PROV --branch develop
-    bam target add mine --plan PROJ-PROV --machine     # personal, not committed
-    bam target add x --plan PROJ-PROV --print          # show only
+    bam preset add provision-lab --plan PROJ-PROV --branch develop
+    bam preset add mine --plan PROJ-PROV --machine     # personal, not committed
+    bam preset add x --plan PROJ-PROV --print          # show only
 
 When the plan's variables change later, bring the preset up to date:
 
-    bam target sync provision-lab     # add new plan variables, mark removed ones
-    bam target sync --all --dry-run   # show what every preset would gain, write nothing
+    bam preset sync provision-lab     # add new plan variables, mark removed ones
+    bam preset sync --all --dry-run   # show what every preset would gain, write nothing
 
-Sync appends new variables to `defaults` with the same values and comments as `target add`. A variable the plan no longer declares is kept, because it may override a Bamboo global, and marked `# not declared on PROJ-PROV`; the marker goes away if the plan declares it again. Existing values, `options` and `required` are never changed.
+Sync appends new variables to `defaults` with the same values and comments as `preset add`. A variable the plan no longer declares is kept, because it may override a Bamboo global, and marked `# not declared on PROJ-PROV`; the marker goes away if the plan declares it again. Existing values, `options` and `required` are never changed.
 
 Variable precedence, lowest to highest: plan values, target `defaults`, `--from <build>`, `--var name=value`, then what you change in the editor with `bam run --edit`.
 

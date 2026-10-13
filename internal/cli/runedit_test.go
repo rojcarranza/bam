@@ -61,7 +61,7 @@ func TestRunEditTriggersTheEditedSet(t *testing.T) {
 
 	require.Len(t, h.editorSeen, 1)
 	first := h.editorSeen[0]
-	assert.True(t, strings.HasPrefix(first, "# error: cluster_name is required by target provision-lab\n#\n"),
+	assert.True(t, strings.HasPrefix(first, "# error: cluster_name is required by preset provision-lab\n#\n"),
 		"a fixable rule error opens the editor instead of failing:\n%s", first)
 	assert.Contains(t, first, "# bam run provision-lab · PROJ-PROV · branch develop · server work\n")
 	assert.Contains(t, first, "# target, options: k8s|dcos\ncluster_type=k8s\n")

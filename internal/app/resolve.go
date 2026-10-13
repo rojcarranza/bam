@@ -77,8 +77,8 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 	case IsPlanKey(arg):
 		ref = PlanRef{PlanKey: arg, MasterKey: arg}
 	default:
-		return PlanRef{}, errs.Usagef("%q is neither a target nor a plan key", arg).
-			WithTry("bam target list, or a plan key such as PROJ-PLAN")
+		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).
+			WithTry("bam preset list, or a plan key such as PROJ-PLAN")
 	}
 	if branch != "" {
 		key, err := s.ResolveBranch(ctx, ref.MasterKey, branch)
@@ -97,11 +97,11 @@ func (s *Service) unknownTarget(name string) error {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	e := errs.Usagef("unknown target %q", name).WithTry("bam target list; plan keys are uppercase, like PROJ-PLAN")
+	e := errs.Usagef("unknown preset %q", name).WithTry("bam preset list; plan keys are uppercase, like PROJ-PLAN")
 	if len(names) == 0 {
-		return e.WithWhy("no targets are configured")
+		return e.WithWhy("no presets are configured")
 	}
-	return e.WithWhy("targets: " + strings.Join(names, ", "))
+	return e.WithWhy("presets: " + strings.Join(names, ", "))
 }
 
 // ResolveBranch returns the branch plan key of branch on plan master.

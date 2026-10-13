@@ -317,7 +317,7 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 	if t := ref.Target; t != nil {
 		for _, name := range t.Required {
 			if v, ok := vars[name]; !ok || v.Value == "" {
-				return VarSet{}, errs.Usagef("%s is required by target %s", name, t.Name).
+				return VarSet{}, errs.Usagef("%s is required by preset %s", name, t.Name).
 					WithTry(fmt.Sprintf("--var %s=VALUE", name))
 			}
 		}

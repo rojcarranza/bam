@@ -9,7 +9,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
 
-// GenerateOptions are the inputs of bam target add and bam init --plan.
+// GenerateOptions are the inputs of bam preset add and bam init --plan.
 type GenerateOptions struct {
 	Name    string
 	PlanKey string
@@ -28,8 +28,8 @@ func (s *Service) GenerateTarget(ctx context.Context, o GenerateOptions) (config
 // the plan's declared list rather than from a build.
 func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.TargetDraft, bool, error) {
 	if !config.ValidTargetName(o.Name) {
-		return config.TargetDraft{}, false, errs.Usagef("invalid target name %q", o.Name).
-			WithWhy("target names are lowercase letters, digits, - and _, starting with a letter")
+		return config.TargetDraft{}, false, errs.Usagef("invalid preset name %q", o.Name).
+			WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter")
 	}
 	if !IsPlanKey(o.PlanKey) {
 		return config.TargetDraft{}, false, errs.Usagef("%q is not a plan key", o.PlanKey).WithTry("bam plan list")

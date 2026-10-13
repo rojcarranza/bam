@@ -11,11 +11,11 @@ The examples use the plan `PROJ-DEPLOY` and the variables `target_env`, `region`
 
 A preset is a named entry under `targets:` in a configuration file. Generate it from the plan instead of typing the variable names:
 
-    bam target add deploy-qa --plan PROJ-DEPLOY --branch main --machine
+    bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --machine
 
 - `deploy-qa` is a name you choose. It is what you type later in `bam run deploy-qa`, and what the terminal UI lists under presets. It is not a Bamboo name: lowercase letters, digits, `-` and `_`, starting with a letter.
 - `--plan` is the Bamboo plan key. `--branch` is optional and sets the plan branch the preset runs.
-- `--machine` writes to your **machine file** (`~/.config/bam/config.yaml` on Linux and WSL; `bam target show` prints the path as "Defined in"). Without it, bam writes `.bam.yaml` at the repository root, which is meant to be committed and shared. Use `--machine` for anything personal, and whenever the plan key or host should not enter the repository.
+- `--machine` writes to your **machine file** (`~/.config/bam/config.yaml` on Linux and WSL; `bam preset show` prints the path as "Defined in"). Without it, bam writes `.bam.yaml` at the repository root, which is meant to be committed and shared. Use `--machine` for anything personal, and whenever the plan key or host should not enter the repository.
 - `--print` shows the generated YAML and writes nothing. Use it to look first.
 
 The server is chosen the usual way (`--server`, or your only configured server; see [Configuration](configuration.md#which-server-is-used)).
@@ -56,18 +56,18 @@ Edit the file and fill in `defaults`. Delete variables you never change, so they
 
 Check it, then run:
 
-    bam target show deploy-qa          # what bam loaded, and from which file
+    bam preset show deploy-qa          # what bam loaded, and from which file
     bam run deploy-qa --dry-run        # resolves and validates everything, triggers nothing
     bam run deploy-qa --watch          # run and follow the build
 
-When the plan later gains variables, `bam target sync deploy-qa` appends them without touching your values.
+When the plan later gains variables, `bam preset sync deploy-qa` appends them without touching your values.
 
 ### Several variable sets for one plan
 
 Make one preset per set, each pointing at the same plan:
 
-    bam target add deploy-qa      --plan PROJ-DEPLOY --machine
-    bam target add deploy-staging --plan PROJ-DEPLOY --machine
+    bam preset add deploy-qa      --plan PROJ-DEPLOY --machine
+    bam preset add deploy-staging --plan PROJ-DEPLOY --machine
 
 ## 2. Re-run with the last build's variables, changed
 

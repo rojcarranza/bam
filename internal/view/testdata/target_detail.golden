@@ -7,7 +7,7 @@ Timeout     45m0s
 Required    cluster_name
 Defined in  /home/jdoe/src/repo/.bam.yaml
 
-Defaults
+Variables
   cluster_type  k8s
   db_password   ${LAB_DB_PASSWORD} (unset)
 

@@ -1073,3 +1073,24 @@ func TestATreeReadCancelledBeforeItRunsReadsNothing(t *testing.T) {
 	require.Equal(t, calls, f.ListCalls("PROJ-PROV"))
 	require.Nil(t, batch[1](), "the progress ends with the read")
 }
+
+func TestQuittingCancelsTheTreeRead(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	m, cmd := send(m, mkKey("q"))
+	require.NotNil(t, cmd)
+	requireReadEnded(t, m, result, progress)
+}
+
+// With a set running, q asks first; quitting on the answer cancels the read
+// too.
+func TestConfirmedQuitCancelsTheTreeRead(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	ch := make(chan app.SetEvent)
+	close(ch) // the train has written its record; the quit does not wait
+	m.train = trainState{set: "release", ch: ch}
+	m, _ = send(m, mkKey("q"))
+	require.Equal(t, overlayConfirm, m.overlay)
+	m, cmd := send(m, mkKey("y"))
+	require.NotNil(t, cmd)
+	requireReadEnded(t, m, result, progress)
+}

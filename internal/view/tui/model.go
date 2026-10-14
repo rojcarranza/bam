@@ -1796,6 +1796,8 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 				ch := m.train.ch
 				m.train.end()
 				m.stopWatch()
+				m.stopTree()
+				m.stopTreePreview()
 				m.stopFollow()
 				return m, func() tea.Msg {
 					for range ch {
@@ -1806,6 +1808,7 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 	}
 	m.stopWatch()
 	m.stopTree()
+	m.stopTreePreview()
 	m.stopFollow()
 	return m, tea.Quit
 }

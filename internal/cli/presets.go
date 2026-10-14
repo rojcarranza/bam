@@ -36,7 +36,7 @@ func defaultTargetName(planKey string) string {
 func newTargetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List run presets from .bam.yaml and the machine config",
+		Short: "List run presets from your presets file, .bam.yaml and the machine config",
 		Args:  cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
@@ -107,7 +107,15 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <name> --plan KEY",
 		Short: "Generate a run preset from a plan's declared variables",
-		Args:  cobra.ExactArgs(1),
+		Long: "add reads the plan's declared variables from Bamboo and writes a preset named <name>.\n" +
+			"It writes your presets file (~/bam/presets.yaml, or BAM_PRESETS), whose presets work in every\n" +
+			"directory; --shared writes the repository's .bam.yaml instead. Edit the values under variables,\n" +
+			"then run it with bam run <name>.",
+		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
+			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
+			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
+			"  bam run deploy-qa --dry-run",
+		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if plan == "" {
 				return errs.Usagef("--plan is required").WithTry(fmt.Sprintf("bam preset add %s --plan PROJ-PLAN", args[0]))

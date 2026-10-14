@@ -1,6 +1,6 @@
 ## bam preset list
 
-List run presets from .bam.yaml and the machine config
+List run presets from your presets file, .bam.yaml and the machine config
 
 ```
 bam preset list [flags]

@@ -105,20 +105,19 @@ Add `--json` to any read command to see the machine-readable form, and
 ## 7. Optional: try presets
 
 Presets live in configuration rather than on the server, so they need a file.
-Point `BAM_CONFIG` at a throwaway one instead of your real machine file:
+Point `BAM_PRESETS` at a throwaway one instead of your real `~/bam/presets.yaml`:
 
-    cat > /tmp/bam-local.yaml <<'YAML'
-    version: 1
-    targets:
+    cat > /tmp/bam-presets.yaml <<'YAML'
+    presets:
       smoke:
         plan: PROJ-BUILD
-        defaults:
+        variables:
           cluster_type: k8s
         options:
           cluster_type: [k8s, dcos]
         required: [cluster_name]
     YAML
-    export BAM_CONFIG=/tmp/bam-local.yaml
+    export BAM_PRESETS=/tmp/bam-presets.yaml
 
     bam preset list
     bam run smoke --dry-run                          # refused: cluster_name is required

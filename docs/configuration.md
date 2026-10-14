@@ -1,11 +1,12 @@
 # Configuration
 
-bam reads three layers. Only the third is secret.
+bam reads four layers. Only the last is secret.
 
 | Layer | File | Commit it? | Holds |
 | --- | --- | --- | --- |
-| Project | `.bam.yaml` at the repository root | yes | servers, projects, targets |
-| Machine | `~/.config/bam/config.yaml` (`BAM_CONFIG` overrides) | no | your own servers, overrides, personal targets |
+| Project | `.bam.yaml` at the repository root | yes | servers, projects, team presets (`targets:`) |
+| Machine | `~/.config/bam/config.yaml` (`BAM_CONFIG` overrides) | no | your own servers, overrides, preferences |
+| Presets | `~/bam/presets.yaml` (`BAM_PRESETS` overrides) | no | your personal presets, usable in every directory |
 | Credentials | OS keychain, an env variable, or `~/.config/bam/credentials.yaml` (0600) | never | tokens only |
 
 bam looks for `.bam.yaml` from the current directory up to the git root (or your home directory outside a repository).
@@ -35,31 +36,54 @@ A token, or a literal value for a variable named like `password`, `secret`, `pas
 
 The server alias `env` is reserved for the server defined by `BAM_URL` and is rejected if a config file defines a server by that name.
 
-## Targets (run presets)
+## Presets
+
+A preset is a plan plus the variable values you run it with. Personal presets live in your presets file; team presets live under `targets:` in `.bam.yaml`.
+
+    # ~/bam/presets.yaml
+    presets:
+      deploy-qa:
+        plan: PROJ-DEPLOY
+        branch: main
+        variables:
+          target_env: qa
+          api_token: "${DEPLOY_TOKEN}"
+        required: [version]
 
 | Field | Meaning |
 | --- | --- |
 | `plan` | plan key (required) |
 | `server` | server alias, if not the default |
 | `branch` | default plan branch; `--branch` overrides |
-| `defaults` | variable values; `--from` and `--var` override |
+| `variables` | variable values; `--from` and `--var` override. `defaults` is its older name, accepted everywhere; use one or the other in a preset |
 | `options` | allowed values per variable; anything else is refused before triggering |
 | `required` | variables that must have a value |
 | `watch` | watch by default; `--watch=false` overrides |
 | `timeout` | default `--timeout` |
 
-Generate a target from a plan's declared variables instead of typing it:
+Generate a preset from a plan's declared variables instead of typing it:
 
     bam preset add mine --plan PROJ-PROV                        # personal: ~/bam/presets.yaml
     bam preset add provision-lab --plan PROJ-PROV --branch develop --shared   # .bam.yaml, committed
     bam preset add x --plan PROJ-PROV --print                   # show only
+
+Use them:
+
+    bam preset list                    # every preset, and the presets file's path
+    bam preset show deploy-qa          # merged values and the file each came from
+    bam run deploy-qa --dry-run        # resolve and check, trigger nothing
+    bam run deploy-qa --var version=2.4.1 --watch
+
+**Where presets come from**, lowest to highest: `.bam.yaml` `targets`, machine file `targets`, the presets file, machine file `repos.<root>.targets`. A preset with the same name in several files is merged field by field.
+
+**Where the presets file is**: `BAM_PRESETS` if set; else `~/bam/presets.yaml`; in WSL with no file in the Linux home, the presets file in your Windows home, so Git Bash and WSL share it. See [Presets](presets.md#one-presets-file-for-git-bash-wsl-and-macos).
 
 When the plan's variables change later, bring the preset up to date:
 
     bam preset sync provision-lab     # add new plan variables, mark removed ones
     bam preset sync --all --dry-run   # show what every preset would gain, write nothing
 
-Sync appends new variables to `defaults` with the same values and comments as `preset add`. A variable the plan no longer declares is kept, because it may override a Bamboo global, and marked `# not declared on PROJ-PROV`; the marker goes away if the plan declares it again. Existing values, `options` and `required` are never changed.
+Sync appends new variables to `variables` (or `defaults`, whichever the preset uses) with the same values and comments as `preset add`. A variable the plan no longer declares is kept, because it may override a Bamboo global, and marked `# not declared on PROJ-PROV`; the marker goes away if the plan declares it again. Existing values, `options` and `required` are never changed.
 
 Variable precedence, lowest to highest: plan values, target `defaults`, `--from <build>`, `--var name=value`, then what you change in the editor with `bam run --edit`.
 

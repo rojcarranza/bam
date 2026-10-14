@@ -272,9 +272,9 @@ what `bam watch` and the UI's watch view need. `bam build cancel` stops it.
 `-queued` and `-running` change those durations.
 
 Presets are configuration, not server state, so `bam preset list` and
-`bam run <preset>` still need a `.bam.yaml` or a machine file. Write one
-against the stub's keys (`PROJ-BUILD`, `OPS-BUILD`) and keep it out of the
-repository, or point `BAM_CONFIG` at a throwaway file.
+`bam run <preset>` still need a presets file. Point `BAM_PRESETS` at a
+throwaway one written against the stub's keys (`PROJ-BUILD`, `OPS-BUILD`), so
+your real `~/bam/presets.yaml` stays untouched.
 
 ## Your Bamboo for development
 

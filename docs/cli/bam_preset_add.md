@@ -2,8 +2,24 @@
 
 Generate a run preset from a plan's declared variables
 
+### Synopsis
+
+add reads the plan's declared variables from Bamboo and writes a preset named <name>.
+It writes your presets file (~/bam/presets.yaml, or BAM_PRESETS), whose presets work in every
+directory; --shared writes the repository's .bam.yaml instead. Edit the values under variables,
+then run it with bam run <name>.
+
 ```
 bam preset add <name> --plan KEY [flags]
+```
+
+### Examples
+
+```
+  bam preset add deploy-qa --plan PROJ-DEPLOY
+  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last
+  bam preset add provision-lab --plan PROJ-PROV --shared
+  bam run deploy-qa --dry-run
 ```
 
 ### Options

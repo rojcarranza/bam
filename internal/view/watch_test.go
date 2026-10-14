@@ -42,7 +42,7 @@ func TestRunPlanAndQueued(t *testing.T) {
 	o, buf := testOut(true)
 	vs := app.VarSet{Vars: []app.ResolvedVar{
 		{Name: "env", Value: "staging", Source: "flag"},
-		{Name: "region", Value: "eu", Source: "target"},
+		{Name: "region", Value: "eu", Source: "preset"},
 		{Name: "db_password", Value: "hunter2", Source: "env", Secret: true},
 		{Name: "debug", Value: "false", Source: "plan", Declared: true, PlanValue: "false"},
 	}}
@@ -50,7 +50,7 @@ func TestRunPlanAndQueued(t *testing.T) {
 	Queued(o, provider.Build{Key: "PROJ-BUILD12-44", URL: url44}, false, "")
 	assert.Equal(t, ""+
 		"Plan     PROJ-BUILD  (branch develop, PROJ-BUILD12)\n"+
-		"Vars     env=staging (flag)  region=eu (target)  db_password=******** (env)  +1 plan defaults\n"+
+		"Vars     env=staging (flag)  region=eu (preset)  db_password=******** (env)  +1 plan defaults\n"+
 		"✓ Queued   PROJ-BUILD12-44   "+url44+"\n"+
 		"  watch: bam watch PROJ-BUILD12-44\n", buf.String())
 }

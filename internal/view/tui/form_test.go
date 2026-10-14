@@ -33,7 +33,7 @@ func sampleBase() app.VarSet {
 		Declared:      map[string]bool{"cluster_name": true, "cluster_type": true, "ssh_key": true},
 		Vars: []app.ResolvedVar{
 			{Name: "cluster_name", Declared: true, Source: "plan"},
-			{Name: "cluster_type", Value: "k8s", PlanValue: "k8s", Source: "target", Declared: true},
+			{Name: "cluster_type", Value: "k8s", PlanValue: "k8s", Source: "preset", Declared: true},
 			{Name: "ssh_key", Value: app.MaskedDisplay, PlanValue: app.MaskedDisplay, Source: "plan", Declared: true, Secret: true},
 		},
 	}
@@ -50,7 +50,7 @@ func TestBuildFieldsCarriesSourceRequiredAndOptions(t *testing.T) {
 	require.Equal(t, "cluster_type", fs[1].Name)
 	require.Equal(t, []string{"k8s", "dcos"}, fs[1].Options)
 	require.False(t, fs[1].Required)
-	require.Equal(t, "target", fs[1].Source)
+	require.Equal(t, "preset", fs[1].Source)
 
 	require.Equal(t, "ssh_key", fs[2].Name)
 	require.True(t, fs[2].Secret)
@@ -366,7 +366,7 @@ func TestFillingTheFieldClearsTheMark(t *testing.T) {
 // TestAnUnsetEnvReferenceNamesTheVariableAndBlocksRun.
 func TestAnUnsetEnvReferenceNamesTheVariableAndBlocksRun(t *testing.T) {
 	base := sampleBase()
-	base.Vars = append(base.Vars, app.ResolvedVar{Name: "token", Value: "${LAB_TOKEN}", Source: "target"})
+	base.Vars = append(base.Vars, app.ResolvedVar{Name: "token", Value: "${LAB_TOKEN}", Source: "preset"})
 	ref := sampleRef()
 	ref.Target.Defaults = config.StringMap{"cluster_type": "k8s", "token": "${LAB_TOKEN}"}
 

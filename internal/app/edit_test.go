@@ -25,9 +25,9 @@ func editOpened() VarSet {
 		Vars: []ResolvedVar{
 			{Name: "api_token", Value: "********", PlanValue: "********", Source: "plan", Declared: true, Secret: true},
 			{Name: "cluster_name", Value: "alpha", Source: "flag", Declared: true},
-			{Name: "cluster_type", Value: "k8s", PlanValue: "k8s", Source: "target", Declared: true},
+			{Name: "cluster_type", Value: "k8s", PlanValue: "k8s", Source: "preset", Declared: true},
 			{Name: "compute_nodes", Value: "3", PlanValue: "1", Source: "from #8", Declared: true},
-			{Name: "db_password", Value: "${LAB_DB_PASSWORD}", Source: "target", Secret: true},
+			{Name: "db_password", Value: "${LAB_DB_PASSWORD}", Source: "preset", Secret: true},
 		}}
 }
 
@@ -43,11 +43,11 @@ const editRowsText = "" +
 	"api_token=********\n" +
 	"# flag (plan: empty), required\n" +
 	"cluster_name=alpha\n" +
-	"# target, options: k8s|dcos\n" +
+	"# preset, options: k8s|dcos\n" +
 	"cluster_type=k8s\n" +
 	"# from #8 (plan: \"1\")\n" +
 	"compute_nodes=3\n" +
-	"# target, ${LAB_DB_PASSWORD} unset, secret\n" +
+	"# preset, ${LAB_DB_PASSWORD} unset, secret\n" +
 	"db_password=********\n" +
 	"# options: eu|us\n" +
 	"region=\n" +
@@ -71,7 +71,7 @@ func TestEditBufferNeverHoldsASecret(t *testing.T) {
 	got := string(EditBuffer(editRef(), opened, env, "work", false, nil))
 	assert.NotContains(t, got, "hunter2")
 	assert.NotContains(t, got, "tok-123")
-	assert.Contains(t, got, "# target, ${LAB_DB_PASSWORD} set, secret\ndb_password=********\n")
+	assert.Contains(t, got, "# preset, ${LAB_DB_PASSWORD} set, secret\ndb_password=********\n")
 }
 
 func TestEditBufferShowsAnEmptySecretAsEmpty(t *testing.T) {
@@ -91,9 +91,9 @@ func TestEditBufferForAPlanOnTheDefaultBranch(t *testing.T) {
 
 func TestEditBufferPutsProblemsFirst(t *testing.T) {
 	got := string(EditBuffer(editRef(), editOpened(), emptyEnv, "work", false,
-		[]string{"cluster_type=\"nomad\" is not allowed by target provision-lab\nallowed: k8s, dcos", "line 3 is not name=value"}))
+		[]string{"cluster_type=\"nomad\" is not allowed by preset provision-lab\nallowed: k8s, dcos", "line 3 is not name=value"}))
 	assert.Equal(t, ""+
-		"# error: cluster_type=\"nomad\" is not allowed by target provision-lab\n"+
+		"# error: cluster_type=\"nomad\" is not allowed by preset provision-lab\n"+
 		"#   allowed: k8s, dcos\n"+
 		"# error: line 3 is not name=value\n"+
 		"#\n"+

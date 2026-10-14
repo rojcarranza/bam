@@ -53,7 +53,7 @@ func SyncTarget(path string, keyPath []string, name string, e TargetEdit, write 
 	}
 	target := mappingValue(parent, name)
 	if target == nil || target.Kind != yaml.MappingNode {
-		return ch, errs.Configf("no target %q under %s in %s", name, strings.Join(keyPath, "."), path)
+		return ch, errs.Configf("no preset %q under %s in %s", name, strings.Join(keyPath, "."), path)
 	}
 
 	defaults := mappingValue(target, "defaults")

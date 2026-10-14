@@ -60,7 +60,7 @@ const (
 // homeColNames are the column names :sort accepts, per table, in homeCol order.
 var homeColNames = map[homeView][]string{
 	homePlans:    {"key", "name", "state", "age"},
-	homePresets:  {"target", "plan", "state", "age"},
+	homePresets:  {"preset", "plan", "state", "age"},
 	homeSets:     {"set", "state", "age"},
 	homeProjects: {"key", "name"},
 }
@@ -461,13 +461,13 @@ func (m *Model) sortPresets() {
 
 // presetColumns fits the presets table to width; BRANCH takes what is left.
 func presetColumns(width int, rows []app.TargetInfo) []tableCol {
-	nameW, planW := len("TARGET"), len("PLAN")
+	nameW, planW := len("PRESET"), len("PLAN")
 	for _, t := range rows {
 		nameW = max(nameW, lipgloss.Width(t.Name))
 		planW = max(planW, lipgloss.Width(t.Plan))
 	}
 	cols := []tableCol{
-		{title: "TARGET", width: min(nameW, 24)},
+		{title: "PRESET", width: min(nameW, 24)},
 		{title: "PLAN", width: min(planW, 24)},
 		{title: "BRANCH"},
 		{title: "STATE", width: 11},
@@ -488,7 +488,7 @@ func presetCells(cols []tableCol, t app.TargetInfo, last *provider.BuildSummary,
 	out := make([]string, len(cols))
 	for i, c := range cols {
 		switch c.title {
-		case "TARGET":
+		case "PRESET":
 			out[i] = t.Name
 		case "PLAN":
 			out[i] = t.Plan

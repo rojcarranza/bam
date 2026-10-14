@@ -6,7 +6,7 @@ bam reads four layers. Only the last is secret.
 | --- | --- | --- | --- |
 | Project | `.bam.yaml` at the repository root | yes | servers, projects, team presets (`targets:`) |
 | Machine | `~/.config/bam/config.yaml` (`BAM_CONFIG` overrides) | no | your own servers, overrides, preferences |
-| Presets | `~/bam/presets.yaml` (`BAM_PRESETS` overrides) | no | your personal presets, usable in every directory |
+| Presets | `~/bam/presets/*.yaml` and `~/bam/presets.yaml` (`BAM_PRESETS` overrides) | no | your personal presets, usable in every directory |
 | Credentials | OS keychain, an env variable, or `~/.config/bam/credentials.yaml` (0600) | never | tokens only |
 
 bam looks for `.bam.yaml` from the current directory up to the git root (or your home directory outside a repository).
@@ -38,9 +38,9 @@ The server alias `env` is reserved for the server defined by `BAM_URL` and is re
 
 ## Presets
 
-A preset is a plan plus the variable values you run it with. Personal presets live in your presets file; team presets live under `targets:` in `.bam.yaml`.
+A preset is a plan plus the variable values you run it with. Personal presets live in your presets files; team presets live under `targets:` in `.bam.yaml`.
 
-    # ~/bam/presets.yaml
+    # ~/bam/presets/proj.yaml
     presets:
       deploy-qa:
         plan: PROJ-DEPLOY
@@ -63,7 +63,8 @@ A preset is a plan plus the variable values you run it with. Personal presets li
 
 Generate a preset from a plan's declared variables instead of typing it:
 
-    bam preset add mine --plan PROJ-PROV                        # personal: ~/bam/presets.yaml
+    bam preset add mine --plan PROJ-PROV                        # personal: ~/bam/presets/proj.yaml
+    bam preset add pkg --plan PROJ-PKG --file custom-presets    # personal: ~/bam/presets/custom-presets.yaml
     bam preset add provision-lab --plan PROJ-PROV --branch develop --shared   # .bam.yaml, committed
     bam preset add x --plan PROJ-PROV --print                   # show only
 
@@ -71,14 +72,14 @@ Presets from an older bam that still live in the machine file (`targets:`, or un
 
 Use them:
 
-    bam preset list                    # every preset, and the presets file's path
+    bam preset list                    # every preset and the file it is in
     bam preset show deploy-qa          # merged values and the file each came from
     bam run deploy-qa --dry-run        # resolve and check, trigger nothing
     bam run deploy-qa --var version=2.4.1 --watch
 
-**Where presets come from**, lowest to highest: `.bam.yaml` `targets`, machine file `targets`, the presets file, machine file `repos.<root>.targets`. A preset with the same name in several files is merged field by field.
+**Where presets come from**, lowest to highest: `.bam.yaml` `targets`, machine file `targets`, the presets file and presets directory, machine file `repos.<root>.targets`. A preset with the same name in several of these layers is merged field by field. Within the presets layer no file outranks another: the same name in `~/bam/presets.yaml` and a file of `~/bam/presets/`, or in two files of the directory, is a config error naming both.
 
-**Where the presets file is**: `BAM_PRESETS` if set; else `~/bam/presets.yaml`; in WSL with no file in the Linux home, the presets file in your Windows home, so Git Bash and WSL share it. See [Presets](presets.md#one-presets-file-for-git-bash-wsl-and-macos).
+**Where the presets files are**: the presets directory is always the `presets/` directory beside the presets file, and every `*.yaml` and `*.yml` in it is read (other and hidden files are ignored). The presets file is `BAM_PRESETS` if set; else `~/bam/presets.yaml`; in WSL with neither `~/bam/presets.yaml` nor `~/bam/presets/` in the Linux home, the ones in your Windows home, so Git Bash and WSL share them. `bam preset add` writes `presets/<project>.yaml` (or `presets/<NAME>.yaml` with `--file NAME`); `bam preset migrate` writes the presets file. See [Presets](presets.md#one-presets-directory-for-git-bash-wsl-and-macos).
 
 When the plan's variables change later, bring the preset up to date:
 

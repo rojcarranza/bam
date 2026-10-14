@@ -22,6 +22,12 @@ type Env struct {
 	Token  string // BAM_TOKEN
 }
 
+// PresetsSource is one file of the presets directory and its presets.
+type PresetsSource struct {
+	Path    string
+	Presets map[string]Target
+}
+
 // Config is both layers as loaded, before merging.
 type Config struct {
 	Project     *ProjectFile // nil when the repository has no .bam.yaml
@@ -30,9 +36,11 @@ type Config struct {
 	ProjectPath string
 	MachinePath string
 	PresetsPath string // the personal presets file, whether or not it exists
-	RepoRoot    string // git root, or the working directory outside a repository
-	Home        string // user home, for ~ in repos keys
-	Env         Env
+	// PresetsDirFiles are the files of PresetsDir(PresetsPath), sorted by path.
+	PresetsDirFiles []PresetsSource
+	RepoRoot        string // git root, or the working directory outside a repository
+	Home            string // user home, for ~ in repos keys
+	Env             Env
 }
 
 type LoadOptions struct {
@@ -158,6 +166,12 @@ func Load(o LoadOptions) (*Config, error) {
 			return nil, err
 		}
 		cfg.Presets = pf
+		if cfg.PresetsDirFiles, err = loadPresetsDir(PresetsDir(o.PresetsFile)); err != nil {
+			return nil, err
+		}
+		if err := checkDuplicatePresets(cfg); err != nil {
+			return nil, err
+		}
 	}
 	if err := validateFiles(cfg); err != nil {
 		return nil, err
@@ -214,6 +228,80 @@ func loadPresets(path string) (*PresetsFile, error) {
 		return nil, err
 	}
 	return &pf, nil
+}
+
+// loadPresetsDir reads every *.yaml and *.yml in dir, sorted by name. A
+// missing directory has no presets; other files, subdirectories and hidden
+// files are ignored.
+func loadPresetsDir(dir string) ([]PresetsSource, error) {
+	entries, err := os.ReadDir(dir)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, nil
+	case err != nil:
+		return nil, errs.Configf("cannot read the presets directory %s", dir).Wrap(err)
+	}
+	var out []PresetsSource
+	for _, e := range entries {
+		if !IsPresetsFileName(e.Name()) {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		if st, err := os.Stat(path); err != nil || st.IsDir() {
+			continue
+		}
+		pf, err := loadPresets(path)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, PresetsSource{Path: path, Presets: pf.Presets})
+	}
+	return out, nil
+}
+
+// IsPresetsFileName reports whether a file in the presets directory is read:
+// a .yaml or .yml file that is not hidden.
+func IsPresetsFileName(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	return !strings.HasPrefix(name, ".") && (ext == ".yaml" || ext == ".yml")
+}
+
+// presetsSources lists the presets file and every file of the presets
+// directory, the presets file first.
+func (c *Config) presetsSources() []PresetsSource {
+	var out []PresetsSource
+	if c.Presets != nil {
+		out = append(out, PresetsSource{Path: c.PresetsPath, Presets: c.Presets.Presets})
+	}
+	return append(out, c.PresetsDirFiles...)
+}
+
+// IsPresetsPath reports whether path is the presets file or a file of the
+// presets directory.
+func (c *Config) IsPresetsPath(path string) bool {
+	for _, s := range c.presetsSources() {
+		if s.Path == path {
+			return true
+		}
+	}
+	return false
+}
+
+// checkDuplicatePresets refuses a preset name defined in two presets files:
+// names are global, and no presets file outranks another.
+func checkDuplicatePresets(c *Config) error {
+	seen := map[string]string{}
+	for _, s := range c.presetsSources() {
+		for _, name := range sortedKeys(s.Presets) {
+			if first, ok := seen[name]; ok {
+				return errs.Configf("preset %q is defined in both %s and %s", name, first, s.Path).
+					WithWhy("preset names are shared by every presets file, so one name can live in one file only").
+					WithTry("remove or rename one of them")
+			}
+			seen[name] = s.Path
+		}
+	}
+	return nil
 }
 
 // normalizeTargets moves variables into defaults, its older name, and

@@ -177,7 +177,8 @@ type TargetLayer struct {
 }
 
 // Targets merges targets by name: project, then machine top-level, then the
-// presets file, then the machine repos entry for this repository. It validates the merged result.
+// presets file and directory, then the machine repos entry for this
+// repository. It validates the merged result.
 func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 	out := map[string]ResolvedTarget{}
 	layer := func(label, path string, keyPath []string, targets map[string]Target) {
@@ -194,8 +195,8 @@ func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 		layer(c.ProjectPath, c.ProjectPath, []string{"targets"}, c.Project.Targets)
 	}
 	layer(c.MachinePath, c.MachinePath, []string{"targets"}, c.Machine.Targets)
-	if c.Presets != nil {
-		layer(c.PresetsPath, c.PresetsPath, []string{"presets"}, c.Presets.Presets)
+	for _, s := range c.presetsSources() {
+		layer(s.Path, s.Path, []string{"presets"}, s.Presets)
 	}
 	if key, repo, ok := c.repoEntry(); ok {
 		layer(c.MachinePath+" (repos)", c.MachinePath, []string{"repos", key, "targets"}, repo.Targets)

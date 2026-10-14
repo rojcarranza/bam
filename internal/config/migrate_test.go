@@ -211,3 +211,20 @@ targets:
 	assert.Equal(t, "PROJ-BASE", all["derived"].Plan)
 	assert.Equal(t, "PROJ-PLAIN", all["plain"].Plan)
 }
+
+func TestMigrateTargetsSkipsNamesInThePresetsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "config.yaml")
+	presets := filepath.Join(dir, "bam", "presets.yaml")
+	proj := filepath.Join(dir, "bam", "presets", "proj.yaml")
+	writeFile(t, machine, machineWithTargets)
+	writeFile(t, proj, "presets:\n  prov:\n    plan: PROJ-PROV\n")
+
+	res, err := MigrateTargets(machine, presets, true)
+	require.NoError(t, err)
+	assert.Equal(t, []MigrateSkip{{Name: "prov", From: "repos./home/jdoe/src/repo.targets", Reason: "already in " + proj}}, res.Skipped)
+	assert.Len(t, res.Moved, 2)
+
+	_, err = Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, PresetsFile: presets, Getenv: noEnv})
+	require.NoError(t, err, "no preset ends up in two presets files")
+}

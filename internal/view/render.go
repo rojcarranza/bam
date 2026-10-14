@@ -282,9 +282,13 @@ func yesNo(b bool) string {
 }
 
 func Targets(o Out, ts []app.TargetInfo) error {
-	t := Table{Headers: []string{"PRESET", "PLAN", "BRANCH", "SERVER", "WATCH"}}
+	t := Table{Headers: []string{"PRESET", "PLAN", "BRANCH", "SERVER", "WATCH", "DEFINED IN"}}
 	for _, x := range ts {
-		t.Rows = append(t.Rows, []string{x.Name, x.Plan, dashIfEmpty(x.Branch), serverLabel(x.Server), yesNo(x.Watch)})
+		where := "-"
+		if n := len(x.DefinedIn); n > 0 {
+			where = x.DefinedIn[n-1]
+		}
+		t.Rows = append(t.Rows, []string{x.Name, x.Plan, dashIfEmpty(x.Branch), serverLabel(x.Server), yesNo(x.Watch), where})
 	}
 	return t.Render(o)
 }

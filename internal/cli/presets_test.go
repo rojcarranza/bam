@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -343,4 +344,30 @@ func TestPresetMigrateJSONAndSkips(t *testing.T) {
 	require.Len(t, skipped, 1)
 	assert.Equal(t, "pkg-a", skipped[0].(map[string]any)["name"])
 	assert.Contains(t, skipped[0].(map[string]any)["reason"], "already in")
+}
+
+func TestPresetListAndSyncUseThePresetsDirectory(t *testing.T) {
+	h := newHarness(t)
+	dir := filepath.Join(h.home, "bam", "presets")
+	path := filepath.Join(dir, "proj.yaml")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(`# PROJ presets
+presets:
+  lab-dir:
+    plan: PROJ-PROV # provisioning
+    variables:
+      cluster_type: dcos # the old one
+`), 0o600))
+
+	assert.Equal(t, 0, h.run("preset", "list"))
+	assert.Regexp(t, `lab-dir\s+PROJ-PROV\s+\S+\s+\(default\)\s+no\s+`+regexp.QuoteMeta(path), h.stdout.String())
+	assert.Regexp(t, `build\s+PROJ-BUILD.*`+regexp.QuoteMeta(filepath.Join(h.root, ".bam.yaml")), h.stdout.String())
+	assert.Contains(t, h.stderr.String(), "presets dir:  "+dir)
+
+	assert.Equal(t, 0, h.run("preset", "sync", "lab-dir"))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	s := string(data)
+	assert.True(t, strings.HasPrefix(s, "# PROJ presets\npresets:\n  lab-dir:\n    plan: PROJ-PROV # provisioning\n"), s)
+	assert.Contains(t, s, "      cluster_type: dcos # the old one\n      cluster_name: \"\"")
 }

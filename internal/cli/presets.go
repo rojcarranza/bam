@@ -36,7 +36,7 @@ func defaultTargetName(planKey string) string {
 func newTargetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List run presets from your presets file, .bam.yaml and the machine config",
+		Short: "List run presets from your presets files, .bam.yaml and the machine config",
 		Args:  cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
@@ -50,6 +50,7 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 			loc := r.presets()
 			if !r.flags.json {
 				fmt.Fprintln(r.env.Stderr, "presets file: "+loc.Path)
+				fmt.Fprintln(r.env.Stderr, "presets dir:  "+config.PresetsDir(loc.Path))
 				if loc.Note != "" {
 					fmt.Fprintln(r.env.Stderr, "  note: "+loc.Note)
 				}

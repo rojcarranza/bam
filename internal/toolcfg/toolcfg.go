@@ -120,7 +120,7 @@ func (l *Loaded) PlanFor(name string) (plan, server string, err error) {
 		return "", "", err
 	}
 	if !ok {
-		e := errs.Configf("no target %q", name).WithTry("bam preset list")
+		e := errs.Configf("no preset %q", name).WithTry("bam preset list")
 		if names := l.targetNames(); len(names) > 0 {
 			e = e.WithWhy("presets here: " + strings.Join(names, ", "))
 		}

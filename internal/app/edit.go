@@ -84,7 +84,7 @@ func (r editRow) comment(getenv func(string) string, note string) string {
 		}
 		parts = append(parts, src)
 	}
-	if r.V.Source == "target" {
+	if r.V.Source == "preset" {
 		if name, ok := config.EnvRef(r.V.Value); ok {
 			state := "unset"
 			if getenv(name) != "" {

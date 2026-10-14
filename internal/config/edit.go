@@ -29,7 +29,7 @@ func WriteTarget(path string, keyPath []string, d TargetDraft, force bool) error
 	}
 	var snippet yaml.Node
 	if err := yaml.Unmarshal([]byte(d.RenderAs("", VarsKey(keyPath))), &snippet); err != nil {
-		return fmt.Errorf("generated YAML for target %q does not parse: %w", d.Name, err)
+		return fmt.Errorf("generated YAML for preset %q does not parse: %w", d.Name, err)
 	}
 	m := snippet.Content[0]
 	setKey(parent, m.Content[0], m.Content[1])

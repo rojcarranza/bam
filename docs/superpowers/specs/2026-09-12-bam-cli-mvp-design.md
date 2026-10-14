@@ -363,7 +363,7 @@ PROJ-PLAN7-12    ✗ failed    feat/foo   1h ago    3m40s     Manual run by jdoe
 
 ```
 Plan     PROJ-BUILD  (branch develop, PROJ-BUILD12)
-Vars     env=staging (flag)  region=eu (target)
+Vars     env=staging (flag)  region=eu (preset)
 ✓ Queued   PROJ-BUILD12-44   https://bamboo.example.com/browse/PROJ-BUILD12-44
 ▸ Running  agent linux-3     2m03s
 

@@ -142,7 +142,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 			return "", err
 		}
 		if !ok {
-			return "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <target>")
+			return "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
 		}
 		if rec.Origin != "" && rec.Origin != s.Origin {
 			return "", errs.Configf("the last build %s ran on %s, not on server %q", rec.BuildKey, rec.Origin, s.Server.Alias).
@@ -152,7 +152,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 	case IsBuildKey(a.Arg):
 		return a.Arg, nil
 	case a.Arg == "":
-		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a target, or --last")
+		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
 	}
 	ref, err := s.ResolvePlan(ctx, a.Arg, a.Branch)
 	if err != nil {

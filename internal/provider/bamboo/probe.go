@@ -55,7 +55,7 @@ func (c *Client) Probe(ctx context.Context, planKey string) []ProbeResult {
 
 	vars, err := c.ListVariables(ctx, planKey)
 	add("plan variables", err, fmt.Sprintf("%d declared on %s", len(vars), planKey),
-		"names come from past builds and target defaults")
+		"names come from past builds and preset defaults")
 
 	builds, err := c.ListBuilds(ctx, planKey, provider.ListOptions{Limit: 1})
 	switch {

@@ -273,7 +273,7 @@ Output rules:
 - The file is edited through the `yaml.v3` Node API so existing comments and key order survive.
 - After writing, stderr prints `review before commit: values copied from Bamboo`.
 
-`preset migrate [--dry-run]` moves the machine file's targets (top-level and every `repos.<root>.targets`) into the presets file, renaming `defaults` to `variables` and keeping comments; a name already in the presets file or defined more than once in the machine file is left and reported; emptied `targets` maps and `repos` entries are removed; `.bam.yaml` is never touched.
+`preset migrate [--dry-run]` moves the machine file's targets (top-level and every `repos.<root>.targets`) into the presets file, renaming `defaults` to `variables` and keeping comments; a name already in the presets file, defined more than once in the machine file, or using YAML anchors is left and reported; an invalid presets file stops it before any write; emptied `targets` maps and `repos` entries are removed; `.bam.yaml` is never touched.
 
 `preset add` writes to the presets file (§3.4) under `presets:`, creating it when needed. `--shared` writes to the discovered project file under `targets:`; with no project file it fails and suggests `bam init`. `--print` writes the YAML to stdout and touches no file. An existing target name fails unless `--force`.
 

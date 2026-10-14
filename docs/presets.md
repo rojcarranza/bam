@@ -77,7 +77,7 @@ Presets made with an older bam live in your machine config (`~/.config/bam/confi
     bam preset migrate --dry-run     # what would move
     bam preset migrate
 
-Each preset keeps its values and comments; `defaults:` becomes `variables:`. A name that is already in your presets file, or that appears in more than one place in the machine config, stays where it is and the output says why. `.bam.yaml` is never touched. Afterwards `bam preset show <name>` says `Defined in ~/bam/presets.yaml`.
+Each preset keeps its values and comments; `defaults:` becomes `variables:`. A name that is already in your presets file, or that appears in more than one place in the machine config, or that uses YAML anchors (`&name`, `*name`, `<<:`), stays where it is and the output says why. If your presets file is not valid, migrate stops and changes nothing. `.bam.yaml` is never touched. Afterwards `bam preset show <name>` says `Defined in ~/bam/presets.yaml`.
 
 ### One presets file for Git Bash, WSL and macOS
 

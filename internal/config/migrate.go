@@ -76,9 +76,17 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 		return res, nil
 	}
 
+	// Refuse a presets file bam cannot load before touching it, so a value
+	// such as "presets: []" is reported instead of replaced.
+	if _, err := loadPresets(presetsPath); err != nil {
+		return res, err
+	}
 	pdoc, err := loadDocVersion(presetsPath, false)
 	if err != nil {
 		return res, err
+	}
+	if v := mappingValue(pdoc.Content[0], "presets"); v != nil && v.Kind != yaml.MappingNode && v.Tag != "!!null" {
+		return res, errs.Configf("%s: presets must be a mapping", presetsPath)
 	}
 	presets := ensureMapping(pdoc.Content[0], "presets")
 
@@ -97,6 +105,10 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 			res.Skipped = append(res.Skipped, MigrateSkip{Name: name, From: s.from,
 				Reason: "already in " + presetsPath})
 			continue
+		case usesAnchors(s.key) || usesAnchors(s.value):
+			res.Skipped = append(res.Skipped, MigrateSkip{Name: name, From: s.from,
+				Reason: "uses YAML anchors or aliases; move it by hand"})
+			continue
 		}
 		if k := mappingKey(s.value, "defaults"); k != nil && mappingValue(s.value, "variables") == nil {
 			k.Value = "variables"
@@ -111,6 +123,9 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 
 	pruneEmptyTargets(root)
 	if err := checkPresetsDoc(pdoc, presetsPath); err != nil {
+		return res, err
+	}
+	if err := checkMachineDoc(mdoc, machinePath); err != nil {
 		return res, err
 	}
 	// The presets file first: if the machine file then fails to save, the
@@ -177,4 +192,40 @@ func checkPresetsDoc(doc *yaml.Node, path string) error {
 		return errs.Configf("migrating would leave %s invalid", path).WithWhy(strings.TrimSpace(err.Error())).Wrap(err)
 	}
 	return normalizeTargets(path, "presets", pf.Presets)
+}
+
+// usesAnchors reports whether n or anything under it defines an anchor, is
+// an alias, or holds a merge key. Moving such a node to another file could
+// leave an alias without its anchor.
+func usesAnchors(n *yaml.Node) bool {
+	if n == nil {
+		return false
+	}
+	if n.Anchor != "" || n.Kind == yaml.AliasNode || n.Tag == "!!merge" {
+		return true
+	}
+	for _, c := range n.Content {
+		if usesAnchors(c) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkMachineDoc decodes the machine file about to be written, so a
+// migration never leaves it unloadable.
+func checkMachineDoc(doc *yaml.Node, path string) error {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	if err := enc.Encode(doc); err != nil {
+		return err
+	}
+	if err := enc.Close(); err != nil {
+		return err
+	}
+	var mf MachineFile
+	if err := decodeStrict(buf.Bytes(), path, &mf); err != nil {
+		return errs.Configf("migrating would leave %s invalid", path).WithWhy(strings.TrimSpace(err.Error())).Wrap(err)
+	}
+	return nil
 }

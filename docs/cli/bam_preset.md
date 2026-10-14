@@ -1,6 +1,6 @@
 ## bam preset
 
-Run presets: list, show, add, sync
+Run presets: list, show, add, sync, migrate
 
 ```
 bam preset [flags]

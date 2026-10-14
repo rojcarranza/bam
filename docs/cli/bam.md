@@ -34,7 +34,7 @@ bam [flags]
 * [bam logs](bam_logs.md)	 - Print job logs; --failed for failed jobs only
 * [bam open](bam_open.md)	 - Open a project, plan, build or job in the browser
 * [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync, migrate
 * [bam project](bam_project.md)	 - Bamboo projects
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables
 * [bam server](bam_server.md)	 - Manage Bamboo server aliases

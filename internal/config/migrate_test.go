@@ -156,3 +156,58 @@ func TestMigrateTargetsNothingToMove(t *testing.T) {
 	m, _ := os.ReadFile(machine)
 	assert.Equal(t, "version: 1\ncolor: auto\n", string(m))
 }
+
+func TestMigrateTargetsRefusesAnInvalidPresetsFile(t *testing.T) {
+	for name, body := range map[string]string{
+		"list":   "presets: []\n",
+		"scalar": "presets: old-value\n",
+		"key":    "targets: {}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			machine := filepath.Join(dir, "config.yaml")
+			presets := filepath.Join(dir, "presets.yaml")
+			writeFile(t, machine, machineWithTargets)
+			writeFile(t, presets, body)
+
+			_, err := MigrateTargets(machine, presets, true)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), presets)
+			p, _ := os.ReadFile(presets)
+			assert.Equal(t, body, string(p), "the presets file is untouched")
+			m, _ := os.ReadFile(machine)
+			assert.Equal(t, machineWithTargets, string(m), "the machine file is untouched")
+		})
+	}
+}
+
+func TestMigrateTargetsSkipsYAMLAnchors(t *testing.T) {
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "config.yaml")
+	presets := filepath.Join(dir, "presets.yaml")
+	body := `version: 1
+targets:
+  base: &base
+    plan: PROJ-BASE
+    defaults: {env: qa}
+  derived:
+    <<: *base
+    branch: develop
+  plain:
+    plan: PROJ-PLAIN
+`
+	writeFile(t, machine, body)
+
+	res, err := MigrateTargets(machine, presets, true)
+	require.NoError(t, err)
+	assert.Equal(t, []MigrateMove{{Name: "plain", From: "targets"}}, res.Moved)
+	require.Len(t, res.Skipped, 2)
+	assert.Contains(t, res.Skipped[0].Reason, "YAML anchors")
+
+	cfg, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, PresetsFile: presets, Getenv: noEnv})
+	require.NoError(t, err, "both files still load")
+	all, err := cfg.Targets()
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BASE", all["derived"].Plan)
+	assert.Equal(t, "PROJ-PLAIN", all["plain"].Plan)
+}

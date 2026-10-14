@@ -1,9 +1,9 @@
 ## bam run
 
-Trigger a plan or target with variables
+Trigger a plan or preset with variables
 
 ```
-bam run <plan|target> [flags]
+bam run <plan|preset> [flags]
 ```
 
 ### Options

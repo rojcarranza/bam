@@ -11,13 +11,13 @@ stage that has not started yet can still be queued afterwards. Check the
 result with bam build show.
 
 ```
-bam build cancel [<build>|<plan>|<target>] [flags]
+bam build cancel [<build>|<plan>|<preset>] [flags]
 ```
 
 ### Options
 
 ```
-      --branch string   plan branch when a plan or target is given
+      --branch string   plan branch when a plan or preset is given
   -h, --help            help for cancel
       --last            the last build bam triggered from this repository
 ```

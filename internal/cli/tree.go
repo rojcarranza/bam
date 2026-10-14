@@ -21,7 +21,7 @@ func newBuildTreeCmd(r *runtime) *cobra.Command {
 	var branch string
 	var depth int
 	cmd := &cobra.Command{
-		Use:   "tree [<build>|<plan>|<target>]",
+		Use:   "tree [<build>|<plan>|<preset>]",
 		Short: "Show a build and every build it triggered, as a tree",
 		Long: `Show a build and every build it triggered, as a tree.
 
@@ -74,7 +74,7 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 	}
 	f := cmd.Flags()
 	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	f.StringVar(&branch, "branch", "", "plan branch when a plan or target is given")
+	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
 	f.BoolVar(&watch, "watch", false, "follow the tree until every build has finished")
 	f.BoolVar(&failed, "failed", false, "show only the branches that lead to a failure")
 	f.BoolVar(&rerun, "rerun-failed", false, "restart the failed builds whose parents succeeded, then follow the tree")

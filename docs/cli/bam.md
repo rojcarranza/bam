@@ -36,7 +36,7 @@ bam [flags]
 * [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
 * [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync
 * [bam project](bam_project.md)	 - Bamboo projects
-* [bam run](bam_run.md)	 - Trigger a plan or target with variables
+* [bam run](bam_run.md)	 - Trigger a plan or preset with variables
 * [bam server](bam_server.md)	 - Manage Bamboo server aliases
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
 * [bam ui](bam_ui.md)	 - Open the terminal UI

@@ -3,7 +3,7 @@
 Open a project, plan, build or job in the browser
 
 ```
-bam open [<key>|<target>] [flags]
+bam open [<key>|<preset>] [flags]
 ```
 
 ### Options

@@ -3,13 +3,13 @@
 Show a build: state, stages, jobs, failure summary
 
 ```
-bam build show [<build>|<plan>|<target>] [flags]
+bam build show [<build>|<plan>|<preset>] [flags]
 ```
 
 ### Options
 
 ```
-      --branch string   plan branch when a plan or target is given
+      --branch string   plan branch when a plan or preset is given
   -h, --help            help for show
       --last            the last build bam triggered from this repository
 ```

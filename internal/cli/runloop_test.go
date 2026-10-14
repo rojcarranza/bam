@@ -185,7 +185,7 @@ func TestHelpListsShortcuts(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("--help"))
 	assert.Contains(t, h.stdout.String(), "Shortcuts:")
-	assert.Regexp(t, `run\s+Trigger a plan or target`, h.stdout.String())
+	assert.Regexp(t, `run\s+Trigger a plan or preset`, h.stdout.String())
 }
 
 func TestRunRevisionDryRun(t *testing.T) {

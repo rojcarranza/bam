@@ -6,8 +6,9 @@ Move presets from the machine config into your presets file
 
 migrate moves the presets in your machine config (top-level targets and every repos entry)
 into your presets file (~/bam/presets.yaml, or BAM_PRESETS), renaming defaults to variables
-and keeping comments, so they work from every directory. A name already in the presets file,
-or defined more than once in the machine config, stays where it is. .bam.yaml is never touched.
+and keeping comments, so they work from every directory. A name already in the presets file or
+the presets directory, or defined more than once in the machine config, stays where it is.
+.bam.yaml is never touched.
 
 ```
 bam preset migrate [flags]

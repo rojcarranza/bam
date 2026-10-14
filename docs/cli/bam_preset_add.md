@@ -7,7 +7,7 @@ Generate a run preset from a plan's declared variables
 add reads the plan's declared variables from Bamboo and writes a preset named <name>.
 It writes the plan's project file in your presets directory (~/bam/presets/proj.yaml for
 PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every
-directory. --file NAME writes ~/bam/presets/NAME.yaml instead, for presets that belong to no
+directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no
 one project; --shared writes the repository's .bam.yaml. Edit the values under variables,
 then run it with bam run <name>.
 
@@ -29,7 +29,7 @@ bam preset add <name> --plan KEY [flags]
 
 ```
       --branch string   default branch for the preset
-      --file string     write ~/bam/presets/NAME.yaml instead of the plan's project file
+      --file string     write NAME.yaml in your presets directory instead of the plan's project file
       --force           replace an existing preset
       --from string     build whose values fill the comments: number, key or last
   -h, --help            help for add

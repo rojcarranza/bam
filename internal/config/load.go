@@ -247,7 +247,11 @@ func loadPresetsDir(dir string) ([]PresetsSource, error) {
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
-		if st, err := os.Stat(path); err != nil || st.IsDir() {
+		st, err := os.Stat(path)
+		if err != nil {
+			return nil, errs.Configf("cannot read %s", path).Wrap(err)
+		}
+		if st.IsDir() {
 			continue
 		}
 		pf, err := loadPresets(path)

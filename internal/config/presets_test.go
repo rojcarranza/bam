@@ -348,3 +348,18 @@ func TestProjectPresetsName(t *testing.T) {
 	assert.Equal(t, "ops", ProjectPresetsName("OPS-PROV-12"))
 	assert.Equal(t, "lab", ProjectPresetsName("LAB"))
 }
+
+func TestLoadPresetsDirectoryUnreadableEntryIsAnError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on Windows")
+	}
+	dir := t.TempDir()
+	broken := filepath.Join(dir, "bam", "presets", "proj.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(broken), 0o700))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "missing.yaml"), broken))
+	_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: filepath.Join(dir, "m.yaml"),
+		PresetsFile: filepath.Join(dir, "bam", "presets.yaml"), Getenv: noEnv})
+	require.Error(t, err)
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+	assert.Contains(t, err.Error(), broken)
+}

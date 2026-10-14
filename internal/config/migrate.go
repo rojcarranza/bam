@@ -79,7 +79,8 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 
 	// Refuse a presets file bam cannot load before touching it, so a value
 	// such as "presets: []" is reported instead of replaced.
-	if _, err := loadPresets(presetsPath); err != nil {
+	pf, err := loadPresets(presetsPath)
+	if err != nil {
 		return res, err
 	}
 	pdoc, err := loadDocVersion(presetsPath, false)
@@ -92,6 +93,10 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 	presets := ensureMapping(pdoc.Content[0], "presets")
 	dirFiles, err := loadPresetsDir(PresetsDir(presetsPath))
 	if err != nil {
+		return res, err
+	}
+	// Refuse a presets layer bam cannot load, as for an invalid presets file.
+	if err := checkDuplicatePresets(&Config{Presets: pf, PresetsPath: presetsPath, PresetsDirFiles: dirFiles}); err != nil {
 		return res, err
 	}
 	inDir := map[string]string{}

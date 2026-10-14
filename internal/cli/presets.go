@@ -111,7 +111,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 		Long: "add reads the plan's declared variables from Bamboo and writes a preset named <name>.\n" +
 			"It writes the plan's project file in your presets directory (~/bam/presets/proj.yaml for\n" +
 			"PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every\n" +
-			"directory. --file NAME writes ~/bam/presets/NAME.yaml instead, for presets that belong to no\n" +
+			"directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no\n" +
 			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
 			"then run it with bam run <name>.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
@@ -183,7 +183,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&from, "from", "", "build whose values fill the comments: number, key or last")
 	f.StringVar(&branch, "branch", "", "default branch for the preset")
 	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
-	f.StringVar(&file, "file", "", "write ~/bam/presets/NAME.yaml instead of the plan's project file")
+	f.StringVar(&file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
 	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&force, "force", false, "replace an existing preset")
 	return cmd
@@ -450,8 +450,9 @@ func newPresetMigrateCmd(r *runtime) *cobra.Command {
 		Short: "Move presets from the machine config into your presets file",
 		Long: "migrate moves the presets in your machine config (top-level targets and every repos entry)\n" +
 			"into your presets file (~/bam/presets.yaml, or BAM_PRESETS), renaming defaults to variables\n" +
-			"and keeping comments, so they work from every directory. A name already in the presets file,\n" +
-			"or defined more than once in the machine config, stays where it is. .bam.yaml is never touched.",
+			"and keeping comments, so they work from every directory. A name already in the presets file or\n" +
+			"the presets directory, or defined more than once in the machine config, stays where it is.\n" +
+			".bam.yaml is never touched.",
 		Example: "  bam preset migrate --dry-run\n  bam preset migrate",
 		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {

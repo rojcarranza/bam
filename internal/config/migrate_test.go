@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -227,4 +228,25 @@ func TestMigrateTargetsSkipsNamesInThePresetsDirectory(t *testing.T) {
 
 	_, err = Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, PresetsFile: presets, Getenv: noEnv})
 	require.NoError(t, err, "no preset ends up in two presets files")
+}
+
+func TestMigrateTargetsRefusesDuplicatesInThePresetsLayer(t *testing.T) {
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "config.yaml")
+	presets := filepath.Join(dir, "bam", "presets.yaml")
+	writeFile(t, machine, machineWithTargets)
+	a := filepath.Join(dir, "bam", "presets", "a.yaml")
+	b := filepath.Join(dir, "bam", "presets", "b.yaml")
+	writeFile(t, a, "presets:\n  twice:\n    plan: PROJ-X\n")
+	writeFile(t, b, "presets:\n  twice:\n    plan: OPS-X\n")
+	before, _ := os.ReadFile(machine)
+
+	_, err := MigrateTargets(machine, presets, true)
+	require.Error(t, err)
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+	assert.Contains(t, err.Error(), a)
+	assert.Contains(t, err.Error(), b)
+	after, _ := os.ReadFile(machine)
+	assert.Equal(t, before, after, "nothing moves")
+	assert.NoFileExists(t, presets)
 }

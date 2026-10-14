@@ -102,23 +102,35 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 }
 
 func newTargetAddCmd(r *runtime) *cobra.Command {
-	var plan, from, branch string
+	var plan, from, branch, file string
 	var shared, printOnly, force bool
 	cmd := &cobra.Command{
 		Use:   "add <name> --plan KEY",
 		Short: "Generate a run preset from a plan's declared variables",
 		Long: "add reads the plan's declared variables from Bamboo and writes a preset named <name>.\n" +
-			"It writes your presets file (~/bam/presets.yaml, or BAM_PRESETS), whose presets work in every\n" +
-			"directory; --shared writes the repository's .bam.yaml instead. Edit the values under variables,\n" +
+			"It writes the plan's project file in your presets directory (~/bam/presets/proj.yaml for\n" +
+			"PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every\n" +
+			"directory. --file NAME writes ~/bam/presets/NAME.yaml instead, for presets that belong to no\n" +
+			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
 			"then run it with bam run <name>.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
+			"  bam preset add deploy-package --plan PROJ-PKG --file custom-presets\n" +
 			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
 			"  bam run deploy-qa --dry-run",
 		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if plan == "" {
 				return errs.Usagef("--plan is required").WithTry(fmt.Sprintf("bam preset add %s --plan PROJ-PLAN", args[0]))
+			}
+			if shared && file != "" {
+				return errs.Usagef("--shared and --file cannot be used together").
+					WithTry("--file for a file in your presets directory, --shared for .bam.yaml")
+			}
+			if file != "" {
+				if _, err := config.PresetsDirFile(r.presetsWritePath(), file); err != nil {
+					return err
+				}
 			}
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
@@ -136,12 +148,22 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
 				return err
 			}
-			path, keyPath := r.presetsWritePath(), []string{"presets"}
+			path, keyPath := "", []string{"presets"}
 			if shared {
 				path, keyPath = r.cfg.ProjectPath, []string{"targets"}
 				if path == "" {
 					return errs.Usagef("no .bam.yaml in this repository").
 						WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
+				}
+			} else {
+				if file == "" {
+					file = config.ProjectPresetsName(d.Plan)
+				}
+				if path, err = config.PresetsDirFile(r.presetsWritePath(), file); err != nil {
+					return err
+				}
+				if err := checkPresetElsewhere(r.cfg, d.Name, path); err != nil {
+					return err
 				}
 			}
 			if err := config.WriteTarget(path, keyPath, d, force); err != nil {
@@ -159,10 +181,29 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&plan, "plan", "", "plan key to generate from")
 	f.StringVar(&from, "from", "", "build whose values fill the comments: number, key or last")
 	f.StringVar(&branch, "branch", "", "default branch for the preset")
-	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets file")
+	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
+	f.StringVar(&file, "file", "", "write ~/bam/presets/NAME.yaml instead of the plan's project file")
 	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&force, "force", false, "replace an existing preset")
 	return cmd
+}
+
+// checkPresetElsewhere refuses to add name to path when another presets file
+// already defines it: names are global across presets files, and --force
+// replaces a preset only in the file that holds it.
+func checkPresetElsewhere(cfg *config.Config, name, path string) error {
+	all, err := cfg.Targets()
+	if err != nil {
+		return err
+	}
+	for _, l := range all[name].Layers {
+		if l.Path != path && cfg.IsPresetsPath(l.Path) {
+			return errs.Usagef("preset %q already exists in %s", name, l.Path).
+				WithWhy("preset names are shared by every presets file").
+				WithTry("pick another name, or edit or remove it in " + l.Path)
+		}
+	}
+	return nil
 }
 
 func newTargetSyncCmd(r *runtime) *cobra.Command {

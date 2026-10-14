@@ -3,7 +3,10 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+
+	"github.com/r0jjames/bam-cli/internal/errs"
 )
 
 // PresetsEnv names the variable that overrides the presets file's path.
@@ -93,4 +96,35 @@ func LocatePresets(l PresetsLookup) PresetsLocation {
 		}
 	}
 	return PresetsLocation{Path: home}
+}
+
+var presetsFileNameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
+
+// PresetsDirFile is the file of the presets directory that preset add writes
+// for name: --file's value, or the lowercased project key of the plan.
+// A trailing .yaml or .yml is optional. Names with path separators, "..", a
+// leading dot or other punctuation are usage errors.
+func PresetsDirFile(presetsFile, name string) (string, error) {
+	base := name
+	if ext := strings.ToLower(filepath.Ext(base)); ext == ".yaml" || ext == ".yml" {
+		base = strings.TrimSuffix(base, filepath.Ext(base))
+	}
+	if !presetsFileNameRe.MatchString(base) || strings.Contains(base, "..") {
+		return "", errs.Usagef("invalid presets file name %q", name).
+			WithWhy("it names a file in " + PresetsDir(presetsFile) + ": letters, digits, -, _ and ., with no path").
+			WithTry("--file custom-presets")
+	}
+	if filepath.Ext(name) != "" && base != name {
+		return filepath.Join(PresetsDir(presetsFile), name), nil
+	}
+	return filepath.Join(PresetsDir(presetsFile), base+".yaml"), nil
+}
+
+// ProjectPresetsName is the presets directory file name for a plan key: its
+// project key, lowercased, so PROJ-DEPLOY goes to proj.yaml.
+func ProjectPresetsName(planKey string) string {
+	if i := strings.Index(planKey, "-"); i > 0 {
+		planKey = planKey[:i]
+	}
+	return strings.ToLower(planKey)
 }

@@ -321,3 +321,30 @@ func TestIsPresetsFileName(t *testing.T) {
 		assert.Equal(t, want, IsPresetsFileName(name), name)
 	}
 }
+
+func TestPresetsDirFile(t *testing.T) {
+	file := filepath.Join("/home", "jdoe", "bam", "presets.yaml")
+	dir := filepath.Join("/home", "jdoe", "bam", "presets")
+	for name, want := range map[string]string{
+		"ops":            filepath.Join(dir, "ops.yaml"),
+		"custom-presets": filepath.Join(dir, "custom-presets.yaml"),
+		"ops.yaml":       filepath.Join(dir, "ops.yaml"),
+		"ops.yml":        filepath.Join(dir, "ops.yml"),
+		"team.v2":        filepath.Join(dir, "team.v2.yaml"),
+	} {
+		got, err := PresetsDirFile(file, name)
+		require.NoError(t, err, name)
+		assert.Equal(t, want, got, name)
+	}
+	for _, name := range []string{"", "..", "../ops", "a/b", `a\b`, ".hidden", "a..b", "ops yaml", ".yaml", "/etc/passwd"} {
+		_, err := PresetsDirFile(file, name)
+		require.Error(t, err, name)
+		assert.Equal(t, errs.KindUsage, errs.KindOf(err), name)
+	}
+}
+
+func TestProjectPresetsName(t *testing.T) {
+	assert.Equal(t, "proj", ProjectPresetsName("PROJ-DEPLOY"))
+	assert.Equal(t, "ops", ProjectPresetsName("OPS-PROV-12"))
+	assert.Equal(t, "lab", ProjectPresetsName("LAB"))
+}

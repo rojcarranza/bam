@@ -245,3 +245,64 @@ func TestTargetSyncArgs(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "sync", "build", "--all"))
 	assert.Equal(t, 2, h.run("preset", "sync", "nope"))
 }
+
+func TestPresetMigrate(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+targets:
+  pkg-a:
+    plan: PROJ-BUILD
+    defaults:
+      env: qa # mine
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+`), 0o644))
+	presets := filepath.Join(h.home, "bam", "presets.yaml")
+
+	assert.Equal(t, 0, h.run("preset", "migrate", "--dry-run"))
+	assert.Contains(t, h.stdout.String(), "would move  pkg-a")
+	assert.Contains(t, h.stdout.String(), "would move  prov-mine")
+	assert.Contains(t, h.stdout.String(), "dry run: nothing written")
+	assert.NoFileExists(t, presets)
+
+	assert.Equal(t, 0, h.run("preset", "migrate"))
+	assert.Contains(t, h.stdout.String(), "moved  pkg-a      from targets")
+	assert.Contains(t, h.stdout.String(), "moved 2 presets to "+presets)
+	data, err := os.ReadFile(presets)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "    variables:\n      env: qa # mine\n")
+
+	// Both now run from a directory outside any repository.
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+	assert.Equal(t, 0, h.run("preset", "show", "prov-mine"))
+	assert.Contains(t, h.stdout.String(), presets)
+
+	assert.Equal(t, 0, h.run("preset", "migrate"))
+	assert.Contains(t, h.stdout.String(), "no presets to migrate in "+h.env.Paths.MachineConfig)
+}
+
+func TestPresetMigrateJSONAndSkips(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte("version: 1\ntargets:\n  pkg-a:\n    plan: PROJ-BUILD\n"), 0o644))
+	presets := filepath.Join(h.home, "bam", "presets.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(presets), 0o755))
+	require.NoError(t, os.WriteFile(presets, []byte("presets:\n  pkg-a:\n    plan: PROJ-PROV\n"), 0o600))
+
+	assert.Equal(t, 0, h.run("preset", "migrate", "--json"))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Equal(t, presets, doc["presets_file"])
+	assert.Equal(t, false, doc["dry_run"])
+	assert.Empty(t, doc["moved"])
+	skipped := doc["skipped"].([]any)
+	require.Len(t, skipped, 1)
+	assert.Equal(t, "pkg-a", skipped[0].(map[string]any)["name"])
+	assert.Contains(t, skipped[0].(map[string]any)["reason"], "already in")
+}

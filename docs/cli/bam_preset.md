@@ -27,6 +27,7 @@ bam preset [flags]
 * [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
 * [bam preset add](bam_preset_add.md)	 - Generate a run preset from a plan's declared variables
 * [bam preset list](bam_preset_list.md)	 - List run presets from your presets file, .bam.yaml and the machine config
+* [bam preset migrate](bam_preset_migrate.md)	 - Move presets from the machine config into your presets file
 * [bam preset show](bam_preset_show.md)	 - Show a run preset with its defaults, options and origin
 * [bam preset sync](bam_preset_sync.md)	 - Add new plan variables to a preset and mark removed ones
 

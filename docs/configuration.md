@@ -67,6 +67,8 @@ Generate a preset from a plan's declared variables instead of typing it:
     bam preset add provision-lab --plan PROJ-PROV --branch develop --shared   # .bam.yaml, committed
     bam preset add x --plan PROJ-PROV --print                   # show only
 
+Presets from an older bam that still live in the machine file (`targets:`, or under a `repos:` entry) move into the presets file with `bam preset migrate` (`--dry-run` first to see what would move).
+
 Use them:
 
     bam preset list                    # every preset, and the presets file's path

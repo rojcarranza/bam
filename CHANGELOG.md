@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `bam preset migrate` moves presets from your machine config (including ones under `repos:`) into `~/bam/presets.yaml`, so they work from any directory.
 - Personal presets live in `~/bam/presets.yaml` (or `BAM_PRESETS`) and work from any directory; in WSL, bam uses the presets file in your Windows home, so Git Bash and WSL share one file. Presets can write their variables under `variables:`.
 - `bam --project KEY` and `bam ui --project KEY` open the terminal UI on one project, and `default_project` in `.bam.yaml` or the machine file makes that the default.
 - The terminal UI's `:projects` view lists the projects; `enter` shows one project's plans and `esc` goes back.

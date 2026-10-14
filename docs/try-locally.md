@@ -105,9 +105,11 @@ Add `--json` to any read command to see the machine-readable form, and
 ## 7. Optional: try presets
 
 Presets live in configuration rather than on the server, so they need a file.
-Point `BAM_PRESETS` at a throwaway one instead of your real `~/bam/presets.yaml`:
+Point `BAM_PRESETS` at a throwaway one instead of your real `~/bam/presets.yaml`.
+Give it a folder of its own, since bam also reads the `presets/` directory beside it:
 
-    cat > /tmp/bam-presets.yaml <<'YAML'
+    mkdir -p /tmp/bam-try
+    cat > /tmp/bam-try/presets.yaml <<'YAML'
     presets:
       smoke:
         plan: PROJ-BUILD
@@ -117,7 +119,7 @@ Point `BAM_PRESETS` at a throwaway one instead of your real `~/bam/presets.yaml`
           cluster_type: [k8s, dcos]
         required: [cluster_name]
     YAML
-    export BAM_PRESETS=/tmp/bam-presets.yaml
+    export BAM_PRESETS=/tmp/bam-try/presets.yaml
 
     bam preset list
     bam run smoke --dry-run                          # refused: cluster_name is required
@@ -128,9 +130,10 @@ Point `BAM_PRESETS` at a throwaway one instead of your real `~/bam/presets.yaml`
 Press `ctrl-c` in the first terminal, or `pkill -f bamboostub`. Then, if you
 want the environment back as it was:
 
-    unset BAM_URL BAM_TOKEN BAM_CONFIG
+    unset BAM_URL BAM_TOKEN BAM_CONFIG BAM_PRESETS
     rm "$(go env GOPATH)/bin/bam"                    # only if you ran make install
     rm /tmp/bam-local.yaml
+    rm -r /tmp/bam-try                               # only if you tried presets
 
 ## If something does not work
 

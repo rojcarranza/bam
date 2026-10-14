@@ -9,14 +9,15 @@ The examples use the plan `PROJ-DEPLOY` and the variables `target_env`, `region`
 
 ## 1. Create a personal preset
 
-A preset is a named entry in your **presets file**, `~/bam/presets.yaml`. Generate it from the plan instead of typing the variable names:
+A preset is a named entry in a **presets file** in your presets directory, `~/bam/presets/`, one file per Bamboo project. Generate it from the plan instead of typing the variable names:
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --branch main
 
 - `deploy-qa` is a name you choose. It is what you type later in `bam run deploy-qa`, and what the terminal UI lists under presets. It is not a Bamboo name: lowercase letters, digits, `-` and `_`, starting with a letter.
 - `--plan` is the Bamboo plan key. `--branch` is optional and sets the plan branch the preset runs.
-- By default bam writes your presets file, and its presets work from any directory. `bam preset list` prints its path.
-- `--shared` writes `.bam.yaml` at the repository root instead, which is meant to be committed and shared with the team. Keep personal presets, and any plan key or host that should not enter the repository, in your presets file.
+- By default bam writes the plan's project file, `~/bam/presets/proj.yaml` for `PROJ-DEPLOY`, and creates the directory and file the first time. Its presets work from any directory. `bam preset list` shows which file each preset is in.
+- `--file NAME` writes `~/bam/presets/NAME.yaml` instead, for presets that belong to no one project: `bam preset add deploy-package --plan PROJ-PKG --file custom-presets`. `NAME` is a plain file name (letters, digits, `-`, `_`, `.`); a path or `..` is refused.
+- `--shared` writes `.bam.yaml` at the repository root instead, which is meant to be committed and shared with the team. Keep personal presets, and any plan key or host that should not enter the repository, in your presets directory.
 - `--print` shows the generated YAML and writes nothing. Use it to look first.
 
 The server is chosen the usual way (`--server`, or your only configured server; see [Configuration](configuration.md#which-server-is-used)).
@@ -63,6 +64,20 @@ Check it, then run:
 
 When the plan later gains variables, `bam preset sync deploy-qa` appends them without touching your values.
 
+### One file per project
+
+Every `*.yaml` and `*.yml` in `~/bam/presets/` is read, and so is `~/bam/presets.yaml` if you have one:
+
+    ~/bam/presets.yaml               # still read; bam no longer writes it
+    ~/bam/presets/proj.yaml          # PROJ-* presets, written by preset add
+    ~/bam/presets/ops.yaml           # OPS-* presets
+    ~/bam/presets/custom-presets.yaml   # written with --file custom-presets
+
+- File names are free; bam only picks `proj.yaml` when it writes. Other files, hidden files and subdirectories are ignored, so a `README.md` next to them is fine.
+- Preset names stay global: `bam run deploy-qa` needs no project prefix. The same name in two presets files is an error that names both files, and `preset add` refuses a name another presets file already has, even with `--force`.
+- `bam preset sync` edits a preset in the file it is in and keeps its comments.
+- To share one project's presets, copy or sync just that file.
+
 ### Several variable sets for one plan
 
 Make one preset per set, each pointing at the same plan:
@@ -72,24 +87,24 @@ Make one preset per set, each pointing at the same plan:
 
 ### Move presets you already have
 
-Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml` on Linux and WSL, `~/Library/Application Support/bam/config.yaml` on macOS), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file:
+Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml` on Linux and WSL, `~/Library/Application Support/bam/config.yaml` on macOS), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file, `~/bam/presets.yaml`:
 
     bam preset migrate --dry-run     # what would move
     bam preset migrate
 
-Each preset keeps its values and comments; `defaults:` becomes `variables:`. A name that is already in your presets file, or that appears in more than one place in the machine config, or that uses YAML anchors (`&name`, `*name`, `<<:`), stays where it is and the output says why. If your presets file is not valid, migrate stops and changes nothing. `.bam.yaml` is never touched. Afterwards `bam preset show <name>` says `Defined in ~/bam/presets.yaml`.
+Each preset keeps its values and comments; `defaults:` becomes `variables:`. A name that is already in your presets file or presets directory, or that appears in more than one place in the machine config, or that uses YAML anchors (`&name`, `*name`, `<<:`), stays where it is and the output says why. If your presets file is not valid, migrate stops and changes nothing. `.bam.yaml` is never touched. Afterwards `bam preset show <name>` says `Defined in ~/bam/presets.yaml`.
 
-### One presets file for Git Bash, WSL and macOS
+### One presets directory for Git Bash, WSL and macOS
 
-The path is `~/bam/presets.yaml` on every system, so one setup works everywhere:
+The paths are `~/bam/presets.yaml` and `~/bam/presets/` on every system, so one setup works everywhere:
 
 - **Git Bash** runs `bam.exe`, whose `~` is `C:\Users\<you>`. That file is the one to keep.
-- **WSL** has its own home. When `~/bam/presets.yaml` does not exist there, bam in WSL uses `/mnt/c/Users/<you>/bam/presets.yaml`, the same file Git Bash uses. If `preset add` creates the file from WSL, it creates it in the Windows home. If several Windows users have a presets file, bam uses none of them and `bam preset list` asks you to set `BAM_PRESETS`.
-- **Another machine, such as a Mac,** cannot reach that file directly. Keep it in a synced folder (OneDrive, iCloud, a dotfiles repository) and point bam at it on each machine:
+- **WSL** has its own home. When neither `~/bam/presets.yaml` nor `~/bam/presets/` exists there, bam in WSL uses `/mnt/c/Users/<you>/bam/presets.yaml` and `/mnt/c/Users/<you>/bam/presets/`, the same ones Git Bash uses. If `preset add` creates the first presets file from WSL, it creates it in the Windows home. If several Windows users have presets, bam uses none of them and `bam preset list` asks you to set `BAM_PRESETS`.
+- **Another machine, such as a Mac,** cannot reach that file directly. Keep them in a synced folder (OneDrive, iCloud, a dotfiles repository) and point bam at the presets file on each machine; the `presets/` directory beside it comes along, and `~/bam/presets/` is then not read:
 
-      export BAM_PRESETS="$HOME/OneDrive/bam/presets.yaml"
+      export BAM_PRESETS="$HOME/OneDrive/bam/presets.yaml"   # also reads $HOME/OneDrive/bam/presets/
 
-Logins stay per environment: run `bam login` in each one, and give the server the same alias everywhere (for example `work`) so presets that name a `server` resolve. Files under `/mnt/c` cannot be made private from WSL, so keep secrets out of the presets file and use `${ENV}` references.
+Logins stay per environment: run `bam login` in each one, and give the server the same alias everywhere (for example `work`) so presets that name a `server` resolve. Files under `/mnt/c` cannot be made private from WSL, so keep secrets out of the presets files and use `${ENV}` references.
 
 ## 2. Re-run with the last build's variables, changed
 

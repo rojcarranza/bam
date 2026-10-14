@@ -44,7 +44,8 @@ type Server struct {
 	DefaultProject string `yaml:"default_project,omitempty"`
 }
 
-// PresetsFile is the personal presets file, ~/bam/presets.yaml by default.
+// PresetsFile is the schema of the personal presets file, ~/bam/presets.yaml
+// by default, and of each file in the presets directory.
 // Its presets apply in every directory.
 type PresetsFile struct {
 	Version int               `yaml:"version,omitempty"`

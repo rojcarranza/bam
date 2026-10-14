@@ -42,7 +42,8 @@ type migrateSource struct {
 // MigrateTargets moves the machine file's targets, top-level and per
 // repository, into the presets file under presets:, renaming defaults to
 // variables and keeping comments. A name already in the presets file, or
-// defined more than once in the machine file, is left where it is. The files
+// defined more than once in the machine file, is left where it is; so is a
+// name in a file of the presets directory. The files
 // are written only when write is true and something moved; a new presets
 // file gets mode 0600.
 func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult, error) {
@@ -78,7 +79,8 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 
 	// Refuse a presets file bam cannot load before touching it, so a value
 	// such as "presets: []" is reported instead of replaced.
-	if _, err := loadPresets(presetsPath); err != nil {
+	pf, err := loadPresets(presetsPath)
+	if err != nil {
 		return res, err
 	}
 	pdoc, err := loadDocVersion(presetsPath, false)
@@ -89,6 +91,20 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 		return res, errs.Configf("%s: presets must be a mapping", presetsPath)
 	}
 	presets := ensureMapping(pdoc.Content[0], "presets")
+	dirFiles, err := loadPresetsDir(PresetsDir(presetsPath))
+	if err != nil {
+		return res, err
+	}
+	// Refuse a presets layer bam cannot load, as for an invalid presets file.
+	if err := checkDuplicatePresets(&Config{Presets: pf, PresetsPath: presetsPath, PresetsDirFiles: dirFiles}); err != nil {
+		return res, err
+	}
+	inDir := map[string]string{}
+	for _, f := range dirFiles {
+		for name := range f.Presets {
+			inDir[name] = f.Path
+		}
+	}
 
 	count := map[string]int{}
 	for _, s := range sources {
@@ -104,6 +120,10 @@ func MigrateTargets(machinePath, presetsPath string, write bool) (MigrateResult,
 		case mappingValue(presets, name) != nil:
 			res.Skipped = append(res.Skipped, MigrateSkip{Name: name, From: s.from,
 				Reason: "already in " + presetsPath})
+			continue
+		case inDir[name] != "":
+			res.Skipped = append(res.Skipped, MigrateSkip{Name: name, From: s.from,
+				Reason: "already in " + inDir[name]})
 			continue
 		case usesAnchors(s.key) || usesAnchors(s.value):
 			res.Skipped = append(res.Skipped, MigrateSkip{Name: name, From: s.from,

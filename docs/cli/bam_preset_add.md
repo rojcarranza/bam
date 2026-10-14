@@ -5,8 +5,10 @@ Generate a run preset from a plan's declared variables
 ### Synopsis
 
 add reads the plan's declared variables from Bamboo and writes a preset named <name>.
-It writes your presets file (~/bam/presets.yaml, or BAM_PRESETS), whose presets work in every
-directory; --shared writes the repository's .bam.yaml instead. Edit the values under variables,
+It writes the plan's project file in your presets directory (~/bam/presets/proj.yaml for
+PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every
+directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no
+one project; --shared writes the repository's .bam.yaml. Edit the values under variables,
 then run it with bam run <name>.
 
 ```
@@ -18,6 +20,7 @@ bam preset add <name> --plan KEY [flags]
 ```
   bam preset add deploy-qa --plan PROJ-DEPLOY
   bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last
+  bam preset add deploy-package --plan PROJ-PKG --file custom-presets
   bam preset add provision-lab --plan PROJ-PROV --shared
   bam run deploy-qa --dry-run
 ```
@@ -26,12 +29,13 @@ bam preset add <name> --plan KEY [flags]
 
 ```
       --branch string   default branch for the preset
+      --file string     write NAME.yaml in your presets directory instead of the plan's project file
       --force           replace an existing preset
       --from string     build whose values fill the comments: number, key or last
   -h, --help            help for add
       --plan string     plan key to generate from
       --print           print the YAML and write nothing
-      --shared          write to the repository's .bam.yaml instead of your presets file
+      --shared          write to the repository's .bam.yaml instead of your presets directory
 ```
 
 ### Options inherited from parent commands

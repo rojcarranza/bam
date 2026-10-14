@@ -192,3 +192,174 @@ func TestSyncTargetAddsToVariables(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "    variables:\n      b: \"2\"\n")
 }
+
+func TestPresetsDirIsBesideThePresetsFile(t *testing.T) {
+	assert.Equal(t, filepath.Join("/sync", "bam", "presets"), PresetsDir(filepath.Join("/sync", "bam", "presets.yaml")))
+}
+
+func TestLocatePresetsHomeDirectoryWithoutFile(t *testing.T) {
+	home := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(home, "bam", "presets"), 0o755))
+	win := "/mnt/c/Users/jdoe/bam/presets.yaml"
+	wsl := envOf(map[string]string{"WSL_DISTRO_NAME": "Ubuntu"})
+	loc := LocatePresets(PresetsLookup{Home: home, Getenv: wsl, Glob: globOf(win)})
+	assert.Equal(t, filepath.Join(home, "bam", "presets.yaml"), loc.Path, "a home presets directory wins over a Windows file")
+	assert.True(t, loc.Exists)
+}
+
+func TestLocatePresetsWSLFindsAWindowsDirectory(t *testing.T) {
+	home := t.TempDir()
+	winBam := filepath.Join(t.TempDir(), "Users", "jdoe", "bam")
+	require.NoError(t, os.MkdirAll(filepath.Join(winBam, "presets"), 0o755))
+	wsl := envOf(map[string]string{"WSL_DISTRO_NAME": "Ubuntu"})
+	glob := func(p string) ([]string, error) {
+		if p == WSLPresetsDirGlob {
+			return []string{filepath.Join(winBam, "presets")}, nil
+		}
+		return nil, nil
+	}
+	loc := LocatePresets(PresetsLookup{Home: home, Getenv: wsl, Glob: glob})
+	assert.Equal(t, filepath.Join(winBam, "presets.yaml"), loc.Path)
+	assert.True(t, loc.Exists)
+	assert.Equal(t, filepath.Join(winBam, "presets"), PresetsDir(loc.Path))
+}
+
+func TestLoadPresetsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	presets := filepath.Join(dir, "bam", "presets.yaml")
+	writeFile(t, presets, "presets:\n  build:\n    plan: PROJ-BUILD\n")
+	writeFile(t, filepath.Join(dir, "bam", "presets", "proj.yaml"), "presets:\n  deploy-qa:\n    plan: PROJ-DEPLOY\n    variables: {env: qa}\n")
+	writeFile(t, filepath.Join(dir, "bam", "presets", "ops.yml"), "version: 1\npresets:\n  prov:\n    plan: OPS-PROV\n")
+	writeFile(t, filepath.Join(dir, "bam", "presets", "README.md"), "not yaml: [\n")
+	writeFile(t, filepath.Join(dir, "bam", "presets", ".proj.yaml"), "not yaml: [\n")
+	writeFile(t, filepath.Join(dir, "bam", "presets", "old", "x.yaml"), "not yaml: [\n")
+	writeFile(t, filepath.Join(dir, "bam", "presets", "empty.yaml"), "")
+
+	cfg, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: filepath.Join(dir, "m.yaml"), PresetsFile: presets, Getenv: noEnv})
+	require.NoError(t, err)
+	all, err := cfg.Targets()
+	require.NoError(t, err)
+	require.Len(t, all, 3)
+	proj := filepath.Join(dir, "bam", "presets", "proj.yaml")
+	assert.Equal(t, []string{proj}, all["deploy-qa"].DefinedIn)
+	assert.Equal(t, TargetLayer{Path: proj, KeyPath: []string{"presets"}, Target: all["deploy-qa"].Layers[0].Target}, all["deploy-qa"].Layers[0])
+	assert.Equal(t, StringMap{"env": "qa"}, all["deploy-qa"].Defaults)
+	assert.Equal(t, []string{filepath.Join(dir, "bam", "presets", "ops.yml")}, all["prov"].DefinedIn)
+	assert.Equal(t, []string{presets}, all["build"].DefinedIn)
+	assert.True(t, cfg.IsPresetsPath(proj))
+	assert.True(t, cfg.IsPresetsPath(presets))
+	assert.False(t, cfg.IsPresetsPath(filepath.Join(dir, "m.yaml")))
+}
+
+func TestLoadPresetsDirectoryWithoutPresetsFile(t *testing.T) {
+	dir := t.TempDir()
+	presets := filepath.Join(dir, "bam", "presets.yaml")
+	writeFile(t, filepath.Join(dir, "bam", "presets", "proj.yaml"), "presets:\n  deploy-qa:\n    plan: PROJ-DEPLOY\n")
+	cfg, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: filepath.Join(dir, "m.yaml"), PresetsFile: presets, Getenv: noEnv})
+	require.NoError(t, err)
+	_, ok, err := cfg.Target("deploy-qa")
+	require.NoError(t, err)
+	assert.True(t, ok)
+}
+
+func TestLoadPresetsDirectoryDuplicateNames(t *testing.T) {
+	for name, other := range map[string]string{
+		"file and directory":  "presets.yaml",
+		"two directory files": filepath.Join("presets", "ops.yaml"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			presets := filepath.Join(dir, "bam", "presets.yaml")
+			proj := filepath.Join(dir, "bam", "presets", "proj.yaml")
+			writeFile(t, proj, "presets:\n  deploy-qa:\n    plan: PROJ-DEPLOY\n")
+			writeFile(t, filepath.Join(dir, "bam", other), "presets:\n  deploy-qa:\n    plan: OPS-DEPLOY\n")
+			_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: filepath.Join(dir, "m.yaml"), PresetsFile: presets, Getenv: noEnv})
+			require.Error(t, err)
+			assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+			assert.Contains(t, err.Error(), proj)
+			assert.Contains(t, err.Error(), filepath.Join(dir, "bam", other))
+		})
+	}
+}
+
+func TestLoadPresetsDirectoryErrorsNameTheFile(t *testing.T) {
+	for name, body := range map[string]string{
+		"malformed": "presets: [\n",
+		"bad name":  "presets:\n  Bad Name:\n    plan: PROJ-X\n",
+		"unknown":   "targets: {}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			bad := filepath.Join(dir, "bam", "presets", "proj.yaml")
+			writeFile(t, bad, body)
+			_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: filepath.Join(dir, "m.yaml"),
+				PresetsFile: filepath.Join(dir, "bam", "presets.yaml"), Getenv: noEnv})
+			require.Error(t, err)
+			assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+			assert.Contains(t, err.Error(), bad)
+		})
+	}
+}
+
+func TestLoadPresetsDirectoryFollowsTheOverride(t *testing.T) {
+	home := t.TempDir()
+	writeFile(t, filepath.Join(home, "bam", "presets", "proj.yaml"), "presets:\n  home-only:\n    plan: PROJ-X\n")
+	sync := t.TempDir()
+	writeFile(t, filepath.Join(sync, "presets", "ops.yaml"), "presets:\n  synced:\n    plan: OPS-X\n")
+	loc := LocatePresets(PresetsLookup{Home: home, Getenv: envOf(map[string]string{"BAM_PRESETS": filepath.Join(sync, "presets.yaml")})})
+	assert.True(t, loc.Exists, "the directory alone counts")
+	cfg, err := Load(LoadOptions{WorkDir: home, Home: home, MachineFile: filepath.Join(home, "m.yaml"), PresetsFile: loc.Path, Getenv: noEnv})
+	require.NoError(t, err)
+	all, err := cfg.Targets()
+	require.NoError(t, err)
+	assert.Contains(t, all, "synced")
+	assert.NotContains(t, all, "home-only")
+}
+
+func TestIsPresetsFileName(t *testing.T) {
+	for name, want := range map[string]bool{"proj.yaml": true, "ops.yml": true, "OPS.YAML": true, ".proj.yaml": false, "notes.txt": false, "proj.yaml.bak": false} {
+		assert.Equal(t, want, IsPresetsFileName(name), name)
+	}
+}
+
+func TestPresetsDirFile(t *testing.T) {
+	file := filepath.Join("/home", "jdoe", "bam", "presets.yaml")
+	dir := filepath.Join("/home", "jdoe", "bam", "presets")
+	for name, want := range map[string]string{
+		"ops":            filepath.Join(dir, "ops.yaml"),
+		"custom-presets": filepath.Join(dir, "custom-presets.yaml"),
+		"ops.yaml":       filepath.Join(dir, "ops.yaml"),
+		"ops.yml":        filepath.Join(dir, "ops.yml"),
+		"team.v2":        filepath.Join(dir, "team.v2.yaml"),
+	} {
+		got, err := PresetsDirFile(file, name)
+		require.NoError(t, err, name)
+		assert.Equal(t, want, got, name)
+	}
+	for _, name := range []string{"", "..", "../ops", "a/b", `a\b`, ".hidden", "a..b", "ops yaml", ".yaml", "/etc/passwd"} {
+		_, err := PresetsDirFile(file, name)
+		require.Error(t, err, name)
+		assert.Equal(t, errs.KindUsage, errs.KindOf(err), name)
+	}
+}
+
+func TestProjectPresetsName(t *testing.T) {
+	assert.Equal(t, "proj", ProjectPresetsName("PROJ-DEPLOY"))
+	assert.Equal(t, "ops", ProjectPresetsName("OPS-PROV-12"))
+	assert.Equal(t, "lab", ProjectPresetsName("LAB"))
+}
+
+func TestLoadPresetsDirectoryUnreadableEntryIsAnError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on Windows")
+	}
+	dir := t.TempDir()
+	broken := filepath.Join(dir, "bam", "presets", "proj.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(broken), 0o700))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "missing.yaml"), broken))
+	_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: filepath.Join(dir, "m.yaml"),
+		PresetsFile: filepath.Join(dir, "bam", "presets.yaml"), Getenv: noEnv})
+	require.Error(t, err)
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+	assert.Contains(t, err.Error(), broken)
+}

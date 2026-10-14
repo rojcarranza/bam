@@ -47,12 +47,12 @@ Check the install:
 
    Review the generated file, then commit it. It holds no secrets.
 
-3. Save your own presets. They go in `~/bam/presets.yaml` and work from any directory:
+3. Save your own presets. They go in `~/bam/presets/`, one file per Bamboo project, and work from any directory:
 
        bam preset add deploy-qa --plan PROJ-DEPLOY      # reads the plan's variables from Bamboo
-       bam preset list                                  # prints the presets file's path too
+       bam preset list                                  # shows the file each preset is in
 
-   Open `~/bam/presets.yaml`, set the values under `variables`, and delete the ones you never change. Git Bash, WSL and macOS can share one file; see [Presets](docs/presets.md#one-presets-file-for-git-bash-wsl-and-macos).
+   Open `~/bam/presets/proj.yaml`, set the values under `variables`, and delete the ones you never change. Git Bash, WSL and macOS can share one directory; see [Presets](docs/presets.md#one-presets-directory-for-git-bash-wsl-and-macos).
 
 4. Run, watch, and investigate:
 

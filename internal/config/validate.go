@@ -159,8 +159,8 @@ func validateFiles(c *Config) error {
 	if err := checkSetNames(c.MachinePath, "sets", c.Machine.Sets); err != nil {
 		return err
 	}
-	if c.Presets != nil {
-		if err := checkTargetNames(c.PresetsPath, "presets", c.Presets.Presets); err != nil {
+	for _, s := range c.presetsSources() {
+		if err := checkTargetNames(s.Path, "presets", s.Presets); err != nil {
 			return err
 		}
 	}

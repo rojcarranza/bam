@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -63,9 +64,9 @@ func TestTargetAddPrintWritesNothing(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(h.home, "bam", "presets.yaml"))
 }
 
-func TestPresetAddWritesThePresetsFileByDefault(t *testing.T) {
+func TestPresetAddWritesTheProjectFileInThePresetsDirectory(t *testing.T) {
 	h := newHarness(t)
-	path := filepath.Join(h.home, "bam", "presets.yaml")
+	path := filepath.Join(h.home, "bam", "presets", "proj.yaml")
 	assert.Equal(t, 0, h.run("preset", "add", "mine", "--plan", "PROJ-PROV"))
 	assert.Contains(t, h.stdout.String(), "added preset mine to "+path)
 	data, err := os.ReadFile(path)
@@ -82,6 +83,44 @@ func TestPresetAddWritesThePresetsFileByDefault(t *testing.T) {
 	assert.Equal(t, 0, h.run("preset", "show", "mine"))
 	assert.Contains(t, h.stdout.String(), path)
 	assert.Equal(t, 0, h.run("run", "mine", "--var", "cluster_name=x", "--dry-run"), h.stderr.String())
+	assert.NoFileExists(t, filepath.Join(h.home, "bam", "presets.yaml"))
+}
+
+func TestPresetAddFileFlag(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("preset", "add", "deploy-package", "--plan", "PROJ-PROV", "--file", "custom-presets"))
+	path := filepath.Join(h.home, "bam", "presets", "custom-presets.yaml")
+	assert.Contains(t, h.stdout.String(), "added preset deploy-package to "+path)
+	assert.FileExists(t, path)
+	assert.NoFileExists(t, filepath.Join(h.home, "bam", "presets", "proj.yaml"))
+
+	for _, bad := range []string{"../ops", "a/b", "..", ".hidden"} {
+		assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--file", bad), bad)
+		assert.Contains(t, h.stderr.String(), "invalid presets file name", bad)
+	}
+	assert.Empty(t, h.connectOpts[1:], "a bad --file is refused before Bamboo is asked")
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--file", "ops", "--shared"))
+}
+
+func TestPresetAddRefusesANameInAnotherPresetsFile(t *testing.T) {
+	h := newHarness(t)
+	old := filepath.Join(h.home, "bam", "presets.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(old), 0o700))
+	require.NoError(t, os.WriteFile(old, []byte("presets:\n  mine:\n    plan: PROJ-BUILD\n"), 0o600))
+
+	assert.Equal(t, 2, h.run("preset", "add", "mine", "--plan", "PROJ-PROV", "--force"))
+	assert.Contains(t, h.stderr.String(), old)
+	assert.NoFileExists(t, filepath.Join(h.home, "bam", "presets", "proj.yaml"))
+
+	// The same file is fine with --force.
+	assert.Equal(t, 0, h.run("preset", "add", "other", "--plan", "PROJ-PROV"))
+	assert.Equal(t, 2, h.run("preset", "add", "other", "--plan", "PROJ-PROV"))
+	assert.Equal(t, 0, h.run("preset", "add", "other", "--plan", "PROJ-PROV", "--force"))
+
+	// The presets file still loads beside the directory.
+	assert.Equal(t, 0, h.run("preset", "list"))
+	assert.Regexp(t, `mine\s+PROJ-BUILD`, h.stdout.String())
+	assert.Regexp(t, `other\s+PROJ-PROV`, h.stdout.String())
 }
 
 func TestPresetAddMachineFlagIsGone(t *testing.T) {
@@ -94,8 +133,8 @@ func TestPresetAddHonoursBAMPresets(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sync", "presets.yaml")
 	h.vars["BAM_PRESETS"] = path
 	assert.Equal(t, 0, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD"))
-	assert.FileExists(t, path)
-	assert.NoFileExists(t, filepath.Join(h.home, "bam", "presets.yaml"))
+	assert.FileExists(t, filepath.Join(filepath.Dir(path), "presets", "proj.yaml"))
+	assert.NoDirExists(t, filepath.Join(h.home, "bam"))
 }
 
 func TestPresetAddInWSLCreatesTheFileInTheWindowsHome(t *testing.T) {
@@ -104,7 +143,7 @@ func TestPresetAddInWSLCreatesTheFileInTheWindowsHome(t *testing.T) {
 	h.vars["WSL_DISTRO_NAME"] = "Ubuntu"
 	h.env.WindowsHome = func() (string, error) { return win, nil }
 	assert.Equal(t, 0, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD"))
-	assert.FileExists(t, filepath.Join(win, "bam", "presets.yaml"))
+	assert.FileExists(t, filepath.Join(win, "bam", "presets", "proj.yaml"))
 
 	// Next time the glob finds it, and list says where it is.
 	h.env.WindowsHome = func() (string, error) { return "", errors.New("must not be asked again") }
@@ -305,4 +344,30 @@ func TestPresetMigrateJSONAndSkips(t *testing.T) {
 	require.Len(t, skipped, 1)
 	assert.Equal(t, "pkg-a", skipped[0].(map[string]any)["name"])
 	assert.Contains(t, skipped[0].(map[string]any)["reason"], "already in")
+}
+
+func TestPresetListAndSyncUseThePresetsDirectory(t *testing.T) {
+	h := newHarness(t)
+	dir := filepath.Join(h.home, "bam", "presets")
+	path := filepath.Join(dir, "proj.yaml")
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(path, []byte(`# PROJ presets
+presets:
+  lab-dir:
+    plan: PROJ-PROV # provisioning
+    variables:
+      cluster_type: dcos # the old one
+`), 0o600))
+
+	assert.Equal(t, 0, h.run("preset", "list"))
+	assert.Regexp(t, `lab-dir\s+PROJ-PROV\s+\S+\s+\(default\)\s+no\s+`+regexp.QuoteMeta(path), h.stdout.String())
+	assert.Regexp(t, `build\s+PROJ-BUILD.*`+regexp.QuoteMeta(filepath.Join(h.root, ".bam.yaml")), h.stdout.String())
+	assert.Contains(t, h.stderr.String(), "presets dir:  "+dir)
+
+	assert.Equal(t, 0, h.run("preset", "sync", "lab-dir"))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	s := string(data)
+	assert.True(t, strings.HasPrefix(s, "# PROJ presets\npresets:\n  lab-dir:\n    plan: PROJ-PROV # provisioning\n"), s)
+	assert.Contains(t, s, "      cluster_type: dcos # the old one\n      cluster_name: \"\"")
 }

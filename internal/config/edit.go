@@ -33,6 +33,9 @@ func WriteTarget(path string, keyPath []string, d TargetDraft, force bool) error
 	}
 	m := snippet.Content[0]
 	setKey(parent, m.Content[0], m.Content[1])
+	if VarsKey(keyPath) == "variables" {
+		return saveDocMode(path, doc, 0o600) // the presets file may hold literal secrets
+	}
 	return saveDoc(path, doc)
 }
 
@@ -124,7 +127,11 @@ func loadDocVersion(path string, version bool) (*yaml.Node, error) {
 	return &doc, nil
 }
 
-func saveDoc(path string, doc *yaml.Node) error {
+func saveDoc(path string, doc *yaml.Node) error { return saveDocMode(path, doc, 0o644) }
+
+// saveDocMode is saveDoc with the mode a new file gets; an existing file
+// keeps its own.
+func saveDocMode(path string, doc *yaml.Node, newMode fs.FileMode) error {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
@@ -134,7 +141,7 @@ func saveDoc(path string, doc *yaml.Node) error {
 	if err := enc.Close(); err != nil {
 		return err
 	}
-	mode := fs.FileMode(0o644)
+	mode := newMode
 	if st, err := os.Stat(path); err == nil {
 		mode = st.Mode().Perm()
 	}

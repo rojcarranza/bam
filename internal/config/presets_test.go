@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -155,6 +156,17 @@ func TestWriteTargetToPresetsFile(t *testing.T) {
 	assert.Contains(t, s, "    variables:\n      cluster_type: \"k8s\"")
 	assert.NotContains(t, s, "defaults:")
 	assert.NotContains(t, s, "version:", "the presets file needs no version line")
+	if runtime.GOOS != "windows" {
+		st, err := os.Stat(path)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o600), st.Mode().Perm(), "a new presets file may hold secrets, so only its owner reads it")
+
+		require.NoError(t, os.Chmod(path, 0o640))
+		require.NoError(t, WriteTarget(path, []string{"presets"}, TargetDraft{Name: "two", Plan: "PROJ-BUILD"}, false))
+		st, err = os.Stat(path)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0o640), st.Mode().Perm(), "an existing file keeps its mode")
+	}
 
 	cfg, err := Load(LoadOptions{WorkDir: filepath.Dir(path), Home: filepath.Dir(path), MachineFile: filepath.Join(filepath.Dir(path), "m.yaml"), PresetsFile: path, Getenv: noEnv})
 	require.NoError(t, err)

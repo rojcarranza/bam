@@ -309,7 +309,7 @@ func TargetDetail(o Out, x app.TargetInfo) error {
 	field(o, "Defined in", strings.Join(x.DefinedIn, ", "))
 	if len(x.Defaults) > 0 {
 		fmt.Fprintln(o.W)
-		fmt.Fprintln(o.W, "Defaults")
+		fmt.Fprintln(o.W, "Variables")
 		t := Table{Indent: "  ", Headers: []string{"", ""}}
 		for _, v := range x.Defaults {
 			t.Rows = append(t.Rows, []string{v.Name, v.Display()})

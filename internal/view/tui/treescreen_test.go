@@ -223,6 +223,9 @@ func TestTreeScreenRerunSurvivesARefresh(t *testing.T) {
 	require.Contains(t, m.status, "restarted 1 build")
 }
 
+// Opening PROJ-PROV-7 builds a Tree panel read of it; the test drops that
+// command, so it must read nothing, or it could take the fake's failed
+// answer before Restart does (#93).
 func TestTreeScreenRerunSurvivesABuildVisit(t *testing.T) {
 	m, f := treeTUIModel(t)
 	restartableChild(f)

@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -978,4 +979,118 @@ func TestTreePreviewCmdReadsNothingUntilItRuns(t *testing.T) {
 	require.Positive(t, f.ListCalls("PROJ-PROV"))
 	_, ok = batch[0]().(treePreviewMsg)
 	require.True(t, ok, "the result is still delivered")
+}
+
+// blockingPlans holds every ListPlans until its context ends, so a Tree
+// panel read stays in flight until the panel cancels it. entered says a
+// read is waiting.
+type blockingPlans struct {
+	*fake.Provider
+	entered chan struct{}
+}
+
+func (b blockingPlans) ListPlans(ctx context.Context, _ string) ([]provider.Plan, error) {
+	b.entered <- struct{}{}
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+// treeReadInFlight is the plan screen with a Tree panel read that r started
+// and that is blocked inside the provider. result delivers the read's
+// result once it ends; progress is the batch's progress command.
+func treeReadInFlight(t *testing.T) (m Model, result chan tea.Msg, progress tea.Cmd) {
+	t.Helper()
+	m = planWithTree(t)
+	bp := blockingPlans{Provider: m.svc.P.(*fake.Provider), entered: make(chan struct{})}
+	m.svc.P = bp
+	m.focus = focusTree
+	m, cmd := send(m, mkKey("r"))
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch, 2)
+	result = make(chan tea.Msg, 1)
+	go func() { result <- batch[0]() }()
+	<-bp.entered
+	return m, result, batch[1]
+}
+
+// requireReadEnded checks a cancelled read: its result is dropped by the
+// panel and its progress command ends, so no goroutine is left waiting.
+func requireReadEnded(t *testing.T, m Model, result chan tea.Msg, progress tea.Cmd) {
+	t.Helper()
+	msg := <-result // without the cancel the read never returns
+	tp, ok := msg.(treePreviewMsg)
+	require.True(t, ok)
+	require.ErrorIs(t, tp.Err, context.Canceled)
+	before := m.plan.tree
+	m, _ = send(m, tp)
+	require.Equal(t, before, m.plan.tree, "a cancelled read reports nothing")
+	for p := progress(); p != nil; p = p.(treePreviewProgressMsg).next() {
+	}
+}
+
+func TestANewerTreeReadCancelsTheOlder(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	m.svc.P = m.svc.P.(blockingPlans).Provider // the newer read is not held
+	m, _ = send(m, mkKey("r"))
+	requireReadEnded(t, m, result, progress)
+}
+
+func TestMovingToAnotherBuildCancelsTheTreeRead(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	m.svc.P = m.svc.P.(blockingPlans).Provider
+	other := sampleBuild()
+	other.Key, other.Number = "PROJ-BUILD-43", 43
+	m, _ = m.showBuild(other)
+	requireReadEnded(t, m, result, progress)
+}
+
+func TestClosingThePlanScreenCancelsTheTreeRead(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	m.focus = focusBuilds
+	m, _ = send(m, mkKey("esc"))
+	require.NotEqual(t, screenPlan, m.screen)
+	requireReadEnded(t, m, result, progress)
+}
+
+func TestAServerSwitchCancelsTheTreeRead(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	next, _ := m.switchServer("lab")
+	requireReadEnded(t, next.(Model), result, progress)
+}
+
+// A read cancelled before its command runs does not start.
+func TestATreeReadCancelledBeforeItRunsReadsNothing(t *testing.T) {
+	m := planWithTree(t)
+	f := m.svc.P.(*fake.Provider)
+	m.focus = focusTree
+	m, cmd := send(m, mkKey("r"))
+	calls := f.ListCalls("PROJ-PROV")
+	m, _ = send(m, mkKey("r"))
+	batch := cmd().(tea.BatchMsg)
+	tp := batch[0]().(treePreviewMsg)
+	require.ErrorIs(t, tp.Err, context.Canceled)
+	require.Equal(t, calls, f.ListCalls("PROJ-PROV"))
+	require.Nil(t, batch[1](), "the progress ends with the read")
+}
+
+func TestQuittingCancelsTheTreeRead(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	m, cmd := send(m, mkKey("q"))
+	require.NotNil(t, cmd)
+	requireReadEnded(t, m, result, progress)
+}
+
+// With a set running, q asks first; quitting on the answer cancels the read
+// too.
+func TestConfirmedQuitCancelsTheTreeRead(t *testing.T) {
+	m, result, progress := treeReadInFlight(t)
+	ch := make(chan app.SetEvent)
+	close(ch) // the train has written its record; the quit does not wait
+	m.train = trainState{set: "release", ch: ch}
+	m, _ = send(m, mkKey("q"))
+	require.Equal(t, overlayConfirm, m.overlay)
+	m, cmd := send(m, mkKey("y"))
+	require.NotNil(t, cmd)
+	requireReadEnded(t, m, result, progress)
 }

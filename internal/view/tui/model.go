@@ -141,6 +141,8 @@ type Model struct {
 	treeCancel  context.CancelFunc
 	treeCh      <-chan app.TreeEvent
 
+	treePreviewCancel context.CancelFunc // the Tree panel's read in flight
+
 	// revisionRun is the build the form last triggered with a revision, so a
 	// not-built result can say which revision Bamboo could not build.
 	revisionRun struct{ Key, Rev string }
@@ -1794,6 +1796,8 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 				ch := m.train.ch
 				m.train.end()
 				m.stopWatch()
+				m.stopTree()
+				m.stopTreePreview()
 				m.stopFollow()
 				return m, func() tea.Msg {
 					for range ch {
@@ -1804,6 +1808,7 @@ func (m Model) quit() (tea.Model, tea.Cmd) {
 	}
 	m.stopWatch()
 	m.stopTree()
+	m.stopTreePreview()
 	m.stopFollow()
 	return m, tea.Quit
 }

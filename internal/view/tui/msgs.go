@@ -554,7 +554,8 @@ type treePreviewProgressMsg struct {
 // treePreviewCmd reads what build key triggered, one level down. It is read
 // once, not watched: the plan screen reads it again on r and when the open
 // build finishes. The read starts when either command of the batch runs,
-// never when it is built, so a command that is dropped reads nothing; its
+// never when it is built, so a command that is dropped reads nothing, and
+// ending ctx ends it; a read cancelled before it runs does not start. Its
 // result comes from the first command and its progress from the second,
 // which keeps only the newest snapshot and ends with the read.
 func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.Cmd {
@@ -562,6 +563,11 @@ func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int) 
 	result := make(chan treePreviewMsg, 1)
 	var start sync.Once
 	read := func() {
+		if err := ctx.Err(); err != nil { // the panel moved on before it ran
+			close(progress)
+			result <- treePreviewMsg{Gen: gen, Key: key, Err: err}
+			return
+		}
 		go func() {
 			defer close(progress)
 			t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1, OnProgress: func(p app.TreeProgress) {

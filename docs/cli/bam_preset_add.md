@@ -46,5 +46,5 @@ bam preset add <name> --plan KEY [flags]
 
 ### SEE ALSO
 
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync, migrate
 

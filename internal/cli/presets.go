@@ -18,8 +18,8 @@ import (
 func init() { commandSets = append(commandSets, addPresets) }
 
 func addPresets(root *cobra.Command, r *runtime) {
-	subgroup(root, "preset", "Run presets: list, show, add, sync", groupRun).
-		AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newTargetSyncCmd(r))
+	subgroup(root, "preset", "Run presets: list, show, add, sync, migrate", groupRun).
+		AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
 	c := newInitCmd(r)
 	c.GroupID = groupSetup
 	root.AddCommand(c)
@@ -378,5 +378,91 @@ func newInitCmd(r *runtime) *cobra.Command {
 	f.StringSliceVar(&projects, "project", nil, "project key (repeatable; the first is the default)")
 	f.StringArrayVar(&plans, "plan", nil, "plan to generate a preset from, KEY or KEY=name (repeatable)")
 	f.BoolVar(&force, "force", false, "overwrite an existing .bam.yaml")
+	return cmd
+}
+
+// migrateDoc is bam preset migrate --json.
+type migrateDoc struct {
+	PresetsFile string           `json:"presets_file"`
+	MachineFile string           `json:"machine_file"`
+	DryRun      bool             `json:"dry_run"`
+	Moved       []migrateMoveDoc `json:"moved"`
+	Skipped     []migrateSkipDoc `json:"skipped"`
+}
+
+type migrateMoveDoc struct {
+	Name string `json:"name"`
+	From string `json:"from"`
+}
+
+type migrateSkipDoc struct {
+	Name   string `json:"name"`
+	From   string `json:"from"`
+	Reason string `json:"reason"`
+}
+
+func newPresetMigrateCmd(r *runtime) *cobra.Command {
+	var dryRun bool
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Move presets from the machine config into your presets file",
+		Long: "migrate moves the presets in your machine config (top-level targets and every repos entry)\n" +
+			"into your presets file (~/bam/presets.yaml, or BAM_PRESETS), renaming defaults to variables\n" +
+			"and keeping comments, so they work from every directory. A name already in the presets file,\n" +
+			"or defined more than once in the machine config, stays where it is. .bam.yaml is never touched.",
+		Example: "  bam preset migrate --dry-run\n  bam preset migrate",
+		Args:    cobra.NoArgs,
+		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
+			machine, presets := r.env.Paths.MachineConfig, r.presetsWritePath()
+			res, err := config.MigrateTargets(machine, presets, !dryRun)
+			if err != nil {
+				return err
+			}
+			if r.flags.json {
+				doc := migrateDoc{PresetsFile: presets, MachineFile: machine, DryRun: dryRun,
+					Moved: []migrateMoveDoc{}, Skipped: []migrateSkipDoc{}}
+				for _, m := range res.Moved {
+					doc.Moved = append(doc.Moved, migrateMoveDoc{Name: m.Name, From: m.From})
+				}
+				for _, s := range res.Skipped {
+					doc.Skipped = append(doc.Skipped, migrateSkipDoc{Name: s.Name, From: s.From, Reason: s.Reason})
+				}
+				return view.WriteJSON(r.env.Stdout, doc)
+			}
+			if len(res.Moved) == 0 && len(res.Skipped) == 0 {
+				fmt.Fprintf(r.env.Stdout, "no presets to migrate in %s\n", machine)
+				return nil
+			}
+			verb := "moved"
+			if dryRun {
+				verb = "would move"
+			}
+			type row struct{ action, name, detail string }
+			var rows []row
+			for _, m := range res.Moved {
+				rows = append(rows, row{verb, m.Name, "from " + m.From})
+			}
+			for _, s := range res.Skipped {
+				rows = append(rows, row{"kept", s.Name, s.Reason})
+			}
+			aw, nw := 0, 0
+			for _, x := range rows {
+				aw, nw = max(aw, len(x.action)), max(nw, len(x.name))
+			}
+			for _, x := range rows {
+				fmt.Fprintf(r.env.Stdout, "%-*s  %-*s  %s\n", aw, x.action, nw, x.name, x.detail)
+			}
+			noun := "presets"
+			if len(res.Moved) == 1 {
+				noun = "preset"
+			}
+			fmt.Fprintf(r.env.Stdout, "%s %d %s to %s\n", verb, len(res.Moved), noun, presets)
+			if dryRun {
+				fmt.Fprintln(r.env.Stdout, "dry run: nothing written")
+			}
+			return nil
+		}),
+	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would move and write nothing")
 	return cmd
 }

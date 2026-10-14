@@ -70,6 +70,15 @@ Make one preset per set, each pointing at the same plan:
     bam preset add deploy-qa      --plan PROJ-DEPLOY
     bam preset add deploy-staging --plan PROJ-DEPLOY
 
+### Move presets you already have
+
+Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml` on Linux and WSL, `~/Library/Application Support/bam/config.yaml` on macOS), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file:
+
+    bam preset migrate --dry-run     # what would move
+    bam preset migrate
+
+Each preset keeps its values and comments; `defaults:` becomes `variables:`. A name that is already in your presets file, or that appears in more than one place in the machine config, or that uses YAML anchors (`&name`, `*name`, `<<:`), stays where it is and the output says why. If your presets file is not valid, migrate stops and changes nothing. `.bam.yaml` is never touched. Afterwards `bam preset show <name>` says `Defined in ~/bam/presets.yaml`.
+
 ### One presets file for Git Bash, WSL and macOS
 
 The path is `~/bam/presets.yaml` on every system, so one setup works everywhere:

@@ -141,6 +141,8 @@ type Model struct {
 	treeCancel  context.CancelFunc
 	treeCh      <-chan app.TreeEvent
 
+	treePreviewCancel context.CancelFunc // the Tree panel's read in flight
+
 	// revisionRun is the build the form last triggered with a revision, so a
 	// not-built result can say which revision Bamboo could not build.
 	revisionRun struct{ Key, Rev string }

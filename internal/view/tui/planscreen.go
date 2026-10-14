@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"strings"
@@ -123,7 +124,7 @@ func (m Model) openPlan(key, buildsPlan string, want *provider.Build, f focus) (
 	m.plan.key, m.plan.want, m.plan.older = key, want, ""
 	m.plan.restGen++
 	m.plan.tree, m.plan.treeCursor = treePreview{}, 0
-	m.treePreviewGen++
+	m.stopTreePreview()
 	m.focus = f
 	m.builds.setQuery("")
 	cmds := []tea.Cmd{m.loadBuilds(buildsPlan, true)}
@@ -149,7 +150,7 @@ func (m Model) enterPlan(key, buildsPlan string, want *provider.Build, f focus) 
 func (m *Model) closePlan() {
 	m.leaveBuild()
 	m.plan = planScreen{}
-	m.treePreviewGen++
+	m.stopTreePreview()
 	// The builds are the plan's: left behind, t on Home would fall back to
 	// one of them. A load still in flight for them is dropped.
 	m.buildsGen++
@@ -328,7 +329,7 @@ func (m Model) cacheBuild(b provider.Build) Model {
 
 // loadTreePreview reads key's tree, or takes it from the cache unless fresh.
 func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
-	m.treePreviewGen++
+	m.stopTreePreview()
 	m.plan.treeCursor = 0
 	if t, ok := m.plan.trees[key]; ok && !fresh {
 		m.plan.tree = treePreview{key: key, tree: t, have: true}
@@ -338,7 +339,19 @@ func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
 	if m.svc == nil {
 		return m, nil
 	}
-	return m, treePreviewCmd(m.baseCtx(), m.svc, key, m.treePreviewGen)
+	ctx, cancel := context.WithCancel(m.baseCtx())
+	m.treePreviewCancel = cancel
+	return m, treePreviewCmd(ctx, m.svc, key, m.treePreviewGen)
+}
+
+// stopTreePreview moves the Tree panel on: a read in flight is cancelled,
+// so it stops reading Bamboo, and its result is dropped.
+func (m *Model) stopTreePreview() {
+	m.treePreviewGen++
+	if m.treePreviewCancel != nil {
+		m.treePreviewCancel()
+		m.treePreviewCancel = nil
+	}
 }
 
 // treePreviewLoaded keeps the tree for the build it was read for. A finished

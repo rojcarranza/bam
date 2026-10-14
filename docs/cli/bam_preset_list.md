@@ -1,9 +1,9 @@
-## bam target list
+## bam preset list
 
-List run presets from .bam.yaml and the machine config
+List run presets from your presets file, .bam.yaml and the machine config
 
 ```
-bam target list [flags]
+bam preset list [flags]
 ```
 
 ### Options
@@ -24,5 +24,5 @@ bam target list [flags]
 
 ### SEE ALSO
 
-* [bam target](bam_target.md)	 - Run presets: list, show, add, sync
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync
 

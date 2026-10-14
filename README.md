@@ -47,8 +47,16 @@ Check the install:
 
    Review the generated file, then commit it. It holds no secrets.
 
-3. Run, watch, and investigate:
+3. Save your own presets. They go in `~/bam/presets.yaml` and work from any directory:
 
+       bam preset add deploy-qa --plan PROJ-DEPLOY      # reads the plan's variables from Bamboo
+       bam preset list                                  # prints the presets file's path too
+
+   Open `~/bam/presets.yaml`, set the values under `variables`, and delete the ones you never change. Git Bash, WSL and macOS can share one file; see [Presets](docs/presets.md#one-presets-file-for-git-bash-wsl-and-macos).
+
+4. Run, watch, and investigate:
+
+       bam run deploy-qa --dry-run                      # check the variables, trigger nothing
        bam run provision-lab --var cluster_name=alpha --watch
        bam logs --last --failed
        bam open --last
@@ -182,7 +190,7 @@ and `bam build cancel` on the command line, stop a build.
 | run with the previous build's variables | `bam run provision-lab --from last` |
 | check variables without running | `bam run provision-lab --dry-run` |
 | review and change variables in your editor, then run | `bam run provision-lab --edit` |
-| save my own variable values as a preset | `bam target add NAME --plan KEY --machine` (see [presets](docs/presets.md)) |
+| save my own variable values as a preset | `bam preset add NAME --plan KEY` (see [presets](docs/presets.md)) |
 | change the last (or build #41's) variables, then run | `bam run provision-lab --from 41 --edit` |
 | build a chosen commit instead of the newest | `bam run provision-lab --revision abc1234` |
 | rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |

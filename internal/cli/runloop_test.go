@@ -29,7 +29,7 @@ func TestRunDryRunTriggersNothing(t *testing.T) {
 func TestRunValidationStopsBeforeTrigger(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("run", "provision-lab"))
-	assert.Contains(t, h.stderr.String(), "cluster_name is required by target provision-lab")
+	assert.Contains(t, h.stderr.String(), "cluster_name is required by preset provision-lab")
 	assert.Equal(t, 2, h.run("run", "provision-lab", "--var", "cluster_name=a", "--var", "cluster_type=nomad"))
 	assert.Empty(t, h.fake.Triggered)
 }
@@ -185,7 +185,7 @@ func TestHelpListsShortcuts(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("--help"))
 	assert.Contains(t, h.stdout.String(), "Shortcuts:")
-	assert.Regexp(t, `run\s+Trigger a plan or target`, h.stdout.String())
+	assert.Regexp(t, `run\s+Trigger a plan or preset`, h.stdout.String())
 }
 
 func TestRunRevisionDryRun(t *testing.T) {

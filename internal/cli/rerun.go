@@ -13,7 +13,7 @@ func newBuildRerunCmd(r *runtime) *cobra.Command {
 	var last, watch bool
 	var branch string
 	cmd := &cobra.Command{
-		Use:   "rerun [<build>|<plan>|<target>]",
+		Use:   "rerun [<build>|<plan>|<preset>]",
 		Short: "Rerun a failed build's failed jobs",
 		Long: `Rerun a failed or stopped build's failed jobs, as Bamboo's "Rerun failed jobs"
 does: same build key, same variables and commit. A build that is running or
@@ -54,7 +54,7 @@ succeeded is refused.`,
 	}
 	f := cmd.Flags()
 	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	f.StringVar(&branch, "branch", "", "plan branch when a plan or target is given")
+	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
 	f.BoolVar(&watch, "watch", false, "follow the build until it finishes")
 	return cmd
 }

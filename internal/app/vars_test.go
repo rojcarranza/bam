@@ -68,14 +68,14 @@ func TestResolveVarsValidationOrder(t *testing.T) {
 	withEnv(s, map[string]string{"LAB_DB_PASSWORD": "x"})
 	_, err = s.ResolveVars(bg, ref, VarOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cluster_name is required by target provision-lab")
+	assert.Contains(t, err.Error(), "cluster_name is required by preset provision-lab")
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "--var cluster_name=VALUE", e.Try)
 
 	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_name=a", "cluster_type=nomad"}})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `cluster_type="nomad" is not allowed by target provision-lab`)
+	assert.Contains(t, err.Error(), `cluster_type="nomad" is not allowed by preset provision-lab`)
 	assert.Contains(t, err.Error(), "allowed: k8s, dcos")
 }
 
@@ -191,7 +191,7 @@ func TestValidateVarsResolvesEnvReferencesAndMarksThemSecret(t *testing.T) {
 		Target: config.Target{Defaults: config.StringMap{"token": "${LAB_TOKEN}"}}}
 	ref := PlanRef{PlanKey: "PROJ-PROV", MasterKey: "PROJ-PROV", Target: &tgt}
 	base := VarSet{DeclaredKnown: true, Vars: []ResolvedVar{
-		{Name: "token", Value: "${LAB_TOKEN}", Source: "target"},
+		{Name: "token", Value: "${LAB_TOKEN}", Source: "preset"},
 	}}
 
 	got, err := ValidateVars(ref, base, nil, func(k string) string {
@@ -291,7 +291,7 @@ func TestApplyVarsChecksNoRules(t *testing.T) {
 	base := VarSet{DeclaredKnown: true, Declared: map[string]bool{"cluster_type": true},
 		Vars: []ResolvedVar{
 			{Name: "cluster_type", Value: "k8s", PlanValue: "k8s", Source: "plan", Declared: true},
-			{Name: "token", Value: "${LAB_TOKEN}", Source: "target", Secret: true},
+			{Name: "token", Value: "${LAB_TOKEN}", Source: "preset", Secret: true},
 		}}
 
 	got, err := ApplyVars(ref, base, []string{"cluster_type=dcos"})
@@ -368,11 +368,11 @@ func TestValidateEditedAppliesTheRulesToEdits(t *testing.T) {
 
 	_, err := ValidateEdited(ref, base, []string{"cluster_name=a"}, []Edit{{Name: "cluster_type", Value: "swarm"}}, emptyEnv)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `cluster_type="swarm" is not allowed by target provision-lab`)
+	assert.Contains(t, err.Error(), `cluster_type="swarm" is not allowed by preset provision-lab`)
 
 	_, err = ValidateEdited(ref, base, []string{"cluster_name=a"}, []Edit{{Name: "cluster_name", Value: ""}}, emptyEnv)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cluster_name is required by target provision-lab")
+	assert.Contains(t, err.Error(), "cluster_name is required by preset provision-lab")
 }
 
 func TestValidateEditedWarnsOnceForAnUndeclaredName(t *testing.T) {

@@ -3,7 +3,7 @@
 Print the Bamboo URL of a project, plan, build or job
 
 ```
-bam url [<key>|<target>] [flags]
+bam url [<key>|<preset>] [flags]
 ```
 
 ### Options

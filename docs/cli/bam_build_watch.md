@@ -3,13 +3,13 @@
 Follow a build until it finishes; exit 1 if it fails
 
 ```
-bam build watch [<build>|<plan>|<target>] [flags]
+bam build watch [<build>|<plan>|<preset>] [flags]
 ```
 
 ### Options
 
 ```
-      --branch string      plan branch when a plan or target is given
+      --branch string      plan branch when a plan or preset is given
   -h, --help               help for watch
       --last               the last build bam triggered from this repository
       --timeout duration   stop watching after this long (the build keeps running)

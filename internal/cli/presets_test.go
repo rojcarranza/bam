@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,59 +14,119 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTargetCommandIsGone(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("target", "list"), "bam target was renamed to bam preset")
+}
+
 func TestTargetListAndShow(t *testing.T) {
 	h := newHarness(t)
-	assert.Equal(t, 0, h.run("target", "list"))
+	assert.Equal(t, 0, h.run("preset", "list"))
 	assert.Regexp(t, `build\s+PROJ-BUILD`, h.stdout.String())
 	assert.Regexp(t, `provision-lab\s+PROJ-PROV\s+develop`, h.stdout.String())
 
-	assert.Equal(t, 0, h.run("target", "list", "--json"))
+	assert.Equal(t, 0, h.run("preset", "list", "--json"))
 	var docs []map[string]any
 	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &docs))
 	assert.Len(t, docs, 2)
 
-	assert.Equal(t, 0, h.run("target", "show", "provision-lab"))
+	assert.Equal(t, 0, h.run("preset", "show", "provision-lab"))
 	assert.Regexp(t, `Required\s+cluster_name`, h.stdout.String())
 	assert.Regexp(t, `cluster_type\s+k8s, dcos`, h.stdout.String())
-	assert.Equal(t, 2, h.run("target", "show", "nope"))
+	assert.Equal(t, 2, h.run("preset", "show", "nope"))
 }
 
 func TestTargetAddWritesProjectFile(t *testing.T) {
 	h := newHarness(t)
-	assert.Equal(t, 0, h.run("target", "add", "prov2", "--plan", "PROJ-PROV", "--branch", "develop"))
-	assert.Contains(t, h.stdout.String(), "added target prov2 to "+filepath.Join(h.root, ".bam.yaml"))
+	assert.Equal(t, 0, h.run("preset", "add", "prov2", "--plan", "PROJ-PROV", "--branch", "develop", "--shared"))
+	assert.Contains(t, h.stdout.String(), "added preset prov2 to "+filepath.Join(h.root, ".bam.yaml"))
 	assert.Contains(t, h.stderr.String(), "review before commit: values copied from Bamboo")
 	data, err := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "prov2:")
 	assert.Contains(t, string(data), `no plan default; last used "beta" in PROJ-PROV12-8`)
 
-	assert.Equal(t, 0, h.run("target", "show", "prov2"), "the written file loads")
-	assert.Equal(t, 2, h.run("target", "add", "build", "--plan", "PROJ-BUILD"), "exists without --force")
+	assert.Equal(t, 0, h.run("preset", "show", "prov2"), "the written file loads")
+	assert.Equal(t, 2, h.run("preset", "add", "build", "--plan", "PROJ-BUILD", "--shared"), "exists without --force")
 }
 
 func TestTargetAddPrintWritesNothing(t *testing.T) {
 	h := newHarness(t)
 	before, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
-	assert.Equal(t, 0, h.run("target", "add", "x", "--plan", "PROJ-PROV", "--print"))
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"))
+	assert.True(t, strings.HasPrefix(h.stdout.String(), "presets:\n  x:\n    plan: PROJ-PROV\n"), h.stdout.String())
+	assert.Contains(t, h.stdout.String(), "    variables:\n")
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print", "--shared"))
 	assert.True(t, strings.HasPrefix(h.stdout.String(), "targets:\n  x:\n    plan: PROJ-PROV\n"), h.stdout.String())
 	after, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	assert.Equal(t, before, after)
+	assert.NoFileExists(t, filepath.Join(h.home, "bam", "presets.yaml"))
 }
 
-func TestTargetAddMachine(t *testing.T) {
+func TestPresetAddWritesThePresetsFileByDefault(t *testing.T) {
 	h := newHarness(t)
-	assert.Equal(t, 0, h.run("target", "add", "mine", "--plan", "PROJ-BUILD", "--machine"))
-	data, err := os.ReadFile(h.env.Paths.MachineConfig)
+	path := filepath.Join(h.home, "bam", "presets.yaml")
+	assert.Equal(t, 0, h.run("preset", "add", "mine", "--plan", "PROJ-PROV"))
+	assert.Contains(t, h.stdout.String(), "added preset mine to "+path)
+	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Contains(t, string(data), h.root+":")
-	assert.Contains(t, string(data), "mine:")
-	assert.Equal(t, 0, h.run("target", "show", "mine"))
+	assert.True(t, strings.HasPrefix(string(data), "presets:\n  mine:\n    plan: PROJ-PROV\n"), string(data))
+	assert.Contains(t, string(data), "    variables:\n")
+	project, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
+	assert.Equal(t, projectYAML, string(project), ".bam.yaml is untouched")
+
+	// The preset works from a directory outside the repository.
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+	assert.Equal(t, 0, h.run("preset", "show", "mine"))
+	assert.Contains(t, h.stdout.String(), path)
+	assert.Equal(t, 0, h.run("run", "mine", "--var", "cluster_name=x", "--dry-run"), h.stderr.String())
+}
+
+func TestPresetAddMachineFlagIsGone(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD", "--machine"))
+}
+
+func TestPresetAddHonoursBAMPresets(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(t.TempDir(), "sync", "presets.yaml")
+	h.vars["BAM_PRESETS"] = path
+	assert.Equal(t, 0, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD"))
+	assert.FileExists(t, path)
+	assert.NoFileExists(t, filepath.Join(h.home, "bam", "presets.yaml"))
+}
+
+func TestPresetAddInWSLCreatesTheFileInTheWindowsHome(t *testing.T) {
+	h := newHarness(t)
+	win := filepath.Join(t.TempDir(), "Users", "jdoe")
+	h.vars["WSL_DISTRO_NAME"] = "Ubuntu"
+	h.env.WindowsHome = func() (string, error) { return win, nil }
+	assert.Equal(t, 0, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD"))
+	assert.FileExists(t, filepath.Join(win, "bam", "presets.yaml"))
+
+	// Next time the glob finds it, and list says where it is.
+	h.env.WindowsHome = func() (string, error) { return "", errors.New("must not be asked again") }
+	h.env.Glob = func(string) ([]string, error) { return []string{filepath.Join(win, "bam", "presets.yaml")}, nil }
+	assert.Equal(t, 0, h.run("preset", "list"))
+	assert.Regexp(t, `mine\s+PROJ-BUILD`, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), "presets file: "+filepath.Join(win, "bam", "presets.yaml"))
+}
+
+func TestPresetListExplainsAmbiguousWSLFiles(t *testing.T) {
+	h := newHarness(t)
+	h.vars["WSL_DISTRO_NAME"] = "Ubuntu"
+	h.env.Glob = func(string) ([]string, error) {
+		return []string{"/mnt/c/Users/jdoe/bam/presets.yaml", "/mnt/c/Users/ops/bam/presets.yaml"}, nil
+	}
+	assert.Equal(t, 0, h.run("preset", "list"))
+	assert.Contains(t, h.stderr.String(), "BAM_PRESETS")
 }
 
 func TestTargetAddNeedsPlan(t *testing.T) {
 	h := newHarness(t)
-	assert.Equal(t, 2, h.run("target", "add", "x"))
+	assert.Equal(t, 2, h.run("preset", "add", "x"))
 }
 
 func TestInit(t *testing.T) {
@@ -110,7 +171,7 @@ func TestDefaultTargetName(t *testing.T) {
 func TestTargetSyncAddsThenUpToDate(t *testing.T) {
 	h := newHarness(t)
 	path := filepath.Join(h.root, ".bam.yaml")
-	assert.Equal(t, 0, h.run("target", "sync", "provision-lab"))
+	assert.Equal(t, 0, h.run("preset", "sync", "provision-lab"))
 	assert.Contains(t, h.stdout.String(), "provision-lab  PROJ-PROV  .bam.yaml\n")
 	assert.Regexp(t, `\+\s+cluster_name\s+""\s+no plan default; last used "beta" in PROJ-PROV12-8`, h.stdout.String())
 	assert.Contains(t, h.stderr.String(), "review before commit: values copied from Bamboo")
@@ -119,7 +180,7 @@ func TestTargetSyncAddsThenUpToDate(t *testing.T) {
 	assert.Contains(t, string(data), "      cluster_type: k8s\n      cluster_name: \"\" # no plan default; last used \"beta\" in PROJ-PROV12-8\n")
 	assert.Contains(t, string(data), "    required: [cluster_name]\n", "required is untouched")
 
-	assert.Equal(t, 0, h.run("target", "sync", "provision-lab"))
+	assert.Equal(t, 0, h.run("preset", "sync", "provision-lab"))
 	assert.Contains(t, h.stdout.String(), "provision-lab  PROJ-PROV  .bam.yaml  up to date\n")
 	assert.NotContains(t, h.stderr.String(), "review before commit")
 	again, _ := os.ReadFile(path)
@@ -130,13 +191,13 @@ func TestTargetSyncMarksAndUnmarksStale(t *testing.T) {
 	h := newHarness(t)
 	path := filepath.Join(h.root, ".bam.yaml")
 	h.fake.Variables["PROJ-PROV"] = []provider.Variable{{Name: "cluster_name", Value: ""}}
-	assert.Equal(t, 0, h.run("target", "sync", "provision-lab"))
+	assert.Equal(t, 0, h.run("preset", "sync", "provision-lab"))
 	assert.Regexp(t, `!\s+cluster_type\s+not declared on PROJ-PROV \(kept\)`, h.stdout.String())
 	data, _ := os.ReadFile(path)
 	assert.Contains(t, string(data), "cluster_type: k8s # not declared on PROJ-PROV\n")
 
 	h.fake.Variables["PROJ-PROV"] = []provider.Variable{{Name: "cluster_name", Value: ""}, {Name: "cluster_type", Value: "k8s"}}
-	assert.Equal(t, 0, h.run("target", "sync", "provision-lab"))
+	assert.Equal(t, 0, h.run("preset", "sync", "provision-lab"))
 	assert.Regexp(t, `~\s+cluster_type\s+declared again on PROJ-PROV`, h.stdout.String())
 	data, _ = os.ReadFile(path)
 	assert.Contains(t, string(data), "cluster_type: k8s\n")
@@ -146,7 +207,7 @@ func TestTargetSyncDryRunWritesNothing(t *testing.T) {
 	h := newHarness(t)
 	path := filepath.Join(h.root, ".bam.yaml")
 	before, _ := os.ReadFile(path)
-	assert.Equal(t, 0, h.run("target", "sync", "--all", "--dry-run"))
+	assert.Equal(t, 0, h.run("preset", "sync", "--all", "--dry-run"))
 	assert.Contains(t, h.stdout.String(), "would sync: provision-lab  PROJ-PROV  .bam.yaml\n")
 	assert.Contains(t, h.stdout.String(), "build  PROJ-BUILD  .bam.yaml  up to date\n")
 	assert.Contains(t, h.stdout.String(), "dry run: no files written\n")
@@ -158,7 +219,7 @@ func TestTargetSyncAllContinuesPastFailure(t *testing.T) {
 	h := newHarness(t)
 	h.fake.Variables["PROJ-BUILD"] = nil
 	h.fake.Plans["PROJ"] = h.fake.Plans["PROJ"][1:] // PROJ-BUILD no longer exists
-	assert.Equal(t, 5, h.run("target", "sync", "--all", "--json"))
+	assert.Equal(t, 5, h.run("preset", "sync", "--all", "--json"))
 	var docs []map[string]any
 	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &docs))
 	require.Len(t, docs, 2)
@@ -174,13 +235,13 @@ func TestTargetSyncAllContinuesPastFailure(t *testing.T) {
 func TestTargetSyncUnsupportedPlanVariables(t *testing.T) {
 	h := newHarness(t)
 	h.fake.VariablesErr = errs.Bamboof("no").Wrap(errs.ErrUnsupported)
-	assert.Equal(t, 5, h.run("target", "sync", "provision-lab"))
+	assert.Equal(t, 5, h.run("preset", "sync", "provision-lab"))
 	assert.Contains(t, h.stdout.String(), "provision-lab  PROJ-PROV  error: cannot read plan variables of PROJ-PROV on this server")
 }
 
 func TestTargetSyncArgs(t *testing.T) {
 	h := newHarness(t)
-	assert.Equal(t, 2, h.run("target", "sync"))
-	assert.Equal(t, 2, h.run("target", "sync", "build", "--all"))
-	assert.Equal(t, 2, h.run("target", "sync", "nope"))
+	assert.Equal(t, 2, h.run("preset", "sync"))
+	assert.Equal(t, 2, h.run("preset", "sync", "build", "--all"))
+	assert.Equal(t, 2, h.run("preset", "sync", "nope"))
 }

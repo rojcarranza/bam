@@ -7,7 +7,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
 
-// SyncPlan is what bam target sync would change in one target. It only
+// SyncPlan is what bam preset sync would change in one target. It only
 // describes the change; the caller applies Edits with config.SyncTarget.
 type SyncPlan struct {
 	Name  string

@@ -72,6 +72,7 @@ func Load(o Options) (*Loaded, error) {
 		WorkDir:     o.WorkDir,
 		Home:        o.Home,
 		MachineFile: o.MachineFile,
+		PresetsFile: config.LocatePresets(config.PresetsLookup{Home: o.Home, Getenv: o.Getenv, Glob: filepath.Glob}).Path,
 		Getenv:      o.Getenv,
 	})
 	if err != nil {
@@ -119,9 +120,9 @@ func (l *Loaded) PlanFor(name string) (plan, server string, err error) {
 		return "", "", err
 	}
 	if !ok {
-		e := errs.Configf("no target %q", name).WithTry("bam target list")
+		e := errs.Configf("no preset %q", name).WithTry("bam preset list")
 		if names := l.targetNames(); len(names) > 0 {
-			e = e.WithWhy("targets here: " + strings.Join(names, ", "))
+			e = e.WithWhy("presets here: " + strings.Join(names, ", "))
 		}
 		return "", "", e
 	}

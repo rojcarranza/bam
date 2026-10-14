@@ -159,6 +159,11 @@ func validateFiles(c *Config) error {
 	if err := checkSetNames(c.MachinePath, "sets", c.Machine.Sets); err != nil {
 		return err
 	}
+	if c.Presets != nil {
+		if err := checkTargetNames(c.PresetsPath, "presets", c.Presets.Presets); err != nil {
+			return err
+		}
+	}
 	for _, root := range sortedKeys(c.Machine.Repos) {
 		if err := checkTargetNames(c.MachinePath, "repos."+root+".targets", c.Machine.Repos[root].Targets); err != nil {
 			return err
@@ -173,8 +178,8 @@ func validateFiles(c *Config) error {
 func checkTargetNames(path, where string, targets map[string]Target) error {
 	for _, name := range sortedKeys(targets) {
 		if !ValidTargetName(name) {
-			return errs.Configf("%s: %s: invalid target name %q", path, where, name).
-				WithWhy("target names are lowercase letters, digits, - and _, starting with a letter").
+			return errs.Configf("%s: %s: invalid preset name %q", path, where, name).
+				WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter").
 				WithTry(fmt.Sprintf("rename it, for example %q", strings.ToLower(nonAlnumRe.ReplaceAllString(name, "-"))))
 		}
 	}

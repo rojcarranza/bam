@@ -44,16 +44,26 @@ type Server struct {
 	DefaultProject string `yaml:"default_project,omitempty"`
 }
 
+// PresetsFile is the personal presets file, ~/bam/presets.yaml by default.
+// Its presets apply in every directory.
+type PresetsFile struct {
+	Version int               `yaml:"version,omitempty"`
+	Presets map[string]Target `yaml:"presets,omitempty"`
+}
+
 // Target is a run preset.
 type Target struct {
-	Plan     string        `yaml:"plan,omitempty"`
-	Server   string        `yaml:"server,omitempty"`
-	Branch   string        `yaml:"branch,omitempty"`
-	Defaults StringMap     `yaml:"defaults,omitempty"`
-	Options  StringListMap `yaml:"options,omitempty"`
-	Required []string      `yaml:"required,omitempty"`
-	Watch    *bool         `yaml:"watch,omitempty"`
-	Timeout  Duration      `yaml:"timeout,omitempty"`
+	Plan     string    `yaml:"plan,omitempty"`
+	Server   string    `yaml:"server,omitempty"`
+	Branch   string    `yaml:"branch,omitempty"`
+	Defaults StringMap `yaml:"defaults,omitempty"`
+	// Variables is the newer name of Defaults. Load moves it into Defaults,
+	// so the rest of bam reads Defaults only.
+	Variables StringMap     `yaml:"variables,omitempty"`
+	Options   StringListMap `yaml:"options,omitempty"`
+	Required  []string      `yaml:"required,omitempty"`
+	Watch     *bool         `yaml:"watch,omitempty"`
+	Timeout   Duration      `yaml:"timeout,omitempty"`
 }
 
 type Repo struct {

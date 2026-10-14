@@ -11,7 +11,7 @@ bam init --server ALIAS --project KEY [--plan KEY[=name]]... [flags]
 ```
       --force              overwrite an existing .bam.yaml
   -h, --help               help for init
-      --plan stringArray   plan to generate a target from, KEY or KEY=name (repeatable)
+      --plan stringArray   plan to generate a preset from, KEY or KEY=name (repeatable)
       --project strings    project key (repeatable; the first is the default)
       --url string         server URL (default: the URL of --server in the machine config)
 ```

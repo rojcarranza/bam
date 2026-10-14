@@ -53,7 +53,7 @@ func TestResolvePlanErrors(t *testing.T) {
 	_, err := s.ResolvePlan(bg, "provison-lab", "")
 	require.Error(t, err)
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
-	assert.Contains(t, err.Error(), `unknown target "provison-lab"`)
+	assert.Contains(t, err.Error(), `unknown preset "provison-lab"`)
 	assert.Contains(t, err.Error(), "provision-lab")
 
 	_, err = s.ResolvePlan(bg, "proj plan", "")

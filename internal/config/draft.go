@@ -39,7 +39,11 @@ func quote(v string) string {
 }
 
 // Render returns "name:" and the target body, every line prefixed by indent.
-func (d TargetDraft) Render(indent string) string {
+func (d TargetDraft) Render(indent string) string { return d.RenderAs(indent, "defaults") }
+
+// RenderAs is Render with the variables map under varsKey: "defaults" in
+// .bam.yaml and config.yaml, "variables" in the presets file.
+func (d TargetDraft) RenderAs(indent, varsKey string) string {
 	var b strings.Builder
 	line := func(depth int, s string) {
 		b.WriteString(indent + strings.Repeat("  ", depth) + s + "\n")
@@ -55,7 +59,7 @@ func (d TargetDraft) Render(indent string) string {
 		line(1, "# branch: develop")
 	}
 	if len(d.Vars) > 0 {
-		line(1, "defaults:")
+		line(1, varsKey+":")
 		var options []string
 		for _, v := range d.Vars {
 			s := yamlKey(v.Name) + ": " + quote(v.Value)
@@ -81,5 +85,17 @@ func (d TargetDraft) Render(indent string) string {
 	return b.String()
 }
 
-// DraftYAML returns a standalone document holding only this target.
-func DraftYAML(d TargetDraft) string { return "targets:\n" + d.Render("  ") }
+// DraftYAML returns a standalone document holding only this target, as the
+// map at key ("targets" or "presets") would hold it.
+func DraftYAML(key string, d TargetDraft) string {
+	return key + ":\n" + d.RenderAs("  ", VarsKey([]string{key}))
+}
+
+// VarsKey is the variables key a preset uses under keyPath: "variables" in
+// the presets file, "defaults" elsewhere.
+func VarsKey(keyPath []string) string {
+	if len(keyPath) == 1 && keyPath[0] == "presets" {
+		return "variables"
+	}
+	return "defaults"
+}

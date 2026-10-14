@@ -2,11 +2,14 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
 	"strconv"
+	"strings"
 
 	"github.com/adrg/xdg"
 	"github.com/pkg/browser"
@@ -57,6 +60,12 @@ type Env struct {
 	// Deps the CLI builds without starting a terminal program.
 	RunTUI func(context.Context, tui.Deps) error
 	GOOS   string
+	// Glob is filepath.Glob; nil matches nothing. It finds the Windows
+	// presets file from WSL.
+	Glob func(pattern string) ([]string, error)
+	// WindowsHome returns the Windows home as a WSL path. It is asked only in
+	// WSL, when bam creates the presets file.
+	WindowsHome func() (string, error)
 }
 
 // SystemEnv returns the Env of the running process.
@@ -85,8 +94,10 @@ func SystemEnv() Env {
 			}
 			return 80
 		},
-		WorkDir: wd,
-		Home:    home,
+		WorkDir:     wd,
+		Home:        home,
+		Glob:        filepath.Glob,
+		WindowsHome: wslWindowsHome,
 		Paths: Paths{
 			MachineConfig: machine,
 			Credentials:   filepath.Join(xdg.ConfigHome, "bam", "credentials.yaml"),
@@ -113,4 +124,21 @@ func SystemEnv() Env {
 		RunTUI: tui.Run,
 		GOOS:   goruntime.GOOS,
 	}
+}
+
+// wslWindowsHome asks Windows for %USERPROFILE% and converts it to a WSL
+// path, such as /mnt/c/Users/jdoe.
+func wslWindowsHome() (string, error) {
+	cmd := exec.Command("cmd.exe", "/c", "echo %USERPROFILE%")
+	cmd.Dir = "/mnt/c" // cmd.exe warns about a Linux working directory
+	out, err := cmd.Output()
+	win := strings.TrimSpace(string(out))
+	if err != nil || win == "" || strings.Contains(win, "%") {
+		return "", errors.New("cannot read %USERPROFILE% from cmd.exe")
+	}
+	out, err = exec.Command("wslpath", "-u", win).Output()
+	if err != nil {
+		return "", errors.New("wslpath cannot convert " + win)
+	}
+	return strings.TrimSpace(string(out)), nil
 }

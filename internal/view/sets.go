@@ -225,7 +225,7 @@ type SetEventDoc struct {
 	Error  *ErrorDoc `json:"error,omitempty"`
 }
 
-// varsDoc shows configured variables as bam target show --json does: an
+// varsDoc shows configured variables as bam preset show --json does: an
 // ${ENV} reference as written, a secret literal masked.
 func varsDoc(vs []app.TargetVar) map[string]string {
 	out := map[string]string{}

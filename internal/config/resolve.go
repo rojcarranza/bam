@@ -177,7 +177,7 @@ type TargetLayer struct {
 }
 
 // Targets merges targets by name: project, then machine top-level, then the
-// machine repos entry for this repository. It validates the merged result.
+// presets file, then the machine repos entry for this repository. It validates the merged result.
 func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 	out := map[string]ResolvedTarget{}
 	layer := func(label, path string, keyPath []string, targets map[string]Target) {
@@ -194,6 +194,9 @@ func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 		layer(c.ProjectPath, c.ProjectPath, []string{"targets"}, c.Project.Targets)
 	}
 	layer(c.MachinePath, c.MachinePath, []string{"targets"}, c.Machine.Targets)
+	if c.Presets != nil {
+		layer(c.PresetsPath, c.PresetsPath, []string{"presets"}, c.Presets.Presets)
+	}
 	if key, repo, ok := c.repoEntry(); ok {
 		layer(c.MachinePath+" (repos)", c.MachinePath, []string{"repos", key, "targets"}, repo.Targets)
 	}
@@ -261,13 +264,13 @@ func mergeTarget(base, over Target) Target {
 func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 	where := strings.Join(t.DefinedIn, ", ")
 	if t.Plan == "" {
-		return errs.Configf("target %q has no plan", t.Name).
+		return errs.Configf("preset %q has no plan", t.Name).
 			WithWhy("defined in " + where).
 			WithTry(fmt.Sprintf("add plan: PROJ-PLAN under targets.%s", t.Name))
 	}
 	if t.Server != "" {
 		if _, ok := servers[t.Server]; !ok {
-			return errs.Configf("target %q uses unknown server %q", t.Name, t.Server).
+			return errs.Configf("preset %q uses unknown server %q", t.Name, t.Server).
 				WithTry(fmt.Sprintf("bam server add %s --url URL", t.Server))
 		}
 	}
@@ -284,7 +287,7 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 			if IsMaskedName(name) {
 				display = "********"
 			}
-			return errs.Configf("target %q: default %s=%q is not one of %s", t.Name, name, display, strings.Join(t.Options[name], ", ")).
+			return errs.Configf("preset %q: default %s=%q is not one of %s", t.Name, name, display, strings.Join(t.Options[name], ", ")).
 				WithWhy("defined in " + where)
 		}
 	}

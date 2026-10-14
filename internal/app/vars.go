@@ -146,7 +146,7 @@ func (s *Service) VarBase(ctx context.Context, ref PlanRef, from string) (VarSet
 	if t != nil {
 		for name, val := range t.Defaults {
 			v := get(name)
-			v.Value, v.Source = val, "target"
+			v.Value, v.Source = val, "preset"
 			// A ${ENV} default is secret whatever the name looks like:
 			// ValidateVars will mark it when it resolves it, and the run
 			// form builds its fields from this base, before that happens.
@@ -302,7 +302,7 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 	for i := range out.Vars {
 		v := &out.Vars[i]
 		vars[v.Name] = v
-		if v.Source != "target" && v.Source != "edit" {
+		if v.Source != "preset" && v.Source != "edit" {
 			continue
 		}
 		if envName, ok := config.EnvRef(v.Value); ok {
@@ -317,7 +317,7 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 	if t := ref.Target; t != nil {
 		for _, name := range t.Required {
 			if v, ok := vars[name]; !ok || v.Value == "" {
-				return VarSet{}, errs.Usagef("%s is required by target %s", name, t.Name).
+				return VarSet{}, errs.Usagef("%s is required by preset %s", name, t.Name).
 					WithTry(fmt.Sprintf("--var %s=VALUE", name))
 			}
 		}
@@ -327,7 +327,7 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 				continue
 			}
 			if !slices.Contains(t.Options[name], v.Value) {
-				return VarSet{}, errs.Usagef("%s=%q is not allowed by target %s", name, v.Display(), t.Name).
+				return VarSet{}, errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
 					WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
 			}
 		}

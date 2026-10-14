@@ -61,10 +61,10 @@ func TestRunEditTriggersTheEditedSet(t *testing.T) {
 
 	require.Len(t, h.editorSeen, 1)
 	first := h.editorSeen[0]
-	assert.True(t, strings.HasPrefix(first, "# error: cluster_name is required by target provision-lab\n#\n"),
+	assert.True(t, strings.HasPrefix(first, "# error: cluster_name is required by preset provision-lab\n#\n"),
 		"a fixable rule error opens the editor instead of failing:\n%s", first)
 	assert.Contains(t, first, "# bam run provision-lab · PROJ-PROV · branch develop · server work\n")
-	assert.Contains(t, first, "# target, options: k8s|dcos\ncluster_type=k8s\n")
+	assert.Contains(t, first, "# preset, options: k8s|dcos\ncluster_type=k8s\n")
 	assert.Equal(t, []string{"vi"}, h.editorCmds)
 
 	require.Len(t, h.fake.Triggered, 1)
@@ -170,7 +170,7 @@ func TestRunEditReopensOnErrors(t *testing.T) {
 
 	assert.True(t, strings.HasPrefix(second, "# error: line "), second)
 	assert.Contains(t, second, " is not name=value\n")
-	assert.Contains(t, second, "# error: cluster_type=\"nomad\" is not allowed by target provision-lab\n#   allowed: k8s, dcos\n")
+	assert.Contains(t, second, "# error: cluster_type=\"nomad\" is not allowed by preset provision-lab\n#   allowed: k8s, dcos\n")
 	assert.Equal(t, 2, strings.Count(second, "# error: "), "the first round's block is replaced, not stacked")
 	assert.Contains(t, second, "cluster_type=nomad\n", "the user's own text comes back")
 

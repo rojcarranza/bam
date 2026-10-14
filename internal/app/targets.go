@@ -30,7 +30,7 @@ func (v TargetVar) Display() string {
 	return v.Value
 }
 
-// TargetInfo describes a merged target for bam target list/show.
+// TargetInfo describes a merged target for bam preset list/show.
 type TargetInfo struct {
 	Name      string
 	Plan      string
@@ -64,7 +64,7 @@ func DescribeTarget(cfg *config.Config, getenv func(string) string, name string)
 		return TargetInfo{}, err
 	}
 	if !ok {
-		return TargetInfo{}, errs.Usagef("unknown target %q", name).WithTry("bam target list")
+		return TargetInfo{}, errs.Usagef("unknown preset %q", name).WithTry("bam preset list")
 	}
 	return describe(t, getenv), nil
 }

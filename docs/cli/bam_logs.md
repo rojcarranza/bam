@@ -3,13 +3,13 @@
 Print job logs; --failed for failed jobs only
 
 ```
-bam logs [<build>|<plan>|<target>] [flags]
+bam logs [<build>|<plan>|<preset>] [flags]
 ```
 
 ### Options
 
 ```
-      --branch string   plan branch when a plan or target is given
+      --branch string   plan branch when a plan or preset is given
       --failed          only failed jobs
       --follow          keep printing new lines until the job finishes
   -h, --help            help for logs

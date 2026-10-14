@@ -18,7 +18,7 @@ import (
 func init() { commandSets = append(commandSets, addPresets) }
 
 func addPresets(root *cobra.Command, r *runtime) {
-	subgroup(root, "target", "Run presets: list, show, add, sync", groupRun).
+	subgroup(root, "preset", "Run presets: list, show, add, sync", groupRun).
 		AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newTargetSyncCmd(r))
 	c := newInitCmd(r)
 	c.GroupID = groupSetup
@@ -36,7 +36,7 @@ func defaultTargetName(planKey string) string {
 func newTargetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List run presets from .bam.yaml and the machine config",
+		Short: "List run presets from your presets file, .bam.yaml and the machine config",
 		Args:  cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
@@ -47,6 +47,13 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			loc := r.presets()
+			if !r.flags.json {
+				fmt.Fprintln(r.env.Stderr, "presets file: "+loc.Path)
+				if loc.Note != "" {
+					fmt.Fprintln(r.env.Stderr, "  note: "+loc.Note)
+				}
+			}
 			if r.flags.json {
 				docs := []view.TargetDoc{}
 				for _, t := range infos {
@@ -55,7 +62,7 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 				return view.WriteJSON(r.env.Stdout, docs)
 			}
 			if len(infos) == 0 {
-				r.note("no targets configured", "bam target add <name> --plan PROJ-PLAN")
+				r.note("no presets configured", "bam preset add <name> --plan PROJ-PLAN")
 				return nil
 			}
 			o, err := r.out()
@@ -96,14 +103,22 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 
 func newTargetAddCmd(r *runtime) *cobra.Command {
 	var plan, from, branch string
-	var machine, printOnly, force bool
+	var shared, printOnly, force bool
 	cmd := &cobra.Command{
 		Use:   "add <name> --plan KEY",
 		Short: "Generate a run preset from a plan's declared variables",
-		Args:  cobra.ExactArgs(1),
+		Long: "add reads the plan's declared variables from Bamboo and writes a preset named <name>.\n" +
+			"It writes your presets file (~/bam/presets.yaml, or BAM_PRESETS), whose presets work in every\n" +
+			"directory; --shared writes the repository's .bam.yaml instead. Edit the values under variables,\n" +
+			"then run it with bam run <name>.",
+		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
+			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
+			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
+			"  bam run deploy-qa --dry-run",
+		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if plan == "" {
-				return errs.Usagef("--plan is required").WithTry(fmt.Sprintf("bam target add %s --plan PROJ-PLAN", args[0]))
+				return errs.Usagef("--plan is required").WithTry(fmt.Sprintf("bam preset add %s --plan PROJ-PLAN", args[0]))
 			}
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
@@ -114,20 +129,25 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if printOnly {
-				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(d))
+				key := "presets"
+				if shared {
+					key = "targets"
+				}
+				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
 				return err
 			}
-			path, keyPath := r.cfg.ProjectPath, []string{"targets"}
-			if machine {
-				path, keyPath = r.env.Paths.MachineConfig, []string{"repos", r.cfg.RepoRoot, "targets"}
-			} else if path == "" {
-				return errs.Usagef("no .bam.yaml in this repository").
-					WithTry("bam init --server ALIAS --project KEY, or pass --machine")
+			path, keyPath := r.presetsWritePath(), []string{"presets"}
+			if shared {
+				path, keyPath = r.cfg.ProjectPath, []string{"targets"}
+				if path == "" {
+					return errs.Usagef("no .bam.yaml in this repository").
+						WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
+				}
 			}
 			if err := config.WriteTarget(path, keyPath, d, force); err != nil {
 				return err
 			}
-			fmt.Fprintf(r.env.Stdout, "added target %s to %s\n", d.Name, path)
+			fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
 			if d.Note != "" {
 				fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
 			}
@@ -139,9 +159,9 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&plan, "plan", "", "plan key to generate from")
 	f.StringVar(&from, "from", "", "build whose values fill the comments: number, key or last")
 	f.StringVar(&branch, "branch", "", "default branch for the preset")
-	f.BoolVar(&machine, "machine", false, "write to the machine config instead of .bam.yaml")
+	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets file")
 	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
-	f.BoolVar(&force, "force", false, "replace an existing target")
+	f.BoolVar(&force, "force", false, "replace an existing preset")
 	return cmd
 }
 
@@ -150,12 +170,12 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "sync <name> | --all",
 		Short:             "Add new plan variables to a preset and mark removed ones",
-		Long:              "sync compares a preset with its plan's declared variables. New variables are added to defaults\nwith the same values and comments as target add. Variables the plan no longer declares are kept\nand marked \"not declared on PLAN\". Existing values are never changed.",
+		Long:              "sync compares a preset with its plan's declared variables. New variables are added to the\npreset's variables (or defaults, if the preset uses that older key) with the same values and\ncomments as preset add. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if (len(args) == 1) == all {
-				return errs.Usagef("pass a target name or --all").WithTry("bam target sync <name>, or bam target sync --all")
+				return errs.Usagef("pass a preset name or --all").WithTry("bam preset sync <name>, or bam preset sync --all")
 			}
 			cfg, err := r.config()
 			if err != nil {
@@ -176,12 +196,12 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 					return err
 				}
 				if !ok {
-					return errs.Usagef("unknown target %q", args[0]).WithTry("bam target list")
+					return errs.Usagef("unknown preset %q", args[0]).WithTry("bam preset list")
 				}
 				targets = append(targets, t)
 			}
 			if len(targets) == 0 {
-				r.note("no targets configured", "bam target add <name> --plan PROJ-PLAN")
+				r.note("no presets configured", "bam preset add <name> --plan PROJ-PLAN")
 				return nil
 			}
 
@@ -336,7 +356,7 @@ func newInitCmd(r *runtime) *cobra.Command {
 					d, err := svc.GenerateTarget(cmd.Context(), app.GenerateOptions{Name: name, PlanKey: key})
 					if err != nil {
 						if errs.KindOf(err) == errs.KindUsage && !config.ValidTargetName(name) {
-							return errs.Usagef("cannot derive a target name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
+							return errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
 						}
 						return err
 					}
@@ -356,7 +376,7 @@ func newInitCmd(r *runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&url, "url", "", "server URL (default: the URL of --server in the machine config)")
 	f.StringSliceVar(&projects, "project", nil, "project key (repeatable; the first is the default)")
-	f.StringArrayVar(&plans, "plan", nil, "plan to generate a target from, KEY or KEY=name (repeatable)")
+	f.StringArrayVar(&plans, "plan", nil, "plan to generate a preset from, KEY or KEY=name (repeatable)")
 	f.BoolVar(&force, "force", false, "overwrite an existing .bam.yaml")
 	return cmd
 }

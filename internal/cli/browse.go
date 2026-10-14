@@ -461,7 +461,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 	var last bool
 	var branch string
 	cmd := &cobra.Command{
-		Use:               "show [<build>|<plan>|<target>]",
+		Use:               "show [<build>|<plan>|<preset>]",
 		Short:             "Show a build: state, stages, jobs, failure summary",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
@@ -487,6 +487,6 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or target is given")
+	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
 	return cmd
 }

@@ -92,7 +92,7 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		for _, r := range st {
 			t, ok := targets[r.Target]
 			if !ok {
-				return fail("names unknown preset %q in stage %d", r.Target, i+1).WithTry("bam target list")
+				return fail("names unknown preset %q in stage %d", r.Target, i+1).WithTry("bam preset list")
 			}
 			for _, x := range r.Expand() {
 				if seen[x.Name] {

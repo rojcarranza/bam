@@ -26,8 +26,10 @@ type Env struct {
 type Config struct {
 	Project     *ProjectFile // nil when the repository has no .bam.yaml
 	Machine     *MachineFile // never nil
+	Presets     *PresetsFile // never nil
 	ProjectPath string
 	MachinePath string
+	PresetsPath string // the personal presets file, whether or not it exists
 	RepoRoot    string // git root, or the working directory outside a repository
 	Home        string // user home, for ~ in repos keys
 	Env         Env
@@ -37,6 +39,7 @@ type LoadOptions struct {
 	WorkDir     string
 	Home        string
 	MachineFile string
+	PresetsFile string // see LocatePresets; empty means none
 	Getenv      func(string) string
 }
 
@@ -94,7 +97,7 @@ func Load(o LoadOptions) (*Config, error) {
 	if err != nil {
 		return nil, errs.Configf("cannot resolve the working directory").Wrap(err)
 	}
-	cfg := &Config{ProjectPath: projectPath, MachinePath: o.MachineFile, RepoRoot: root, Home: o.Home}
+	cfg := &Config{ProjectPath: projectPath, MachinePath: o.MachineFile, PresetsPath: o.PresetsFile, RepoRoot: root, Home: o.Home}
 	cfg.Env = Env{Server: o.Getenv("BAM_SERVER"), URL: o.Getenv("BAM_URL"), Token: o.Getenv("BAM_TOKEN")}
 
 	if projectPath != "" {
@@ -115,6 +118,9 @@ func Load(o LoadOptions) (*Config, error) {
 		if err := checkVersion(pf.Version, projectPath); err != nil {
 			return nil, err
 		}
+		if err := normalizeTargets(projectPath, "targets", pf.Targets); err != nil {
+			return nil, err
+		}
 		cfg.Project = &pf
 	}
 
@@ -133,8 +139,25 @@ func Load(o LoadOptions) (*Config, error) {
 			if err := checkVersion(mf.Version, o.MachineFile); err != nil {
 				return nil, err
 			}
+			if err := normalizeTargets(o.MachineFile, "targets", mf.Targets); err != nil {
+				return nil, err
+			}
+			for _, root := range sortedKeys(mf.Repos) {
+				if err := normalizeTargets(o.MachineFile, "repos."+root+".targets", mf.Repos[root].Targets); err != nil {
+					return nil, err
+				}
+			}
 			cfg.Machine = &mf
 		}
+	}
+
+	cfg.Presets = &PresetsFile{}
+	if o.PresetsFile != "" {
+		pf, err := loadPresets(o.PresetsFile)
+		if err != nil {
+			return nil, err
+		}
+		cfg.Presets = pf
 	}
 	if err := validateFiles(cfg); err != nil {
 		return nil, err
@@ -162,6 +185,52 @@ func checkVersion(v int, path string) error {
 		return errs.Configf("%s has version %d", path, v).
 			WithWhy("this bam understands version 1").
 			WithTry("upgrade bam, or check the file")
+	}
+	return nil
+}
+
+// loadPresets reads the presets file. A missing or empty file has no presets;
+// version is optional there, since people write the file by hand.
+func loadPresets(path string) (*PresetsFile, error) {
+	data, err := os.ReadFile(path)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return &PresetsFile{}, nil
+	case err != nil:
+		return nil, errs.Configf("cannot read %s", path).Wrap(err)
+	case len(bytes.TrimSpace(data)) == 0:
+		return &PresetsFile{}, nil
+	}
+	var pf PresetsFile
+	if err := decodeStrict(data, path, &pf); err != nil {
+		return nil, err
+	}
+	if pf.Version != 0 {
+		if err := checkVersion(pf.Version, path); err != nil {
+			return nil, err
+		}
+	}
+	if err := normalizeTargets(path, "presets", pf.Presets); err != nil {
+		return nil, err
+	}
+	return &pf, nil
+}
+
+// normalizeTargets moves variables into defaults, its older name, and
+// rejects a preset that sets both.
+func normalizeTargets(path, where string, targets map[string]Target) error {
+	for _, name := range sortedKeys(targets) {
+		t := targets[name]
+		if t.Variables == nil {
+			continue
+		}
+		if t.Defaults != nil {
+			return errs.Configf("%s: %s.%s has both variables and defaults", path, where, name).
+				WithWhy("they are two names for the same map").
+				WithTry("keep variables and move the defaults entries into it")
+		}
+		t.Defaults, t.Variables = t.Variables, nil
+		targets[name] = t
 	}
 	return nil
 }

@@ -77,8 +77,8 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 	case IsPlanKey(arg):
 		ref = PlanRef{PlanKey: arg, MasterKey: arg}
 	default:
-		return PlanRef{}, errs.Usagef("%q is neither a target nor a plan key", arg).
-			WithTry("bam target list, or a plan key such as PROJ-PLAN")
+		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).
+			WithTry("bam preset list, or a plan key such as PROJ-PLAN")
 	}
 	if branch != "" {
 		key, err := s.ResolveBranch(ctx, ref.MasterKey, branch)
@@ -97,11 +97,11 @@ func (s *Service) unknownTarget(name string) error {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	e := errs.Usagef("unknown target %q", name).WithTry("bam target list; plan keys are uppercase, like PROJ-PLAN")
+	e := errs.Usagef("unknown preset %q", name).WithTry("bam preset list; plan keys are uppercase, like PROJ-PLAN")
 	if len(names) == 0 {
-		return e.WithWhy("no targets are configured")
+		return e.WithWhy("no presets are configured")
 	}
-	return e.WithWhy("targets: " + strings.Join(names, ", "))
+	return e.WithWhy("presets: " + strings.Join(names, ", "))
 }
 
 // ResolveBranch returns the branch plan key of branch on plan master.
@@ -142,7 +142,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 			return "", err
 		}
 		if !ok {
-			return "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <target>")
+			return "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
 		}
 		if rec.Origin != "" && rec.Origin != s.Origin {
 			return "", errs.Configf("the last build %s ran on %s, not on server %q", rec.BuildKey, rec.Origin, s.Server.Alias).
@@ -152,7 +152,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 	case IsBuildKey(a.Arg):
 		return a.Arg, nil
 	case a.Arg == "":
-		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a target, or --last")
+		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
 	}
 	ref, err := s.ResolvePlan(ctx, a.Arg, a.Branch)
 	if err != nil {

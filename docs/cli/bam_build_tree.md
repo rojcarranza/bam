@@ -13,13 +13,13 @@ configured child that never ran. Interrupting --watch never stops a build.
 On a terminal, bam shows on stderr what it is reading while the tree loads.
 
 ```
-bam build tree [<build>|<plan>|<target>] [flags]
+bam build tree [<build>|<plan>|<preset>] [flags]
 ```
 
 ### Options
 
 ```
-      --branch string   plan branch when a plan or target is given
+      --branch string   plan branch when a plan or preset is given
       --depth int       levels of builds to show below the root (default: all)
       --failed          show only the branches that lead to a failure
   -h, --help            help for tree

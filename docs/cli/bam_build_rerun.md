@@ -9,13 +9,13 @@ does: same build key, same variables and commit. A build that is running or
 succeeded is refused.
 
 ```
-bam build rerun [<build>|<plan>|<target>] [flags]
+bam build rerun [<build>|<plan>|<preset>] [flags]
 ```
 
 ### Options
 
 ```
-      --branch string   plan branch when a plan or target is given
+      --branch string   plan branch when a plan or preset is given
   -h, --help            help for rerun
       --last            the last build bam triggered from this repository
       --watch           follow the build until it finishes

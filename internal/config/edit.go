@@ -16,7 +16,7 @@ import (
 // WriteTarget adds target d under keyPath in the YAML file at path, keeping
 // existing comments and key order. The file is created when missing.
 func WriteTarget(path string, keyPath []string, d TargetDraft, force bool) error {
-	doc, err := loadDoc(path)
+	doc, err := loadDocVersion(path, VarsKey(keyPath) == "defaults")
 	if err != nil {
 		return err
 	}
@@ -25,14 +25,17 @@ func WriteTarget(path string, keyPath []string, d TargetDraft, force bool) error
 		parent = ensureMapping(parent, k)
 	}
 	if mappingValue(parent, d.Name) != nil && !force {
-		return errs.Usagef("target %q already exists in %s", d.Name, path).WithTry("pass --force to replace it")
+		return errs.Usagef("preset %q already exists in %s", d.Name, path).WithTry("pass --force to replace it")
 	}
 	var snippet yaml.Node
-	if err := yaml.Unmarshal([]byte(d.Render("")), &snippet); err != nil {
-		return fmt.Errorf("generated YAML for target %q does not parse: %w", d.Name, err)
+	if err := yaml.Unmarshal([]byte(d.RenderAs("", VarsKey(keyPath))), &snippet); err != nil {
+		return fmt.Errorf("generated YAML for preset %q does not parse: %w", d.Name, err)
 	}
 	m := snippet.Content[0]
 	setKey(parent, m.Content[0], m.Content[1])
+	if VarsKey(keyPath) == "variables" {
+		return saveDocMode(path, doc, 0o600) // the presets file may hold literal secrets
+	}
 	return saveDoc(path, doc)
 }
 
@@ -74,7 +77,7 @@ type InitFile struct {
 // WriteInitFile writes a new .bam.yaml.
 func WriteInitFile(path string, f InitFile, drafts []TargetDraft, force bool) error {
 	if _, err := os.Stat(path); err == nil && !force {
-		return errs.Usagef("%s already exists", path).WithTry("pass --force to overwrite it, or use bam target add")
+		return errs.Usagef("%s already exists", path).WithTry("pass --force to overwrite it, or use bam preset add")
 	}
 	var b strings.Builder
 	b.WriteString("version: 1\n")
@@ -96,7 +99,11 @@ func WriteInitFile(path string, f InitFile, drafts []TargetDraft, force bool) er
 	return writeAtomic(path, []byte(b.String()), 0o644)
 }
 
-func loadDoc(path string) (*yaml.Node, error) {
+func loadDoc(path string) (*yaml.Node, error) { return loadDocVersion(path, true) }
+
+// loadDocVersion is loadDoc; a new document starts with "version: 1" only
+// when version is true.
+func loadDocVersion(path string, version bool) (*yaml.Node, error) {
 	data, err := os.ReadFile(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, errs.Configf("cannot read %s", path).Wrap(err)
@@ -109,7 +116,9 @@ func loadDoc(path string) (*yaml.Node, error) {
 	}
 	if doc.Kind == 0 || len(doc.Content) == 0 {
 		root := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		setKey(root, scalar("version"), &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "1"})
+		if version {
+			setKey(root, scalar("version"), &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: "1"})
+		}
 		doc = yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{root}}
 	}
 	if doc.Content[0].Kind != yaml.MappingNode {
@@ -118,7 +127,11 @@ func loadDoc(path string) (*yaml.Node, error) {
 	return &doc, nil
 }
 
-func saveDoc(path string, doc *yaml.Node) error {
+func saveDoc(path string, doc *yaml.Node) error { return saveDocMode(path, doc, 0o644) }
+
+// saveDocMode is saveDoc with the mode a new file gets; an existing file
+// keeps its own.
+func saveDocMode(path string, doc *yaml.Node, newMode fs.FileMode) error {
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
@@ -128,7 +141,7 @@ func saveDoc(path string, doc *yaml.Node) error {
 	if err := enc.Close(); err != nil {
 		return err
 	}
-	mode := fs.FileMode(0o644)
+	mode := newMode
 	if st, err := os.Stat(path); err == nil {
 		mode = st.Mode().Perm()
 	}

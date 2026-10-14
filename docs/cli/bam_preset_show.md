@@ -1,9 +1,9 @@
-## bam target show
+## bam preset show
 
 Show a run preset with its defaults, options and origin
 
 ```
-bam target show <name> [flags]
+bam preset show <name> [flags]
 ```
 
 ### Options
@@ -24,5 +24,5 @@ bam target show <name> [flags]
 
 ### SEE ALSO
 
-* [bam target](bam_target.md)	 - Run presets: list, show, add, sync
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync
 

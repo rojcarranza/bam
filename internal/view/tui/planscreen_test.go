@@ -960,3 +960,22 @@ func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
 	require.Positive(t, prog.Progress.Plans.Total)
 	require.Nil(t, prog.next(), "the progress ends with the read")
 }
+
+// A command does its work when it runs: one built and dropped must not read
+// Bamboo, or it races whatever the screen does next (#93).
+func TestTreePreviewCmdReadsNothingUntilItRuns(t *testing.T) {
+	m, f := treeTUIModel(t)
+	cmd := treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7)
+	require.Zero(t, f.ListCalls("PROJ-PROV"), "built, not run")
+	require.Zero(t, f.GetCalls("PROJ-BUILD-44"), "built, not run")
+	batch, ok := cmd().(tea.BatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch, 2)
+	// Either command of the batch starts the read; the runtime runs them in
+	// no set order. The progress one alone ends with the read.
+	for p := batch[1](); p != nil; p = p.(treePreviewProgressMsg).next() {
+	}
+	require.Positive(t, f.ListCalls("PROJ-PROV"))
+	_, ok = batch[0]().(treePreviewMsg)
+	require.True(t, ok, "the result is still delivered")
+}

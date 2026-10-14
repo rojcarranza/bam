@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"sort"
+	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -552,25 +553,37 @@ type treePreviewProgressMsg struct {
 
 // treePreviewCmd reads what build key triggered, one level down. It is read
 // once, not watched: the plan screen reads it again on r and when the open
-// build finishes. The read starts at once; its result comes from the first
-// command of the batch and its progress from the second, which keeps only
-// the newest snapshot and ends with the read.
+// build finishes. The read starts when either command of the batch runs,
+// never when it is built, so a command that is dropped reads nothing; its
+// result comes from the first command and its progress from the second,
+// which keeps only the newest snapshot and ends with the read.
 func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.Cmd {
 	progress := make(chan app.TreeProgress, 1)
 	result := make(chan treePreviewMsg, 1)
-	go func() {
-		defer close(progress)
-		t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1, OnProgress: func(p app.TreeProgress) {
-			// Calls are serialized, so after the drain there is room.
-			select {
-			case <-progress:
-			default:
-			}
-			progress <- p
-		}})
-		result <- treePreviewMsg{Gen: gen, Key: key, Tree: t, Err: err}
-	}()
-	return tea.Batch(func() tea.Msg { return <-result }, treePreviewProgress(progress, key, gen))
+	var start sync.Once
+	read := func() {
+		go func() {
+			defer close(progress)
+			t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1, OnProgress: func(p app.TreeProgress) {
+				// Calls are serialized, so after the drain there is room.
+				select {
+				case <-progress:
+				default:
+				}
+				progress <- p
+			}})
+			result <- treePreviewMsg{Gen: gen, Key: key, Tree: t, Err: err}
+		}()
+	}
+	waitResult := func() tea.Msg {
+		start.Do(read)
+		return <-result
+	}
+	waitProgress := treePreviewProgress(progress, key, gen)
+	return tea.Batch(waitResult, func() tea.Msg {
+		start.Do(read)
+		return waitProgress()
+	})
 }
 
 // treePreviewProgress waits for the next snapshot of a Tree panel read; it

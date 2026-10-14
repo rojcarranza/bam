@@ -223,19 +223,18 @@ func TestTreeScreenRerunSurvivesARefresh(t *testing.T) {
 	require.Contains(t, m.status, "restarted 1 build")
 }
 
-// As in TestTreeScreenRerunSurvivesARefresh, the rerun runs before the
-// visit so the tree's watch cannot read PROJ-PROV-7 first and hand Restart
-// the queued build; the result still lands while the build is open.
+// Opening PROJ-PROV-7 builds a Tree panel read of it; the test drops that
+// command, so it must read nothing, or it could take the fake's failed
+// answer before Restart does (#93).
 func TestTreeScreenRerunSurvivesABuildVisit(t *testing.T) {
 	m, f := treeTUIModel(t)
 	restartableChild(f)
 	m = firstTree(t, m)
 	m, _ = send(m, mkKey("F"))
 	m, cmd := send(m, mkKey("y"))
-	res := cmd()
 	m, _ = send(m, mkKey("enter"))
 	require.Equal(t, screenPlan, m.screen)
-	m, _ = send(m, res)
+	m, _ = send(m, cmd())
 	require.Empty(t, m.buildTree.restarting, "the result lands while the build is open")
 	require.Contains(t, m.status, "restarted 1 build")
 	m, _ = send(m, mkKey("esc")) // Stages back to Builds

@@ -323,3 +323,19 @@ func TestEOpensTheErrorInTheRunForm(t *testing.T) {
 		require.Contains(t, m.View(), "no license")
 	}
 }
+
+// TestOpeningABranchBuildKeepsItsBranchName: a preset's build names its
+// branch, but the branch plan's result list does not, so the plan screen
+// must remember the name from the build it was opened on.
+func TestOpeningABranchBuildKeepsItsBranchName(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	b := provider.Build{Key: "PROJ-PROV12-1", PlanKey: "PROJ-PROV12", Number: 1, Branch: "develop"}
+	m, cmd := m.enterPlan("PROJ-PROV", "PROJ-PROV12", &b, focusStages)
+	require.NotNil(t, cmd)
+	m, _ = send(m, m.loadBuilds("PROJ-PROV12", true)().(buildsLoadedMsg))
+	require.NotEmpty(t, m.builds.items)
+	for _, got := range m.builds.items {
+		require.Equal(t, "develop", got.Branch)
+	}
+}

@@ -129,6 +129,14 @@ func (m Model) openPlan(key, buildsPlan string, want *provider.Build, f focus) (
 	m.stopTreePreview()
 	m.focus = f
 	m.builds.setQuery("")
+	// A branch plan's result list does not name its branch; the build it
+	// was opened on may, so remember that for this and later loads.
+	if want != nil && want.Branch != "" && want.PlanKey == buildsPlan && buildsPlan != key {
+		if m.branchNames == nil {
+			m.branchNames = map[string]string{}
+		}
+		m.branchNames[buildsPlan] = want.Branch
+	}
 	cmds := []tea.Cmd{m.loadBuilds(buildsPlan, true)}
 	if want != nil {
 		var show tea.Cmd

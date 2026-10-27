@@ -242,6 +242,7 @@ Then push with `git push no-mistakes <branch>`, or drive it from an agent with
 `/no-mistakes`. To run the same checks by hand:
 
 ```bash
+gofmt -l .                                     # must print nothing; covers the e2e build tag
 GOFLAGS=-race make test
 make lint check-fixtures
 make docs && git status --porcelain docs/cli   # must print nothing

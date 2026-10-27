@@ -388,6 +388,9 @@ func newInitCmd(r *runtime) *cobra.Command {
 			if len(projects) == 0 {
 				return errs.Usagef("--project is required").WithTry("bam init --server " + alias + " --project PROJ")
 			}
+			if err := checkProjectKeys(projects); err != nil {
+				return err
+			}
 			cfg, err := r.config()
 			if err != nil {
 				return err

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -48,6 +49,9 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 				return errs.Usagef("invalid server alias %q", alias).
 					WithWhy("aliases are lowercase letters, digits, - and _; \"env\" is reserved for BAM_URL")
 			}
+			if err := checkProjectKeys(projects); err != nil {
+				return err
+			}
 			if url == "" {
 				return errs.Usagef("--url is required").WithTry("bam server add " + alias + " --url https://bamboo.example.com")
 			}
@@ -77,6 +81,26 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 	cmd.Flags().StringSliceVar(&projects, "project", nil, "project key to scope navigation (repeatable)")
 	cmd.Flags().BoolVar(&force, "force", false, "replace an existing alias")
 	return cmd
+}
+
+// checkProjectKeys rejects --project values that are not project keys, so
+// they never reach a config file as YAML that does not parse or scopes
+// navigation to nothing.
+func checkProjectKeys(projects []string) error {
+	for _, p := range projects {
+		if app.IsProjectKey(p) {
+			continue
+		}
+		try := "project keys are uppercase letters and digits, like PROJ"
+		switch up := strings.ToUpper(p); {
+		case app.IsProjectKey(up):
+			try = "keys are uppercase: did you mean " + up + "?"
+		case app.IsPlanKey(up):
+			try = fmt.Sprintf("%s is a plan key; its project is %s", up, strings.SplitN(up, "-", 2)[0])
+		}
+		return errs.Usagef("--project %q is not a project key", p).WithTry(try)
+	}
+	return nil
 }
 
 func newServerListCmd(r *runtime) *cobra.Command {

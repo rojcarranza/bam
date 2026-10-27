@@ -86,3 +86,21 @@ func TestWhoami(t *testing.T) {
 	assert.Equal(t, 0, h.run("whoami", "--server", "work", "--json"))
 	assert.JSONEq(t, `[{"alias":"work","url":"https://bamboo.example.com","user":"jdoe","full_name":"J Doe","error":""}]`, h.stdout.String())
 }
+
+func TestProjectFlagMustBeAProjectKey(t *testing.T) {
+	for _, tc := range []struct{ arg, try string }{
+		{"proj", "did you mean PROJ?"},
+		{"PROJ-PLAN", "PROJ-PLAN is a plan key; its project is PROJ"},
+		{"PROJ,,", "project keys are uppercase letters and digits, like PROJ"},
+	} {
+		for _, args := range [][]string{
+			{"init", "--server", "work", "--url", "https://bamboo.example.com", "--project", tc.arg, "--force"},
+			{"server", "add", "home", "--url", "https://bamboo.example.com", "--project", tc.arg},
+		} {
+			h := newHarness(t)
+			assert.Equal(t, 2, h.run(args...), args)
+			assert.Contains(t, h.stderr.String(), "is not a project key", args)
+			assert.Contains(t, h.stderr.String(), tc.try, args)
+		}
+	}
+}

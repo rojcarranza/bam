@@ -24,6 +24,9 @@ var (
 // IsPlanKey reports whether s looks like PROJ-PLAN (or a branch plan key).
 func IsPlanKey(s string) bool { return planKeyRe.MatchString(s) }
 
+// IsProjectKey reports whether s looks like PROJ.
+func IsProjectKey(s string) bool { return projectRe.MatchString(s) }
+
 // IsBuildKey reports whether s looks like PROJ-PLAN-123.
 func IsBuildKey(s string) bool { return buildKeyRe.MatchString(s) }
 

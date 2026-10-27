@@ -88,13 +88,14 @@ bam build tree [BUILD] --rerun-failed [--yes] [--no-watch] [--json] [--depth N]
 ### 5.2 `bam build rerun`
 
 ```
-bam build rerun <build> [--watch]
+bam build rerun <build> [--watch [--timeout D]]
 ```
 
 - `<build>` resolves as for `bam build show` (a key, a plan or preset's latest build, `--last`).
 - No question.
 - Refused with exit 2 when the build is running (`PROJ-DOCS-30 is running; nothing to rerun`) or succeeded (`… succeeded; nothing to rerun`).
 - Prints `restarted KEY` and `watch: bam watch KEY`, or with `--watch` follows it exactly as `bam watch` does and exits as it does: in text mode the live tree of the build and the builds it triggers, exit 1 when any of them fails; with `--json` the single-build NDJSON events.
+- `--timeout` limits the watch as `bam watch --timeout` does (exit 6, the build keeps running); without it a preset argument's `timeout` applies.
 
 ## 6. Terminal UI
 

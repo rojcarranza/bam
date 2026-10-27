@@ -133,6 +133,15 @@ func TestBuildRerunWatchExitsOneOnAFailedRerun(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "failed: PROJ-PROV-9 "+workOrigin+"/browse/PROJ-PROV-9")
 }
 
+func TestBuildRerunWatchTimeout(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateRunning)
+	assert.Equal(t, 6, h.run("build", "rerun", "PROJ-PROV-9", "--watch", "--timeout", "50ms"))
+	assert.Contains(t, h.stderr.String(), "timed out after 50ms")
+	assert.Contains(t, h.stderr.String(), "bam watch PROJ-PROV-9")
+	assert.Empty(t, h.fake.Stopped)
+}
+
 func TestBuildRerunRefusesARunningOrSuccessfulBuild(t *testing.T) {
 	h := treeHarness(t, provider.StateSuccess)
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))

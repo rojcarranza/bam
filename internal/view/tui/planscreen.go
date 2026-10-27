@@ -340,6 +340,8 @@ func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
 	if old := m.plan.tree; old.key == key && old.have && old.err == nil && old.tree.Root != nil {
 		// Keep the tree on screen while it is read again (#82).
 		m.plan.tree = treePreview{key: key, tree: old.tree, have: true, refreshing: true}
+	} else if t, ok := m.savedTree(key); ok && !fresh {
+		m.plan.tree = treePreview{key: key, tree: t, have: true, refreshing: true}
 	} else {
 		m.plan.tree = treePreview{key: key, loading: true}
 	}
@@ -382,10 +384,22 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// keepTree caches t for the session when it is final, and otherwise drops
-// any cached tree for key: a rerun makes a cached tree stale.
+// savedTree is the tree saved on disk for key by an earlier session (#82).
+// It may be out of date, so it is drawn marked refreshing and read again.
+func (m Model) savedTree(key string) (app.Tree, bool) {
+	if m.svc == nil {
+		return app.Tree{}, false
+	}
+	return m.svc.CachedTree(key)
+}
+
+// keepTree caches t for the session, and on disk, when it is final, and
+// otherwise drops any cached tree for key: a rerun makes a cached tree stale.
 func (m *Model) keepTree(key string, t app.Tree) {
-	if t.Root == nil || !app.TreeFinished(t.Root.Build.State) || t.State == provider.StateRunning {
+	if m.svc != nil {
+		m.svc.KeepTree(key, t)
+	}
+	if !app.TreeFinal(t) {
 		delete(m.trees, key)
 		return
 	}

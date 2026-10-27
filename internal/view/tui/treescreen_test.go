@@ -340,6 +340,30 @@ func TestTreeScreenDrawsACachedTreeAtOnce(t *testing.T) {
 	require.NotContains(t, m.trees, "PROJ-BUILD-44", "a tree that runs again, after a rerun, is no longer cached")
 }
 
+func TestATreeSeenInAnEarlierSessionDrawsAtOnce(t *testing.T) {
+	dir := t.TempDir()
+	m, _ := treeTUIModel(t)
+	m.svc.Trees = &app.TreeStore{Dir: dir}
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("esc"))
+
+	// A restart: no session cache, a fresh store reading the same directory.
+	m.trees = nil
+	m.svc.Trees = &app.TreeStore{Dir: dir}
+	m, _ = send(m, mkKey("t"))
+	require.True(t, m.buildTree.have, "the saved tree draws before any read")
+	require.Equal(t, "PROJ-BUILD-44(PROJ-PROV-7)", tuiShape(m.buildTree.tree.Root))
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refreshing…")
+
+	m.trees = nil
+	m.svc.Trees = &app.TreeStore{Dir: dir}
+	m, _ = send(m, mkKey("esc"))
+	m.plan.tree = treePreview{}
+	m, cmd := m.loadTreePreview("PROJ-BUILD-44", false)
+	require.True(t, m.plan.tree.have && m.plan.tree.refreshing, "the Tree panel draws it too, marked refreshing")
+	require.NotNil(t, cmd, "and reads it again")
+}
+
 func TestTreeScreenKeepsACachedTreeWhenItsRefreshFails(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	m = firstTree(t, m)

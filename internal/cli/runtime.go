@@ -33,6 +33,16 @@ type runtime struct {
 	env   Env
 	flags globalFlags
 	cfg   *config.Config
+	trees *app.TreeStore
+}
+
+// treeStore is one for the process, so every server's Service in the
+// terminal UI shares what it has read. With no directory it keeps none.
+func (r *runtime) treeStore() *app.TreeStore {
+	if r.trees == nil && r.env.Paths.Trees != "" {
+		r.trees = &app.TreeStore{Dir: r.env.Paths.Trees}
+	}
+	return r.trees
 }
 
 // resultError reports a watched build that did not succeed. It maps to exit
@@ -126,7 +136,7 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 		return nil, nil, err
 	}
 	svc := &app.Service{P: backend, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
-		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Getenv: r.env.Getenv}
+		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv}
 	return svc, backend, nil
 }
 

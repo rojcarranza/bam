@@ -34,6 +34,7 @@ type Service struct {
 	Clock  Clock
 	State  *StateStore
 	Sets   *SetStore
+	Trees  *TreeStore // finished trees seen before; nil keeps none
 	Getenv func(string) string
 
 	estimates estimateCache // medians of plan histories, for servers without progress

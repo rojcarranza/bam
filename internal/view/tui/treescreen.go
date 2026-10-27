@@ -71,6 +71,8 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 	m.buildTree = treeScreen{root: key, from: from, back: back}
 	if t, ok := m.trees[key]; ok {
 		m.buildTree.tree, m.buildTree.have = t, true
+	} else if t, ok := m.savedTree(key); ok {
+		m.buildTree.tree, m.buildTree.have = t, true
 	}
 	m.screen = screenTree
 	return m.watchTree()

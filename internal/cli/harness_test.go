@@ -178,6 +178,7 @@ func newHarness(t *testing.T) *harness {
 			Capabilities:  filepath.Join(home, ".cache", "bam", "capabilities.json"),
 			State:         filepath.Join(home, ".local", "state", "bam", "state.json"),
 			Sets:          filepath.Join(home, ".local", "state", "bam", "sets"),
+			Trees:         filepath.Join(home, ".cache", "bam", "tree"),
 		},
 		Clock:   &instantClock{now: fixedNow},
 		Keyring: h.kr,

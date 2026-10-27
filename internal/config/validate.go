@@ -150,6 +150,12 @@ func validateFiles(c *Config) error {
 			}
 		}
 	}
+	switch c.Machine.Color {
+	case "", "auto", "always", "never":
+	default:
+		return errs.Configf("%s: color must be auto, always or never, not %q", c.MachinePath, c.Machine.Color).
+			WithTry("set color: to auto, always or never, or remove the line")
+	}
 	if err := checkReservedAliases(c.MachinePath, c.Machine.Servers); err != nil {
 		return err
 	}

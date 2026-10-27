@@ -122,6 +122,16 @@ func TestLoadRejectsUnknownKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "servrs")
 }
 
+func TestLoadRejectsBadMachineColor(t *testing.T) {
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "m.yaml")
+	writeFile(t, machine, "version: 1\ncolor: bogus\n")
+	_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, Getenv: noEnv})
+	require.Error(t, err)
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+	assert.Contains(t, err.Error(), machine+`: color must be auto, always or never, not "bogus"`)
+}
+
 func TestLoadMachineEditor(t *testing.T) {
 	dir := t.TempDir()
 	machine := filepath.Join(dir, "m.yaml")

@@ -123,7 +123,14 @@ func TestBuildRerunWatch(t *testing.T) {
 	h := treeHarness(t, provider.StateFailed)
 	rerunnable(h, provider.StateSuccess)
 	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--watch"))
-	assert.Contains(t, h.stdout.String(), "✓ Success")
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV-9  ✓ success")
+}
+
+func TestBuildRerunWatchExitsOneOnAFailedRerun(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateFailed)
+	assert.Equal(t, 1, h.run("build", "rerun", "PROJ-PROV-9", "--watch"))
+	assert.Contains(t, h.stdout.String(), "failed: PROJ-PROV-9 "+workOrigin+"/browse/PROJ-PROV-9")
 }
 
 func TestBuildRerunRefusesARunningOrSuccessfulBuild(t *testing.T) {

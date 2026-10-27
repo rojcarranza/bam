@@ -18,7 +18,7 @@ bam build rerun [<build>|<plan>|<preset>] [flags]
       --branch string   plan branch when a plan or preset is given
   -h, --help            help for rerun
       --last            the last build bam triggered from this repository
-      --watch           follow the build until it finishes
+      --watch           follow the build and the builds it triggers until they finish
 ```
 
 ### Options inherited from parent commands

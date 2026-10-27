@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/spf13/cobra"
@@ -49,12 +50,15 @@ succeeded is refused.`,
 				fmt.Fprintf(r.env.Stdout, "restarted %s\n  watch: bam watch %s\n", key, key)
 				return nil
 			}
-			return r.watchLoop(ctx, svc, key, 0, "")
+			if r.flags.json {
+				return r.watchLoop(ctx, svc, key, 0, "")
+			}
+			return r.treeLoop(ctx, svc, key, app.TreeOptions{}, false, 0, "bam watch "+key, "")
 		}),
 	}
 	f := cmd.Flags()
 	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
 	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
-	f.BoolVar(&watch, "watch", false, "follow the build until it finishes")
+	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	return cmd
 }

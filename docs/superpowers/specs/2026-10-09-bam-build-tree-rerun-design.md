@@ -94,7 +94,7 @@ bam build rerun <build> [--watch]
 - `<build>` resolves as for `bam build show` (a key, a plan or preset's latest build, `--last`).
 - No question.
 - Refused with exit 2 when the build is running (`PROJ-DOCS-30 is running; nothing to rerun`) or succeeded (`… succeeded; nothing to rerun`).
-- Prints `restarted KEY` and `watch: bam watch KEY`, or with `--watch` follows it exactly as `bam watch` does and exits as it does.
+- Prints `restarted KEY` and `watch: bam watch KEY`, or with `--watch` follows it exactly as `bam watch` does and exits as it does: in text mode the live tree of the build and the builds it triggers, exit 1 when any of them fails; with `--json` the single-build NDJSON events.
 
 ## 6. Terminal UI
 

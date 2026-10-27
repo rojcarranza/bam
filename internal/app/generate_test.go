@@ -86,3 +86,23 @@ func TestGenerateTargetFromBuildNeedsReadableVariables(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot read the variables of PROJ-PROV12-8")
 }
+
+func TestGenerateTargetFromBuildKeyImpliesPlanAndBranch(t *testing.T) {
+	p := fakeBamboo()
+	b := &p.History["PROJ-PROV12"][1]
+	b.Branch, b.MasterKey = "develop", "PROJ-PROV"
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", From: "PROJ-PROV12-8"})
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV", d.Plan)
+	assert.Equal(t, "develop", d.Branch)
+	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "dcos", Comment: "from PROJ-PROV12-8"}, d.Vars[0])
+
+	d, err = s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "feat/foo", From: "PROJ-PROV12-8"})
+	require.NoError(t, err)
+	assert.Equal(t, "feat/foo", d.Branch, "--branch overrides the build's branch")
+
+	_, err = s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-BUILD", From: "PROJ-PROV12-8"})
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+	assert.Contains(t, err.Error(), "PROJ-PROV12-8 is a build of PROJ-PROV, not of PROJ-BUILD")
+}

@@ -152,6 +152,7 @@ func TestGetBuildMapsEverything(t *testing.T) {
 	assert.Equal(t, c.URL("PROJ-BUILD12-44"), b.URL)
 	assert.Equal(t, "PROJ-BUILD12", b.PlanKey)
 	assert.Equal(t, "develop", b.Branch)
+	assert.Equal(t, "PROJ-BUILD", b.MasterKey)
 	assert.Equal(t, "Build and test", b.PlanName, "a branch build is named after its master plan, not the branch")
 	assert.Equal(t, 44, b.Number)
 	assert.Equal(t, provider.StateFailed, b.State)

@@ -395,3 +395,15 @@ repos:
 	assert.Contains(t, h.stderr.String(), "no presets apply here; other repositories define some")
 	assert.NotContains(t, h.stderr.String(), "no presets are configured")
 }
+
+func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
+	h := newHarness(t)
+	b := &h.fake.History["PROJ-PROV12"][0]
+	b.Branch, b.MasterKey = "develop", "PROJ-PROV"
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", "PROJ-PROV12-8", "--print"), h.stderr.String())
+	out := h.stdout.String()
+	assert.Contains(t, out, "    plan: PROJ-PROV\n")
+	assert.Contains(t, out, `    branch: "develop"`)
+	assert.Contains(t, out, `cluster_type: "dcos"  # from PROJ-PROV12-8`)
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
+}

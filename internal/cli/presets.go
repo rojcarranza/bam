@@ -113,16 +113,19 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every\n" +
 			"directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no\n" +
 			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
-			"then run it with bam run <name>.",
+			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
+			"branch.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
+			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
 			"  bam preset add deploy-package --plan PROJ-PKG --file custom-presets\n" +
 			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
 			"  bam run deploy-qa --dry-run",
 		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			if plan == "" {
-				return errs.Usagef("--plan is required").WithTry(fmt.Sprintf("bam preset add %s --plan PROJ-PLAN", args[0]))
+			if plan == "" && !app.IsBuildKey(from) {
+				return errs.Usagef("--plan is required").
+					WithTry(fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0]))
 			}
 			if shared && file != "" {
 				return errs.Usagef("--shared and --file cannot be used together").
@@ -179,9 +182,9 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.StringVar(&plan, "plan", "", "plan key to generate from")
+	f.StringVar(&plan, "plan", "", "plan key to generate from; optional when --from is a build key")
 	f.StringVar(&from, "from", "", "build whose variable values fill the preset: number, key or last")
-	f.StringVar(&branch, "branch", "", "default branch for the preset")
+	f.StringVar(&branch, "branch", "", "default branch for the preset; defaults to the --from build's branch")
 	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
 	f.StringVar(&file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
 	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")

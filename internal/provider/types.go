@@ -112,6 +112,7 @@ type Build struct {
 	PlanKey       string // plan (or branch plan) the build belongs to
 	PlanName      string // the plan's short name; for a branch build, its master plan's, not the branch's
 	Branch        string // branch short name; empty for the default branch
+	MasterKey     string // for a branch build, the plan its branch belongs to; GetBuild only
 	Number        int
 	State         State
 	Reason        string // plain text, no HTML

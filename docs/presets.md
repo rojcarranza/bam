@@ -50,6 +50,10 @@ To start from the values a build already ran with, name it with `--from` (a numb
 
 Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. Secrets still become `${ENV_NAME}` references. Without `--from`, the last build's values appear only in the comments.
 
+A full build key names the plan too, so `--plan` can go; a branch build also sets the preset's `branch:` unless `--branch` says otherwise:
+
+    bam preset add deploy-eu --from PROJ-DEPLOY-41
+
 ### Set the values
 
 Edit the file and fill in `variables`. Delete variables you never change, so they keep the plan's value. Uncomment `required` and `options` if you want bam to check values before it triggers:

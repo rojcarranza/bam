@@ -1,6 +1,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,9 +13,9 @@ import (
 // GenerateOptions are the inputs of bam preset add and bam init --plan.
 type GenerateOptions struct {
 	Name    string
-	PlanKey string
+	PlanKey string // optional when From is a full build key
 	From    string // build whose values fill the preset; default last, used only in comments
-	Branch  string
+	Branch  string // defaults to the branch of a From build key
 }
 
 // GenerateTarget reads the plan's declared variables (or, when unsupported,
@@ -30,6 +31,24 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if !config.ValidTargetName(o.Name) {
 		return config.TargetDraft{}, false, errs.Usagef("invalid preset name %q", o.Name).
 			WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter")
+	}
+	if IsBuildKey(o.From) && (o.PlanKey == "" || o.Branch == "") {
+		b, err := s.P.GetBuild(ctx, o.From)
+		if err != nil {
+			return config.TargetDraft{}, false, err
+		}
+		plan := cmp.Or(b.MasterKey, b.PlanKey)
+		switch o.PlanKey {
+		case "", plan:
+			o.PlanKey = plan
+			if o.Branch == "" {
+				o.Branch = b.Branch
+			}
+		case b.PlanKey: // the branch plan key itself, as before
+		default:
+			return config.TargetDraft{}, false, errs.Usagef("%s is a build of %s, not of %s", o.From, plan, o.PlanKey).
+				WithTry("drop --plan; --from " + o.From + " names the plan")
+		}
 	}
 	if !IsPlanKey(o.PlanKey) {
 		return config.TargetDraft{}, false, errs.Usagef("%q is not a plan key", o.PlanKey).WithTry("bam plan list")

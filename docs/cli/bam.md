@@ -25,7 +25,7 @@ bam [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, cancel
 * [bam completion](bam_completion.md)	 - Generate the autocompletion script for the specified shell
 * [bam doctor](bam_doctor.md)	 - Check config, credentials and what this Bamboo server supports
 * [bam init](bam_init.md)	 - Write .bam.yaml for this repository, with generated presets
@@ -33,7 +33,7 @@ bam [flags]
 * [bam logout](bam_logout.md)	 - Delete the stored token for a server
 * [bam logs](bam_logs.md)	 - Print job logs; --failed for failed jobs only
 * [bam open](bam_open.md)	 - Open a project, plan, build or job in the browser
-* [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
+* [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 * [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync, migrate
 * [bam project](bam_project.md)	 - Bamboo projects
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables

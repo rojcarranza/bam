@@ -27,5 +27,5 @@ bam build list <plan> [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, cancel
 

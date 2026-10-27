@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -72,6 +73,21 @@ func TestDocsRootIncludesCompletion(t *testing.T) {
 	c, _, err := root.Find([]string{"completion"})
 	require.NoError(t, err)
 	assert.Equal(t, "completion", c.Name())
+}
+
+// A group summary like "Plans: list, show, …" must name exactly its subcommands.
+func TestGroupSummariesListTheirSubcommands(t *testing.T) {
+	for _, c := range DocsRoot().Commands() {
+		_, list, ok := strings.Cut(c.Short, ": ")
+		if !ok || !c.HasSubCommands() || strings.Contains(strings.ReplaceAll(list, ", ", ""), " ") {
+			continue
+		}
+		var subs []string
+		for _, s := range c.Commands() {
+			subs = append(subs, s.Name())
+		}
+		assert.ElementsMatch(t, subs, strings.Split(list, ", "), "bam %s", c.Name())
+	}
 }
 
 func TestExitCodes(t *testing.T) {

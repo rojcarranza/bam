@@ -25,7 +25,7 @@ var anyKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
 func init() { commandSets = append(commandSets, addRunLoop) }
 
 func addRunLoop(root *cobra.Command, r *runtime) {
-	build := subgroup(root, "build", "Builds: list, show, run, watch, logs, cancel", groupRun)
+	build := subgroup(root, "build", "Builds: list, show, tree, run, rerun, watch, logs, cancel", groupRun)
 	build.AddCommand(newRunCmd(r), newWatchCmd(r), newLogsCmd(r), newCancelCmd(r))
 	for _, c := range []*cobra.Command{newRunCmd(r), newWatchCmd(r), newLogsCmd(r)} {
 		c.GroupID = groupShortcut

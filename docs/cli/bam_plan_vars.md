@@ -26,5 +26,5 @@ bam plan vars <plan> [flags]
 
 ### SEE ALSO
 
-* [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
+* [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 

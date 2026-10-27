@@ -1,6 +1,6 @@
 ## bam build
 
-Builds: list, show, run, watch, logs, cancel
+Builds: list, show, tree, run, rerun, watch, logs, cancel
 
 ```
 bam build [flags]

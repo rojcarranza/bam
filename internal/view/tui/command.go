@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
 
@@ -76,13 +77,21 @@ func findCommand(name string) (command, error) {
 	case 1:
 		return hits[0], nil
 	case 0:
-		return command{}, fmt.Errorf("unknown command %q; commands: %s", name, strings.Join(commandNames(), " "))
+		return command{}, fmt.Errorf("unknown command %q; %scommands: %s", name, didYouMean(":", name, commandNames()), strings.Join(commandNames(), " "))
 	}
 	var names []string
 	for _, c := range hits {
 		names = append(names, c.name)
 	}
 	return command{}, fmt.Errorf("ambiguous command %q: %s", name, strings.Join(names, ", "))
+}
+
+// didYouMean is the typo hint for a : bar error, "" when nothing is close.
+func didYouMean(prefix, input string, candidates []string) string {
+	if c := app.Closest(input, candidates, 1); len(c) > 0 {
+		return "did you mean " + prefix + c[0] + "? "
+	}
+	return ""
 }
 
 // startCommand opens the : prompt on Home or the panels.
@@ -146,7 +155,7 @@ func (m Model) commandProject(arg string) (tea.Model, tea.Cmd, error) {
 	// project the user knows about but the UI has not happened to load yet.
 	if m.svc != nil {
 		if known := m.svc.ProjectKeys(); len(known) > 0 && !slices.Contains(known, arg) {
-			return m, nil, fmt.Errorf("project %q is not listed; projects: %s", arg, strings.Join(known, " "))
+			return m, nil, fmt.Errorf("project %q is not listed; %sprojects: %s", arg, didYouMean(":project ", arg, known), strings.Join(known, " "))
 		}
 	}
 	next, cmd := m.setProject(arg)
@@ -159,7 +168,7 @@ func (m Model) commandServer(arg string) (tea.Model, tea.Cmd, error) {
 		aliases = append(aliases, s.Alias)
 	}
 	if !slices.Contains(aliases, arg) {
-		return m, nil, fmt.Errorf("no server %q; servers: %s", arg, strings.Join(aliases, " "))
+		return m, nil, fmt.Errorf("no server %q; %sservers: %s", arg, didYouMean(":server ", arg, aliases), strings.Join(aliases, " "))
 	}
 	if arg == m.server {
 		return m, nil, nil

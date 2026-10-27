@@ -63,6 +63,8 @@ func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
 
 	m, _ = runCmdLine(homeModel(), "frobnicate")
 	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets sets projects project server sort tree quit`)
+	m, _ = runCmdLine(homeModel(), "plnas")
+	require.EqualError(t, m.err, `unknown command "plnas"; did you mean :plans? commands: plans presets sets projects project server sort tree quit`)
 	require.Equal(t, inputNone, m.inputFor)
 }
 
@@ -71,6 +73,8 @@ func TestSortCommand(t *testing.T) {
 	require.Equal(t, homeSort{col: colAge, desc: true}, m.home.sort)
 	m, _ = runCmdLine(m, "sort bogus")
 	require.EqualError(t, m.err, `unknown sort column "bogus"; columns: key name state age`)
+	m, _ = runCmdLine(m, "sort stat")
+	require.EqualError(t, m.err, `unknown sort column "stat"; did you mean :sort state? columns: key name state age`)
 	m, _ = runCmdLine(homeModel(), "sort")
 	require.EqualError(t, m.err, ":sort needs a column")
 }
@@ -87,8 +91,10 @@ func TestProjectCommand(t *testing.T) {
 	// plans' projects otherwise, and those are not a validation list.
 	configured := homeModel()
 	configured.svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
-	m, _ = runCmdLine(configured, "project NOPE")
-	require.EqualError(t, m.err, `project "NOPE" is not listed; projects: OPS PROJ`)
+	m, _ = runCmdLine(configured, "project LAB")
+	require.EqualError(t, m.err, `project "LAB" is not listed; projects: OPS PROJ`)
+	m, _ = runCmdLine(configured, "project PRJ")
+	require.EqualError(t, m.err, `project "PRJ" is not listed; did you mean :project PROJ? projects: OPS PROJ`)
 }
 
 // TestProjectCommandAcceptsAnyKeyWhenNothingIsConfigured covers finding 4:
@@ -108,6 +114,8 @@ func TestServerCommand(t *testing.T) {
 	require.Equal(t, "work", m.server)
 	m, _ = runCmdLine(m, "server nope")
 	require.EqualError(t, m.err, `no server "nope"; servers: lab work`)
+	m, _ = runCmdLine(m, "server wrk")
+	require.EqualError(t, m.err, `no server "wrk"; did you mean :server work? servers: lab work`)
 }
 
 func TestQuitCommand(t *testing.T) {

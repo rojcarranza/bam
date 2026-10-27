@@ -92,7 +92,7 @@ func parseSort(v homeView, arg string) (homeSort, error) {
 			return homeSort{col: homeCol(i), desc: strings.HasPrefix(arg, "-")}, nil
 		}
 	}
-	return homeSort{}, fmt.Errorf("unknown sort column %q; columns: %s", name, strings.Join(homeColNames[v], " "))
+	return homeSort{}, fmt.Errorf("unknown sort column %q; %scolumns: %s", name, didYouMean(":sort ", name, homeColNames[v]), strings.Join(homeColNames[v], " "))
 }
 
 // stateRank orders the state column: what needs attention first, a plan

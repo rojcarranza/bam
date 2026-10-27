@@ -136,3 +136,10 @@ func TestExitCodes(t *testing.T) {
 		assert.Equal(t, tc.want, exitCode(tc.err), "%v", tc.err)
 	}
 }
+
+func TestBadColorFlagFailsBeforeTheCommandRuns(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("--color", "bogus", "url", "PROJ"))
+	assert.Empty(t, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), `--color must be auto, always or never, not "bogus"`)
+}

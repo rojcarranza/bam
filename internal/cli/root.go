@@ -9,6 +9,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/view"
+	"github.com/r0jjames/bam-cli/internal/view/style"
 	"github.com/spf13/cobra"
 )
 
@@ -82,6 +83,12 @@ func newRoot(r *runtime) *cobra.Command {
 				})(cmd, args)
 			}
 			return cmd.Help()
+		},
+		// Check --color up front: commands that print no styled output never
+		// reach r.out(), so a typo there was silently ignored.
+		PersistentPreRunE: func(*cobra.Command, []string) error {
+			_, err := style.ColorEnabled(r.flags.color, "", false)
+			return err
 		},
 	}
 	pf := root.PersistentFlags()

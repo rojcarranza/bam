@@ -126,6 +126,7 @@ func newRoot(r *runtime) *cobra.Command {
 	root.InitDefaultCompletionCmd()
 	root.InitDefaultHelpCmd()
 	root.InitDefaultVersionFlag()
+	strictHelp(root)
 	for _, c := range root.Commands() {
 		requireSubcommand(c)
 	}
@@ -148,6 +149,28 @@ func requireSubcommand(cmd *cobra.Command) {
 			return cmd.Help()
 		}
 		return unknownCommand(cmd, args)
+	}
+}
+
+// strictHelp makes "bam help <typo>" a usage error. Cobra's help command
+// prints root help and exits 0, because the root's Args accepts any word.
+func strictHelp(root *cobra.Command) {
+	help, _, err := root.Find([]string{"help"})
+	if err != nil {
+		return
+	}
+	help.Run = nil
+	help.RunE = func(_ *cobra.Command, args []string) error {
+		cmd, rest, err := root.Find(args)
+		if err != nil {
+			return err
+		}
+		// A leaf command's leftover words are its own arguments, as in "help build show X".
+		if len(rest) > 0 && cmd.HasSubCommands() {
+			return unknownCommand(cmd, rest)
+		}
+		cmd.InitDefaultHelpFlag()
+		return cmd.Help()
 	}
 }
 

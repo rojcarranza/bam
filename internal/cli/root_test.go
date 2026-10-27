@@ -86,6 +86,24 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	}
 }
 
+func TestHelpUnknownTopicIsUsageError(t *testing.T) {
+	for args, want := range map[string]string{
+		"help foo":       "error: unknown command \"foo\" for \"bam\"\n  try: bam --help\n",
+		"help biuld":     "try: did you mean bam build? bam --help shows them all",
+		"help build lst": "try: did you mean bam build list? bam build --help shows them all",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+		assert.Empty(t, h.stdout.String(), args)
+	}
+	for _, args := range []string{"help", "help build", "help build show PROJ-PLAN-1"} {
+		h := newHarness(t)
+		assert.Equal(t, 0, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stdout.String(), "Usage:", args)
+	}
+}
+
 func TestBadFlagValueSaysWhatItWants(t *testing.T) {
 	for args, want := range map[string]string{
 		"build list PROJ-PLAN --limit abc": "error: --limit wants a whole number, like 10, not \"abc\"\n  try: bam build list --help\n",

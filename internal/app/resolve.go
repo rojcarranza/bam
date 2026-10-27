@@ -120,6 +120,9 @@ func UnknownTarget(cfg *config.Config, name string) error {
 	if len(names) == 0 {
 		return e.WithWhy("no presets are configured")
 	}
+	if c := Closest(name, names, 1); len(c) > 0 {
+		e = e.WithTry("did you mean " + c[0] + "? bam preset list shows them all")
+	}
 	return e.WithWhy("presets: " + strings.Join(names, ", "))
 }
 

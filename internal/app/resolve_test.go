@@ -55,6 +55,9 @@ func TestResolvePlanErrors(t *testing.T) {
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	assert.Contains(t, err.Error(), `unknown preset "provison-lab"`)
 	assert.Contains(t, err.Error(), "provision-lab")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean provision-lab? bam preset list shows them all", e.Try)
 
 	_, err = s.ResolvePlan(bg, "proj plan", "")
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))

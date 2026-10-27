@@ -77,6 +77,12 @@ func TestResolveVarsValidationOrder(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `cluster_type="nomad" is not allowed by preset provision-lab`)
 	assert.Contains(t, err.Error(), "allowed: k8s, dcos")
+	require.ErrorAs(t, err, &e)
+	assert.Empty(t, e.Try)
+
+	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_name=a", "cluster_type=k8"}})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean --var cluster_type=k8s?", e.Try)
 }
 
 func TestResolveVarsWarnsOnUndeclaredFlag(t *testing.T) {

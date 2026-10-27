@@ -327,8 +327,12 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 				continue
 			}
 			if !slices.Contains(t.Options[name], v.Value) {
-				return VarSet{}, errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
+				e := errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
 					WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
+				if c := Closest(v.Value, t.Options[name], 1); len(c) > 0 {
+					e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c[0]))
+				}
+				return VarSet{}, e
 			}
 		}
 	}

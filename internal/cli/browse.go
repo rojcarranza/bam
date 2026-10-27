@@ -315,7 +315,11 @@ func parseState(s string) (provider.State, error) {
 	for _, st := range provider.AllStates() {
 		names = append(names, string(st))
 	}
-	return "", errs.Usagef("--state must be one of %s, not %q", strings.Join(names, ", "), s)
+	e := errs.Usagef("--state must be one of %s, not %q", strings.Join(names, ", "), s)
+	if c := app.Closest(s, names, 1); len(c) > 0 {
+		e = e.WithTry("did you mean --state " + c[0] + "?")
+	}
+	return "", e
 }
 
 func newPlanStatsCmd(r *runtime) *cobra.Command {

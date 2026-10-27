@@ -54,3 +54,35 @@ func TestGenerateTargetRejectsBadInput(t *testing.T) {
 	_, err = s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-NOPE"})
 	assert.Equal(t, errs.KindBamboo, errs.KindOf(err))
 }
+
+func TestGenerateTargetFillsValuesFromNamedBuild(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
+	require.NoError(t, err)
+	assert.Equal(t, []config.DraftVar{
+		{Name: "cluster_type", Value: "dcos", Comment: "from PROJ-PROV12-8"},
+		{Name: "compute_nodes", Value: "3", Comment: "from PROJ-PROV12-8"},
+		{Name: "cluster_name", Value: "beta", Comment: "from PROJ-PROV12-8"},
+		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD"},
+		{Name: "global_flag", Value: "x", Comment: "from PROJ-PROV12-8; not declared by the plan"},
+	}, d.Vars)
+	assert.Empty(t, d.Required)
+}
+
+func TestGenerateTargetFromBuildKeepsPlanDefaultComment(t *testing.T) {
+	p := fakeBamboo()
+	p.BuildVars["PROJ-PROV12-8"]["cluster_type"] = "k8s"
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
+	require.NoError(t, err)
+	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "k8s", Comment: "plan default"}, d.Vars[0])
+}
+
+func TestGenerateTargetFromBuildNeedsReadableVariables(t *testing.T) {
+	p := fakeBamboo()
+	p.BuildVarsErr = errs.Bamboof("no").Wrap(errs.ErrUnsupported)
+	s := newService(t, p)
+	_, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot read the variables of PROJ-PROV12-8")
+}

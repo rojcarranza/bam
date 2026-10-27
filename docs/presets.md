@@ -44,6 +44,12 @@ The preset lists every variable the plan declares, with a comment saying where t
 - A secret Bamboo masks becomes a `${ENV_NAME}` reference. Export that environment variable; the value never lives in a file.
 - `# options:` and `# watch: true` are commented suggestions. Uncomment what you want.
 
+To start from the values a build already ran with, name it with `--from` (a number, a full build key, or `last`):
+
+    bam preset add deploy-qa --plan PROJ-DEPLOY --from 41
+
+Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. Secrets still become `${ENV_NAME}` references. Without `--from`, the last build's values appear only in the comments.
+
 ### Set the values
 
 Edit the file and fill in `variables`. Delete variables you never change, so they keep the plan's value. Uncomment `required` and `options` if you want bam to check values before it triggers:

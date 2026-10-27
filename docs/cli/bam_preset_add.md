@@ -31,7 +31,7 @@ bam preset add <name> --plan KEY [flags]
       --branch string   default branch for the preset
       --file string     write NAME.yaml in your presets directory instead of the plan's project file
       --force           replace an existing preset
-      --from string     build whose values fill the comments: number, key or last
+      --from string     build whose variable values fill the preset: number, key or last
   -h, --help            help for add
       --plan string     plan key to generate from
       --print           print the YAML and write nothing

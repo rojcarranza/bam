@@ -270,6 +270,7 @@ Output rules:
 
 - Values are written as quoted strings.
 - Each value has a trailing comment with its origin: `# plan default`, or `# no plan default; last used "beta" in PROJ-PROV-97`.
+- An explicit `--from` fills the values from that build instead: a value that differs from the plan default is commented `# from PROJ-PROV-97`, and variables the build used that the plan does not declare are added, commented `# from PROJ-PROV-97; not declared by the plan`. When the server cannot read a build's variables, an explicit `--from` is a Bamboo error rather than an empty preset. Without `--from`, the last build only fills comments.
 - A value Bamboo returns masked (`********`), or a name matching the masked-name pattern, is written as `"${NAME_IN_UPPER_SNAKE}"` with a comment naming the environment variable to set.
 - `branch`, `options`, `required` and `watch` are written commented out. `required` is pre-filled, commented, with the names that have no plan default.
 - The file is edited through the `yaml.v3` Node API so existing comments and key order survive.

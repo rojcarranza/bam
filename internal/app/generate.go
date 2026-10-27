@@ -13,7 +13,7 @@ import (
 type GenerateOptions struct {
 	Name    string
 	PlanKey string
-	From    string // build for "last used" values; default last
+	From    string // build whose values fill the preset; default last, used only in comments
 	Branch  string
 }
 
@@ -56,7 +56,12 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if key, err := s.ResolveFrom(ctx, ref, from); err == nil {
 		if bv, err := s.P.BuildVariables(ctx, key); err == nil {
 			used, usedKey = bv, key
-		} else if o.From != "" && !errors.Is(err, errs.ErrUnsupported) {
+		} else if o.From != "" {
+			if errors.Is(err, errs.ErrUnsupported) {
+				return d, false, errs.Bamboof("cannot read the variables of %s", key).
+					WithWhy("this Bamboo server does not return the variables a build ran with").
+					WithTry("drop --from and fill the values by hand")
+			}
 			return d, false, err
 		}
 	} else if o.From != "" {
@@ -66,11 +71,31 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	declared, err := s.P.ListVariables(ctx, o.PlanKey)
 	switch {
 	case err == nil:
+		names := map[string]bool{}
 		for _, v := range declared {
-			dv := draftVar(v.Name, v.Value, v.Masked, used, usedKey, true)
+			names[v.Name] = true
+			value := v.Value
+			if bv, ok := used[v.Name]; ok && o.From != "" {
+				value = bv
+			}
+			dv := draftVar(v.Name, value, v.Masked, used, usedKey, true)
+			if value != v.Value && !isSecretDraft(dv) {
+				dv.Comment = "from " + usedKey
+			}
 			d.Vars = append(d.Vars, dv)
-			if v.Value == "" && !isSecretDraft(dv) {
+			if value == "" && !isSecretDraft(dv) {
 				d.Required = append(d.Required, v.Name)
+			}
+		}
+		if o.From != "" {
+			for _, name := range sortedNames(used) {
+				if !names[name] {
+					dv := draftVar(name, used[name], false, used, usedKey, false)
+					if !isSecretDraft(dv) {
+						dv.Comment += "; not declared by the plan"
+					}
+					d.Vars = append(d.Vars, dv)
+				}
 			}
 		}
 	case errors.Is(err, errs.ErrUnsupported):

@@ -180,7 +180,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVar(&plan, "plan", "", "plan key to generate from")
-	f.StringVar(&from, "from", "", "build whose values fill the comments: number, key or last")
+	f.StringVar(&from, "from", "", "build whose variable values fill the preset: number, key or last")
 	f.StringVar(&branch, "branch", "", "default branch for the preset")
 	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
 	f.StringVar(&file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")

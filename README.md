@@ -256,6 +256,8 @@ PROJ-API-142              ✗ failed   12m03s
 │  └─ OPS-SMOKE-51        ✗ failed   1m40s   3 tests failed
 │     └─ stage Smoke      ✗ failed   1m40s   Smoke tests
 └─ PROJ-DOCS-30           ▸ running  45s
+failed: PROJ-API-142 https://bamboo.example.com/browse/PROJ-API-142
+failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51
 next: bam logs OPS-SMOKE-51 --failed
 ```
 

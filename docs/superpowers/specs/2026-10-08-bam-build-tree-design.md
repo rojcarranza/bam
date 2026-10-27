@@ -136,6 +136,8 @@ PROJ-API-142            ✗ failed     12m03s
 │     └─ stage Smoke    ✗ failed      1m40s   Smoke tests: 3 tests failed
 ├─ PROJ-DOCS-30         ⟳ running     0m45s
 └─ OPS-AUDIT            · not run
+failed: PROJ-API-142 https://bamboo.example.com/browse/PROJ-API-142
+failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51
 next: bam logs OPS-SMOKE-51 --failed
 ```
 
@@ -155,6 +157,7 @@ LAB-NWINT-487                    ✓ success  1h18m
 ```
 
   When its stages are not shown (`--failed` on a tree with no failure under it), such a build follows them as other children do and says `started by stage <stage>`. The tree screen draws the same lines.
+- `failed:` lines: one per build that failed or was stopped, in tree order, with its Bamboo URL so its logs are one click away (`stopped: KEY URL` for a stopped build). A configured child that did not run, a loop line and an earlier run get none.
 - `next:` lines: one `bam logs KEY --failed` per failed build that has a failed job, in tree order.
 - A loop node: `PROJ-API-142   ↺ already shown above`.
 

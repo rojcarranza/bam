@@ -162,3 +162,27 @@ func TestFetchLogPastTheReadLimitNeverMixesInTheDownload(t *testing.T) {
 	assert.NotContains(t, chunk.Lines, "agent ready")
 	assert.Equal(t, 12, chunk.Next)
 }
+
+func TestFetchLogDownloadKeepsTheLastReadLimitLines(t *testing.T) {
+	// Like the entries, the download path hands back at most logMax lines,
+	// the last ones, with Next still counting the whole log.
+	defer func(n int) { logMax = n }(logMax)
+	logMax = 3
+	var raw strings.Builder
+	for i := 1; i <= 5; i++ {
+		fmt.Fprintf(&raw, "build\t11-Oct-2026 16:26:38\tline %d\n", i)
+	}
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/LAB-SLOW-ONE-5":               {status: 400, body: `{"message":"bad expand"}`},
+		"GET /download/LAB-SLOW-ONE/build_logs/LAB-SLOW-ONE-5.log": {body: raw.String()},
+	})
+	knownCaps(c, Capabilities{})
+	chunk, err := c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"line 3", "line 4", "line 5"}, chunk.Lines)
+	assert.Equal(t, 5, chunk.Next)
+
+	chunk, err = c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{Offset: 4})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"line 5"}, chunk.Lines, "an offset inside the kept lines starts there")
+}

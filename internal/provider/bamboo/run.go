@@ -310,8 +310,8 @@ func (c *Client) logDownload(ctx context.Context, jobResultKey string, offset in
 		}
 		all[n] = l
 	}
-	if offset > len(all) {
-		offset = len(all)
-	}
-	return provider.LogChunk{Lines: all[offset:], Next: len(all)}, nil
+	// Keep at most the last logMax lines, as the entries do, so a huge log
+	// reads the same whichever path a server offers.
+	from := min(max(offset, len(all)-logMax), len(all))
+	return provider.LogChunk{Lines: all[from:], Next: len(all)}, nil
 }

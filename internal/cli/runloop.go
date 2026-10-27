@@ -228,8 +228,12 @@ func newWatchCmd(r *runtime) *cobra.Command {
 	var branch string
 	var timeout time.Duration
 	cmd := &cobra.Command{
-		Use:               "watch [<build>|<plan>|<preset>]",
-		Short:             "Follow a build until it finishes; exit 1 if it fails",
+		Use:   "watch [<build>|<plan>|<preset>]",
+		Short: "Follow a build until it finishes; exit 1 if it fails",
+		Long: `Follow a build until it finishes; exit 1 if it fails.
+
+This follows one build. To follow a build and every build it triggered, use
+"bam build tree <build> --watch".`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

@@ -2,6 +2,13 @@
 
 Follow a build until it finishes; exit 1 if it fails
 
+### Synopsis
+
+Follow a build until it finishes; exit 1 if it fails.
+
+This follows one build. To follow a build and every build it triggered, use
+"bam build tree <build> --watch".
+
 ```
 bam watch [<build>|<plan>|<preset>] [flags]
 ```

@@ -21,9 +21,10 @@ awk -v v="$v" 'index($0, "## [" v "]") == 1 {on=1; next} on && /^## \[/ {exit} o
 grep -q '[^[:space:]]' "$notes" || die "CHANGELOG.md has no section for $v; rename [Unreleased] first"
 
 token=$(gh auth token) || die "gh is not logged in; run gh auth login"
+command -v goreleaser >/dev/null || die "goreleaser v2 is not installed"
 go test ./...
 git tag -a "v$v" -m "v$v"
 # The pre-push hook only lets pushes through the no-mistakes gate; a release tag
 # of an already-validated main commit goes straight to origin.
-git push --no-verify origin "v$v"
+git push --no-verify origin "v$v" || { git tag -d "v$v"; die "push of v$v failed"; }
 GITHUB_TOKEN="$token" goreleaser release --clean --release-notes="$notes"

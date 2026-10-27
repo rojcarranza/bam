@@ -78,6 +78,9 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 		}
 	case IsPlanKey(arg):
 		ref = PlanRef{PlanKey: arg, MasterKey: arg}
+	case IsBuildKey(arg):
+		return PlanRef{}, errs.Usagef("%q is a build key, not a plan key", arg).
+			WithTry("its plan, " + arg[:strings.LastIndex(arg, "-")])
 	default:
 		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).
 			WithTry("bam preset list, or a plan key such as PROJ-PLAN")

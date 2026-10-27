@@ -393,3 +393,14 @@ func TestValidateEditedWarnsOnceForAnUndeclaredName(t *testing.T) {
 	assert.Contains(t, got.Warnings[1], "extra is not a declared variable of PROJ-PROV")
 	assert.Equal(t, "b", got.Changed()["clustr_name"])
 }
+
+func TestResolveVarsMalformedFlagShowsTheForm(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	ref, err := s.ResolvePlan(bg, "PROJ-PROV", "")
+	require.NoError(t, err)
+	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_type"}})
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+	assert.Equal(t, "--var cluster_type=VALUE", e.Try)
+}

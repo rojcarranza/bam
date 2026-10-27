@@ -167,3 +167,13 @@ func TestUnknownTargetWithNoPresetsSaysHowToAddOne(t *testing.T) {
 	assert.Equal(t, "no presets are configured", e.Why)
 	assert.Equal(t, "bam preset add deploy-qa --plan KEY to create it; plan keys are uppercase, like PROJ-PLAN", e.Try)
 }
+
+func TestResolvePlanWithBuildKeyPointsAtItsPlan(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	_, err := s.ResolvePlan(bg, "PROJ-PLAN-12", "")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+	assert.Equal(t, `"PROJ-PLAN-12" is a build key, not a plan key`, e.What)
+	assert.Equal(t, "its plan, PROJ-PLAN", e.Try)
+}

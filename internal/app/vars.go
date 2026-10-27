@@ -272,7 +272,10 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 	for _, f := range flags {
 		name, val, ok := strings.Cut(f, "=")
 		if !ok || name == "" {
-			return VarSet{}, errs.Usagef("--var takes name=value, not %q", f)
+			if name == "" {
+				name = "NAME"
+			}
+			return VarSet{}, errs.Usagef("--var takes name=value, not %q", f).WithTry("--var " + name + "=VALUE")
 		}
 		warnUndeclared(name)
 		v := get(name)

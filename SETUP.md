@@ -11,11 +11,12 @@ Windows is not covered here.
 | Git | source control | yes |
 | Go (latest stable, 1.26 or newer) | build and test | yes |
 | GNU make (3.81 or newer) | `make install`, `make test`, `make lint` … | yes |
-| golangci-lint v2 (CI pins v2.13.2) | the lint gate (`make lint`) | yes |
+| golangci-lint v2 | the lint gate (`make lint`) | yes |
 | curl | downloads in this guide | yes |
 | gopls | Go language server for your editor | recommended |
 | goreleaser v2 | release builds (`goreleaser build --snapshot`) | only for release work |
 | GitHub CLI (`gh`) | pull requests | optional |
+| no-mistakes | the push gate (see Before you push) | yes |
 
 The project uses no Docker, no database and no cgo.
 
@@ -219,7 +220,7 @@ Also used later:
 | `go vet ./...` | the vet gate CI runs |
 | `go test -race ./...` | tests with the race detector |
 | `make check-fixtures` | fails if any test fixture names a real host |
-| `make docs` | regenerates the command reference in `docs/cli/`; CI fails if it is stale |
+| `make docs` | regenerates the command reference in `docs/cli/`; the no-mistakes gate fails if it is stale |
 | `make stub` | serves a fake Bamboo from the fixtures, so bam can be driven without a server (see below) |
 | `make record ARGS='-target provision'` | records scrubbed fixtures from your own Bamboo (see below) |
 | `make e2e ARGS='-target smoke'` | end-to-end test against a real Bamboo |
@@ -227,16 +228,23 @@ Also used later:
 
 ### Before you push
 
-CI (`.github/workflows/ci.yml`) runs more than `make test` and `make lint`. Run
-the same gate locally, in this order:
+Pushes go through the [no-mistakes](https://github.com/kunchenguid/no-mistakes)
+gate, which runs review, tests, lint and the checks in `.no-mistakes.yaml`
+(race tests, lint, fixture guard, fresh `docs/cli`, Linux vet), then pushes and
+opens the pull request. There is no GitHub Actions CI. Once per clone:
 
 ```bash
-gofmt -l .                                  # must print nothing
-go vet ./...
-go test -race ./...
-make docs && git diff --exit-code docs/cli  # docs/cli must be up to date
-make check-fixtures
-make lint
+no-mistakes init                        # adds the no-mistakes remote
+git config core.hooksPath .githooks     # pre-push refuses pushes that skip the gate
+```
+
+Then push with `git push no-mistakes <branch>`, or drive it from an agent with
+`/no-mistakes`. To run the same checks by hand:
+
+```bash
+GOFLAGS=-race make test
+make lint check-fixtures
+make docs && git status --porcelain docs/cli   # must print nothing
 ```
 
 ## Run bam without a Bamboo

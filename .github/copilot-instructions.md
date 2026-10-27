@@ -120,7 +120,7 @@ no "Generated with Claude Code" line, in either commit messages or PR bodies.
 
 ## What not to comment on
 
-- Formatting: `gofmt` and `golangci-lint` already gate it in CI.
+- Formatting: `gofmt` and `golangci-lint` already gate it in the no-mistakes pipeline.
 - Style preferences that match the surrounding code.
 - Missing features that `docs/prd.md` lists as out of scope or as a later
   version.

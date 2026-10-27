@@ -13,6 +13,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/r0jjames/bam-cli/internal/view/style"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // version is set at build time with -ldflags "-X github.com/r0jjames/bam-cli/internal/cli.version=v0.1.0".
@@ -49,7 +50,7 @@ func Execute(ctx context.Context, args []string, env Env) int {
 	root.SetOut(env.Stdout)
 	root.SetErr(env.Stderr)
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
-		return errs.Usagef("%s", err.Error()).WithTry(c.CommandPath() + " --help")
+		return errs.Usagef("%s", flagValueMessage(err)).WithTry(c.CommandPath() + " --help")
 	})
 	cmd, err := root.ExecuteContextC(ctx)
 	var res *resultError
@@ -192,6 +193,24 @@ func nestedCommand(cmd *cobra.Command, word string) string {
 		return ""
 	}
 	return found[0]
+}
+
+// flagValueMessage rewrites pflag's 'invalid argument "x" for "--limit" flag:
+// strconv.ParseInt: ...' into plain words for number and duration flags.
+func flagValueMessage(err error) string {
+	var iv *pflag.InvalidValueError
+	if !errors.As(err, &iv) {
+		return err.Error()
+	}
+	want := map[string]string{
+		"int":      "a whole number, like 10",
+		"count":    "a whole number, like 10",
+		"duration": "a duration, like 90s, 10m or 1h30m",
+	}[iv.GetFlag().Value.Type()]
+	if want == "" {
+		return err.Error()
+	}
+	return fmt.Sprintf("--%s wants %s, not %q", iv.GetFlag().Name, want, iv.GetValue())
 }
 
 // argCountError turns cobra's "accepts 1 arg(s), received 0" into a usage

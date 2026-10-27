@@ -77,6 +77,18 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	}
 }
 
+func TestBadFlagValueSaysWhatItWants(t *testing.T) {
+	for args, want := range map[string]string{
+		"build list PROJ-PLAN --limit abc": "error: --limit wants a whole number, like 10, not \"abc\"\n  try: bam build list --help\n",
+		"watch PROJ-PLAN-1 --timeout 5":    "error: --timeout wants a duration, like 90s, 10m or 1h30m, not \"5\"\n",
+		"build list --state":               "error: flag needs an argument: --state\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+	}
+}
+
 func TestWrongArgCountPointsAtHelp(t *testing.T) {
 	for args, want := range map[string]string{
 		"run":              "error: missing <plan|preset>\n  try: bam run <plan|preset>; bam run --help shows more\n",

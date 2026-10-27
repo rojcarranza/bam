@@ -146,8 +146,12 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	tr := o.track
 	var warnings []string
+	var known *TreeNode
 	if prev == nil && o.Shared {
 		prev = s.sharedScan(root)
+		if t, ok := s.CachedTree(key); ok && prev == nil && len(t.Warnings) == 0 {
+			known = t.Root
+		}
 	}
 	scan := prev
 	limit := treeRefresh
@@ -162,7 +166,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	got, failed := s.treeRead(ctx, tr, scan.plans, limit)
 	var depths map[string]int
-	if prev == nil {
+	if prev == nil && known == nil {
 		depths = s.treeDeepen(ctx, tr, got, root)
 	}
 	if err := ctx.Err(); err != nil {
@@ -180,6 +184,9 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	warnings = append(warnings, readWarnings...)
 	if prev == nil {
 		scan = scan.first(got, depths)
+		if known != nil {
+			scan.knew(known)
+		}
 	} else {
 		scan = scan.merged(got)
 	}
@@ -188,7 +195,9 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	treeGrow(t.Root, scan.index(), configured, o.Depth, 0, map[string]bool{root.Key: true})
 	warnings = append(warnings, s.treeDetails(ctx, tr, t.Root, done)...)
 	warnings = append(warnings, s.treeLogLinks(ctx, tr, t.Root, scan, configured, o.Depth, done)...)
-	warnings = append(warnings, windowWarnings(scan.windows, root)...)
+	if scan.covered != root.Key {
+		warnings = append(warnings, windowWarnings(scan.windows, root)...)
+	}
 	if err := ctx.Err(); err != nil {
 		return Tree{}, nil, err
 	}
@@ -320,6 +329,23 @@ type treeScan struct {
 	parents  map[string]string   // build key to parent key; "" for none or given up
 	misses   map[string]int      // failed parent reads in a row, by build key
 	logLinks map[string][]string // build keys a finished job's log links to, by job key
+	covered  string              // root whose saved tree supplied its older children, so its windows warn of nothing
+}
+
+// knew lays the builds of root's saved final tree under the scan's, so its
+// children older than a window are found without reading deeper: an older
+// build's deep read happens once (#82).
+func (sc *treeScan) knew(root *TreeNode) {
+	root.Walk(func(n *TreeNode, depth int) {
+		if depth == 0 || n.NotRun || n.Loop || slices.ContainsFunc(sc.builds[n.PlanKey], func(b provider.Build) bool { return b.Key == n.Build.Key }) {
+			return
+		}
+		sc.builds[n.PlanKey] = append(sc.builds[n.PlanKey], n.Build)
+	})
+	for _, bs := range sc.builds {
+		sort.Slice(bs, func(i, j int) bool { return bs[i].Number > bs[j].Number })
+	}
+	sc.covered = root.Build.Key
 }
 
 // first is the scan of a first search: its builds and their windows.
@@ -337,7 +363,7 @@ func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int
 // again replaces its older copy, a new build is added, and a plan that
 // could not be read keeps what was found before.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks}
+	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks, covered: sc.covered}
 	for plan, bs := range sc.builds {
 		out.builds[plan] = bs
 	}

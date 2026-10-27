@@ -355,8 +355,7 @@ func TestATreeSeenInAnEarlierSessionDrawsAtOnce(t *testing.T) {
 	require.Equal(t, "PROJ-BUILD-44(PROJ-PROV-7)", tuiShape(m.buildTree.tree.Root))
 	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refreshing…")
 
-	m.trees = nil
-	m.svc.Trees = &app.TreeStore{Dir: dir}
+	m.trees = nil // the store still holds the saved tree; swapping it would race the watch
 	m, _ = send(m, mkKey("esc"))
 	m.plan.tree = treePreview{}
 	m, cmd := m.loadTreePreview("PROJ-BUILD-44", false)

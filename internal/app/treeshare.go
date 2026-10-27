@@ -66,5 +66,6 @@ func (sc *treeScan) clone() *treeScan {
 		parents:  maps.Clone(sc.parents),
 		misses:   maps.Clone(sc.misses),
 		logLinks: maps.Clone(sc.logLinks),
+		covered:  sc.covered,
 	}
 }

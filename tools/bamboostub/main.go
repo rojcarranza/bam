@@ -72,7 +72,7 @@ type stub struct {
 type build struct {
 	planKey string
 	number  int
-	started time.Time // a child build does not exist before it
+	started time.Time
 	stopped time.Time // when bam build cancel stopped it; zero while it runs on
 	parent  string    // the build whose end queued this one
 	fails   bool

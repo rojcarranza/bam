@@ -155,22 +155,39 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 			rend = view.NewTreeLines(out, failed)
 		}
 	}
+	// A live tree redraws every second so running times and bars move.
+	var tick <-chan time.Time
+	if live != nil {
+		tk := time.NewTicker(time.Second)
+		defer tk.Stop()
+		tick = tk.C
+	}
 	finished := false
-	for e := range svc.WatchTree(wctx, key, o) {
-		rend.Event(e)
-		switch e.Type {
-		case app.TreeUpdate:
-			finished = e.Tree.State != provider.StateRunning
-		case app.TreeDone:
-			view.PrintWarnings(r.env.Stderr, e.Tree.Warnings)
-			if revision != "" && !r.flags.json && e.Tree.Root.Build.State == provider.StateNotBuilt {
-				if out, err := r.out(); err == nil {
-					view.RevisionNotBuilt(out, revision)
-				}
+	events := svc.WatchTree(wctx, key, o)
+loop:
+	for {
+		select {
+		case e, ok := <-events:
+			if !ok {
+				break loop
 			}
-			return r.treeResult(e.Tree, key)
-		case app.TreeError:
-			return e.Err
+			rend.Event(e)
+			switch e.Type {
+			case app.TreeUpdate:
+				finished = e.Tree.State != provider.StateRunning
+			case app.TreeDone:
+				view.PrintWarnings(r.env.Stderr, e.Tree.Warnings)
+				if revision != "" && !r.flags.json && e.Tree.Root.Build.State == provider.StateNotBuilt {
+					if out, err := r.out(); err == nil {
+						view.RevisionNotBuilt(out, revision)
+					}
+				}
+				return r.treeResult(e.Tree, key)
+			case app.TreeError:
+				return e.Err
+			}
+		case <-tick:
+			live.Tick()
 		}
 	}
 	live.Stop()

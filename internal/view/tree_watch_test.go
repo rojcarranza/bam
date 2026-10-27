@@ -3,12 +3,14 @@ package view
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/view/style"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,6 +50,82 @@ func TestTreeLiveRedrawsInPlace(t *testing.T) {
 	l.Event(treeEv(app.TreeUpdate, last))
 	require.Contains(t, buf.String(), "\x1b[1A\x1b[J", "the one-line first tree is redrawn")
 	require.True(t, strings.HasSuffix(buf.String(), "OPS-DEPLOY-88  ✓ success  1m00s\n"), buf.String())
+}
+
+func TestTreeLiveTickRedrawsARunningTreeWithItsNewTimes(t *testing.T) {
+	running := tnode("PROJ-API-142", provider.StateRunning, 0)
+	running.Build.StartedAt = fixedNow.Add(-45 * time.Second)
+	now := fixedNow
+	o, buf := testOut(true)
+	o.Now = func() time.Time { return now }
+	l := NewTreeLive(o, nil, false)
+	l.Tick()
+	require.Empty(t, buf.String(), "no tree yet, nothing to draw")
+	l.Event(treeEv(app.TreeUpdate, app.Tree{Root: running, State: provider.StateRunning}))
+	require.Contains(t, buf.String(), "▸ running  45s")
+	now = now.Add(5 * time.Second)
+	l.Tick()
+	require.True(t, strings.HasSuffix(buf.String(), "\x1b[1A\x1b[JPROJ-API-142  ▸ running  50s\n"), buf.String())
+
+	_, last := twoTrees()
+	l.Event(treeEv(app.TreeDone, last))
+	before := buf.Len()
+	l.Tick()
+	require.Equal(t, before, buf.Len(), "a finished tree is not redrawn")
+}
+
+func TestTreeLiveShowsAndMovesARunningBuildsEstimate(t *testing.T) {
+	docs := tnode("PROJ-DOCS-30", provider.StateRunning, 0)
+	docs.Build.StartedAt = fixedNow.Add(-4 * time.Minute)
+	docs.Progress = provider.Progress{Valid: true, Average: 10 * time.Minute, Elapsed: 4 * time.Minute, Remaining: 6 * time.Minute, Percent: 0.4}
+	docs.ProgressAt = fixedNow
+	root := tnode("PROJ-API-142", provider.StateSuccess, time.Minute, docs)
+	now := fixedNow
+	o, buf := testOut(true)
+	o.Now = func() time.Time { return now }
+	l := NewTreeLive(o, nil, false)
+	l.Event(treeEv(app.TreeUpdate, app.Tree{Root: root, State: provider.StateRunning}))
+	require.Contains(t, buf.String(), "└─ PROJ-DOCS-30  ▸ running  4m00s  [##########--------------]  40%  ~6m00s left\n")
+	now = now.Add(time.Minute)
+	l.Tick()
+	require.True(t, strings.HasSuffix(buf.String(), "└─ PROJ-DOCS-30  ▸ running  5m00s  [############------------]  50%  ~5m00s left\n"), buf.String())
+}
+
+func TestTreeLiveFitsTheEstimateToANarrowTerminal(t *testing.T) {
+	docs := tnode("PROJ-DOCS-30", provider.StateRunning, 0)
+	docs.Build.StartedAt = fixedNow.Add(-4 * time.Minute)
+	docs.Progress = provider.Progress{Valid: true, Average: 10 * time.Minute, Elapsed: 4 * time.Minute, Remaining: 6 * time.Minute, Percent: 0.4}
+	docs.ProgressAt = fixedNow
+	root := tnode("PROJ-API-142", provider.StateSuccess, time.Minute, docs)
+	for _, width := range []int{60, 45} {
+		o, buf := testOut(true)
+		o.Width = width
+		NewTreeLive(o, nil, false).Event(treeEv(app.TreeUpdate, app.Tree{Root: root, State: provider.StateRunning}))
+		for _, line := range strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n") {
+			require.Less(t, style.Width(line), width, "width %d: %q would wrap", width, line)
+		}
+		if width == 60 {
+			require.Contains(t, buf.String(), "running  4m00s   40%  ~6m00s left\n", "the numbers outlast the cells")
+		}
+	}
+	o, buf := testOut(true)
+	o.Width = 30
+	NewTreeLive(o, nil, false).Event(treeEv(app.TreeUpdate, app.Tree{Root: root, State: provider.StateRunning}))
+	require.NotContains(t, buf.String(), "%", "no room left: no estimate rather than a wrapped one")
+}
+
+func TestTreeLiveRedrawCountsWrappedLines(t *testing.T) {
+	root := tnode("PROJ-API-142", provider.StateRunning, 0)
+	root.Build.PlanName = "A plan with a name long enough to wrap twice"
+	o, buf := testOut(true)
+	o.Width = 30
+	l := NewTreeLive(o, nil, false)
+	l.Event(treeEv(app.TreeUpdate, app.Tree{Root: root, State: provider.StateRunning}))
+	first := buf.String()
+	rows := (style.Width(strings.TrimSuffix(first, "\n")) + o.Width - 1) / o.Width
+	require.Greater(t, rows, 1)
+	l.Tick()
+	require.True(t, strings.HasPrefix(buf.String()[len(first):], fmt.Sprintf("\x1b[%dA\x1b[J", rows)), "the cursor goes up over every row the line took")
 }
 
 func TestTreeNDJSONWritesATreePerUpdate(t *testing.T) {

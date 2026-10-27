@@ -98,3 +98,17 @@ func TestDoctorInvalidServerURL(t *testing.T) {
 	// Should not contain ✓ server
 	assert.NotContains(t, out, "✓ server")
 }
+
+func TestDoctorListsOnlyConfigFilesThatExist(t *testing.T) {
+	h := newHarness(t)
+	h.probe = okProbe()
+	assert.Equal(t, 0, h.run("doctor"))
+	assert.NotContains(t, h.stdout.String(), "config.yaml", "the machine file does not exist")
+
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("doctor"))
+	assert.Regexp(t, `✓ config\s+no config file; settings come from the environment`, h.stdout.String())
+}

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/credential"
@@ -55,11 +56,20 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 					fail("config", err)
 					return
 				}
-				files := []string{r.env.Paths.MachineConfig}
+				var files []string
 				if cfg.ProjectPath != "" {
-					files = append([]string{cfg.ProjectPath}, files...)
+					files = append(files, cfg.ProjectPath)
 				}
-				add("config", "ok", strings.Join(files, ", "), nil)
+				for _, f := range []string{cfg.MachinePath, cfg.PresetsPath} {
+					if _, err := os.Stat(f); f != "" && err == nil {
+						files = append(files, f)
+					}
+				}
+				detail := strings.Join(files, ", ")
+				if detail == "" {
+					detail = "no config file; settings come from the environment"
+				}
+				add("config", "ok", detail, nil)
 
 				server, err := cfg.SelectServer(r.flags.server, "")
 				if err != nil {

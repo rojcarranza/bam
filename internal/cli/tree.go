@@ -50,7 +50,7 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 				return r.rerunTree(ctx, svc, key, failed, yes, noWatch)
 			}
 			if watch {
-				return r.treeLoop(ctx, svc, key, o, failed, 0, "bam build tree "+key+" --watch")
+				return r.treeLoop(ctx, svc, key, o, failed, 0, "bam build tree "+key+" --watch", "")
 			}
 			t, err := r.loadTree(ctx, svc, key, o)
 			if err != nil {
@@ -125,8 +125,10 @@ func (r *runtime) treeResult(t app.Tree, key string) error {
 }
 
 // treeLoop renders a watched tree. Interrupts and a limit stop watching
-// only; resume is the command that picks the watch up again.
-func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o app.TreeOptions, failed bool, limit time.Duration, resume string) error {
+// only; resume is the command that picks the watch up again. revision, when
+// set, is the revision the root was asked for; a not-built root then says
+// Bamboo could not build it.
+func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o app.TreeOptions, failed bool, limit time.Duration, resume, revision string) error {
 	wctx, cancel := ctx, context.CancelFunc(func() {})
 	if limit > 0 {
 		wctx, cancel = context.WithTimeout(ctx, limit)
@@ -157,6 +159,11 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 		switch e.Type {
 		case app.TreeDone:
 			view.PrintWarnings(r.env.Stderr, e.Tree.Warnings)
+			if revision != "" && !r.flags.json && e.Tree.Root.Build.State == provider.StateNotBuilt {
+				if out, err := r.out(); err == nil {
+					view.RevisionNotBuilt(out, revision)
+				}
+			}
 			return r.treeResult(e.Tree, key)
 		case app.TreeError:
 			return e.Err
@@ -223,7 +230,7 @@ func (r *runtime) rerunTree(ctx context.Context, svc *app.Service, key string, f
 	if noWatch {
 		return restartErr
 	}
-	err = r.treeLoop(ctx, svc, key, app.TreeOptions{}, failed, 0, "bam build tree "+key+" --watch")
+	err = r.treeLoop(ctx, svc, key, app.TreeOptions{}, failed, 0, "bam build tree "+key+" --watch", "")
 	if restartErr != nil {
 		return restartErr
 	}

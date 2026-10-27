@@ -365,35 +365,27 @@ PROJ-PLAN-1842   ✓ success   develop    18m ago   4m11s     Changes by a1b2c3d
 PROJ-PLAN7-12    ✗ failed    feat/foo   1h ago    3m40s     Manual run by jdoe
 ```
 
-`bam run build --branch develop --var env=staging --watch` (the block below the header redraws in place):
+`bam run build --branch develop --var env=staging --watch` (the tree below the header redraws in place, as `bam build tree --watch` does):
 
 ```
 Plan     PROJ-BUILD  (branch develop, PROJ-BUILD12)
 Vars     env=staging (flag)  region=eu (preset)
 ✓ Queued   PROJ-BUILD12-44   https://bamboo.example.com/browse/PROJ-BUILD12-44
-▸ Running  agent linux-3     2m03s
-
-  ✓ Checkout        12s
-  ✓ Build           1m20s
-  ▸ Test            31s
-      ✓ Unit        28s
-      ▸ Integration 31s
-  – Package
+PROJ-BUILD12-44       ✓ success  3m40s
+├─ stage Build        ✓ success  1m20s
+└─ OPS-DEPLOY-88      ✗ failed   1m40s
+   └─ stage Deploy    ✗ failed   1m40s   Apply
+failed: OPS-DEPLOY-88 https://bamboo.example.com/browse/OPS-DEPLOY-88
+next: bam logs OPS-DEPLOY-88 --failed
 ```
 
-On completion:
-
-```
-✗ Failed   PROJ-BUILD12-44  3m40s   Test › Integration
-  next: bam logs PROJ-BUILD12-44 --failed
-        bam open PROJ-BUILD12-44
-```
+It exits 1 when any build in the tree did not succeed, though the triggered build passed. When Bamboo did not build the chosen `--revision`, a `Bamboo could not build revision <rev>` line follows.
 
 `build run` without `--watch` prints the queued line with key and URL and a `watch: bam watch <key>` hint.
 
 ### 5.4 Watch behaviour
 
-- `bam watch` without `--json` draws the build's tree, as `bam build tree --watch` does (build-tree design §6.3), until every build in it has finished, and exits 1 when any did not succeed. `bam watch --json` and `bam run --watch` follow the one build as below.
+- `bam watch` without `--json` draws the build's tree, as `bam build tree --watch` does (build-tree design §6.3), until every build in it has finished, and exits 1 when any did not succeed. `bam run --watch` does the same for the build it triggered. `bam watch --json` and `bam run --watch --json` follow the one build as below.
 - On a TTY the live block redraws with ANSI cursor movement; no TUI library is used in v0.1.
 - On a pipe, each state change prints one line: `2026-09-12T14:03:20Z PROJ-BUILD12-44 running agent=linux-3`.
 - Watching a build that has already finished prints its final summary and exits with its result code.

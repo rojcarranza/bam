@@ -138,10 +138,11 @@ func newRunCmd(r *runtime) *cobra.Command {
 				view.Queued(o, b, false, ref.RevisionShort())
 				return nil
 			}
-			if !r.flags.json {
-				view.Queued(o, b, true, ref.RevisionShort())
+			if r.flags.json {
+				return r.watchLoop(ctx, svc, b.Key, limit, "")
 			}
-			return r.watchLoop(ctx, svc, b.Key, limit, ref.RevisionShort())
+			view.Queued(o, b, true, ref.RevisionShort())
+			return r.treeLoop(ctx, svc, b.Key, app.TreeOptions{}, false, limit, "bam watch "+b.Key, ref.RevisionShort())
 		}),
 	}
 	f := cmd.Flags()
@@ -149,7 +150,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 	f.StringVar(&from, "from", "", "reuse variables of a build: number, key or last")
 	f.StringVar(&branch, "branch", "", "plan branch to run")
 	f.StringVar(&revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
-	f.BoolVar(&watch, "watch", false, "follow the build until it finishes")
+	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	f.DurationVar(&timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
 	f.BoolVar(&dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
 	f.BoolVar(&edit, "edit", false, "review and change the variables in $EDITOR before running")
@@ -252,7 +253,7 @@ build and writes its events as NDJSON.`,
 			if r.flags.json {
 				return r.watchLoop(cmd.Context(), svc, key, limit, "")
 			}
-			return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key)
+			return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key, "")
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")

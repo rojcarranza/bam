@@ -64,8 +64,8 @@ func TestRunWatchExitCodes(t *testing.T) {
 		code  int
 		text  string
 	}{
-		{provider.StateSuccess, 0, "✓ Success"},
-		{provider.StateFailed, 1, "✗ Failed"},
+		{provider.StateSuccess, 0, "PROJ-BUILD-483  ✓ success"},
+		{provider.StateFailed, 1, "failed: PROJ-BUILD-483"},
 	} {
 		h := newHarness(t)
 		h.fake.TriggerResult = queuedBuild("PROJ-BUILD-483")
@@ -78,6 +78,14 @@ func TestRunWatchExitCodes(t *testing.T) {
 		assert.Contains(t, h.stdout.String(), tc.text)
 		assert.Empty(t, h.stderr.String())
 	}
+}
+
+func TestRunWatchFollowsTheChildBuilds(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	h.fake.TriggerResult = queuedBuild("PROJ-BUILD-482")
+	assert.Equal(t, 1, h.run("run", "build", "--watch"), "a failed child fails the run though the parent succeeded")
+	assert.Contains(t, h.stdout.String(), "└─ PROJ-PROV-9")
+	assert.Contains(t, h.stdout.String(), "failed: PROJ-PROV-9 "+workOrigin+"/browse/PROJ-PROV-9")
 }
 
 func TestWatchNDJSON(t *testing.T) {

@@ -49,3 +49,40 @@ func Investigation(o Out, inv app.Investigation) error {
 	_, err := fmt.Fprint(o.W, sb.String())
 	return err
 }
+
+type ErrorBlockDoc struct {
+	Line    int      `json:"line"`
+	Text    string   `json:"text"`
+	Pattern string   `json:"pattern"`
+	Start   int      `json:"start"`
+	Context []string `json:"context"`
+	Count   int      `json:"count"`
+}
+
+type JobErrorsDoc struct {
+	Key    string          `json:"key"`
+	URL    string          `json:"url"`
+	Name   string          `json:"name"`
+	Stage  string          `json:"stage"`
+	Short  string          `json:"short"`
+	Errors []ErrorBlockDoc `json:"errors"`
+}
+
+type InvestigationDoc struct {
+	Build       BuildDoc       `json:"build"`
+	LikelyCause string         `json:"likely_cause"`
+	Jobs        []JobErrorsDoc `json:"jobs"`
+}
+
+// InvestigationJSON is the `build investigate --json` document.
+func InvestigationJSON(inv app.Investigation) InvestigationDoc {
+	d := InvestigationDoc{Build: BuildJSON(inv.Build), LikelyCause: inv.LikelyCause, Jobs: []JobErrorsDoc{}}
+	for _, j := range inv.Jobs {
+		jd := JobErrorsDoc{Key: j.Job.Key, URL: j.Job.URL, Name: j.Job.Name, Stage: j.Stage, Short: j.Short, Errors: []ErrorBlockDoc{}}
+		for _, e := range j.Errors {
+			jd.Errors = append(jd.Errors, ErrorBlockDoc{Line: e.Line, Text: e.Text, Pattern: e.Pattern, Start: e.Start, Context: e.Context, Count: e.Count})
+		}
+		d.Jobs = append(d.Jobs, jd)
+	}
+	return d
+}

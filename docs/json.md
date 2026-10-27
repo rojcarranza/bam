@@ -72,6 +72,20 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 - `build`: the `bam build show --json` document, without `progress`; `null` for `not_run`.
 - `--watch --json` writes one such document per change, one per line.
 
+## Build investigation
+
+`build investigate --json` prints one document:
+
+    {"build":{...},"likely_cause":"Error: quota exceeded (job TF)","jobs":[{"key":"PROJ-PROV12-TF-8","url":"...",
+     "name":"Terraform","stage":"Apply","short":"TF","errors":[{"line":2,"text":"Error: quota exceeded",
+     "pattern":"error","start":1,"context":["terraform apply","Error: quota exceeded"],"count":1}]}]}
+
+- `build`: the `bam build show --json` document, without `progress`.
+- `jobs`: the failed jobs in stage order; `[]` when the build did not fail. A job whose log matched no pattern has `"errors":[]`.
+- `likely_cause`: the first error of the first job that has one, `""` when none matched.
+- `line` and `start` are 1-based log line numbers; `context` starts at `start` and holds the error line with `--context` lines either side. `count` is how often the same error text appears in the log.
+- `pattern` is one of `error`, `fatal`, `maven`, `gradle`, `go-test`, `npm`, `panic`, `traceback`, `exception`, `bamboo-task`.
+
 ## Events
 
     {"type":"state","time":"...","build_key":"PROJ-BUILD-45","state":"running","progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000,"source":"bamboo"}}

@@ -358,3 +358,39 @@ func TestInvestigate(t *testing.T) {
 	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-483"))
 	assert.Contains(t, h.stderr.String(), "try: bam watch PROJ-BUILD-483")
 }
+
+func TestInvestigateJSON(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-PROV12-8", "--context", "1", "--json"))
+	var doc struct {
+		Build       struct{ Key, State string }
+		LikelyCause string `json:"likely_cause"`
+		Jobs        []struct {
+			Short  string
+			Errors []struct {
+				Line    int
+				Pattern string
+				Start   int
+				Context []string
+				Count   int
+			}
+		}
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Equal(t, "PROJ-PROV12-8", doc.Build.Key)
+	assert.Equal(t, "Error: quota exceeded (job TF)", doc.LikelyCause)
+	require.Len(t, doc.Jobs, 1)
+	assert.Equal(t, "TF", doc.Jobs[0].Short)
+	require.NotEmpty(t, doc.Jobs[0].Errors)
+	e := doc.Jobs[0].Errors[0]
+	assert.Equal(t, 2, e.Line)
+	assert.Equal(t, "error", e.Pattern)
+	assert.Equal(t, 1, e.Start)
+	assert.Equal(t, "terraform apply", e.Context[0])
+	assert.Equal(t, 1, e.Count)
+
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-482", "--json"))
+	assert.Contains(t, h.stdout.String(), `"likely_cause": "",
+  "jobs": []`)
+	assert.Empty(t, h.stderr.String())
+}

@@ -360,7 +360,7 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if b.State != provider.StateFailed {
+			if b.State != provider.StateFailed && !r.flags.json {
 				if b.State.Finished() {
 					r.note(fmt.Sprintf("%s did not fail (%s), nothing to investigate", key, b.State), "")
 					return nil
@@ -371,6 +371,9 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 			inv, err := svc.Investigate(ctx, b, opts)
 			if err != nil {
 				return err
+			}
+			if r.flags.json {
+				return view.WriteJSON(r.env.Stdout, view.InvestigationJSON(inv))
 			}
 			o, err := r.out()
 			if err != nil {

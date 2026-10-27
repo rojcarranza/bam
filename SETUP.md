@@ -216,8 +216,7 @@ Also used later:
 | Command | What it does |
 | --- | --- |
 | `make build` | builds `bin/bam` inside the clone instead of installing it |
-| `gofmt -l .` | prints files that need formatting; CI fails if the list is not empty |
-| `go vet ./...` | the vet gate CI runs |
+| `make lint` | golangci-lint, which also checks gofmt/goimports formatting and runs go vet; the no-mistakes gate fails on any finding |
 | `go test -race ./...` | tests with the race detector |
 | `make check-fixtures` | fails if any test fixture names a real host |
 | `make docs` | regenerates the command reference in `docs/cli/`; the no-mistakes gate fails if it is stale |
@@ -336,6 +335,6 @@ Prepare before you record:
 | `go` downloads fail behind a proxy | set `HTTPS_PROXY`, or `GOPROXY=direct` if your network blocks proxy.golang.org |
 | `make` reports "missing separator" | a Makefile recipe line lost its leading tab; recipe lines must start with a tab, not spaces |
 | `go version` shows a different Go than you installed | two Go installs; `command -v go` tells you which one wins, and PATH order decides. Remove the one you do not want |
-| CI fails on `git diff --exit-code docs/cli` | the command reference is stale; run `make docs` and commit the result |
+| the no-mistakes `docs-fresh` gate fails on `docs/cli` | the command reference is stale; run `make docs` and commit the result |
 | `gh` asks for credentials | run `gh auth login` once per machine |
 | `goreleaser` leaves a `dist/` directory | expected; `dist/` is in `.gitignore`. `--clean` rebuilds it from scratch |

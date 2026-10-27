@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -218,11 +220,39 @@ func flagValueMessage(err error) string {
 func argCountError(cmd *cobra.Command, err error) error {
 	msg := err.Error()
 	use := strings.Fields(cmd.Use)
-	if cmd.Flags().NArg() == 0 && len(use) > 1 && strings.HasPrefix(use[1], "<") {
+	args := cmd.Flags().Args()
+	if len(args) == 0 && len(use) > 1 && strings.HasPrefix(use[1], "<") {
 		msg = "missing " + use[1]
+	} else if extra := extraArgs(msg, args); len(extra) > 0 {
+		quoted := make([]string, len(extra))
+		for i, a := range extra {
+			quoted[i] = strconv.Quote(a)
+		}
+		msg = "unexpected argument " + strings.Join(quoted, ", ")
+		if len(extra) > 1 {
+			msg = "unexpected arguments " + strings.Join(quoted, ", ")
+		}
 	}
 	synopsis := strings.TrimSuffix(cmd.UseLine(), " [flags]")
 	return errs.Usagef("%s", msg).WithTry(fmt.Sprintf("%s; %s --help shows more", synopsis, cmd.CommandPath()))
+}
+
+// acceptsRe matches cobra's ExactArgs/MaximumNArgs/RangeArgs messages.
+var acceptsRe = regexp.MustCompile(`^accepts (?:at most |between \d+ and )?(\d+) arg\(s\), received \d+$`)
+
+// extraArgs is the arguments past what the command accepts, read from cobra's
+// error: NoArgs says "unknown command", the others "accepts N arg(s)".
+func extraArgs(msg string, args []string) []string {
+	limit := -1
+	if strings.HasPrefix(msg, "unknown command ") {
+		limit = 0
+	} else if m := acceptsRe.FindStringSubmatch(msg); m != nil {
+		limit, _ = strconv.Atoi(m[1])
+	}
+	if limit < 0 || limit >= len(args) {
+		return nil
+	}
+	return args[limit:]
 }
 
 // commandSets register command groups; later tasks append to it from init().

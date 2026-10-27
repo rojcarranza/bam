@@ -93,8 +93,9 @@ func TestWrongArgCountPointsAtHelp(t *testing.T) {
 	for args, want := range map[string]string{
 		"run":              "error: missing <plan|preset>\n  try: bam run <plan|preset>; bam run --help shows more\n",
 		"preset add":       "error: missing <name>\n  try: bam preset add <name> --plan KEY; bam preset add --help shows more\n",
-		"build show a b":   "error: accepts at most 1 arg(s), received 2\n  try: bam build show [<build>|<plan>|<preset>]; bam build show --help shows more\n",
-		"server add w x y": "  try: bam server add <alias> --url URL; bam server add --help shows more\n",
+		"build show a b":   "error: unexpected argument \"b\"\n  try: bam build show [<build>|<plan>|<preset>]; bam build show --help shows more\n",
+		"server add w x y": "error: unexpected arguments \"x\", \"y\"\n  try: bam server add <alias> --url URL; bam server add --help shows more\n",
+		"whoami x":         "error: unexpected argument \"x\"\n  try: bam whoami; bam whoami --help shows more\n",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

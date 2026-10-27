@@ -431,3 +431,15 @@ func TestNegativeLineCountsAreUsageErrors(t *testing.T) {
 		assert.Contains(t, h.stderr.String(), "takes 0 or more", args)
 	}
 }
+
+func TestNegativeTimeoutIsAUsageError(t *testing.T) {
+	for _, args := range [][]string{
+		{"watch", "PROJ-PROV12-8", "--timeout", "-5m"},
+		{"run", "PROJ-PROV12", "--watch", "--timeout", "-1s"},
+		{"build", "rerun", "PROJ-PROV12-8", "--watch", "--timeout", "-1h"},
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(args...), args)
+		assert.Contains(t, h.stderr.String(), "--timeout takes 0 or more", args)
+	}
+}

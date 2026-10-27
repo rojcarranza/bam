@@ -127,7 +127,7 @@ type Duration time.Duration
 
 func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	v, err := time.ParseDuration(n.Value)
-	if err != nil {
+	if err != nil || v < 0 {
 		return fmt.Errorf("line %d: %q is not a duration like 45m or 1h30m", n.Line, n.Value)
 	}
 	*d = Duration(v)

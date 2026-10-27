@@ -86,9 +86,15 @@ func newRoot(r *runtime) *cobra.Command {
 		},
 		// Check --color up front: commands that print no styled output never
 		// reach r.out(), so a typo there was silently ignored.
-		PersistentPreRunE: func(*cobra.Command, []string) error {
-			_, err := style.ColorEnabled(r.flags.color, "", false)
-			return err
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if _, err := style.ColorEnabled(r.flags.color, "", false); err != nil {
+				return err
+			}
+			// watch, run and build rerun share --timeout; cobra accepts a negative one silently.
+			if d, err := cmd.Flags().GetDuration("timeout"); err == nil && d < 0 {
+				return errs.Usagef("--timeout takes 0 or more, not %s", cmd.Flags().Lookup("timeout").Value)
+			}
+			return nil
 		},
 	}
 	pf := root.PersistentFlags()

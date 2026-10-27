@@ -82,11 +82,12 @@ func TestSetConfigErrors(t *testing.T) {
 		"too many runs":    {"sets: {rel: {stages: [[{target: a, matrix: {x: [1,2,3,4,5,6,7,8], y: [1,2,3,4,5,6,7,8]}}]]}}", "stage 1 expands to 64 runs; the limit is 50"},
 		"matrix secret":    {"sets: {rel: {stages: [[{target: a, matrix: [{db_password: hunter2}]}]]}}", "holds a literal secret"},
 
-		"servers":        {"sets: {rel: {stages: [[b], [c]]}}", `servers "work" and "lab"`},
-		"bad name":       {"sets: {Rel: {stages: [[a]]}}", `invalid set name "Rel"`},
-		"bad timeout":    {"sets: {rel: {timeout: soon, stages: [[a]]}}", "not a duration"},
-		"unknown field":  {"sets: {rel: {stages: [[{target: a, env: x}]]}}", `unknown field "env"`},
-		"literal secret": {"sets: {rel: {stages: [[{target: a, vars: {db_password: hunter2}}]]}}", "holds a literal secret"},
+		"servers":          {"sets: {rel: {stages: [[b], [c]]}}", `servers "work" and "lab"`},
+		"bad name":         {"sets: {Rel: {stages: [[a]]}}", `invalid set name "Rel"`},
+		"bad timeout":      {"sets: {rel: {timeout: soon, stages: [[a]]}}", "not a duration"},
+		"negative timeout": {"sets: {rel: {timeout: -5m, stages: [[a]]}}", `"-5m" is not a duration like 45m`},
+		"unknown field":    {"sets: {rel: {stages: [[{target: a, env: x}]]}}", `unknown field "env"`},
+		"literal secret":   {"sets: {rel: {stages: [[{target: a, vars: {db_password: hunter2}}]]}}", "holds a literal secret"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg, err := loadYAML(t, base+tc.sets+"\n", "")

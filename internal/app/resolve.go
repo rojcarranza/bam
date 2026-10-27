@@ -18,6 +18,7 @@ var (
 	planKeyRe  = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*$`)
 	buildKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[0-9]+$`)
 	digitsRe   = regexp.MustCompile(`^[0-9]+$`)
+	projectRe  = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
 )
 
 // IsPlanKey reports whether s looks like PROJ-PLAN (or a branch plan key).
@@ -81,6 +82,9 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 	case IsBuildKey(arg):
 		return PlanRef{}, errs.Usagef("%q is a build key, not a plan key", arg).
 			WithTry("its plan, " + arg[:strings.LastIndex(arg, "-")])
+	case projectRe.MatchString(arg):
+		return PlanRef{}, errs.Usagef("%q is a project key, not a plan key", arg).
+			WithTry("bam plan list " + arg + " to see its plans")
 	default:
 		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).
 			WithTry("bam preset list, or a plan key such as PROJ-PLAN")
@@ -179,7 +183,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		return a.Arg, nil
 	case a.Arg == "":
 		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
-	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg):
+	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg) && !projectRe.MatchString(a.Arg):
 		return "", errs.Usagef("%q is not a build key, a plan key or a preset", a.Arg).
 			WithTry("a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list")
 	}

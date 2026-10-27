@@ -54,3 +54,10 @@ func TestErrorBlocksContextDedupeAndLimit(t *testing.T) {
 	assert.Len(t, got, 1)
 	assert.Equal(t, 2, got[0].Count, "a repeat still counts once the limit is reached")
 }
+
+func TestErrorBlocksNegativeContextIsNone(t *testing.T) {
+	b := ErrorBlocks([]string{"start", "Error: boom", "end"}, -2, 0)
+	if assert.Len(t, b, 1) {
+		assert.Equal(t, []string{"Error: boom"}, b[0].Context)
+	}
+}

@@ -41,6 +41,7 @@ var ansiRe = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
 // Count. It returns at most limit blocks (0 = all), each with n lines of
 // context either side.
 func ErrorBlocks(lines []string, n, limit int) []ErrorBlock {
+	n = max(n, 0) // a negative context would slice backwards and panic
 	clean := make([]string, len(lines))
 	for i, l := range lines {
 		clean[i] = ansiRe.ReplaceAllString(l, "")

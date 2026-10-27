@@ -287,6 +287,9 @@ func newLogsCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if tail < 0 {
+				return errs.Usagef("--tail takes 0 or more, not %d", tail)
+			}
 			ctx := cmd.Context()
 			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
 			if err != nil {
@@ -352,6 +355,12 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if opts.Context < 0 {
+				return errs.Usagef("--context takes 0 or more, not %d", opts.Context)
+			}
+			if opts.Max < 0 {
+				return errs.Usagef("--max takes 0 or more, not %d", opts.Max)
+			}
 			ctx := cmd.Context()
 			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
 			if err != nil {

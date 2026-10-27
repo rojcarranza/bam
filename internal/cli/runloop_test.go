@@ -419,3 +419,15 @@ func TestInvestigateCompare(t *testing.T) {
 	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-PROV12-8", "--json"))
 	assert.Contains(t, h.stdout.String(), `"changes": null`)
 }
+
+func TestNegativeLineCountsAreUsageErrors(t *testing.T) {
+	for _, args := range [][]string{
+		{"build", "investigate", "PROJ-PROV12-8", "--context", "-2"},
+		{"build", "investigate", "PROJ-PROV12-8", "--max", "-1"},
+		{"logs", "PROJ-PROV12-8", "--tail", "-5"},
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(args...), args)
+		assert.Contains(t, h.stderr.String(), "takes 0 or more", args)
+	}
+}

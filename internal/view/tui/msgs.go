@@ -324,6 +324,7 @@ func resolveTargetBuildsCmd(ctx context.Context, svc *app.Service, target app.Ta
 		if err != nil {
 			return errMsg{Err: err, Where: "builds", Stream: streamBuilds, Gen: gen}
 		}
+		app.WithBranch(builds, ref.Branch)
 		return buildsLoadedMsg{Gen: gen, PlanKey: ref.PlanKey, Builds: builds}
 	}
 }

@@ -230,3 +230,13 @@ func (s *Service) ResolveFrom(ctx context.Context, ref PlanRef, from string) (st
 	}
 	return builds[0].Key, nil
 }
+
+// WithBranch fills in the branch a plan's builds ran on, which a result
+// list may leave out: only a build's plan master names its branch.
+func WithBranch(bs []provider.Build, branch string) {
+	for i := range bs {
+		if bs[i].Branch == "" {
+			bs[i].Branch = branch
+		}
+	}
+}

@@ -196,7 +196,7 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 			if d.Builds, err = svc.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: 5, Unfinished: true}); err != nil {
 				return err
 			}
-			withBranch(d.Builds, ref.Branch)
+			app.WithBranch(d.Builds, ref.Branch)
 			if r.flags.json {
 				branchDocs := []view.BranchDoc{}
 				for _, b := range branches {
@@ -395,7 +395,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			withBranch(builds, ref.Branch)
+			app.WithBranch(builds, ref.Branch)
 			progress := runningProgress(ctx, svc, builds)
 			if r.flags.json {
 				docs := []view.BuildDoc{}
@@ -495,14 +495,4 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
 	return cmd
-}
-
-// withBranch fills in the branch a plan's builds ran on, which a result
-// list may leave out: only a build's plan master names its branch.
-func withBranch(bs []provider.Build, branch string) {
-	for i := range bs {
-		if bs[i].Branch == "" {
-			bs[i].Branch = branch
-		}
-	}
 }

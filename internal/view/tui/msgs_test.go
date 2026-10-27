@@ -322,3 +322,14 @@ func TestConnectCmdDropsTreesSavedFromAnotherServerVersion(t *testing.T) {
 	_, ok = svc.Trees.Get(svc.Origin, "PROJ-BUILD-44", now)
 	require.False(t, ok, "the fake server runs 9.6.4, so a 9.6.2 tree is dropped")
 }
+
+// A preset that names a branch lists the branch plan's builds, whose result
+// list does not name the branch, so the panel would show them as "default".
+func TestResolveTargetBuildsCmdNamesThePresetBranch(t *testing.T) {
+	svc := testService()
+	got := resolveTargetBuildsCmd(context.Background(), svc, app.TargetInfo{Name: "smoke", Plan: "PROJ-PROV", Branch: "develop"}, 0)()
+	msg, ok := got.(buildsLoadedMsg)
+	require.True(t, ok, "got %#v", got)
+	require.Equal(t, "PROJ-PROV12-8", msg.Builds[0].Key)
+	require.Equal(t, "develop", msg.Builds[0].Branch)
+}

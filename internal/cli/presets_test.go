@@ -396,6 +396,26 @@ repos:
 	assert.NotContains(t, h.stderr.String(), "no presets are configured")
 }
 
+func TestPresetListMentionsOtherRepos(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+      prov-two:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+
+	assert.Equal(t, 0, h.run("preset", "list"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "no presets apply here; 2 are defined for other repositories: /somewhere/else (prov-mine, prov-two)\n")
+	assert.Contains(t, h.stderr.String(), "try: run bam from that repository, or bam preset migrate to use them anywhere")
+	assert.NotContains(t, h.stderr.String(), "no presets configured")
+}
+
 func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
 	h := newHarness(t)
 	b := &h.fake.History["PROJ-PROV12"][0]

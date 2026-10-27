@@ -153,7 +153,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :project :server :sort :q |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |
-| | `a` | all logs, not only failed; in the set vars prompt, add a variable |
+| | `a` | all logs, not only failed; in the run form or set vars prompt, add a variable |
 | | `f` | follow the jobs on the log screen |
 | | `/` | filter the focused list, or search the log |
 | | `n` `N` | next / previous match, or next failure with no search |
@@ -169,7 +169,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `p` | save the selected build's variables as a preset (asks for a name) |
 | | `U` | resume the set's interrupted run (set screen) |
 | | `F` | rerun the failed runs (set screen) or builds (tree screen) |
-| | `x` | remove a variable row (set vars prompt) |
+| | `x` | remove an added variable row (run form, set vars prompt) |
 | Go | `o` | open the selection's Bamboo URL in the browser |
 | | `y` | copy the selection's Bamboo URL |
 | | `S` | switch server |

@@ -20,6 +20,7 @@ type formField struct {
 	Required bool
 	Options  []string // non-empty means a cycle widget, not free text
 	Touched  bool     // the user typed or cycled this field
+	Added    bool     // added in the form with a; only these can be removed
 	Err      string   // from ValidateVars, shown against this field
 }
 
@@ -35,6 +36,7 @@ type formState struct {
 	fromRevision string // its commit, offered on the Revision row by f
 	cursor       int
 	editing      bool
+	naming       bool // the input holds a new row's name, not a value
 	input        textinput.Model
 	err          error // a form-level error that ctrl-R refuses on
 	loading      bool
@@ -198,13 +200,20 @@ func (m Model) formBody(width, height int) string {
 		case value == "":
 			value = dimStyle.Render(strings.Repeat("_", min(valueW, 12)))
 		}
-		if m.form.editing && m.form.cursor == i {
+		here := m.form.cursor == i && !m.form.naming
+		if m.form.editing && here {
 			value = m.form.input.View()
 		}
-		line := m.cursorFor(true, m.form.cursor == i) +
+		line := m.cursorFor(true, here) +
 			lipgloss.NewStyle().Width(nameW).Render(truncate(f.Name, nameW)) +
 			lipgloss.NewStyle().Width(valueW).Render(truncate(value, valueW)) +
 			m.fieldNote(f, width-nameW-valueW-4)
+		lines = append(lines, strings.TrimRight(line, " "))
+	}
+	if m.form.naming {
+		line := m.cursorFor(true, true) +
+			lipgloss.NewStyle().Width(nameW).Render(m.form.input.View()) +
+			dimStyle.Render(truncate("name of the variable to add", width-nameW-4))
 		lines = append(lines, strings.TrimRight(line, " "))
 	}
 
@@ -219,10 +228,11 @@ func (m Model) formBody(width, height int) string {
 		rev = provider.Revision{Revision: rev}.Short()
 		note = "from " + app.BuildLabel(m.form.fromBuild)
 	}
-	if m.form.editing && m.form.onRevision() {
+	onRev := m.form.onRevision() && !m.form.naming
+	if m.form.editing && onRev {
 		rev = m.form.input.View()
 	}
-	revLine := m.cursorFor(true, m.form.onRevision()) +
+	revLine := m.cursorFor(true, onRev) +
 		lipgloss.NewStyle().Width(nameW).Render("revision") +
 		lipgloss.NewStyle().Width(valueW).Render(truncate(rev, valueW)) +
 		dimStyle.Render(truncate(note, width-nameW-valueW-4))
@@ -341,8 +351,54 @@ func (f *formState) acceptEdit() {
 }
 
 func (f *formState) cancelEdit() {
-	f.editing = false
+	f.editing, f.naming = false, false
 	f.input.Blur()
+}
+
+// startNaming opens the input for the name of a row the plan may not
+// declare, the form's --var NAME=value for an undeclared name.
+func (f *formState) startNaming() {
+	f.input = textinput.New()
+	f.input.Prompt = ""
+	f.input.Focus()
+	f.editing, f.naming = true, true
+}
+
+// acceptName ends naming. A declared or already added name moves the cursor
+// to that row rather than adding a duplicate; a new name adds a row after
+// the others. It says whether the row's value should be typed next.
+func (f *formState) acceptName() bool {
+	name := strings.TrimSpace(f.input.Value())
+	f.cancelEdit()
+	if name == "" {
+		return false
+	}
+	at := -1
+	for i, fl := range f.fields {
+		if fl.Name == name {
+			at = i
+		}
+	}
+	if at < 0 {
+		source := "added"
+		if f.base.DeclaredKnown {
+			source = "not declared"
+		}
+		f.fields = append(f.fields, formField{Name: name, Source: source, Secret: app.IsSecretName(name), Added: true})
+		at = len(f.fields) - 1
+	}
+	f.cursor = at
+	return len(f.fields[at].Options) == 0
+}
+
+// removeAdded drops the row under the cursor if the form added it. A
+// declared variable stays: removing it would not unset it on Bamboo.
+func (f *formState) removeAdded() bool {
+	if f.onRevision() || !f.fields[f.cursor].Added {
+		return false
+	}
+	f.fields = append(f.fields[:f.cursor], f.fields[f.cursor+1:]...)
+	return true
 }
 
 // revalidate runs the same rules bam run applies, against the fields as they

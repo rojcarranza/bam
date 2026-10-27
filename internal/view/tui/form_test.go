@@ -1241,3 +1241,119 @@ func TestOpenFormCmdWithAFailedRevisionReadHasNoHint(t *testing.T) {
 	require.Equal(t, "PROJ-PROV-41", loaded.FromBuild)
 	require.Equal(t, "", loaded.FromRevision)
 }
+
+// typeIn sends each rune of s as a key.
+func typeIn(m Model, s string) Model {
+	for _, r := range s {
+		m, _ = send(m, mkKey(string(r)))
+	}
+	return m
+}
+
+// TestAAddsAnUndeclaredVariableThatIsSent: the form's --var for a name the
+// plan does not declare. It warns, as bam run does, and is sent on ctrl-R.
+func TestAAddsAnUndeclaredVariableThatIsSent(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	require.True(t, m.form.naming)
+	m = typeIn(m, "global_flag")
+	require.Contains(t, m.View(), "global_flag")
+	m, _ = send(m, mkKey("enter"))
+	require.False(t, m.form.naming)
+	require.True(t, m.form.editing, "the value is typed next")
+	require.Equal(t, 3, m.form.cursor, "the row goes after the declared ones")
+
+	m = typeIn(m, "on")
+	m, _ = send(m, mkKey("enter"))
+	added := m.form.fields[3]
+	require.Equal(t, "global_flag", added.Name)
+	require.Equal(t, "on", added.Value)
+	require.True(t, added.Added)
+	require.Contains(t, m.View(), "not declared")
+	require.Contains(t, m.dryRunBody(76), "global_flag=on")
+
+	// Tab and a dry run keep it.
+	m, _ = send(m, mkKey("tab"))
+	m, _ = send(m, mkKey("d"))
+	m, _ = send(m, mkKey("esc"))
+	require.Len(t, m.form.fields, 4)
+
+	m.revalidate()
+	require.True(t, m.canRun(), "an undeclared name warns, it does not block")
+	_, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.NotNil(t, cmd)
+	cmd()
+	f := m.svc.P.(*fake.Provider)
+	require.Equal(t, map[string]string{"cluster_name": "beta", "global_flag": "on"}, f.Triggered[0].Variables)
+}
+
+// TestAddingADeclaredNameEditsThatVariable instead of adding a duplicate.
+func TestAddingADeclaredNameEditsThatVariable(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "cluster_name")
+	m, _ = send(m, mkKey("enter"))
+	require.Len(t, m.form.fields, 3)
+	require.Equal(t, 0, m.form.cursor)
+	require.True(t, m.form.editing)
+
+	// An options field is moved to, not opened as free text.
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "cluster_type")
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, 1, m.form.cursor)
+	require.False(t, m.form.editing)
+}
+
+// TestAnAddedSecretNameIsMaskedEverywhere.
+func TestAnAddedSecretNameIsMaskedEverywhere(t *testing.T) {
+	const sentinel = "correct-horse-battery-staple"
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "db_password")
+	m, _ = send(m, mkKey("enter"))
+	m = typeIn(m, sentinel)
+	require.NotContains(t, m.View(), sentinel)
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.form.fields[3].Secret)
+	require.NotContains(t, m.View(), sentinel)
+	require.Contains(t, m.dryRunBody(76), "db_password="+app.MaskedDisplay)
+	require.NotContains(t, m.dryRunBody(76), sentinel)
+}
+
+// TestXRemovesOnlyAnAddedRow: a declared variable cannot be removed.
+func TestXRemovesOnlyAnAddedRow(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("x"))
+	require.Len(t, m.form.fields, 3, "a declared row stays")
+
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "extra")
+	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, mkKey("esc"))
+	require.Len(t, m.form.fields, 4)
+	m, _ = send(m, mkKey("x"))
+	require.Len(t, m.form.fields, 3)
+	require.True(t, m.form.onRevision(), "the cursor falls to the next row")
+}
+
+// TestAnEmptyOrBadNameAddsNothing.
+func TestAnEmptyOrBadNameAddsNothing(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	m, _ = send(m, mkKey("enter"))
+	require.False(t, m.form.editing)
+	require.Len(t, m.form.fields, 3)
+
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "a=b")
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.form.naming, "the name stays open to fix")
+	require.Error(t, m.form.err)
+	require.Len(t, m.form.fields, 3)
+
+	m, _ = send(m, mkKey("esc"))
+	require.False(t, m.form.editing)
+	require.Len(t, m.form.fields, 3)
+}

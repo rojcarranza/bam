@@ -12,7 +12,7 @@
     ┃      s                next sort column                               ┃    
     ┃      :                command bar: :plans :presets :sets :projects : ┃    
     ┃VIEW  l                logs for the selection: a stage, a job, or fai ┃    
-    ┃      a                all logs, not only failed; in the set vars pro ┃    
+    ┃      a                all logs, not only failed; in the run form or  ┃    
     ┃      f                follow the jobs on the log screen              ┃    
     ┃      /                filter the focused list, or search the log     ┃    
     ┃      n N              next / previous match, or next failure with no ┃    

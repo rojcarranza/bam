@@ -185,6 +185,8 @@ To see what a build used before choosing:
    | `tab` / `↓` / `↑` | move between variables |
    | `enter` | on a free-text variable: edit the value, then `enter` again to accept; on a variable with `options`: cycle to the next allowed value |
    | `space` | cycle a variable that has `options` (never opens a text field) |
+   | `a` | add a variable the plan does not declare: type its name, `enter`, then its value. A name the plan declares moves to that row instead |
+   | `x` | remove a row added with `a`; declared variables stay |
    | `f` | on the revision row: build the source build's commit |
    | `d` | dry-run: show what would be sent |
    | `ctrl-R` | run the build |
@@ -192,6 +194,6 @@ To see what a build used before choosing:
 
    Each row shows where its value came from (`plan`, `target`, `from #41`). A row you changed is marked, and the footer counts the changes.
 
-`R` only opens the form. `ctrl-R` is the one key that starts a build. The form lists variables the plan declares; for one it does not declare, use `bam run ... --var name=value` on the command line.
+`R` only opens the form. `ctrl-R` is the one key that starts a build. The form lists variables the plan declares. A row added with `a` shows `not declared`, the same warning `bam run --var` prints, and is still sent.
 
 Interrupting a watch, here or on the command line, never stops the build. `bam build cancel` (or `C` in the UI) does.

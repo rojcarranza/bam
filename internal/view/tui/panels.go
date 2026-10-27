@@ -94,7 +94,9 @@ func (m Model) keyLine() string {
 		if m.form.onRevision() && m.form.fromRevision != "" && !m.form.loading {
 			return "f use " + app.BuildLabel(m.form.fromBuild) + "'s revision  enter edit  ^R run  esc cancel"
 		}
-		return "enter edit  tab next  ^R run  d dry-run  esc cancel"
+		// tab next stays in ? help: with a add and x remove the line
+		// would not fit an 80-column bar.
+		return "enter edit  a add  x remove  d dry-run  ^R run  esc cancel"
 	}
 	if m.screen == screenSetVars {
 		return "enter edit  a add  x remove  d dry-run  ^R " + strings.ToLower(m.setVars.action.verb()) + "  esc cancel"

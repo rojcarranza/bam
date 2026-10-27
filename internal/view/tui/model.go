@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
@@ -1565,6 +1566,20 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.form.cancelEdit()
 			return m, nil
 		case tea.KeyEnter:
+			if m.form.naming {
+				name := strings.TrimSpace(m.form.input.Value())
+				if strings.ContainsAny(name, "= \t") {
+					m.form.err = errs.Usagef("%q is not a variable name", name).WithWhy("a name cannot hold = or spaces")
+					return m, nil
+				}
+				ok := m.form.acceptName()
+				m.revalidate()
+				if ok {
+					m.form.startEditing()
+					return m, textinput.Blink
+				}
+				return m, nil
+			}
 			m.form.acceptEdit()
 			m.revalidate()
 			return m, nil
@@ -1589,6 +1604,14 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, keys.ExpandErr):
 		return m.expandErr()
+	case key.Matches(msg, keys.AllLogs): // a: add a variable the plan may not declare
+		m.form.startNaming()
+		return m, textinput.Blink
+	case key.Matches(msg, keys.RemoveRow):
+		if m.form.removeAdded() {
+			m.revalidate()
+		}
+		return m, nil
 	case key.Matches(msg, keys.Follow):
 		// f is "follow" on the log screen; in the form, on the Revision row,
 		// it takes the commit of the build the form was prefilled from.

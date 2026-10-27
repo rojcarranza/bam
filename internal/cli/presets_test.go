@@ -371,3 +371,27 @@ presets:
 	assert.True(t, strings.HasPrefix(s, "# PROJ presets\npresets:\n  lab-dir:\n    plan: PROJ-PROV # provisioning\n"), s)
 	assert.Contains(t, s, "      cluster_type: dcos # the old one\n      cluster_name: \"\"")
 }
+
+func TestRunPresetScopedToAnotherRepo(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+
+	assert.Equal(t, 2, h.run("run", "prov-mine"))
+	assert.Contains(t, h.stderr.String(), "defined only for /somewhere/else (repos entry in "+h.env.Paths.MachineConfig+")")
+	assert.Contains(t, h.stderr.String(), "bam preset migrate")
+
+	h.stderr.Reset()
+	assert.Equal(t, 2, h.run("run", "nope"))
+	assert.Contains(t, h.stderr.String(), "no presets apply here; other repositories define some")
+	assert.NotContains(t, h.stderr.String(), "no presets are configured")
+}

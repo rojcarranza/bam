@@ -74,6 +74,20 @@ func (c *Config) RepoEntry() (Repo, bool) {
 	return r, ok
 }
 
+// OtherRepoTargets returns, by repos key as written, the target names that
+// machine repos entries for other repositories define. Those targets do not
+// apply here.
+func (c *Config) OtherRepoTargets() map[string][]string {
+	here, _, _ := c.repoEntry()
+	out := map[string][]string{}
+	for _, key := range sortedKeys(c.Machine.Repos) {
+		if key != here && len(c.Machine.Repos[key].Targets) > 0 {
+			out[key] = sortedKeys(c.Machine.Repos[key].Targets)
+		}
+	}
+	return out
+}
+
 // repoEntry also returns the repos key as written, e.g. "~/src/repo".
 func (c *Config) repoEntry() (string, Repo, bool) {
 	for key, r := range c.Machine.Repos {

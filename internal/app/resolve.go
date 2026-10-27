@@ -3,7 +3,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -98,6 +100,21 @@ func (s *Service) unknownTarget(name string) error {
 	}
 	sort.Strings(names)
 	e := errs.Usagef("unknown preset %q", name).WithTry("bam preset list; plan keys are uppercase, like PROJ-PLAN")
+	other := s.Cfg.OtherRepoTargets()
+	var roots []string
+	for _, root := range slices.Sorted(maps.Keys(other)) {
+		if slices.Contains(other[root], name) {
+			roots = append(roots, root)
+		}
+	}
+	if len(roots) > 0 {
+		return e.WithWhy("defined only for " + strings.Join(roots, ", ") + " (repos entry in " + s.Cfg.MachinePath + ")").
+			WithTry("run bam from that repository, or bam preset migrate to use it anywhere")
+	}
+	if len(names) == 0 && len(other) > 0 {
+		return e.WithWhy("no presets apply here; other repositories define some").
+			WithTry("bam preset list from that repository, or bam preset migrate to use them anywhere")
+	}
 	if len(names) == 0 {
 		return e.WithWhy("no presets are configured")
 	}

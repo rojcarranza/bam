@@ -32,5 +32,5 @@ bam build [flags]
 * [bam build run](bam_build_run.md)	 - Trigger a plan or preset with variables
 * [bam build show](bam_build_show.md)	 - Show a build: state, stages, jobs, failure summary
 * [bam build tree](bam_build_tree.md)	 - Show a build and every build it triggered, as a tree
-* [bam build watch](bam_build_watch.md)	 - Follow a build until it finishes; exit 1 if it fails
+* [bam build watch](bam_build_watch.md)	 - Follow a build and the builds it triggers; exit 1 if any fails
 

@@ -197,7 +197,7 @@ and `bam build cancel` on the command line, stop a build.
 | rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |
 | see recent builds | `bam build list provision-lab` |
 | is this plan flaky? | `bam plan stats provision-lab` |
-| follow a running build | `bam watch --last` |
+| follow a running build and the builds it triggers | `bam watch --last` |
 | see every build a build triggered, and where it failed | `bam build tree --last` |
 | follow a build and all its sub-pipelines until they finish | `bam build tree PROJ-API-142 --watch` |
 | retry the failed parts of a run | `bam build tree --last --rerun-failed` |
@@ -268,7 +268,7 @@ bam build tree PROJ-API-142 --watch
 ```
 
 - The argument works as in `bam build show`: a build key, a plan or preset (its latest build, with `--branch`), or `--last`.
-- `--watch` follows the tree until every build has finished, including children that start after their parent ends. On a terminal the tree redraws in place as builds start, run and finish; Ctrl-C stops watching only. To follow a single build without its children, use `bam watch`.
+- `--watch` follows the tree until every build has finished, including children that start after their parent ends. On a terminal the tree redraws in place as builds start, run and finish; Ctrl-C stops watching only. `bam watch <build>` draws the same live tree; `bam watch --json` follows the single build.
 - `--failed` shows only the branches that lead to a failure; `--depth N` limits the levels; `--json` prints the tree as one document.
 - It exits 0 when every build succeeded and 1 when any did not. Without `--watch`, a tree that is still running exits 0 and suggests `--watch`.
 

@@ -1,13 +1,15 @@
 ## bam watch
 
-Follow a build until it finishes; exit 1 if it fails
+Follow a build and the builds it triggers; exit 1 if any fails
 
 ### Synopsis
 
-Follow a build until it finishes; exit 1 if it fails.
+Follow a build and the builds it triggers; exit 1 if any fails.
 
-This follows one build. To follow a build and every build it triggered, use
-"bam build tree <build> --watch".
+bam draws the build tree, as "bam build tree <build> --watch" does, until
+every build in it has finished, then lists each build that did not succeed.
+Interrupting or timing out never stops a build. --json follows the one
+build and writes its events as NDJSON.
 
 ```
 bam watch [<build>|<plan>|<preset>] [flags]

@@ -133,3 +133,16 @@ func TestBuildTreeShowsNoProgressWithDebug(t *testing.T) {
 	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--debug"))
 	assert.NotContains(t, h.stderr.String(), "\x1b[K")
 }
+
+func TestWatchFollowsTheChildBuilds(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	assert.Equal(t, 1, h.run("watch", "PROJ-BUILD-482"), "a failed child fails the watch though the parent succeeded")
+	assert.Contains(t, h.stdout.String(), "└─ PROJ-PROV-9")
+	assert.Contains(t, h.stdout.String(), "failed: PROJ-PROV-9 "+workOrigin+"/browse/PROJ-PROV-9")
+
+	h = treeHarness(t, provider.StateRunning)
+	assert.Equal(t, 6, h.run("watch", "PROJ-BUILD-482", "--timeout", "50ms"))
+	assert.Contains(t, h.stderr.String(), "timed out after 50ms")
+	assert.Contains(t, h.stderr.String(), "bam watch PROJ-BUILD-482")
+	assert.Empty(t, h.fake.Stopped)
+}

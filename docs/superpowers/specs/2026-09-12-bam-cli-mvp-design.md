@@ -393,6 +393,7 @@ On completion:
 
 ### 5.4 Watch behaviour
 
+- `bam watch` without `--json` draws the build's tree, as `bam build tree --watch` does (build-tree design §6.3), until every build in it has finished, and exits 1 when any did not succeed. `bam watch --json` and `bam run --watch` follow the one build as below.
 - On a TTY the live block redraws with ANSI cursor movement; no TUI library is used in v0.1.
 - On a pipe, each state change prints one line: `2026-09-12T14:03:20Z PROJ-BUILD12-44 running agent=linux-3`.
 - Watching a build that has already finished prints its final summary and exits with its result code.

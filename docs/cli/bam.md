@@ -42,6 +42,6 @@ bam [flags]
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job
 * [bam version](bam_version.md)	 - Print the bam version
-* [bam watch](bam_watch.md)	 - Follow a build until it finishes; exit 1 if it fails
+* [bam watch](bam_watch.md)	 - Follow a build and the builds it triggers; exit 1 if any fails
 * [bam whoami](bam_whoami.md)	 - Show the authenticated user on each configured server
 

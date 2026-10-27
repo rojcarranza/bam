@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -49,7 +50,7 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 				return r.rerunTree(ctx, svc, key, failed, yes, noWatch)
 			}
 			if watch {
-				return r.treeLoop(ctx, svc, key, o, failed)
+				return r.treeLoop(ctx, svc, key, o, failed, 0, "bam build tree "+key+" --watch")
 			}
 			t, err := r.loadTree(ctx, svc, key, o)
 			if err != nil {
@@ -123,8 +124,14 @@ func (r *runtime) treeResult(t app.Tree, key string) error {
 	return &resultError{State: provider.StateFailed}
 }
 
-// treeLoop renders a watched tree. Interrupts stop watching only.
-func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o app.TreeOptions, failed bool) error {
+// treeLoop renders a watched tree. Interrupts and a limit stop watching
+// only; resume is the command that picks the watch up again.
+func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o app.TreeOptions, failed bool, limit time.Duration, resume string) error {
+	wctx, cancel := ctx, context.CancelFunc(func() {})
+	if limit > 0 {
+		wctx, cancel = context.WithTimeout(ctx, limit)
+	}
+	defer cancel()
 	var rend view.TreeRenderer
 	var live *view.TreeLive
 	if r.flags.json {
@@ -145,7 +152,7 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 			rend = view.NewTreeLines(out, failed)
 		}
 	}
-	for e := range svc.WatchTree(ctx, key, o) {
+	for e := range svc.WatchTree(wctx, key, o) {
 		rend.Event(e)
 		switch e.Type {
 		case app.TreeDone:
@@ -156,7 +163,11 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 		}
 	}
 	live.Stop()
-	fmt.Fprintf(r.env.Stderr, "still running: bam build tree %s --watch\n", key)
+	if ctx.Err() == nil && wctx.Err() != nil {
+		return errs.New(errs.KindTimeout, fmt.Sprintf("timed out after %s", limit)).
+			WithWhy(key + "'s tree is still running").WithTry(resume)
+	}
+	fmt.Fprintf(r.env.Stderr, "still running: %s\n", resume)
 	return ctx.Err()
 }
 
@@ -212,7 +223,7 @@ func (r *runtime) rerunTree(ctx context.Context, svc *app.Service, key string, f
 	if noWatch {
 		return restartErr
 	}
-	err = r.treeLoop(ctx, svc, key, app.TreeOptions{}, failed)
+	err = r.treeLoop(ctx, svc, key, app.TreeOptions{}, failed, 0, "bam build tree "+key+" --watch")
 	if restartErr != nil {
 		return restartErr
 	}

@@ -229,11 +229,13 @@ func newWatchCmd(r *runtime) *cobra.Command {
 	var timeout time.Duration
 	cmd := &cobra.Command{
 		Use:   "watch [<build>|<plan>|<preset>]",
-		Short: "Follow a build until it finishes; exit 1 if it fails",
-		Long: `Follow a build until it finishes; exit 1 if it fails.
+		Short: "Follow a build and the builds it triggers; exit 1 if any fails",
+		Long: `Follow a build and the builds it triggers; exit 1 if any fails.
 
-This follows one build. To follow a build and every build it triggered, use
-"bam build tree <build> --watch".`,
+bam draws the build tree, as "bam build tree <build> --watch" does, until
+every build in it has finished, then lists each build that did not succeed.
+Interrupting or timing out never stops a build. --json follows the one
+build and writes its events as NDJSON.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -247,7 +249,10 @@ This follows one build. To follow a build and every build it triggered, use
 					limit = time.Duration(t.Timeout)
 				}
 			}
-			return r.watchLoop(cmd.Context(), svc, key, limit, "")
+			if r.flags.json {
+				return r.watchLoop(cmd.Context(), svc, key, limit, "")
+			}
+			return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key)
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")

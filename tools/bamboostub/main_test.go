@@ -178,3 +178,24 @@ func TestFailedTestsComePerJobLikeBamboo12(t *testing.T) {
 	assert.Equal(t, []string{"app.ApiTest.parses_config", "app.ApiTest.talks_to_bamboo"}, b.FailedTests)
 	assert.Equal(t, "jobs", c.Capabilities().FailedTestsFrom)
 }
+
+// TestBuildDetailIsTheBuildAskedFor keeps a retargeted build from reading as
+// the recorded one: its number, plan and job keys follow the key asked for.
+func TestBuildDetailIsTheBuildAskedFor(t *testing.T) {
+	_, c := testStub(t)
+	ctx := context.Background()
+
+	b, err := c.GetBuild(ctx, "OPS-BUILD-481")
+	require.NoError(t, err)
+	assert.Equal(t, 481, b.Number)
+	assert.Equal(t, "OPS-BUILD", b.PlanKey)
+	assert.Empty(t, b.Branch, "only the recorded branch plan is a branch")
+	require.NotEmpty(t, b.Stages)
+	assert.Equal(t, "OPS-BUILD-JOB1-481", b.Stages[0].Jobs[0].Key)
+
+	b, err = c.GetBuild(ctx, "PROJ-BUILD12-7")
+	require.NoError(t, err)
+	assert.Equal(t, 7, b.Number)
+	assert.Equal(t, "develop", b.Branch)
+	assert.Equal(t, "PROJ-BUILD12-INT-7", b.Stages[1].Jobs[1].Key)
+}

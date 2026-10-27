@@ -42,6 +42,8 @@ const api = "/rest/api/latest"
 const (
 	fixturePlan   = "PROJ-BUILD"
 	fixtureBuild  = "PROJ-BUILD12-44"
+	fixtureBranch = "PROJ-BUILD12" // the branch plan fixtureBuild ran on
+	fixtureNum    = "44"
 	fixtureJob    = "PROJ-BUILD12-INT-44"
 	fixtureResult = "PROJ-BUILD-482"
 	fixtureProj   = "PROJ"
@@ -193,7 +195,41 @@ func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, s.liveDetail(key, b))
 		return
 	}
-	s.serve(w, "result_detail.json", fixtureBuild, key)
+	s.serveDetail(w, key)
+}
+
+// serveDetail writes the recorded build detail as build key: its number, plan
+// and job keys become the asked-for ones, and only the recorded branch plan
+// keeps its branch, so PROJ-BUILD-482 reads as build #482 of PROJ-BUILD.
+func (s *stub) serveDetail(w http.ResponseWriter, key string) {
+	body := s.fixture(w, "result_detail.json")
+	if body == nil {
+		return
+	}
+	i := strings.LastIndex(key, "-")
+	plan, num := key[:i], key[i+1:]
+	text := strings.NewReplacer(
+		fixtureBuild, key,
+		fixtureBranch+"-", plan+"-",
+		"-"+fixtureNum+`"`, "-"+num+`"`,
+		`"buildNumber": `+fixtureNum, `"buildNumber": `+num,
+	).Replace(string(body))
+	if plan != fixtureBranch {
+		var doc map[string]any
+		if err := json.Unmarshal([]byte(text), &doc); err != nil {
+			log.Printf("result detail %s: %v", key, err)
+			http.Error(w, "fixture unreadable", http.StatusInternalServerError)
+			return
+		}
+		doc["plan"] = map[string]any{"key": plan, "shortName": "Build and test"}
+		doc["planName"] = "Build and test"
+		out, err := json.Marshal(doc)
+		if err != nil { // decoded from JSON just above, so this cannot happen
+			log.Printf("result detail %s: %v", key, err)
+		}
+		text = string(out)
+	}
+	writeJSON(w, []byte(text))
 }
 
 // handleStatus answers the progress endpoint: a running simulated build

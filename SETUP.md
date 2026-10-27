@@ -11,11 +11,12 @@ Windows is not covered here.
 | Git | source control | yes |
 | Go (latest stable, 1.26 or newer) | build and test | yes |
 | GNU make (3.81 or newer) | `make install`, `make test`, `make lint` … | yes |
-| golangci-lint v2 (CI pins v2.13.2) | the lint gate (`make lint`) | yes |
+| golangci-lint v2 | the lint gate (`make lint`) | yes |
 | curl | downloads in this guide | yes |
 | gopls | Go language server for your editor | recommended |
 | goreleaser v2 | release builds (`goreleaser build --snapshot`) | only for release work |
 | GitHub CLI (`gh`) | pull requests | optional |
+| no-mistakes | the push gate (see Before you push) | yes |
 
 The project uses no Docker, no database and no cgo.
 
@@ -215,11 +216,11 @@ Also used later:
 | Command | What it does |
 | --- | --- |
 | `make build` | builds `bin/bam` inside the clone instead of installing it |
-| `gofmt -l .` | prints files that need formatting; CI fails if the list is not empty |
-| `go vet ./...` | the vet gate CI runs |
+| `make lint` | golangci-lint, which also checks gofmt/goimports formatting and runs go vet for the packages it loads; the no-mistakes gate fails on any finding |
+| `gofmt -l .` | prints every .go file that needs formatting, including the `e2e` build tag that lint skips; the no-mistakes gate fails if the list is not empty |
 | `go test -race ./...` | tests with the race detector |
 | `make check-fixtures` | fails if any test fixture names a real host |
-| `make docs` | regenerates the command reference in `docs/cli/`; CI fails if it is stale |
+| `make docs` | regenerates the command reference in `docs/cli/`; the no-mistakes gate fails if it is stale |
 | `make stub` | serves a fake Bamboo from the fixtures, so bam can be driven without a server (see below) |
 | `make record ARGS='-target provision'` | records scrubbed fixtures from your own Bamboo (see below) |
 | `make e2e ARGS='-target smoke'` | end-to-end test against a real Bamboo |
@@ -227,16 +228,24 @@ Also used later:
 
 ### Before you push
 
-CI (`.github/workflows/ci.yml`) runs more than `make test` and `make lint`. Run
-the same gate locally, in this order:
+Pushes go through the [no-mistakes](https://github.com/kunchenguid/no-mistakes)
+gate, which runs review, tests, lint and the checks in `.no-mistakes.yaml`
+(race tests, lint, gofmt, fixture guard, fresh `docs/cli`, Linux vet), then pushes and
+opens the pull request. There is no GitHub Actions CI. Once per clone:
 
 ```bash
-gofmt -l .                                  # must print nothing
-go vet ./...
-go test -race ./...
-make docs && git diff --exit-code docs/cli  # docs/cli must be up to date
-make check-fixtures
-make lint
+no-mistakes init                        # adds the no-mistakes remote
+git config core.hooksPath .githooks     # pre-push refuses pushes that skip the gate
+```
+
+Then push with `git push no-mistakes <branch>`, or drive it from an agent with
+`/no-mistakes`. To run the same checks by hand:
+
+```bash
+gofmt -l .                                     # must print nothing; covers the e2e build tag
+GOFLAGS=-race make test
+make lint check-fixtures
+make docs && git status --porcelain docs/cli   # must print nothing
 ```
 
 ## Run bam without a Bamboo
@@ -328,6 +337,6 @@ Prepare before you record:
 | `go` downloads fail behind a proxy | set `HTTPS_PROXY`, or `GOPROXY=direct` if your network blocks proxy.golang.org |
 | `make` reports "missing separator" | a Makefile recipe line lost its leading tab; recipe lines must start with a tab, not spaces |
 | `go version` shows a different Go than you installed | two Go installs; `command -v go` tells you which one wins, and PATH order decides. Remove the one you do not want |
-| CI fails on `git diff --exit-code docs/cli` | the command reference is stale; run `make docs` and commit the result |
+| the no-mistakes `docs-fresh` gate fails on `docs/cli` | the command reference is stale; run `make docs` and commit the result |
 | `gh` asks for credentials | run `gh auth login` once per machine |
 | `goreleaser` leaves a `dist/` directory | expected; `dist/` is in `.gitignore`. `--clean` rebuilds it from scratch |

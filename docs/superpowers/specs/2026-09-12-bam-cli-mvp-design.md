@@ -641,7 +641,7 @@ Development is test-driven.
 - `Makefile` targets: `build`, `test`, `lint`, `e2e`, `record`, `check-fixtures`, `docs`.
 - `golangci-lint` is the lint gate.
 - `goreleaser` builds darwin and linux on amd64 and arm64, plus windows/amd64, attached to a git tag.
-- GitHub Actions runs lint, test, the fixture guard and releases. A Forge-Lab Bamboo plan runs the e2e suite and uses bam itself.
+- The `no-mistakes` pipeline (`.no-mistakes.yaml`) runs lint, test and the fixture guard before every push; there is no GitHub Actions CI, and the release path is pending. A Forge-Lab Bamboo plan runs the e2e suite and uses bam itself.
 - Versions follow semver. The project stays on `v0.x` until the JSON contract settles; `v1.0` freezes it.
 
 ## 13. v0.1 acceptance criteria
@@ -690,5 +690,5 @@ Development is test-driven.
 | `WatchRun` moved from the provider to `app` | Polling policy and the clock belong to the use case, where they are testable |
 | Terminal UI committed and moved to v0.2, before the estimator and run sets; bare `bam` reserved for it | The lazygit-style UI is the original idea's core experience; building it on top of v0.1's tested use cases adds only a view |
 | Estimator, progress bar, `run --edit`, `--revision`, `--verbose` moved to v0.3 | Keeps v0.1 lean and puts the UI first; the last two depend on unconfirmed REST support |
-| GitHub Actions for CI alongside the Forge-Lab Bamboo plan | Public contributors need visible status; Bamboo still dogfoods bam |
+| Local `no-mistakes` pipeline instead of GitHub Actions CI; the Forge-Lab Bamboo plan still runs e2e | Every push passes the same lint, test, fixture and docs gates before it leaves the machine; Bamboo still dogfoods bam |
 | windows/amd64 added to releases | The keychain library supports it and the build cost is one target line |

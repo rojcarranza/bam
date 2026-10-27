@@ -330,6 +330,9 @@ func TestRestartBuildUnsupported(t *testing.T) {
 	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Contains(t, err.Error(), "cannot restart a build over REST")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "bam open PROJ-BUILD-45, then rerun it from Bamboo's web UI", e.Try)
 	assert.Equal(t, "no", (*saved)[len(*saved)-1].Rerun)
 }
 

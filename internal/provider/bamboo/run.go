@@ -132,7 +132,8 @@ func (c *Client) dequeue(ctx context.Context, key string) error {
 // first time, like stopping a build.
 func (c *Client) RestartBuild(ctx context.Context, key string) (provider.Build, error) {
 	caps := c.fresh(ctx)
-	unsupported := errs.Bamboof("this Bamboo cannot restart a build over REST").Wrap(errs.ErrUnsupported)
+	unsupported := errs.Bamboof("this Bamboo cannot restart a build over REST").
+		WithTry("bam open " + key + ", then rerun it from Bamboo's web UI").Wrap(errs.ErrUnsupported)
 	if caps.Rerun == "no" {
 		return provider.Build{}, unsupported
 	}

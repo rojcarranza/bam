@@ -26,6 +26,9 @@ func TestVersionFlag(t *testing.T) {
 		assert.Equal(t, 0, h.run(arg), arg)
 		assert.Equal(t, "bam dev\n", h.stdout.String(), arg)
 	}
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("--version", "--json"))
+	assert.JSONEq(t, `{"version":"dev"}`, h.stdout.String())
 }
 
 // TestVersionJSON: --json is honoured by every command that reads data.

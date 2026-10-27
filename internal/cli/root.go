@@ -110,7 +110,12 @@ func newRoot(r *runtime) *cobra.Command {
 	pf.BoolVar(&r.flags.debug, "debug", false, "log HTTP requests to stderr")
 	pf.BoolVar(&r.flags.noTUI, "no-tui", false, "never open the terminal UI")
 	addProjectFlag(root, r)
-	root.SetVersionTemplate("bam {{.Version}}\n")
+	// Same output as bam version, including its --json form; a version string never holds a quote.
+	root.SetVersionTemplate(`{{if eq (.Flags.Lookup "json").Value.String "true"}}{
+  "version": "{{.Version}}"
+}
+{{else}}bam {{.Version}}
+{{end}}`)
 
 	root.AddGroup(
 		&cobra.Group{ID: groupSetup, Title: "Setup:"},

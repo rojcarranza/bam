@@ -164,10 +164,34 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 	if s := app.Closest(args[0], names, 1); suggest == "" && len(s) > 0 {
 		suggest = s[0]
 	}
+	if suggest == "" {
+		suggest = nestedCommand(cmd, strings.ToLower(args[0]))
+	}
 	if suggest != "" {
 		try = fmt.Sprintf("did you mean %s %s? %s shows them all", path, suggest, try)
 	}
 	return errs.Usagef("unknown command %q for %q", args[0], path).WithTry(try)
+}
+
+// nestedCommand finds the one grandchild that "bam cancel" or "bam history"
+// meant, by name, alias or SuggestFor, and returns "build cancel". An
+// ambiguous word like "list" returns "".
+func nestedCommand(cmd *cobra.Command, word string) string {
+	var found []string
+	for _, group := range cmd.Commands() {
+		if !group.IsAvailableCommand() {
+			continue
+		}
+		for _, c := range group.Commands() {
+			if c.IsAvailableCommand() && (c.Name() == word || slices.Contains(c.Aliases, word) || slices.Contains(c.SuggestFor, word)) {
+				found = append(found, group.Name()+" "+c.Name())
+			}
+		}
+	}
+	if len(found) != 1 {
+		return ""
+	}
+	return found[0]
 }
 
 // argCountError turns cobra's "accepts 1 arg(s), received 0" into a usage

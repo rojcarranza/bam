@@ -67,6 +67,9 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"build history": "try: did you mean bam build list? bam build --help shows them all",
 		"build stop":    "try: did you mean bam build cancel? bam build --help shows them all",
 		"server remove": "try: did you mean bam server rm? bam server --help shows them all",
+		"cancel":        "try: did you mean bam build cancel? bam --help shows them all",
+		"history":       "try: did you mean bam build list? bam --help shows them all",
+		"list":          "try: bam --help\n",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

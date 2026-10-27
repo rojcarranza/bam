@@ -9,7 +9,7 @@ import (
 )
 
 // TestFixtureGuard fails when any fixture names a host outside the allowlist.
-// make check-fixtures runs only this test; CI runs it with everything else.
+// make check-fixtures runs only this test; the no-mistakes gate runs it with everything else.
 func TestFixtureGuard(t *testing.T) {
 	v, err := FixtureHostViolations("testdata")
 	require.NoError(t, err)

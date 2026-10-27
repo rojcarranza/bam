@@ -641,7 +641,7 @@ Development is test-driven.
 - `Makefile` targets: `build`, `test`, `lint`, `e2e`, `record`, `check-fixtures`, `docs`.
 - `golangci-lint` is the lint gate.
 - `goreleaser` builds darwin and linux on amd64 and arm64, plus windows/amd64, attached to a git tag.
-- GitHub Actions runs lint, test, the fixture guard and releases. A Forge-Lab Bamboo plan runs the e2e suite and uses bam itself.
+- The `no-mistakes` pipeline (`.no-mistakes.yaml`) runs lint, test and the fixture guard before every push; there is no GitHub Actions CI, and the release path is pending. A Forge-Lab Bamboo plan runs the e2e suite and uses bam itself.
 - Versions follow semver. The project stays on `v0.x` until the JSON contract settles; `v1.0` freezes it.
 
 ## 13. v0.1 acceptance criteria

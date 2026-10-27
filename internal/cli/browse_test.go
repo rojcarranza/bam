@@ -101,6 +101,15 @@ func TestBuildList(t *testing.T) {
 	assert.Empty(t, h.stdout.String())
 	assert.Contains(t, h.stderr.String(), "no success builds for PROJ-PROV12 on branch develop")
 
+	// A result list may not say which branch a build ran on, so the branch
+	// comes from the one asked for.
+	assert.Equal(t, 0, h.run("build", "list", "PROJ-PROV", "--branch", "develop"))
+	assert.Regexp(t, `PROJ-PROV12-8\s+\S+ failed\s+develop`, h.stdout.String())
+	assert.Equal(t, 0, h.run("--json", "build", "list", "PROJ-PROV", "--branch", "develop"))
+	assert.Contains(t, h.stdout.String(), `"branch": "develop"`)
+	assert.Equal(t, 0, h.run("plan", "show", "PROJ-PROV", "--branch", "develop"))
+	assert.Regexp(t, `PROJ-PROV12-8\s+\S+ failed`, h.stdout.String())
+
 	assert.Equal(t, 2, h.run("build", "list", "PROJ-BUILD", "--limit", "0"))
 	assert.Equal(t, 2, h.run("build", "list", "PROJ-BUILD", "--limit", "-1"))
 }

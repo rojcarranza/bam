@@ -21,6 +21,7 @@ type TargetDraft struct {
 	Vars     []DraftVar
 	Required []string // suggestion, written commented out
 	Note     string   // explanation when no variables could be read
+	Full     bool     // also write the commented branch, options and watch scaffolding
 }
 
 var plainKeyRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
@@ -55,7 +56,7 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 	}
 	if d.Branch != "" {
 		line(1, "branch: "+quote(d.Branch))
-	} else {
+	} else if d.Full {
 		line(1, "# branch: develop")
 	}
 	if len(d.Vars) > 0 {
@@ -71,7 +72,7 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 				options = append(options, "#   "+yamlKey(v.Name)+": ["+quote(v.Value)+"]")
 			}
 		}
-		if len(options) > 0 {
+		if len(options) > 0 && d.Full {
 			line(1, "# options:")
 			for _, o := range options {
 				line(1, o)
@@ -81,7 +82,9 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 	if len(d.Required) > 0 {
 		line(1, "# required: ["+strings.Join(d.Required, ", ")+"]")
 	}
-	line(1, "# watch: true")
+	if d.Full {
+		line(1, "# watch: true")
+	}
 	return b.String()
 }
 

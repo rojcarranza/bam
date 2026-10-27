@@ -37,7 +37,7 @@ Setup
 Presets
   bam preset list
   bam preset show <name>
-  bam preset add <name> (--plan KEY [--from N|last] | --from BUILD-KEY) [--changed-only] [--branch B] [--shared] [--print] [--force]
+  bam preset add <name> (--plan KEY [--from N|last] | --from BUILD-KEY) [--full] [--branch B] [--shared] [--print] [--force]
   bam preset migrate [--dry-run]
 
 Browse
@@ -270,9 +270,9 @@ Output rules:
 
 - Values are written as quoted strings.
 - Each value has a trailing comment with its origin: `# plan default`, or `# no plan default; last used "beta" in PROJ-PROV-97`.
-- An explicit `--from` fills the values from that build instead: a value that differs from the plan default is commented `# from PROJ-PROV-97`, and variables the build used that the plan does not declare are added, commented `# from PROJ-PROV-97; not declared by the plan`. When the server cannot read a build's variables, an explicit `--from` is a Bamboo error rather than an empty preset. Without `--from`, the last build only fills comments. A full build key in `--from` implies `--plan` (a branch build's master plan) and, unless `--branch` is given, the build's branch; a `--plan` that is not the build's plan is a usage error. `--changed-only` (needs `--from`) leaves out declared variables whose build value equals the plan default; secrets and undeclared variables stay.
+- An explicit `--from` fills the values from that build instead: a value that differs from the plan default is commented `# from PROJ-PROV-97`, and variables the build used that the plan does not declare are added, commented `# from PROJ-PROV-97; not declared by the plan`. When the server cannot read a build's variables, an explicit `--from` is a Bamboo error rather than an empty preset. Without `--from`, the last build only fills comments. A full build key in `--from` implies `--plan` (a branch build's master plan) and, unless `--branch` is given, the build's branch; a `--plan` that is not the build's plan is a usage error. The preset is lean by default: a declared variable whose value (from the plan, or from `--from`) equals the plan default is left out, since plan values already have the lowest precedence; empty, secret and undeclared variables stay. `--full` keeps them all. `bam ui`'s save-as-preset writes the lean form; `bam init --plan` and `preset sync` work on the full list.
 - A value Bamboo returns masked (`********`), or a name matching the masked-name pattern, is written as `"${NAME_IN_UPPER_SNAKE}"` with a comment naming the environment variable to set.
-- `branch`, `options`, `required` and `watch` are written commented out. `required` is pre-filled, commented, with the names that have no plan default.
+- `required` is written commented out, pre-filled with the names that have no plan default. With `--full` (and in `bam init --plan`), `branch` (when not given), `options` and `watch` are written commented out too.
 - The file is edited through the `yaml.v3` Node API so existing comments and key order survive.
 - After writing, stderr prints `review before commit: values copied from Bamboo`.
 

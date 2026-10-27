@@ -16,8 +16,9 @@ type GenerateOptions struct {
 	PlanKey string // optional when From is a full build key
 	From    string // build whose values fill the preset; default last, used only in comments
 	Branch  string // defaults to the branch of a From build key
-	// ChangedOnly leaves out declared variables whose value equals the plan default.
-	ChangedOnly bool
+	// Full keeps declared variables equal to the plan default and the
+	// commented scaffolding; the default is a lean preset (spec §3.9).
+	Full bool
 }
 
 // GenerateTarget reads the plan's declared variables (or, when unsupported,
@@ -58,7 +59,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if _, err := s.P.GetPlan(ctx, o.PlanKey); err != nil {
 		return config.TargetDraft{}, false, err
 	}
-	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch}
+	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch, Full: o.Full}
 	ref := PlanRef{PlanKey: o.PlanKey, MasterKey: o.PlanKey}
 	if o.Branch != "" {
 		key, err := s.ResolveBranch(ctx, o.PlanKey, o.Branch)
@@ -106,7 +107,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 			if value == "" && !isSecretDraft(dv) {
 				d.Required = append(d.Required, v.Name)
 			}
-			if o.ChangedOnly && value == v.Value && !isSecretDraft(dv) {
+			if !o.Full && value == v.Value && value != "" && !isSecretDraft(dv) {
 				continue
 			}
 			d.Vars = append(d.Vars, dv)

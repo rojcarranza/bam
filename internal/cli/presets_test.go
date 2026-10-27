@@ -408,12 +408,16 @@ func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
 }
 
-func TestPresetAddChangedOnlyNeedsFrom(t *testing.T) {
+func TestPresetAddFullKeepsPlanDefaultsAndScaffolding(t *testing.T) {
 	h := newHarness(t)
-	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--changed-only"))
-	assert.Contains(t, h.stderr.String(), "--changed-only needs --from")
-	b := &h.fake.History["PROJ-PROV12"][0]
-	b.Branch, b.MasterKey = "develop", "PROJ-PROV"
-	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", "PROJ-PROV12-8", "--changed-only", "--print"), h.stderr.String())
-	assert.Contains(t, h.stdout.String(), `cluster_type: "dcos"  # from PROJ-PROV12-8`)
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
+	lean := h.stdout.String()
+	assert.NotContains(t, lean, "# plan default")
+	assert.NotContains(t, lean, "# watch: true")
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--full", "--print"), h.stderr.String())
+	full := h.stdout.String()
+	assert.Contains(t, full, "# plan default")
+	assert.Contains(t, full, "# branch: develop")
+	assert.Contains(t, full, "# watch: true")
 }

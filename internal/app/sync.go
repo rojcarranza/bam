@@ -30,7 +30,7 @@ type SyncEdit struct {
 // longer declares are kept and marked in every layer that holds them.
 func (s *Service) PlanSync(ctx context.Context, t config.ResolvedTarget) (SyncPlan, error) {
 	p := SyncPlan{Name: t.Name, Plan: t.Plan, Stale: []string{}}
-	d, declared, err := s.generate(ctx, GenerateOptions{Name: t.Name, PlanKey: t.Plan, Branch: t.Branch})
+	d, declared, err := s.generate(ctx, GenerateOptions{Name: t.Name, PlanKey: t.Plan, Branch: t.Branch, Full: true})
 	if err != nil {
 		return p, err
 	}

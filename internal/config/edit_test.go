@@ -76,7 +76,7 @@ func TestWriteInitFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".bam.yaml")
 	f := InitFile{ServerAlias: "work", ServerURL: "https://bamboo.example.com", Projects: []string{"PROJ", "OPS"}}
-	require.NoError(t, WriteInitFile(path, f, []TargetDraft{{Name: "prov", Plan: "PROJ-PROV"}}, false))
+	require.NoError(t, WriteInitFile(path, f, []TargetDraft{{Name: "prov", Plan: "PROJ-PROV", Full: true}}, false))
 
 	data, _ := os.ReadFile(path)
 	assert.Equal(t, `version: 1

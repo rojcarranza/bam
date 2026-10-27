@@ -11,10 +11,10 @@ import (
 
 func TestGenerateTargetFromDeclaredVariables(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "provision-lab", PlanKey: "PROJ-PROV", Branch: "develop"})
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "provision-lab", PlanKey: "PROJ-PROV", Branch: "develop", Full: true})
 	require.NoError(t, err)
 	assert.Equal(t, config.TargetDraft{
-		Name: "provision-lab", Plan: "PROJ-PROV", Branch: "develop",
+		Name: "provision-lab", Plan: "PROJ-PROV", Branch: "develop", Full: true,
 		Vars: []config.DraftVar{
 			{Name: "cluster_type", Value: "k8s", Comment: "plan default"},
 			{Name: "compute_nodes", Value: "1", Comment: "plan default"},
@@ -73,7 +73,7 @@ func TestGenerateTargetFromBuildKeepsPlanDefaultComment(t *testing.T) {
 	p := fakeBamboo()
 	p.BuildVars["PROJ-PROV12-8"]["cluster_type"] = "k8s"
 	s := newService(t, p)
-	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8", Full: true})
 	require.NoError(t, err)
 	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "k8s", Comment: "plan default"}, d.Vars[0])
 }
@@ -107,11 +107,11 @@ func TestGenerateTargetFromBuildKeyImpliesPlanAndBranch(t *testing.T) {
 	assert.Contains(t, err.Error(), "PROJ-PROV12-8 is a build of PROJ-PROV, not of PROJ-BUILD")
 }
 
-func TestGenerateTargetChangedOnlyKeepsDifferingValues(t *testing.T) {
+func TestGenerateTargetLeanKeepsDifferingValues(t *testing.T) {
 	p := fakeBamboo()
 	p.BuildVars["PROJ-PROV12-8"]["cluster_type"] = "k8s"
 	s := newService(t, p)
-	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8", ChangedOnly: true})
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
 	require.NoError(t, err)
 	var names []string
 	for _, v := range d.Vars {
@@ -121,4 +121,15 @@ func TestGenerateTargetChangedOnlyKeepsDifferingValues(t *testing.T) {
 	assert.Contains(t, names, "compute_nodes")
 	assert.Contains(t, names, "db_password", "secrets stay as ${ENV} references")
 	assert.Contains(t, names, "global_flag", "undeclared variables are always kept")
+}
+
+func TestGenerateTargetLeanByDefault(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV"})
+	require.NoError(t, err)
+	assert.False(t, d.Full)
+	assert.Equal(t, []config.DraftVar{
+		{Name: "cluster_name", Value: "", Comment: "no plan default"},
+		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD"},
+	}, d.Vars, "plan defaults are left out; empty and secret variables stay")
 }

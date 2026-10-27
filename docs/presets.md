@@ -48,7 +48,7 @@ To start from the values a build already ran with, name it with `--from` (a numb
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --from 41
 
-Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. Secrets still become `${ENV_NAME}` references. Without `--from`, the last build's values appear only in the comments.
+Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. Secrets still become `${ENV_NAME}` references. Without `--from`, the last build's values appear only in the comments. Add `--changed-only` to leave out the variables whose build value equals the plan default, so the preset holds only what differs; secrets and undeclared variables are always kept.
 
 A full build key names the plan too, so `--plan` can go; a branch build also sets the preset's `branch:` unless `--branch` says otherwise:
 

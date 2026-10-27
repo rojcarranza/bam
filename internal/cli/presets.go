@@ -104,7 +104,7 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 
 func newTargetAddCmd(r *runtime) *cobra.Command {
 	var plan, from, branch, file string
-	var shared, printOnly, force bool
+	var shared, printOnly, force, changedOnly bool
 	cmd := &cobra.Command{
 		Use:   "add <name> --plan KEY",
 		Short: "Generate a run preset from a plan's declared variables",
@@ -114,10 +114,10 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no\n" +
 			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
 			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
-			"branch.",
+			"branch; --changed-only keeps only the values that differ from the plan defaults.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
-			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
+			"  bam preset add deploy-eu --from PROJ-DEPLOY-41 --changed-only\n" +
 			"  bam preset add deploy-package --plan PROJ-PKG --file custom-presets\n" +
 			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
 			"  bam run deploy-qa --dry-run",
@@ -126,6 +126,11 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			if plan == "" && !app.IsBuildKey(from) {
 				return errs.Usagef("--plan is required").
 					WithTry(fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0]))
+			}
+			if changedOnly && from == "" {
+				return errs.Usagef("--changed-only needs --from").
+					WithWhy("without a build, every value is the plan default").
+					WithTry(fmt.Sprintf("bam preset add %s --from PROJ-PLAN-41 --changed-only", args[0]))
 			}
 			if shared && file != "" {
 				return errs.Usagef("--shared and --file cannot be used together").
@@ -140,7 +145,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			d, err := svc.GenerateTarget(cmd.Context(), app.GenerateOptions{Name: args[0], PlanKey: plan, From: from, Branch: branch})
+			d, err := svc.GenerateTarget(cmd.Context(), app.GenerateOptions{Name: args[0], PlanKey: plan, From: from, Branch: branch, ChangedOnly: changedOnly})
 			if err != nil {
 				return err
 			}
@@ -189,6 +194,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
 	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&force, "force", false, "replace an existing preset")
+	f.BoolVar(&changedOnly, "changed-only", false, "with --from, leave out variables whose build value equals the plan default")
 	return cmd
 }
 

@@ -407,3 +407,13 @@ func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
 	assert.Contains(t, out, `cluster_type: "dcos"  # from PROJ-PROV12-8`)
 	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
 }
+
+func TestPresetAddChangedOnlyNeedsFrom(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--changed-only"))
+	assert.Contains(t, h.stderr.String(), "--changed-only needs --from")
+	b := &h.fake.History["PROJ-PROV12"][0]
+	b.Branch, b.MasterKey = "develop", "PROJ-PROV"
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", "PROJ-PROV12-8", "--changed-only", "--print"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `cluster_type: "dcos"  # from PROJ-PROV12-8`)
+}

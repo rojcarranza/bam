@@ -106,3 +106,19 @@ func TestGenerateTargetFromBuildKeyImpliesPlanAndBranch(t *testing.T) {
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	assert.Contains(t, err.Error(), "PROJ-PROV12-8 is a build of PROJ-PROV, not of PROJ-BUILD")
 }
+
+func TestGenerateTargetChangedOnlyKeepsDifferingValues(t *testing.T) {
+	p := fakeBamboo()
+	p.BuildVars["PROJ-PROV12-8"]["cluster_type"] = "k8s"
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8", ChangedOnly: true})
+	require.NoError(t, err)
+	var names []string
+	for _, v := range d.Vars {
+		names = append(names, v.Name)
+	}
+	assert.NotContains(t, names, "cluster_type", "equal to the plan default")
+	assert.Contains(t, names, "compute_nodes")
+	assert.Contains(t, names, "db_password", "secrets stay as ${ENV} references")
+	assert.Contains(t, names, "global_flag", "undeclared variables are always kept")
+}

@@ -190,7 +190,11 @@ func newVersionCmd(r *runtime) *cobra.Command {
 		Short: "Print the bam version",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, err := fmt.Fprintf(r.env.Stdout, "bam %s\n", resolveVersion(version, debug.ReadBuildInfo))
+			v := resolveVersion(version, debug.ReadBuildInfo)
+			if r.flags.json {
+				return view.WriteJSON(r.env.Stdout, map[string]string{"version": v})
+			}
+			_, err := fmt.Fprintf(r.env.Stdout, "bam %s\n", v)
 			return err
 		},
 	}

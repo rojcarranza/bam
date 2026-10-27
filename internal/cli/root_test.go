@@ -19,6 +19,13 @@ func TestVersionPrintsVersion(t *testing.T) {
 	assert.Equal(t, "bam dev\n", h.stdout.String())
 }
 
+// TestVersionJSON: --json is honoured by every command that reads data.
+func TestVersionJSON(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("version", "--json"))
+	assert.JSONEq(t, `{"version":"dev"}`, h.stdout.String())
+}
+
 // TestVersionFallsBackToBuildInfo: go install cannot pass -ldflags, so a
 // binary built that way reports the module version Go recorded in it.
 func TestVersionFallsBackToBuildInfo(t *testing.T) {

@@ -44,3 +44,18 @@ func TestInvestigationFailedTests(t *testing.T) {
 	require.NoError(t, Investigation(o, app.Investigation{Build: b}))
 	require.Contains(t, buf.String(), "\nFailed tests: a, b\n")
 }
+
+func TestInvestigationParentTreeHint(t *testing.T) {
+	o, buf := testOut(false)
+	b := provider.Build{Key: "PROJ-PLAN-44", State: provider.StateFailed, Reason: "Child of PROJ-API-142"}
+	require.NoError(t, Investigation(o, app.Investigation{Build: b}))
+	require.Contains(t, buf.String(), "try: bam build tree PROJ-API-142\ntry: bam build rerun PROJ-PLAN-44\n")
+	b.Reason, b.Parent = "Rebuilt by jdoe", "PROJ-API-140"
+	buf.Reset()
+	require.NoError(t, Investigation(o, app.Investigation{Build: b}))
+	require.Contains(t, buf.String(), "try: bam build tree PROJ-API-140\n")
+	b.Parent = ""
+	buf.Reset()
+	require.NoError(t, Investigation(o, app.Investigation{Build: b}))
+	require.NotContains(t, buf.String(), "bam build tree")
+}

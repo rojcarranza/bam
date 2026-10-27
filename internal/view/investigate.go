@@ -53,6 +53,13 @@ func Investigation(o Out, inv app.Investigation) error {
 	for _, j := range inv.Jobs {
 		fmt.Fprintf(&sb, "try: bam build logs %s --job %s\n", b.Key, j.Short)
 	}
+	parent := b.Parent
+	if parent == "" {
+		parent, _ = app.ParentOf(b.Reason)
+	}
+	if parent != "" {
+		fmt.Fprintf(&sb, "try: bam build tree %s\n", parent)
+	}
 	fmt.Fprintf(&sb, "try: bam build rerun %s\ntry: bam open %s\n", b.Key, b.Key)
 	_, err := fmt.Fprint(o.W, sb.String())
 	return err

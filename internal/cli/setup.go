@@ -199,14 +199,26 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 
 func newServerDefaultCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "default <alias>",
-		Short:      "Make a server alias the machine-wide default",
+		Use:        "default [alias]",
+		Short:      "Show or set the machine-wide default server alias",
 		SuggestFor: []string{"use"},
-		Args:       cobra.ExactArgs(1),
+		Args:       cobra.MaximumNArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
 				return err
+			}
+			if len(args) == 0 {
+				cur := cfg.Machine.DefaultServer
+				if r.flags.json {
+					return view.WriteJSON(r.env.Stdout, map[string]string{"default_server": cur})
+				}
+				if cur == "" {
+					fmt.Fprintln(r.env.Stderr, "no machine default server set\n  try: bam server default <alias>")
+					return nil
+				}
+				fmt.Fprintln(r.env.Stdout, cur)
+				return nil
 			}
 			alias := args[0]
 			// A machine default naming a repo's alias would break every other repo.

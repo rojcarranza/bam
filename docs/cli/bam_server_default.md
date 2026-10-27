@@ -1,9 +1,9 @@
 ## bam server default
 
-Make a server alias the machine-wide default
+Show or set the machine-wide default server alias
 
 ```
-bam server default <alias> [flags]
+bam server default [alias] [flags]
 ```
 
 ### Options

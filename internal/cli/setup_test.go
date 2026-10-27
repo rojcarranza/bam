@@ -36,7 +36,14 @@ func TestServerAddListRm(t *testing.T) {
     "token": false,
     "selected": true`)
 
+	assert.Equal(t, 0, h.run("server", "default"))
+	assert.Empty(t, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), "no machine default server set")
 	assert.Equal(t, 0, h.run("server", "default", "home"))
+	assert.Equal(t, 0, h.run("server", "default"))
+	assert.Equal(t, "home\n", h.stdout.String())
+	assert.Equal(t, 0, h.run("server", "default", "--json"))
+	assert.JSONEq(t, `{"default_server": "home"}`, h.stdout.String())
 	data, _ = os.ReadFile(h.env.Paths.MachineConfig)
 	assert.Contains(t, string(data), "default_server: home")
 	assert.Equal(t, 2, h.run("server", "default", "work"), "a project alias cannot be the machine default")

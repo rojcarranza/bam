@@ -638,7 +638,7 @@ Development is test-driven.
 
 - Module `github.com/r0jjames/bam-cli`; binary `bam` built from `cmd/bam`; Go current stable, minimum 1.22.
 - Dependencies are limited to those named in this spec: cobra, yaml.v3, adrg/xdg, go-keyring, x/term, pkg/browser, testify, plus the standard library. v0.2 adds bubbletea, lipgloss and bubbles for the terminal UI, under [`2026-09-18-bam-v0.2-tui-navigate-design.md`](2026-09-18-bam-v0.2-tui-navigate-design.md) §10. Any other dependency needs a stated reason in its pull request.
-- `Makefile` targets: `build`, `test`, `lint`, `e2e`, `record`, `check-fixtures`, `docs`.
+- `Makefile` targets: `build`, `test`, `lint`, `e2e`, `record`, `check-fixtures`, `docs`, `release`.
 - `golangci-lint` is the lint gate.
 - `goreleaser` builds darwin and linux on amd64 and arm64, plus windows/amd64, attached to a git tag.
 - The `no-mistakes` pipeline (`.no-mistakes.yaml`) runs lint, test and the fixture guard before every push; there is no GitHub Actions CI, and `make release` publishes releases from the owner's machine. A Forge-Lab Bamboo plan runs the e2e suite and uses bam itself.

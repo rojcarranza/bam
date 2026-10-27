@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/require"
@@ -337,4 +338,19 @@ func TestTreeScreenDrawsACachedTreeAtOnce(t *testing.T) {
 	running.Root = &root
 	m, _ = send(m, treeEventMsg{Gen: m.treeGen, Event: app.TreeEvent{Type: app.TreeUpdate, Tree: running}})
 	require.NotContains(t, m.trees, "PROJ-BUILD-44", "a tree that runs again, after a rerun, is no longer cached")
+}
+
+func TestTreeScreenKeepsACachedTreeWhenItsRefreshFails(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("t"))
+
+	m, _ = send(m, treeEventMsg{Gen: m.treeGen, Event: app.TreeEvent{Type: app.TreeError, Err: errs.Bamboof("Bamboo is down")}})
+	require.Equal(t, "PROJ-BUILD-44(PROJ-PROV-7)", tuiShape(m.buildTree.tree.Root), "the cached tree stays")
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refresh failed")
+	require.NotContains(t, m.View(), "refreshing…")
+
+	m, _ = send(m, mkKey("r"))
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refreshing…", "r tries again")
 }

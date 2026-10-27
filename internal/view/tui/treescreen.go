@@ -19,7 +19,8 @@ type treeScreen struct {
 	root       string
 	tree       app.Tree
 	have       bool
-	refreshing bool             // tree came from the session cache; the watch has not sent one yet
+	refreshing bool             // a tree is drawn (from the session cache, or before r or a rerun) and the watch has not sent a newer one
+	failed     bool             // the watch ended in an error; tree is the last one it had
 	progress   app.TreeProgress // how far the first refresh got, until have
 	cursor     int              // over build rows only
 	from       screen
@@ -69,7 +70,7 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 	m.rerunGen++ // a rerun started on another tree reports to that one only
 	m.buildTree = treeScreen{root: key, from: from, back: back}
 	if t, ok := m.trees[key]; ok {
-		m.buildTree.tree, m.buildTree.have, m.buildTree.refreshing = t, true, true
+		m.buildTree.tree, m.buildTree.have = t, true
 	}
 	m.screen = screenTree
 	return m.watchTree()
@@ -79,6 +80,7 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 // restarted are read again.
 func (m Model) watchTree() (tea.Model, tea.Cmd) {
 	m.stopTree()
+	m.buildTree.refreshing, m.buildTree.failed = m.buildTree.have, false
 	if m.svc == nil {
 		return m, nil
 	}
@@ -139,7 +141,9 @@ func (m Model) handleTreeEvent(msg treeEventMsg) (tea.Model, tea.Cmd) {
 	e := msg.Event
 	switch e.Type {
 	case app.TreeError:
+		// A tree already drawn stays, marked: the error is about this refresh.
 		m.err = e.Err
+		m.buildTree.refreshing, m.buildTree.failed = false, m.buildTree.have
 		return m, nil
 	case app.TreeLoading:
 		m.buildTree.progress = e.Progress
@@ -357,8 +361,11 @@ func (m Model) treeScreenView() string {
 	head := " " + m.buildTree.root
 	if m.buildTree.have {
 		head += " · " + stateCell(t.State)
-		if m.buildTree.refreshing {
+		switch {
+		case m.buildTree.refreshing:
 			head += " · refreshing…"
+		case m.buildTree.failed:
+			head += " · refresh failed"
 		}
 	} else {
 		head += " · " + view.TreeProgressText(m.buildTree.progress)

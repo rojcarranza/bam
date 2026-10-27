@@ -48,10 +48,15 @@ func Execute(ctx context.Context, args []string, env Env) int {
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
 		return errs.Usagef("%s", err.Error()).WithTry(c.CommandPath() + " --help")
 	})
-	err := root.ExecuteContext(ctx)
+	cmd, err := root.ExecuteContextC(ctx)
 	var res *resultError
 	var silent silentError
+	var typed *errs.Error
 	if err != nil && !errors.As(err, &res) && !errors.As(err, &silent) && !errors.Is(err, context.Canceled) {
+		// Untyped errors here are cobra's argument checks ("accepts 1 arg(s)").
+		if !errors.As(err, &typed) && !errors.Is(err, context.DeadlineExceeded) {
+			err = errs.Usagef("%s", err.Error()).WithTry(cmd.CommandPath() + " --help")
+		}
 		view.PrintError(env.Stderr, err, r.flags.debug)
 	}
 	return exitCode(err)

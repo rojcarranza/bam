@@ -64,6 +64,17 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	}
 }
 
+func TestWrongArgCountPointsAtHelp(t *testing.T) {
+	for args, want := range map[string]string{
+		"run":            "error: accepts 1 arg(s), received 0\n  try: bam run --help\n",
+		"build show a b": "  try: bam build show --help\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+	}
+}
+
 func TestGroupCommandWithoutArgsPrintsHelp(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("server"))

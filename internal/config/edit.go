@@ -54,7 +54,8 @@ func SetMachineServer(path, alias string, s Server) error {
 	return saveDoc(path, doc)
 }
 
-// RemoveMachineServer deletes servers.<alias> from the machine file.
+// RemoveMachineServer deletes servers.<alias> from the machine file, along
+// with a default_server or repos.<root>.server that names it.
 func RemoveMachineServer(path, alias string) error {
 	doc, err := loadDoc(path)
 	if err != nil {
@@ -63,6 +64,17 @@ func RemoveMachineServer(path, alias string) error {
 	servers := mappingValue(doc.Content[0], "servers")
 	if !deleteKey(servers, alias) {
 		return errs.Usagef("no server alias %q in %s", alias, path).WithTry("bam server list")
+	}
+	// A default or repos entry still naming the alias would fail every command.
+	if v := mappingValue(doc.Content[0], "default_server"); v != nil && v.Value == alias {
+		deleteKey(doc.Content[0], "default_server")
+	}
+	if repos := mappingValue(doc.Content[0], "repos"); repos != nil {
+		for i := 1; i < len(repos.Content); i += 2 {
+			if v := mappingValue(repos.Content[i], "server"); v != nil && v.Value == alias {
+				deleteKey(repos.Content[i], "server")
+			}
+		}
 	}
 	return saveDoc(path, doc)
 }

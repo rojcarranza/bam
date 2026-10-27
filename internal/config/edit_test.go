@@ -72,6 +72,36 @@ func TestSetAndRemoveMachineServer(t *testing.T) {
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 }
 
+func TestRemoveMachineServerDropsReferencesToIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `version: 1
+default_server: work
+servers:
+  work:
+    url: https://bamboo.example.com
+  home:
+    url: https://bamboo.lab.example
+repos:
+  /src/a:
+    server: work
+    projects: [PROJ]
+  /src/b:
+    server: home
+`)
+	require.NoError(t, RemoveMachineServer(path, "work"))
+	data, _ := os.ReadFile(path)
+	assert.Equal(t, `version: 1
+servers:
+  home:
+    url: https://bamboo.lab.example
+repos:
+  /src/a:
+    projects: [PROJ]
+  /src/b:
+    server: home
+`, string(data))
+}
+
 func TestWriteInitFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".bam.yaml")

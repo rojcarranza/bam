@@ -311,7 +311,7 @@ Lookup order for a server:
 - `bam whoami` - one line per configured server: alias, origin, user name or the error class. Exits 0 when every server answers, else with the code of the first failure. `--server` limits it to one server.
 - `bam server add` - writes the alias to the machine file; on a TTY, continues into `login`.
 - `bam server list` - alias, URL, which layer defines it, and whether a token is present. No network call.
-- `bam server rm` - removes the alias from the machine file only. An alias defined by the project file cannot be removed this way; the error says where it is defined.
+- `bam server rm` - removes the alias from the machine file only, together with a machine `default_server` or `repos.<root>.server` that names it, so the servers left keep working. An alias defined by the project file cannot be removed this way; the error says where it is defined.
 
 Every network command resolves the credential before its first request. A missing or rejected credential is an authentication error (exit 4) naming the alias and the command that fixes it.
 

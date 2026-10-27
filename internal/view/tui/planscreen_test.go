@@ -222,7 +222,7 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed}
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: full.Key, Tree: done})
 	require.Contains(t, m.plan.cache, "PROJ-BUILD-44")
-	require.Contains(t, m.plan.trees, "PROJ-BUILD-44")
+	require.Contains(t, m.trees, "PROJ-BUILD-44")
 
 	m, cmd := send(m, mkKey("j"))
 	m, _ = send(m, cmd())
@@ -233,6 +233,24 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 	require.False(t, m.plan.stagesLoading)
 	require.True(t, m.plan.tree.have, "the cached tree shows at once")
 	require.Nil(t, cmd, "a cached finished build and tree are not read again")
+}
+
+// #82: a finished tree outlives the plan screen, so going Home and back
+// draws it at once; only a server switch forgets it.
+func TestAFinishedTreeOutlivesThePlanScreen(t *testing.T) {
+	m := planOnBuilds(t)
+	full := sampleBuild()
+	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed}
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: full.Key, Tree: done})
+
+	m.closePlan()
+	m.plan.key = "PROJ-BUILD"
+	m, cmd := m.loadTreePreview(full.Key, false)
+	require.True(t, m.plan.tree.have, "the tree seen before draws at once")
+	require.Nil(t, cmd, "and is not read again")
+
+	next, _ := m.switchServer("lab")
+	require.Empty(t, next.(Model).trees, "nothing keyed to one origin is shown under another")
 }
 
 func TestAFailedStagesReadClearsStagesLoading(t *testing.T) {
@@ -375,11 +393,11 @@ func TestOnlyAFinalTreeIsCached(t *testing.T) {
 		b.State = s
 		return app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b}, State: provider.StateSuccess}
 	}
-	delete(m.plan.trees, key)
+	delete(m.trees, key)
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: key, Tree: root(provider.StateQueued)})
-	require.NotContains(t, m.plan.trees, key, "a tree whose root is not final is never cached")
+	require.NotContains(t, m.trees, key, "a tree whose root is not final is never cached")
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: key, Tree: root(provider.StateFailed)})
-	require.Contains(t, m.plan.trees, key)
+	require.Contains(t, m.trees, key)
 }
 
 func TestAWatchErrorClearsStagesLoading(t *testing.T) {
@@ -855,7 +873,7 @@ func planWithCursors(t *testing.T) Model {
 	m := planWithTree(t)
 	full := sampleBuild()
 	m.plan.cache = map[string]provider.Build{full.Key: full}
-	m.plan.trees = map[string]app.Tree{full.Key: twoChildTree()}
+	m.trees = map[string]app.Tree{full.Key: twoChildTree()}
 	m.plan.tree.tree = twoChildTree()
 	m.treeCursor, m.plan.treeCursor = 2, 1
 	return m

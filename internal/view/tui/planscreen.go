@@ -24,11 +24,10 @@ type planScreen struct {
 
 	restGen int // bumped by every Builds cursor move
 
-	// stack holds the plan screens Enter on a Tree row came from; cache and
-	// trees hold finished builds and their trees by key.
+	// stack holds the plan screens Enter on a Tree row came from; cache
+	// holds finished builds by key.
 	stack []planFrame
 	cache map[string]provider.Build
-	trees map[string]app.Tree
 
 	tree       treePreview
 	treeCursor int
@@ -331,7 +330,7 @@ func (m Model) cacheBuild(b provider.Build) Model {
 func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
 	m.stopTreePreview()
 	m.plan.treeCursor = 0
-	if t, ok := m.plan.trees[key]; ok && !fresh {
+	if t, ok := m.trees[key]; ok && !fresh {
 		m.plan.tree = treePreview{key: key, tree: t, have: true}
 		return m, nil
 	}
@@ -367,10 +366,10 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 	m.clampTreePreview()
 	if msg.Err == nil && msg.Tree.Root != nil &&
 		app.TreeFinished(msg.Tree.Root.Build.State) && msg.Tree.State != provider.StateRunning {
-		if m.plan.trees == nil {
-			m.plan.trees = map[string]app.Tree{}
+		if m.trees == nil {
+			m.trees = map[string]app.Tree{}
 		}
-		m.plan.trees[msg.Key] = msg.Tree
+		m.trees[msg.Key] = msg.Tree
 	}
 	return m, nil
 }

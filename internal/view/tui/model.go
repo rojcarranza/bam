@@ -147,6 +147,10 @@ type Model struct {
 
 	treePreviewCancel context.CancelFunc // the Tree panel's read in flight
 
+	// trees holds finished trees by root key for the session, so leaving the
+	// plan screen does not read them again; a server switch clears it.
+	trees map[string]app.Tree
+
 	// revisionRun is the build the form last triggered with a revision, so a
 	// not-built result can say which revision Bamboo could not build.
 	revisionRun struct{ Key, Rev string }
@@ -1030,6 +1034,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	// The plan, its builds and its cache are the old server's, also when
 	// the plan screen is not the one on top.
 	m.closePlan()
+	m.trees = nil
 	if m.screen == screenPlan {
 		m.screen = screenHome
 		m.focus = m.homeFocus()

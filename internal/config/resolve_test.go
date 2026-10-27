@@ -84,6 +84,11 @@ func TestServerSelectionSingleAndNone(t *testing.T) {
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Contains(t, e.Try, "bam server add missing --url")
+	assert.Equal(t, "servers: only, second", e.Why, "a mistyped alias shows the real ones")
+
+	_, err = (&Config{Machine: &MachineFile{Version: 1}}).SelectServer("missing", "")
+	require.ErrorAs(t, err, &e)
+	assert.Empty(t, e.Why, "no list when nothing is configured")
 }
 
 func TestServerFieldsMergeWithMachineWinning(t *testing.T) {

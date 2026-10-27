@@ -190,7 +190,7 @@ func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
 	}
 	s, ok := cfg.Servers()[alias]
 	if !ok || s.URL == "" {
-		return errs.Configf("no server alias %q", alias).WithTry(fmt.Sprintf("bam server add %s --url URL", alias))
+		return cfg.UnknownServer(alias)
 	}
 	origin, err := credential.Origin(s.URL)
 	if err != nil {
@@ -260,7 +260,7 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 			alias := args[0]
 			s, ok := cfg.Servers()[alias]
 			if !ok {
-				return errs.Configf("no server alias %q", alias).WithTry("bam server list")
+				return cfg.UnknownServer(alias)
 			}
 			origin, err := credential.Origin(s.URL)
 			if err != nil {
@@ -297,7 +297,7 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 			var names []string
 			if r.flags.server != "" {
 				if _, ok := servers[r.flags.server]; !ok {
-					return errs.Configf("no server alias %q", r.flags.server).WithTry("bam server list")
+					return cfg.UnknownServer(r.flags.server)
 				}
 				names = []string{r.flags.server}
 			} else {

@@ -64,8 +64,7 @@ func (r *runtime) openUI(ctx context.Context) error {
 		Connect: func(_ context.Context, alias string) (*app.Service, error) {
 			s, ok := servers[alias]
 			if !ok || s.URL == "" {
-				return nil, errs.Configf("no server alias %q", alias).
-					WithTry("bam server add " + alias + " --url URL")
+				return nil, cfg.UnknownServer(alias)
 			}
 			svc, _, err := r.connectServer(s)
 			return svc, err

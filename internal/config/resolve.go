@@ -105,6 +105,24 @@ func (c *Config) expand(path string) string {
 	return filepath.Clean(path)
 }
 
+// UnknownServer is the error for an alias no layer defines with a url. It
+// lists the aliases that do, so a mistyped --server is easy to spot.
+func (c *Config) UnknownServer(alias string) *errs.Error {
+	e := errs.Configf("no server alias %q", alias).
+		WithTry(fmt.Sprintf("bam server add %s --url URL", alias))
+	var names []string
+	for n, s := range c.Servers() {
+		if s.URL != "" {
+			names = append(names, n)
+		}
+	}
+	if len(names) > 0 {
+		slices.Sort(names)
+		e = e.WithWhy("servers: " + strings.Join(names, ", "))
+	}
+	return e
+}
+
 // SelectServer applies spec §3.5: flag, BAM_SERVER, BAM_URL, target server,
 // machine repos entry, project default, machine default, the only server.
 func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error) {
@@ -112,8 +130,7 @@ func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error)
 	pick := func(alias string) (ResolvedServer, error) {
 		s, ok := servers[alias]
 		if !ok || s.URL == "" {
-			return ResolvedServer{}, errs.Configf("no server alias %q", alias).
-				WithTry(fmt.Sprintf("bam server add %s --url URL", alias))
+			return ResolvedServer{}, c.UnknownServer(alias)
 		}
 		return s, nil
 	}

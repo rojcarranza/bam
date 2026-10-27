@@ -179,6 +179,9 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		return a.Arg, nil
 	case a.Arg == "":
 		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
+	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg):
+		return "", errs.Usagef("%q is not a build key, a plan key or a preset", a.Arg).
+			WithTry("a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list")
 	}
 	ref, err := s.ResolvePlan(ctx, a.Arg, a.Branch)
 	if err != nil {

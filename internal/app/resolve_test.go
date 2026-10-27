@@ -87,6 +87,14 @@ func TestResolveBuild(t *testing.T) {
 
 	_, err = s.ResolveBuild(bg, BuildArg{})
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+
+	_, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ-BUILD-abc"})
+	require.Error(t, err)
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, `"PROJ-BUILD-abc" is not a build key, a plan key or a preset`, e.What)
+	assert.Equal(t, "a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list", e.Try)
 }
 
 func TestResolveBuildLast(t *testing.T) {

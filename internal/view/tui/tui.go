@@ -25,15 +25,18 @@ type Deps struct {
 	Initial string // alias to open with
 	// Project is the project to open on, for the Initial server only: a key,
 	// "all" for every project, or "" for that server's default_project.
-	Project   string
-	Connect   func(ctx context.Context, alias string) (*app.Service, error)
-	Targets   func() ([]app.TargetInfo, error)
-	Sets      func() ([]app.SetInfo, error) // re-read on every load, as Targets is
-	Open      func(url string) error
-	Getenv    func(name string) string // for ${ENV} references in a preset
-	Clipboard io.Writer
-	Output    io.Writer // the tea.Program's output; nil means os.Stdout
-	Version   string    // bam's own version, shown beside Bamboo's in the header
+	Project string
+	Connect func(ctx context.Context, alias string) (*app.Service, error)
+	Targets func() ([]app.TargetInfo, error)
+	Sets    func() ([]app.SetInfo, error) // re-read on every load, as Targets is
+	// SavePreset writes build's variable values as preset name, as
+	// bam preset add NAME --from BUILD does, and returns the file it wrote.
+	SavePreset func(ctx context.Context, svc *app.Service, name, build string) (string, error)
+	Open       func(url string) error
+	Getenv     func(name string) string // for ${ENV} references in a preset
+	Clipboard  io.Writer
+	Output     io.Writer // the tea.Program's output; nil means os.Stdout
+	Version    string    // bam's own version, shown beside Bamboo's in the header
 }
 
 // Run opens the UI and returns when the user quits. Ending ctx closes the UI;

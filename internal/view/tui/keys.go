@@ -26,6 +26,7 @@ type keyMap struct {
 	Sort, Help, Quit             key.Binding
 	Command                      key.Binding
 	Tree                         key.Binding
+	SavePreset                   key.Binding
 }
 
 // helpRow is one line of the help overlay and of the README table.
@@ -88,6 +89,7 @@ func defaultKeys() keyMap {
 		Quit:        b("q ctrl+c", "q ctrl-c", "quit"),
 		Command:     b(":", ":", "command bar"),
 		Tree:        b("t", "t", "build tree"),
+		SavePreset:  b("p", "p", "save the build as a preset"),
 	}
 }
 
@@ -100,7 +102,7 @@ func allBindings(k keyMap) []key.Binding {
 		k.Logs, k.AllLogs, k.Follow, k.Filter, k.NextMatch, k.PrevMatch,
 		k.Refresh, k.ExpandErr, k.Open, k.Copy, k.Run, k.Trigger, k.DryRun,
 		k.CycleOption, k.Cancel, k.Resume, k.RerunFailed, k.RemoveRow, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
-		k.Command, k.Tree,
+		k.Command, k.Tree, k.SavePreset,
 	}
 }
 
@@ -131,6 +133,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"RUN", "space", "cycle an options field (in the form)"},
 		{"RUN", "f", "use the build's revision (in the form, on the revision row)"},
 		{"RUN", "C", "cancel the selected build (asks first)"},
+		{"RUN", "p", "save the selected build's variables as a preset (asks for a name)"},
 		{"RUN", "U", "resume the set's interrupted run (set screen)"},
 		{"RUN", "F", "rerun the failed runs (set screen) or builds (tree screen)"},
 		{"RUN", "x", "remove a variable row (set vars prompt)"},

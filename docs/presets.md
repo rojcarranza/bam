@@ -54,6 +54,8 @@ A full build key names the plan too, so `--plan` can go; a branch build also set
 
     bam preset add deploy-eu --from PROJ-DEPLOY-41
 
+In `bam ui`, press `p` on a build in the plan screen to do the same: it asks for the name, writes the preset to the plan's project file and shows the path.
+
 ### Set the values
 
 Edit the file and fill in `variables`. Delete variables you never change, so they keep the plan's value. Uncomment `required` and `options` if you want bam to check values before it triggers:

@@ -157,25 +157,18 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
 				return err
 			}
-			path, keyPath := "", []string{"presets"}
+			var path string
 			if shared {
-				path, keyPath = r.cfg.ProjectPath, []string{"targets"}
+				path = r.cfg.ProjectPath
 				if path == "" {
 					return errs.Usagef("no .bam.yaml in this repository").
 						WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
 				}
+				err = config.WriteTarget(path, []string{"targets"}, d, force)
 			} else {
-				if file == "" {
-					file = config.ProjectPresetsName(d.Plan)
-				}
-				if path, err = config.PresetsDirFile(r.presetsWritePath(), file); err != nil {
-					return err
-				}
-				if err := checkPresetElsewhere(r.cfg, d.Name, path); err != nil {
-					return err
-				}
+				path, err = r.writePreset(r.cfg, d, file, force)
 			}
-			if err := config.WriteTarget(path, keyPath, d, force); err != nil {
+			if err != nil {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
@@ -201,6 +194,22 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 // checkPresetElsewhere refuses to add name to path when another presets file
 // already defines it: names are global across presets files, and --force
 // replaces a preset only in the file that holds it.
+// writePreset adds d to file in the presets directory, by default the plan's
+// project file, and returns the path it wrote. preset add and the UI share it.
+func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file string, force bool) (string, error) {
+	if file == "" {
+		file = config.ProjectPresetsName(d.Plan)
+	}
+	path, err := config.PresetsDirFile(r.presetsWritePath(), file)
+	if err != nil {
+		return "", err
+	}
+	if err := checkPresetElsewhere(cfg, d.Name, path); err != nil {
+		return "", err
+	}
+	return path, config.WriteTarget(path, []string{"presets"}, d, force)
+}
+
 func checkPresetElsewhere(cfg *config.Config, name, path string) error {
 	all, err := cfg.Targets()
 	if err != nil {

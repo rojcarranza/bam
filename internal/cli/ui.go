@@ -88,6 +88,19 @@ func (r *runtime) openUI(ctx context.Context) error {
 			}
 			return app.DescribeSets(fresh, r.env.Getenv)
 		},
+		// SavePreset writes what preset add --from BUILD writes, reading the
+		// files fresh so a preset added since start-up still counts as taken.
+		SavePreset: func(ctx context.Context, svc *app.Service, name, build string) (string, error) {
+			d, err := svc.GenerateTarget(ctx, app.GenerateOptions{Name: name, From: build})
+			if err != nil {
+				return "", err
+			}
+			fresh, err := r.loadConfig()
+			if err != nil {
+				return "", err
+			}
+			return r.writePreset(fresh, d, "", false)
+		},
 		Open:      r.env.OpenBrowser,
 		Getenv:    r.env.Getenv,
 		Clipboard: r.env.Stdout,

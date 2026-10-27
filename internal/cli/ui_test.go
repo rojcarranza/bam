@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -186,4 +187,28 @@ func TestProjectFlagReachesTheUI(t *testing.T) {
 	h.tty = true
 	require.Equal(t, 0, h.run())
 	require.Empty(t, h.tuiRuns[0].Project, "no flag leaves the choice to default_project")
+}
+
+// TestUISavePresetWritesWhatPresetAddWrites is the UI's p key end to end
+// below the model: same YAML, same file, same refusal to overwrite.
+func TestUISavePresetWritesWhatPresetAddWrites(t *testing.T) {
+	h := newHarness(t)
+	b := &h.fake.History["PROJ-PROV12"][0]
+	b.Branch, b.MasterKey = "develop", "PROJ-PROV"
+	h.tty = true
+	require.Equal(t, 0, h.run())
+	d := h.tuiRuns[0]
+	svc, err := d.Connect(context.Background(), "work")
+	require.NoError(t, err)
+
+	path, err := d.SavePreset(context.Background(), svc, "from-ui", "PROJ-PROV12-8")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(h.home, "bam", "presets", "proj.yaml"), path)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `branch: "develop"`)
+	require.Contains(t, string(data), `cluster_type: "dcos" # from PROJ-PROV12-8`)
+
+	_, err = d.SavePreset(context.Background(), svc, "from-ui", "PROJ-PROV12-8")
+	require.Error(t, err, "an existing preset is never replaced from the UI")
 }

@@ -22,6 +22,7 @@ const (
 	inputFilter
 	inputSearch
 	inputCommand
+	inputPreset
 )
 
 // screen is what fills the terminal. The log screen takes the whole width.
@@ -120,6 +121,8 @@ type Model struct {
 	logs     logState
 	input    textinput.Model
 	inputFor inputMode
+	// presetBuild is the build the preset-name prompt will save.
+	presetBuild string
 
 	// One generation per asynchronous stream. Bumping a stream's generation
 	// abandons every request already in flight on it, so a slow response for
@@ -401,6 +404,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case copiedMsg:
 		m.status = "copied to clipboard (osc 52)"
+		return m, nil
+	case presetSavedMsg:
+		m.status = "added preset " + msg.Name + " to " + msg.Path
 		return m, nil
 	case logEventMsg:
 		if msg.Gen != m.followGen {
@@ -689,6 +695,8 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openSelectionLogs()
 	case key.Matches(msg, keys.AllLogs):
 		return m.openLogs("", true)
+	case key.Matches(msg, keys.SavePreset):
+		return m.startSavePreset()
 	case key.Matches(msg, keys.Tree):
 		if b, ok := m.currentBuild(); ok {
 			return m.openTree(b.Key)
@@ -752,6 +760,10 @@ func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if mode == inputSearch {
 			m.logs.search(q)
 			return m, nil
+		}
+		if mode == inputPreset {
+			m.input.SetValue("")
+			return m.savePreset(strings.TrimSpace(q))
 		}
 		m.applyFilter(q)
 		// The filter may move the Builds cursor; Stages follows it as it
@@ -1434,6 +1446,44 @@ func (m Model) copySelection() (tea.Model, tea.Cmd) {
 			return errMsg{Err: err, Where: "copy"}
 		}
 		return copiedMsg{}
+	}
+}
+
+// presetSavedMsg says a build's variables were written as a preset.
+type presetSavedMsg struct{ Name, Path string }
+
+// startSavePreset asks for the name to save the plan screen's selected build
+// under, as bam preset add NAME --from BUILD.
+func (m Model) startSavePreset() (tea.Model, tea.Cmd) {
+	if m.screen != screenPlan || m.svc == nil || m.deps.SavePreset == nil {
+		return m, nil
+	}
+	b, ok := m.currentBuild()
+	if !ok {
+		return m, nil
+	}
+	m.presetBuild = b.Key
+	m.inputFor = inputPreset
+	m.input.SetValue("")
+	m.input.Prompt = "save " + b.Key + " as preset: "
+	m.input.Focus()
+	return m, textinput.Blink
+}
+
+// savePreset writes the build asked about in startSavePreset. An empty name
+// saves nothing, as esc does.
+func (m Model) savePreset(name string) (tea.Model, tea.Cmd) {
+	if name == "" || m.svc == nil {
+		return m, nil
+	}
+	save, ctx, svc, build := m.deps.SavePreset, m.baseCtx(), m.svc, m.presetBuild
+	m.status = "saving preset " + name + "…"
+	return m, func() tea.Msg {
+		path, err := save(ctx, svc, name, build)
+		if err != nil {
+			return errMsg{Err: err, Where: "preset"}
+		}
+		return presetSavedMsg{Name: name, Path: path}
 	}
 }
 

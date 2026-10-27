@@ -166,6 +166,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `space` | cycle an options field (in the form) |
 | | `f` | use the build's revision (in the form, on the revision row) |
 | | `C` | cancel the selected build (asks first) |
+| | `p` | save the selected build's variables as a preset (asks for a name) |
 | | `U` | resume the set's interrupted run (set screen) |
 | | `F` | rerun the failed runs (set screen) or builds (tree screen) |
 | | `x` | remove a variable row (set vars prompt) |

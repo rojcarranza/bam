@@ -102,6 +102,12 @@ number, age and trigger. The header reads `bam · env · 9.6.2 · jdoe`. From th
 Add `--json` to any read command to see the machine-readable form, and
 `--debug` to log the HTTP requests bam sends.
 
+To watch a build trigger a child plan, restart the stub with
+`make stub ARGS='-child PROJ-OLD -child-fails'`: each build you trigger then
+queues a `PROJ-OLD` build when it ends, and that build fails. `bam run
+PROJ-BUILD --var cluster_type=k8s --watch` follows both as a tree and ends
+with the failed build's link.
+
 ## 7. Optional: try presets
 
 Presets live in configuration rather than on the server, so they need a file.

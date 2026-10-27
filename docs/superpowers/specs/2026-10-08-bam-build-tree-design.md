@@ -143,6 +143,7 @@ next: bam logs OPS-SMOKE-51 --failed
 
 - A build line: key (a link where links are on), then the plan's name in parentheses, with the branch for a branch build (`LAB-INT-47 (Integrate.ForNextRelease)`, `LAB-K8S0-30 (Deploy.K8s · wr03k)`), state glyph and title from `view/style`, duration (elapsed for a running build).
 - A stage line under its build: the stage's state and duration; a failed stage names its failed jobs and, when Bamboo reports them, the count of failed tests.
+- A watched tree (`--watch`, and `bam run --watch` and `bam watch`, which follow the tree of their build) shows a progress bar after each running build's duration, as wide as the terminal leaves room for.
 - Children follow their build's stages. A build a job's script started (§5.3a) sits under the stage of that job instead, so the stage reads as running it:
 
 ```

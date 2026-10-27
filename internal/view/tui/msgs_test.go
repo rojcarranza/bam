@@ -305,3 +305,20 @@ func TestResolveTargetBuildsCmdListsARunningBuild(t *testing.T) {
 	require.True(t, ok, "got %#v", got)
 	require.Equal(t, "PROJ-BUILD-45", msg.Builds[0].Key)
 }
+
+// The handshake tells the tree store the server's version, so trees saved
+// from an older Bamboo are dropped before anything draws them.
+func TestConnectCmdDropsTreesSavedFromAnotherServerVersion(t *testing.T) {
+	svc := testService()
+	svc.Trees = &app.TreeStore{Dir: t.TempDir()}
+	now := time.Now()
+	done := app.Tree{Root: &app.TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess}
+	svc.Trees.Server(svc.Origin, "9.6.2", now)
+	svc.Trees.Keep(svc.Origin, "PROJ-BUILD-44", done, now)
+
+	d := Deps{Connect: func(context.Context, string) (*app.Service, error) { return svc, nil }}
+	_, ok := connectCmd(t.Context(), d, "lab", 0)().(connectedMsg)
+	require.True(t, ok)
+	_, ok = svc.Trees.Get(svc.Origin, "PROJ-BUILD-44", now)
+	require.False(t, ok, "the fake server runs 9.6.4, so a 9.6.2 tree is dropped")
+}

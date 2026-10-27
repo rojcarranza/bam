@@ -224,6 +224,22 @@ func (r *runtime) watchLoop(ctx context.Context, svc *app.Service, key string, l
 	}
 }
 
+// followBuild watches key as bam watch does: the build tree in text mode,
+// NDJSON events with --json. A preset argument's timeout applies unless
+// --timeout is given.
+func (r *runtime) followBuild(cmd *cobra.Command, args []string, svc *app.Service, key string, timeout time.Duration) error {
+	limit := timeout
+	if len(args) == 1 && !cmd.Flags().Changed("timeout") && config.ValidTargetName(args[0]) {
+		if t, ok, _ := r.cfg.Target(args[0]); ok {
+			limit = time.Duration(t.Timeout)
+		}
+	}
+	if r.flags.json {
+		return r.watchLoop(cmd.Context(), svc, key, limit, "")
+	}
+	return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key, "")
+}
+
 func newWatchCmd(r *runtime) *cobra.Command {
 	var last bool
 	var branch string
@@ -244,16 +260,7 @@ build and writes its events as NDJSON.`,
 			if err != nil {
 				return err
 			}
-			limit := timeout
-			if len(args) == 1 && !cmd.Flags().Changed("timeout") && config.ValidTargetName(args[0]) {
-				if t, ok, _ := r.cfg.Target(args[0]); ok {
-					limit = time.Duration(t.Timeout)
-				}
-			}
-			if r.flags.json {
-				return r.watchLoop(cmd.Context(), svc, key, limit, "")
-			}
-			return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key, "")
+			return r.followBuild(cmd, args, svc, key, timeout)
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")

@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/spf13/cobra"
@@ -53,16 +51,7 @@ succeeded is refused.`,
 				fmt.Fprintf(r.env.Stdout, "restarted %s\n  watch: bam watch %s\n", key, key)
 				return nil
 			}
-			limit := timeout
-			if len(args) == 1 && !cmd.Flags().Changed("timeout") && config.ValidTargetName(args[0]) {
-				if t, ok, _ := r.cfg.Target(args[0]); ok {
-					limit = time.Duration(t.Timeout)
-				}
-			}
-			if r.flags.json {
-				return r.watchLoop(ctx, svc, key, limit, "")
-			}
-			return r.treeLoop(ctx, svc, key, app.TreeOptions{}, false, limit, "bam watch "+key, "")
+			return r.followBuild(cmd, args, svc, key, timeout)
 		}),
 	}
 	f := cmd.Flags()

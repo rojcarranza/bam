@@ -18,8 +18,9 @@ import (
 func init() { commandSets = append(commandSets, addPresets) }
 
 func addPresets(root *cobra.Command, r *runtime) {
-	subgroup(root, "preset", "Run presets: list, show, add, sync, migrate", groupRun).
-		AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
+	p := subgroup(root, "preset", "Run presets: list, show, add, sync, migrate", groupRun)
+	p.SuggestFor = []string{"target", "targets"} // bam target was renamed to bam preset
+	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
 	c := newInitCmd(r)
 	c.GroupID = groupSetup
 	root.AddCommand(c)

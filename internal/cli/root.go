@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -56,7 +57,7 @@ func Execute(ctx context.Context, args []string, env Env) int {
 	if err != nil && !errors.As(err, &res) && !errors.As(err, &silent) && !errors.Is(err, context.Canceled) {
 		// Untyped errors here are cobra's argument checks ("accepts 1 arg(s)").
 		if !errors.As(err, &typed) && !errors.Is(err, context.DeadlineExceeded) {
-			err = errs.Usagef("%s", err.Error()).WithTry(cmd.CommandPath() + " --help")
+			err = argCountError(cmd, err)
 		}
 		view.PrintError(env.Stderr, err, r.flags.debug)
 	}
@@ -158,6 +159,18 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 		try = fmt.Sprintf("did you mean %s %s? %s shows them all", path, s[0], try)
 	}
 	return errs.Usagef("unknown command %q for %q", args[0], path).WithTry(try)
+}
+
+// argCountError turns cobra's "accepts 1 arg(s), received 0" into a usage
+// error that names the missing argument and shows the command's synopsis.
+func argCountError(cmd *cobra.Command, err error) error {
+	msg := err.Error()
+	use := strings.Fields(cmd.Use)
+	if cmd.Flags().NArg() == 0 && len(use) > 1 && strings.HasPrefix(use[1], "<") {
+		msg = "missing " + use[1]
+	}
+	synopsis := strings.TrimSuffix(cmd.UseLine(), " [flags]")
+	return errs.Usagef("%s", msg).WithTry(fmt.Sprintf("%s; %s --help shows more", synopsis, cmd.CommandPath()))
 }
 
 // commandSets register command groups; later tasks append to it from init().

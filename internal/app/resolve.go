@@ -118,7 +118,8 @@ func UnknownTarget(cfg *config.Config, name string) error {
 			WithTry("bam preset list from that repository, or bam preset migrate to use them anywhere")
 	}
 	if len(names) == 0 {
-		return e.WithWhy("no presets are configured")
+		return e.WithWhy("no presets are configured").
+			WithTry("bam preset add " + name + " --plan KEY to create it; plan keys are uppercase, like PROJ-PLAN")
 	}
 	if c := Closest(name, names, 1); len(c) > 0 {
 		e = e.WithTry("did you mean " + c[0] + "? bam preset list shows them all")

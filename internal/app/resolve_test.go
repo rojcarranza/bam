@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -156,4 +157,13 @@ func TestRevisionLabels(t *testing.T) {
 
 	assert.Equal(t, "", PlanRef{}.RevisionLabel())
 	assert.Equal(t, "#41", BuildLabel("PROJ-BUILD12-41"))
+}
+
+func TestUnknownTargetWithNoPresetsSaysHowToAddOne(t *testing.T) {
+	err := UnknownTarget(&config.Config{Machine: &config.MachineFile{Version: 1}}, "deploy-qa")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+	assert.Equal(t, "no presets are configured", e.Why)
+	assert.Equal(t, "bam preset add deploy-qa --plan KEY to create it; plan keys are uppercase, like PROJ-PLAN", e.Try)
 }

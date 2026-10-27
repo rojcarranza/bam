@@ -319,7 +319,7 @@ func (r *runtime) connectSet(ctx context.Context, name string) (*app.Service, er
 		return nil, err
 	}
 	if !ok {
-		return nil, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+		return nil, app.UnknownSet(cfg, name)
 	}
 	t, _, err := cfg.Target(s.Stages[0][0].Target)
 	if err != nil {

@@ -70,7 +70,7 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 			return SetPlan{}, err
 		}
 		if !ok {
-			return SetPlan{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+			return SetPlan{}, UnknownSet(s.Cfg, name)
 		}
 	}
 	p := SetPlan{Name: name, Origin: s.Origin, Timeout: time.Duration(set.Timeout), VarNames: varNames(o.Vars), File: o.File}
@@ -736,9 +736,24 @@ func DescribeSet(cfg *config.Config, getenv func(string) string, name string) (S
 		return SetInfo{}, err
 	}
 	if !ok {
-		return SetInfo{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+		return SetInfo{}, UnknownSet(cfg, name)
 	}
 	return describeSet(s, getenv), nil
+}
+
+// UnknownSet is the usage error for a set name no layer defines, with a
+// "did you mean" hint when one set is close.
+func UnknownSet(cfg *config.Config, name string) *errs.Error {
+	e := errs.Usagef("unknown set %q", name).WithTry("bam set list")
+	all, err := cfg.Sets()
+	if err != nil || len(all) == 0 {
+		return e
+	}
+	names := sortedNames(all)
+	if c := Closest(name, names, 1); len(c) > 0 {
+		e = e.WithTry("did you mean " + c[0] + "? bam set list shows them all")
+	}
+	return e.WithWhy("sets: " + strings.Join(names, ", "))
 }
 
 func describeSet(s config.ResolvedSet, getenv func(string) string) SetInfo {

@@ -81,6 +81,16 @@ func TestSetUsageAndConfigExitCodes(t *testing.T) {
 	require.Equal(t, 3, h.run("set", "list"))
 }
 
+func TestUnknownSetSuggestsTheClosest(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	for _, args := range [][]string{{"set", "run", "relase"}, {"set", "show", "relase"}} {
+		h.stderr.Reset()
+		require.Equal(t, 2, h.run(args...), args)
+		require.Contains(t, h.stderr.String(), "sets: release", args)
+		require.Contains(t, h.stderr.String(), "try: did you mean release? bam set list shows them all", args)
+	}
+}
+
 func TestSetRunTimeoutExits6(t *testing.T) {
 	h := setHarness(t, provider.StateSuccess)
 	h.fake.Sequences["PROJ-BUILD-1"] = []provider.Build{{Key: "PROJ-BUILD-1", State: provider.StateRunning}}

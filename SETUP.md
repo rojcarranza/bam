@@ -216,7 +216,8 @@ Also used later:
 | Command | What it does |
 | --- | --- |
 | `make build` | builds `bin/bam` inside the clone instead of installing it |
-| `make lint` | golangci-lint, which also checks gofmt/goimports formatting and runs go vet; the no-mistakes gate fails on any finding |
+| `make lint` | golangci-lint, which also checks gofmt/goimports formatting and runs go vet for the packages it loads; the no-mistakes gate fails on any finding |
+| `gofmt -l .` | prints every .go file that needs formatting, including the `e2e` build tag that lint skips; the no-mistakes gate fails if the list is not empty |
 | `go test -race ./...` | tests with the race detector |
 | `make check-fixtures` | fails if any test fixture names a real host |
 | `make docs` | regenerates the command reference in `docs/cli/`; the no-mistakes gate fails if it is stale |
@@ -229,7 +230,7 @@ Also used later:
 
 Pushes go through the [no-mistakes](https://github.com/kunchenguid/no-mistakes)
 gate, which runs review, tests, lint and the checks in `.no-mistakes.yaml`
-(race tests, lint, fixture guard, fresh `docs/cli`, Linux vet), then pushes and
+(race tests, lint, gofmt, fixture guard, fresh `docs/cli`, Linux vet), then pushes and
 opens the pull request. There is no GitHub Actions CI. Once per clone:
 
 ```bash

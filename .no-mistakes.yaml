@@ -3,10 +3,11 @@ allow_repo_commands: false
 commands:
   lint: GOTOOLCHAIN=local make lint
 gates:
-  # What .github/workflows/ci.yml ran; golangci-lint also covers gofmt, goimports and vet.
+  # What .github/workflows/ci.yml ran. golangci-lint covers gofmt, goimports and vet for the
+  # packages it loads; the explicit gofmt check covers every .go file, including the e2e build tag.
   - name: full-suite
     after: test
-    command: "GOTOOLCHAIN=local GOFLAGS=-race make test && GOTOOLCHAIN=local make lint check-fixtures"
+    command: "gofmt -l . | (! grep .) && GOTOOLCHAIN=local GOFLAGS=-race make test && GOTOOLCHAIN=local make lint check-fixtures"
   - name: docs-fresh
     after: test
     command: "GOTOOLCHAIN=local make docs && git status --porcelain docs/cli | (! grep .)"

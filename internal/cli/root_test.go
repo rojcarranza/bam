@@ -19,6 +19,15 @@ func TestVersionPrintsVersion(t *testing.T) {
 	assert.Equal(t, "bam dev\n", h.stdout.String())
 }
 
+// TestVersionFlag: --version and -v are what people type first.
+func TestVersionFlag(t *testing.T) {
+	for _, arg := range []string{"--version", "-v"} {
+		h := newHarness(t)
+		assert.Equal(t, 0, h.run(arg), arg)
+		assert.Equal(t, "bam dev\n", h.stdout.String(), arg)
+	}
+}
+
 // TestVersionJSON: --json is honoured by every command that reads data.
 func TestVersionJSON(t *testing.T) {
 	h := newHarness(t)

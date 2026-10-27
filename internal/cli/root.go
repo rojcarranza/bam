@@ -75,6 +75,7 @@ func newRoot(r *runtime) *cobra.Command {
 		Long:          "bam triggers, watches and diagnoses Bamboo builds from the terminal.\nRun bam alone on a terminal for the interactive UI.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Version:       resolveVersion(version, debug.ReadBuildInfo),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return unknownCommand(cmd, args)
@@ -109,6 +110,7 @@ func newRoot(r *runtime) *cobra.Command {
 	pf.BoolVar(&r.flags.debug, "debug", false, "log HTTP requests to stderr")
 	pf.BoolVar(&r.flags.noTUI, "no-tui", false, "never open the terminal UI")
 	addProjectFlag(root, r)
+	root.SetVersionTemplate("bam {{.Version}}\n")
 
 	root.AddGroup(
 		&cobra.Group{ID: groupSetup, Title: "Setup:"},
@@ -123,6 +125,7 @@ func newRoot(r *runtime) *cobra.Command {
 	// Cobra adds these lazily in ExecuteC, too late for the walk below.
 	root.InitDefaultCompletionCmd()
 	root.InitDefaultHelpCmd()
+	root.InitDefaultVersionFlag()
 	for _, c := range root.Commands() {
 		requireSubcommand(c)
 	}

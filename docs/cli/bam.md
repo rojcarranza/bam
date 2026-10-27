@@ -21,6 +21,7 @@ bam [flags]
       --no-tui           never open the terminal UI
       --project string   project the UI opens on (all: every project; default: default_project)
       --server string    server alias to use
+  -v, --version          version for bam
 ```
 
 ### SEE ALSO

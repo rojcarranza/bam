@@ -152,7 +152,7 @@ func TestTabOnAnAliasCompletesItsCommand(t *testing.T) {
 }
 
 func TestHelpListsTheCommands(t *testing.T) {
-	m := goldenModel(120, 50) // tall enough for the whole help overlay
+	m := goldenModel(120, 56) // tall enough for the whole help overlay
 	m, _ = send(m, mkKey("?"))
 	v := m.View()
 	for _, r := range commandHelpRows() {

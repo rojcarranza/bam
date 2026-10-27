@@ -6,19 +6,19 @@
     ┃      tab              next panel: Builds, Stages, Tree               ┃    
     ┃      shift-tab        previous panel                                 ┃    
     ┃      1 2 3            focus Builds, Stages, Tree (on Home: open the  ┃    
-    ┃      enter            drill in: a build's stages, expand a stage, op ┃    
+    ┃                       plan screen there)                             ┃    
+    ┃      enter            drill in: a build's stages, expand a stage,    ┃    
+    ┃                       open a triggered plan                          ┃    
     ┃      esc              back one level, close an overlay; from Stages  ┃    
+    ┃                       or Tree to Builds; from a triggered plan to    ┃    
+    ┃                       its parent; from Builds to Home; from a        ┃    
+    ┃                       project's plans to :projects                   ┃    
     ┃HOME  enter            open the plan screen on the row's plan         ┃    
     ┃      s                next sort column                               ┃    
-    ┃      :                command bar: :plans :presets :sets :projects : ┃    
-    ┃VIEW  l                logs for the selection: a stage, a job, or fai ┃    
-    ┃      a                all logs, not only failed; in the run form or  ┃    
-    ┃      f                follow the jobs on the log screen              ┃    
-    ┃      /                filter the focused list, or search the log     ┃    
-    ┃      n N              next / previous match, or next failure with no ┃    
-    ┃      r                refresh the focused panel                      ┃    
-    ┃      t                the build tree of the selected build: every bu ┃    
-    ┃      e                expand the current error                       ┃    
-    ┃RUN   R                open the run form for the selection            ┃    
+    ┃      :                command bar: :plans :presets :sets :projects   ┃    
+    ┃                       :tree :project :server :sort :q                ┃    
+    ┃VIEW  l                logs for the selection: a stage, a job, or     ┃    
+    ┃                       failed jobs; a running build: its current      ┃    
+    ┃                       stage, live                                    ┃    
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛    
                                                                                 

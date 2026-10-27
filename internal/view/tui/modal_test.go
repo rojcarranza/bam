@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -212,12 +213,28 @@ func TestBWithNoPlanSelectedDoesNothing(t *testing.T) {
 }
 
 func TestHelpOverlayShowsEveryRowOfTheKeyMap(t *testing.T) {
-	m := goldenModel(120, 40)
+	m := goldenModel(120, 50)
 	m, _ = send(m, mkKey("?"))
 	require.Equal(t, overlayHelp, m.overlay)
 	v := m.View()
 	for _, row := range keys.helpRows() {
 		require.Contains(t, v, row.Keys, "help is missing %q", row.Keys)
+	}
+}
+
+// TestHelpWrapsLongDescriptions: the help box is narrower than the longest
+// description, so a row wraps under its own column instead of losing its end.
+func TestHelpWrapsLongDescriptions(t *testing.T) {
+	const width = 60
+	body := ansi.Strip(goldenModel(120, 40).helpBody(width, 0))
+	var descs []string
+	for _, line := range strings.Split(body, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), width, "line %q is wider than the box", line)
+		descs = append(descs, strings.TrimSpace(line[23:]))
+	}
+	text := strings.Join(descs, " ")
+	for _, row := range keys.helpRows() {
+		require.Contains(t, text, row.Desc)
 	}
 }
 
@@ -282,7 +299,7 @@ func TestHelpScrollsToItsLastRow(t *testing.T) {
 	m, _ = send(m, mkKey("?"))
 	require.NotContains(t, m.View(), "q ctrl-c", "the table does not fit, so it starts at the top")
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 40; i++ {
 		m, _ = send(m, mkKey("j"))
 	}
 	require.Contains(t, m.View(), "q ctrl-c", "j must reach the last row")
@@ -290,7 +307,7 @@ func TestHelpScrollsToItsLastRow(t *testing.T) {
 
 // TestHelpFitsWholeOnATallTerminal.
 func TestHelpFitsWholeOnATallTerminal(t *testing.T) {
-	m := goldenModel(120, 44)
+	m := goldenModel(120, 50)
 	m, _ = send(m, mkKey("?"))
 	v := m.View()
 	for _, row := range keys.helpRows() {

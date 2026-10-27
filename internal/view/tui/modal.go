@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
 
@@ -35,8 +36,8 @@ type pickerItem struct {
 	Detail string
 }
 
-// A picker is narrow; the help table is as wide as the terminal allows, so
-// no key's description has to be cut.
+// A picker is narrow; the help table is as wide as the terminal allows, up
+// to a readable line, and wraps the descriptions that are longer still.
 const (
 	pickerMaxWidth = 60
 	helpMaxWidth   = 100
@@ -115,9 +116,15 @@ func (m Model) helpBody(width, height int) string {
 		if r.Group != group {
 			label, group = r.Group, r.Group
 		}
-		fmt.Fprintf(&b, "%s %-*s %s\n",
-			dimStyle.Render(fmt.Sprintf("%-*s", groupW, label)),
-			keysW, r.Keys, truncate(r.Desc, width-groupW-keysW-3))
+		// A long description wraps under its own column: cutting it would
+		// hide the end of rows like esc's, wider than any help box.
+		for i, d := range strings.Split(ansi.Wrap(r.Desc, width-groupW-keysW-3, ""), "\n") {
+			if i > 0 {
+				label, r.Keys = "", ""
+			}
+			fmt.Fprintf(&b, "%s %-*s %s\n",
+				dimStyle.Render(fmt.Sprintf("%-*s", groupW, label)), keysW, r.Keys, d)
+		}
 	}
 	lines := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")
 	if height > 0 && len(lines) > height {

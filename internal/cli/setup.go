@@ -106,7 +106,7 @@ func checkProjectKeys(projects []string) error {
 func newServerListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "List server aliases and whether a token is stored",
+		Short: "List server aliases, whether a token is stored, and which one is selected here",
 		Args:  cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
@@ -124,7 +124,10 @@ func newServerListCmd(r *runtime) *cobra.Command {
 				URL       string   `json:"url"`
 				DefinedIn []string `json:"defined_in"`
 				Token     bool     `json:"token"`
+				Selected  bool     `json:"selected"`
 			}
+			// No selection (several servers, no default) marks none.
+			sel, _ := cfg.SelectServer(r.flags.server, "")
 			var rows []row
 			for _, n := range names {
 				s := servers[n]
@@ -132,7 +135,7 @@ func newServerListCmd(r *runtime) *cobra.Command {
 				if o, err := credential.Origin(s.URL); err == nil && !has {
 					has = r.store().Has(o, s.AuthEnv)
 				}
-				rows = append(rows, row{Alias: n, URL: s.URL, DefinedIn: s.DefinedIn, Token: has})
+				rows = append(rows, row{Alias: n, URL: s.URL, DefinedIn: s.DefinedIn, Token: has, Selected: n == sel.Alias})
 			}
 			if r.flags.json {
 				if rows == nil {
@@ -148,9 +151,9 @@ func newServerListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			t := view.Table{Headers: []string{"ALIAS", "URL", "DEFINED IN", "TOKEN"}}
+			t := view.Table{Headers: []string{"ALIAS", "URL", "DEFINED IN", "TOKEN", "SELECTED"}}
 			for _, x := range rows {
-				t.Rows = append(t.Rows, []string{x.Alias, x.URL, strings.Join(x.DefinedIn, ", "), yesNo(x.Token)})
+				t.Rows = append(t.Rows, []string{x.Alias, x.URL, strings.Join(x.DefinedIn, ", "), yesNo(x.Token), yesNo(x.Selected)})
 			}
 			return t.Render(o)
 		}),

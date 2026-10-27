@@ -1,6 +1,6 @@
 ## bam server list
 
-List server aliases and whether a token is stored
+List server aliases, whether a token is stored, and which one is selected here
 
 ```
 bam server list [flags]

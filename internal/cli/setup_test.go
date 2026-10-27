@@ -24,8 +24,17 @@ func TestServerAddListRm(t *testing.T) {
 	assert.Equal(t, 0, h.run("server", "list"))
 	assert.Contains(t, h.stdout.String(), "home")
 	assert.Contains(t, h.stdout.String(), "work")
-	assert.Regexp(t, `work\s+https://bamboo.example.com\s+project\s+yes`, h.stdout.String())
-	assert.Regexp(t, `home\s+http://bamboo.lab.example:8085\s+machine\s+no`, h.stdout.String())
+	assert.Regexp(t, `work\s+https://bamboo.example.com\s+project\s+yes\s+yes`, h.stdout.String())
+	assert.Regexp(t, `home\s+http://bamboo.lab.example:8085\s+machine\s+no\s+no`, h.stdout.String())
+
+	assert.Equal(t, 0, h.run("--server", "home", "server", "list", "--json"))
+	assert.Contains(t, h.stdout.String(), `"alias": "home",
+    "url": "http://bamboo.lab.example:8085",
+    "defined_in": [
+      "machine"
+    ],
+    "token": false,
+    "selected": true`)
 
 	assert.Equal(t, 0, h.run("server", "default", "home"))
 	data, _ = os.ReadFile(h.env.Paths.MachineConfig)

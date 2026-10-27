@@ -414,6 +414,11 @@ repos:
 	assert.Contains(t, h.stderr.String(), "no presets apply here; 2 are defined for other repositories: /somewhere/else (prov-mine, prov-two)\n")
 	assert.Contains(t, h.stderr.String(), "try: run bam from that repository, or bam preset migrate to use them anywhere")
 	assert.NotContains(t, h.stderr.String(), "no presets configured")
+
+	h.stderr.Reset()
+	assert.Equal(t, 0, h.run("preset", "sync", "--all"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "no presets apply here; 2 are defined for other repositories")
+	assert.NotContains(t, h.stderr.String(), "no presets configured")
 }
 
 func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {

@@ -63,17 +63,7 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 				return view.WriteJSON(r.env.Stdout, docs)
 			}
 			if len(infos) == 0 {
-				if other := cfg.OtherRepoTargets(); len(other) > 0 {
-					n, roots := 0, []string{}
-					for _, root := range slices.Sorted(maps.Keys(other)) {
-						n += len(other[root])
-						roots = append(roots, root+" ("+strings.Join(other[root], ", ")+")")
-					}
-					r.note(fmt.Sprintf("no presets apply here; %d are defined for other repositories: %s", n, strings.Join(roots, ", ")),
-						"run bam from that repository, or bam preset migrate to use them anywhere")
-					return nil
-				}
-				r.note("no presets configured", "bam preset add <name> --plan PROJ-PLAN")
+				r.noPresets(cfg)
 				return nil
 			}
 			o, err := r.out()
@@ -83,6 +73,21 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 			return view.Targets(o, infos)
 		}),
 	}
+}
+
+// noPresets explains an empty preset list, naming presets that only apply in other repositories.
+func (r *runtime) noPresets(cfg *config.Config) {
+	if other := cfg.OtherRepoTargets(); len(other) > 0 {
+		n, roots := 0, []string{}
+		for _, root := range slices.Sorted(maps.Keys(other)) {
+			n += len(other[root])
+			roots = append(roots, root+" ("+strings.Join(other[root], ", ")+")")
+		}
+		r.note(fmt.Sprintf("no presets apply here; %d are defined for other repositories: %s", n, strings.Join(roots, ", ")),
+			"run bam from that repository, or bam preset migrate to use them anywhere")
+		return
+	}
+	r.note("no presets configured", "bam preset add <name> --plan PROJ-PLAN")
 }
 
 func newTargetShowCmd(r *runtime) *cobra.Command {
@@ -268,7 +273,7 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 				targets = append(targets, t)
 			}
 			if len(targets) == 0 {
-				r.note("no presets configured", "bam preset add <name> --plan PROJ-PLAN")
+				r.noPresets(cfg)
 				return nil
 			}
 

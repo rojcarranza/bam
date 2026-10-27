@@ -340,3 +340,21 @@ func TestRunJSONHasAnEmptyRevisionFromByDefault(t *testing.T) {
 	assert.Equal(t, "abc1234", doc["revision"])
 	assert.Equal(t, "", doc["revision_from"])
 }
+
+func TestInvestigate(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-PROV12-8", "--context", "1"))
+	out := h.stdout.String()
+	assert.Contains(t, out, "Apply / Terraform (TF)  first error at line 2")
+	assert.Contains(t, out, "       1  terraform apply\n  >     2  Error: quota exceeded\n")
+	assert.Contains(t, out, "Likely cause: Error: quota exceeded (job TF)")
+	assert.Contains(t, out, "try: bam build logs PROJ-PROV12-8 --job TF")
+
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-482"))
+	assert.Empty(t, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), "PROJ-BUILD-482 did not fail (success), nothing to investigate")
+
+	h.fake.Sequences = map[string][]provider.Build{"PROJ-BUILD-483": {{Key: "PROJ-BUILD-483", State: provider.StateRunning}}}
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-483"))
+	assert.Contains(t, h.stderr.String(), "try: bam watch PROJ-BUILD-483")
+}

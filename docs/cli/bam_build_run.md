@@ -32,5 +32,5 @@ bam build run <plan|preset> [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 

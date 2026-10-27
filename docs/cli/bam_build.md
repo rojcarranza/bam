@@ -1,6 +1,6 @@
 ## bam build
 
-Builds: list, show, tree, run, rerun, watch, logs, cancel
+Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 
 ```
 bam build [flags]
@@ -26,6 +26,7 @@ bam build [flags]
 
 * [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
 * [bam build cancel](bam_build_cancel.md)	 - Stop a queued or running build
+* [bam build investigate](bam_build_investigate.md)	 - Find the error lines of a failed build and its likely cause
 * [bam build list](bam_build_list.md)	 - List recent builds of a plan
 * [bam build logs](bam_build_logs.md)	 - Print job logs; --failed for failed jobs only
 * [bam build rerun](bam_build_rerun.md)	 - Rerun a failed build's failed jobs

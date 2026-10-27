@@ -25,8 +25,8 @@ var anyKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
 func init() { commandSets = append(commandSets, addRunLoop) }
 
 func addRunLoop(root *cobra.Command, r *runtime) {
-	build := subgroup(root, "build", "Builds: list, show, tree, run, rerun, watch, logs, cancel", groupRun)
-	build.AddCommand(newRunCmd(r), newWatchCmd(r), newLogsCmd(r), newCancelCmd(r))
+	build := subgroup(root, "build", "Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel", groupRun)
+	build.AddCommand(newRunCmd(r), newWatchCmd(r), newLogsCmd(r), newInvestigateCmd(r), newCancelCmd(r))
 	for _, c := range []*cobra.Command{newRunCmd(r), newWatchCmd(r), newLogsCmd(r)} {
 		c.GroupID = groupShortcut
 		root.AddCommand(c)
@@ -338,6 +338,52 @@ func newLogsCmd(r *runtime) *cobra.Command {
 	f.StringVar(&job, "job", "", "one job: JOB1, PROJ-PLAN-JOB1 or its result key")
 	f.BoolVar(&follow, "follow", false, "keep printing new lines until the job finishes")
 	f.IntVar(&tail, "tail", 0, "last N lines per job")
+	return cmd
+}
+
+func newInvestigateCmd(r *runtime) *cobra.Command {
+	var last bool
+	var branch string
+	var opts app.InvestigateOptions
+	cmd := &cobra.Command{
+		Use:               "investigate [<build>|<plan>|<preset>]",
+		Short:             "Find the error lines of a failed build and its likely cause",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: r.completeTargets,
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
+			if err != nil {
+				return err
+			}
+			b, err := svc.Build(ctx, key)
+			if err != nil {
+				return err
+			}
+			if b.State != provider.StateFailed {
+				if b.State.Finished() {
+					r.note(fmt.Sprintf("%s did not fail (%s), nothing to investigate", key, b.State), "")
+					return nil
+				}
+				r.note(fmt.Sprintf("%s has not finished (%s)", key, b.State), "bam watch "+key)
+				return nil
+			}
+			inv, err := svc.Investigate(ctx, b, opts)
+			if err != nil {
+				return err
+			}
+			o, err := r.out()
+			if err != nil {
+				return err
+			}
+			return view.Investigation(o, inv)
+		}),
+	}
+	f := cmd.Flags()
+	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	f.IntVar(&opts.Context, "context", 3, "lines of context around each error")
+	f.IntVar(&opts.Max, "max", 5, "error blocks per job; 0 for all")
 	return cmd
 }
 

@@ -1,9 +1,12 @@
 package app
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Closest returns up to n candidates similar to input: substring matches
-// first, then names within a small edit distance.
+// first, then names within a small edit distance, nearest first.
 func Closest(input string, candidates []string, n int) []string {
 	lower := strings.ToLower(input)
 	var out []string
@@ -21,13 +24,22 @@ func Closest(input string, candidates []string, n int) []string {
 	if limit < 2 {
 		limit = 2
 	}
+	type near struct {
+		name string
+		dist int
+	}
+	var nears []near
 	for _, c := range candidates {
+		if d := levenshtein(lower, strings.ToLower(c)); !seen[c] && d <= limit {
+			nears = append(nears, near{c, d})
+		}
+	}
+	slices.SortStableFunc(nears, func(a, b near) int { return a.dist - b.dist })
+	for _, c := range nears {
 		if len(out) == n {
 			break
 		}
-		if !seen[c] && levenshtein(lower, strings.ToLower(c)) <= limit {
-			out = append(out, c)
-		}
+		out = append(out, c.name)
 	}
 	return out
 }

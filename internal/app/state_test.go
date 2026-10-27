@@ -37,4 +37,5 @@ func TestClosest(t *testing.T) {
 	assert.Equal(t, []string{"develop"}, Closest("devlop", names, 3))
 	assert.Equal(t, []string{"feat/foo", "feat/bar"}, Closest("feat", names, 3))
 	assert.Empty(t, Closest("zzzzzz", names, 3))
+	assert.Equal(t, []string{"plan", "open"}, Closest("pln", []string{"open", "plan"}, 2), "nearest first")
 }

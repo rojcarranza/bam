@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"runtime/debug"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/spf13/cobra"
@@ -63,6 +64,12 @@ func newRoot(r *runtime) *cobra.Command {
 		Long:          "bam triggers, watches and diagnoses Bamboo builds from the terminal.\nRun bam alone on a terminal for the interactive UI.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return unknownCommand(cmd, args)
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if r.tuiAllowed() {
 				return r.wrap(func(*cobra.Command, []string) error {
@@ -114,9 +121,25 @@ func requireSubcommand(cmd *cobra.Command) {
 		if len(args) == 0 {
 			return cmd.Help()
 		}
-		return errs.Usagef("unknown command %q for %q", args[0], cmd.CommandPath()).
-			WithTry(cmd.CommandPath() + " --help")
+		return unknownCommand(cmd, args)
 	}
+}
+
+// unknownCommand is the usage error for "bam <group> <typo>", with the
+// closest subcommand as a "did you mean" hint.
+func unknownCommand(cmd *cobra.Command, args []string) error {
+	path := cmd.CommandPath()
+	try := path + " --help"
+	var names []string
+	for _, c := range cmd.Commands() {
+		if c.IsAvailableCommand() {
+			names = append(names, c.Name())
+		}
+	}
+	if s := app.Closest(args[0], names, 1); len(s) > 0 {
+		try = fmt.Sprintf("did you mean %s %s? %s shows them all", path, s[0], try)
+	}
+	return errs.Usagef("unknown command %q for %q", args[0], path).WithTry(try)
 }
 
 // commandSets register command groups; later tasks append to it from init().

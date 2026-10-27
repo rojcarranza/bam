@@ -408,6 +408,26 @@ repos:
 	assert.NotContains(t, h.stderr.String(), "no presets are configured")
 }
 
+func TestPresetCommandsNameTheRepoThatDefinesIt(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+
+	for _, args := range [][]string{{"preset", "show", "prov-mine"}, {"preset", "sync", "prov-mine"}, {"open", "prov-mine"}} {
+		h.stderr.Reset()
+		assert.Equal(t, 2, h.run(args...), args)
+		assert.Contains(t, h.stderr.String(), "defined only for /somewhere/else", args)
+	}
+}
+
 func TestPresetListMentionsOtherRepos(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))

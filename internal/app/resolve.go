@@ -70,7 +70,7 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 			return PlanRef{}, err
 		}
 		if !ok {
-			return PlanRef{}, s.unknownTarget(arg)
+			return PlanRef{}, UnknownTarget(s.Cfg, arg)
 		}
 		ref = PlanRef{PlanKey: t.Plan, MasterKey: t.Plan, Target: &t}
 		if branch == "" {
@@ -92,15 +92,17 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 	return ref, nil
 }
 
-func (s *Service) unknownTarget(name string) error {
-	all, _ := s.Cfg.Targets()
+// UnknownTarget is the usage error for a preset name that does not apply
+// here; it names the repositories that define it, if any.
+func UnknownTarget(cfg *config.Config, name string) error {
+	all, _ := cfg.Targets()
 	names := make([]string, 0, len(all))
 	for n := range all {
 		names = append(names, n)
 	}
 	sort.Strings(names)
 	e := errs.Usagef("unknown preset %q", name).WithTry("bam preset list; plan keys are uppercase, like PROJ-PLAN")
-	other := s.Cfg.OtherRepoTargets()
+	other := cfg.OtherRepoTargets()
 	var roots []string
 	for _, root := range slices.Sorted(maps.Keys(other)) {
 		if slices.Contains(other[root], name) {
@@ -108,7 +110,7 @@ func (s *Service) unknownTarget(name string) error {
 		}
 	}
 	if len(roots) > 0 {
-		return e.WithWhy("defined only for " + strings.Join(roots, ", ") + " (repos entry in " + s.Cfg.MachinePath + ")").
+		return e.WithWhy("defined only for " + strings.Join(roots, ", ") + " (repos entry in " + cfg.MachinePath + ")").
 			WithTry("run bam from that repository, or bam preset migrate to use it anywhere")
 	}
 	if len(names) == 0 && len(other) > 0 {

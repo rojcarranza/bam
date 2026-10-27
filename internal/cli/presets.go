@@ -268,7 +268,7 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 					return err
 				}
 				if !ok {
-					return errs.Usagef("unknown preset %q", args[0]).WithTry("bam preset list")
+					return app.UnknownTarget(cfg, args[0])
 				}
 				targets = append(targets, t)
 			}

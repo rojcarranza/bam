@@ -439,7 +439,7 @@ func (r *runtime) urlFor(args []string, last bool) (string, error) {
 			return "", err
 		}
 		if !ok {
-			return "", errs.Usagef("unknown preset %q", args[0]).WithTry("bam preset list")
+			return "", app.UnknownTarget(cfg, args[0])
 		}
 		key, targetServer = t.Plan, t.Server
 	case anyKeyRe.MatchString(args[0]):

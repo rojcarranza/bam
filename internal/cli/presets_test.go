@@ -226,6 +226,18 @@ func TestTargetSyncAddsThenUpToDate(t *testing.T) {
 	assert.Equal(t, data, again)
 }
 
+func TestPresetSyncKeepsALeanPresetLean(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(h.home, "bam", "presets", "proj.yaml")
+	assert.Equal(t, 0, h.run("preset", "add", "lean", "--plan", "PROJ-PROV"))
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, 0, h.run("preset", "sync", "lean"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "up to date\n")
+	after, _ := os.ReadFile(path)
+	assert.Equal(t, string(before), string(after))
+}
+
 func TestTargetSyncMarksAndUnmarksStale(t *testing.T) {
 	h := newHarness(t)
 	path := filepath.Join(h.root, ".bam.yaml")

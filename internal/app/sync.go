@@ -30,7 +30,8 @@ type SyncEdit struct {
 // longer declares are kept and marked in every layer that holds them.
 func (s *Service) PlanSync(ctx context.Context, t config.ResolvedTarget) (SyncPlan, error) {
 	p := SyncPlan{Name: t.Name, Plan: t.Plan, Stale: []string{}}
-	d, declared, err := s.generate(ctx, GenerateOptions{Name: t.Name, PlanKey: t.Plan, Branch: t.Branch, Full: true})
+	// Lean, like preset add: a name the plan already sends a value for is not added.
+	d, declared, err := s.generate(ctx, GenerateOptions{Name: t.Name, PlanKey: t.Plan, Branch: t.Branch})
 	if err != nil {
 		return p, err
 	}
@@ -39,10 +40,16 @@ func (s *Service) PlanSync(ctx context.Context, t config.ResolvedTarget) (SyncPl
 			WithWhy("sync needs the declared list to tell current names from stale ones").
 			Wrap(errs.ErrUnsupported)
 	}
+	vars, err := s.P.ListVariables(ctx, t.Plan)
+	if err != nil {
+		return p, err
+	}
 
 	names := map[string]bool{}
-	for _, v := range d.Vars {
+	for _, v := range vars {
 		names[v.Name] = true
+	}
+	for _, v := range d.Vars {
 		if _, ok := t.Defaults[v.Name]; !ok {
 			p.Added = append(p.Added, v)
 		}

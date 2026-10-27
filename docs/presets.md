@@ -79,7 +79,7 @@ Check it, then run:
     bam run deploy-qa --dry-run        # resolves and validates everything, triggers nothing
     bam run deploy-qa --watch          # run and follow the build
 
-When the plan later gains variables, `bam preset sync deploy-qa` appends them without touching your values.
+When the plan later gains variables, `bam preset sync deploy-qa` appends the ones you need to fill (no plan default, or an empty secret) without touching your values; a new variable with a plan default is left to the plan, as in `preset add`.
 
 ### One file per project
 

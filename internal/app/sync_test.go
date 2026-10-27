@@ -6,6 +6,7 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,13 +70,24 @@ func TestPlanSyncUpToDateHasNoAdds(t *testing.T) {
 }
 
 func TestPlanSyncMasksNewSecrets(t *testing.T) {
+	f := fakeBamboo()
+	f.Variables["PROJ-PROV"] = append(f.Variables["PROJ-PROV"], provider.Variable{Name: "api_secret", Masked: true})
+	s := newService(t, f)
+	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
+	require.NoError(t, err)
+	assert.Contains(t, p.Added, config.DraftVar{Name: "api_secret", Value: "${API_SECRET}", Comment: "masked by Bamboo; set env var API_SECRET"})
+}
+
+// A lean preset leaves out what the plan already sends; sync must not copy it back.
+func TestPlanSyncKeepsALeanPresetLean(t *testing.T) {
 	s := newService(t, fakeBamboo())
 	lab := s.Cfg.Project.Targets["provision-lab"]
-	delete(lab.Defaults, "db_password")
+	lab.Defaults = config.StringMap{"cluster_name": "x"}
 	s.Cfg.Project.Targets["provision-lab"] = lab
 	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
 	require.NoError(t, err)
-	assert.Contains(t, p.Added, config.DraftVar{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD"})
+	assert.Empty(t, p.Added, "plan defaults and the stored db_password are not added")
+	assert.Empty(t, p.Stale)
 }
 
 func TestPlanSyncNeedsDeclaredVariables(t *testing.T) {

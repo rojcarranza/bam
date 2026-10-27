@@ -194,11 +194,15 @@ func TestMergedTargetValidation(t *testing.T) {
 	cases := map[string]struct {
 		target Target
 		want   string
+		try    string
 	}{
-		"no plan":                   {Target{Branch: "develop"}, "has no plan"},
-		"default not option":        {Target{Plan: "PROJ-A", Defaults: StringMap{"a": "5"}, Options: StringListMap{"a": {"1", "2"}}}, `"5" is not one of 1, 2`},
-		"masked default not option": {Target{Plan: "PROJ-A", Defaults: StringMap{"db_password": "hunter2"}, Options: StringListMap{"db_password": {"a", "b"}}}, `db_password="********" is not one of a, b`},
-		"unknown server":            {Target{Plan: "PROJ-A", Server: "nope"}, `unknown server "nope"`},
+		"no plan":                   {Target{Branch: "develop"}, "has no plan", ""},
+		"lowercase plan":            {Target{Plan: "proj-a"}, `preset "t": plan "proj-a" is not a plan key`, "plan keys are uppercase: did you mean PROJ-A?"},
+		"build key as plan":         {Target{Plan: "PROJ-A-12"}, `plan "PROJ-A-12" is not a plan key`, "plan: PROJ-PLAN"},
+		"project key as plan":       {Target{Plan: "PROJ"}, `plan "PROJ" is not a plan key`, "plan: PROJ-PLAN"},
+		"default not option":        {Target{Plan: "PROJ-A", Defaults: StringMap{"a": "5"}, Options: StringListMap{"a": {"1", "2"}}}, `"5" is not one of 1, 2`, ""},
+		"masked default not option": {Target{Plan: "PROJ-A", Defaults: StringMap{"db_password": "hunter2"}, Options: StringListMap{"db_password": {"a", "b"}}}, `db_password="********" is not one of a, b`, ""},
+		"unknown server":            {Target{Plan: "PROJ-A", Server: "nope"}, `unknown server "nope"`, ""},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -208,6 +212,9 @@ func TestMergedTargetValidation(t *testing.T) {
 			require.Error(t, err)
 			assert.Equal(t, errs.KindConfig, errs.KindOf(err))
 			assert.Contains(t, err.Error(), tc.want)
+			var e *errs.Error
+			require.ErrorAs(t, err, &e)
+			assert.Contains(t, e.Try, tc.try)
 		})
 	}
 }

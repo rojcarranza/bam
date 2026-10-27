@@ -300,6 +300,15 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 			WithWhy("defined in " + where).
 			WithTry(fmt.Sprintf("add plan: PROJ-PLAN under targets.%s", t.Name))
 	}
+	if !childPlanKeyRe.MatchString(t.Plan) {
+		try := fmt.Sprintf("set plan: PROJ-PLAN under targets.%s", t.Name)
+		if up := strings.ToUpper(t.Plan); childPlanKeyRe.MatchString(up) {
+			try = "plan keys are uppercase: did you mean " + up + "?"
+		}
+		return errs.Configf("preset %q: plan %q is not a plan key", t.Name, t.Plan).
+			WithWhy("defined in " + where).
+			WithTry(try)
+	}
 	if t.Server != "" {
 		if _, ok := servers[t.Server]; !ok {
 			return errs.Configf("preset %q uses unknown server %q", t.Name, t.Server).

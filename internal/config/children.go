@@ -6,7 +6,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
 
-// childPlanKeyRe is a plan key, PROJ-PLAN.
+// childPlanKeyRe is a plan key, PROJ-PLAN (or a branch plan key, PROJ-PLAN12).
 var childPlanKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*$`)
 
 // Children is the children: map of every layer, project, then machine, then

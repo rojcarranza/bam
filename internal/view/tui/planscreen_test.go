@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/require"
@@ -376,7 +377,7 @@ func TestRefreshOnTreeReadsItAgain(t *testing.T) {
 	m, cmd := send(m, mkKey("r"))
 	require.NotNil(t, cmd)
 	require.Greater(t, m.treePreviewGen, gen)
-	require.True(t, m.plan.tree.loading)
+	require.True(t, m.plan.tree.refreshing, "the tree shown is read again")
 }
 
 func TestTreeRowURLIsTheChildBuilds(t *testing.T) {
@@ -940,6 +941,7 @@ func noMsg() tea.Msg { return nil }
 func TestTreePanelShowsProgressWhileReading(t *testing.T) {
 	m := planWithTree(t)
 	m.focus = focusTree
+	m.plan.tree = treePreview{} // no tree drawn yet, so the read shows its progress
 	m, _ = send(m, mkKey("r"))
 	require.True(t, m.plan.tree.loading)
 	m, cmd := send(m, treePreviewProgressMsg{Gen: m.treePreviewGen, Key: m.plan.tree.key,
@@ -1111,4 +1113,24 @@ func TestConfirmedQuitCancelsTheTreeRead(t *testing.T) {
 	m, cmd := send(m, mkKey("y"))
 	require.NotNil(t, cmd)
 	requireReadEnded(t, m, result, progress)
+}
+
+// #82: r on the Tree panel keeps the tree on screen while it is read again,
+// and keeps it, marked, when that read fails.
+func TestTreePanelKeepsItsTreeWhenARefreshFails(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	m, cmd := send(m, mkKey("r"))
+	require.NotNil(t, cmd)
+	require.Contains(t, m.View(), "triggered · refreshing…")
+	require.Len(t, m.treePreviewRows(), 1, "the tree stays while it is read")
+
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: m.detail.Key, Err: errs.Bamboof("Bamboo is down")})
+	require.Len(t, m.treePreviewRows(), 1, "the tree stays after a failed read")
+	require.Contains(t, m.View(), "triggered · refresh failed")
+	require.NotContains(t, m.View(), "triggered · refreshing…")
+	require.NotContains(t, m.View(), "could not read the tree")
+
+	m, _ = send(m, mkKey("r"))
+	require.Contains(t, m.View(), "triggered · refreshing…", "r tries again")
 }

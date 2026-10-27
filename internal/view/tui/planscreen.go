@@ -110,6 +110,9 @@ type treePreview struct {
 	loading  bool
 	progress app.TreeProgress // how far the read got, while loading
 	err      error
+	// refreshing: tree is shown while it is read again; failed: that read
+	// failed, so the tree shown may be out of date.
+	refreshing, failed bool
 }
 
 // openPlan shows the plan screen on key, listing buildsPlan's builds (the
@@ -334,7 +337,12 @@ func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
 		m.plan.tree = treePreview{key: key, tree: t, have: true}
 		return m, nil
 	}
-	m.plan.tree = treePreview{key: key, loading: true}
+	if old := m.plan.tree; old.key == key && old.have && old.err == nil && old.tree.Root != nil {
+		// Keep the tree on screen while it is read again (#82).
+		m.plan.tree = treePreview{key: key, tree: old.tree, have: true, refreshing: true}
+	} else {
+		m.plan.tree = treePreview{key: key, loading: true}
+	}
 	if m.svc == nil {
 		return m, nil
 	}
@@ -360,6 +368,10 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 	// The logs or the form may be on top of the plan screen; the preview is
 	// still its own. Closing the plan screen bumps the generation.
 	if msg.Gen != m.treePreviewGen || m.plan.key == "" || msg.Key != m.plan.tree.key {
+		return m, nil
+	}
+	if msg.Err != nil && m.plan.tree.refreshing {
+		m.plan.tree.refreshing, m.plan.tree.failed = false, true
 		return m, nil
 	}
 	m.plan.tree = treePreview{key: msg.Key, tree: msg.Tree, have: true, err: msg.Err}
@@ -645,7 +657,14 @@ func (m Model) treeTitle() string {
 	if m.detail == nil {
 		return "Tree"
 	}
-	return fmt.Sprintf("Tree · what #%d triggered", m.detail.Number)
+	t := fmt.Sprintf("Tree · what #%d triggered", m.detail.Number)
+	switch {
+	case m.plan.tree.refreshing:
+		t += " · refreshing…"
+	case m.plan.tree.failed:
+		t += " · refresh failed"
+	}
+	return t
 }
 
 func (m Model) stagesPanel(width, height int) string {

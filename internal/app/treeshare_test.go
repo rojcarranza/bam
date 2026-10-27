@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
@@ -86,4 +87,68 @@ func TestASavedTreeSparesTheDeepRead(t *testing.T) {
 
 	_, plans = read(false)
 	require.Equal(t, 5, plans, "a fresh read reads deeper again")
+}
+
+// gatedPlans holds every ListPlans until release closes.
+type gatedPlans struct {
+	provider.Provider
+	release chan struct{}
+}
+
+func (g gatedPlans) ListPlans(ctx context.Context, project string) ([]provider.Plan, error) {
+	<-g.release
+	return g.Provider.ListPlans(ctx, project)
+}
+
+// waiters is how many shared reads wait for plan's full scan.
+func waiters(svc *Service, plan string) int {
+	svc.scans.mu.Lock()
+	defer svc.scans.mu.Unlock()
+	if f, ok := svc.scans.inflight[plan]; ok {
+		return f.waiters
+	}
+	return 0
+}
+
+func TestASharedReadWaitsForTheScanInFlight(t *testing.T) {
+	svc := treeService(t, treeFake())
+	gate := gatedPlans{Provider: svc.P, release: make(chan struct{})}
+	svc.P = gate
+	type result struct {
+		tree   string
+		listed int
+	}
+	first, second := make(chan result, 1), make(chan result, 1)
+	read := func(key string, out chan<- result) {
+		var last TreeProgress
+		tr, err := svc.BuildTree(context.Background(), key, TreeOptions{Shared: true, OnProgress: func(p TreeProgress) { last = p }})
+		if err != nil {
+			out <- result{tree: err.Error()}
+			return
+		}
+		out <- result{shape(tr.Root), last.Projects.Total}
+	}
+	go read("PROJ-API-142", first)
+	require.Eventually(t, func() bool {
+		svc.scans.mu.Lock()
+		defer svc.scans.mu.Unlock()
+		return svc.scans.inflight["PROJ-API"] != nil
+	}, 5*time.Second, time.Millisecond)
+	go read("PROJ-API-141", second)
+	require.Eventually(t, func() bool { return waiters(svc, "PROJ-API") == 1 }, 5*time.Second, time.Millisecond)
+	close(gate.release)
+
+	require.Equal(t, result{"PROJ-API-142(OPS-DEPLOY-88(OPS-SMOKE-51),PROJ-DOCS-30)", 2}, <-first)
+	require.Equal(t, result{"PROJ-API-141(OPS-DEPLOY-87)", 0}, <-second, "the second read starts from the first one's scan")
+}
+
+func TestAWaitingReadEndsWithItsContext(t *testing.T) {
+	svc := treeService(t, treeFake())
+	_, release, err := svc.awaitScan(context.Background(), provider.Build{PlanKey: "PROJ-API"})
+	require.NoError(t, err)
+	defer release()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = svc.BuildTree(ctx, "PROJ-API-141", TreeOptions{Shared: true})
+	require.ErrorIs(t, err, context.Canceled)
 }

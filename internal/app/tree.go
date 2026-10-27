@@ -148,7 +148,11 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	var warnings []string
 	var known *TreeNode
 	if prev == nil && o.Shared {
-		prev = s.sharedScan(root)
+		var release func()
+		if prev, release, err = s.awaitScan(ctx, root); err != nil {
+			return Tree{}, nil, err
+		}
+		defer release()
 		if t, ok := s.CachedTree(key); ok && prev == nil && len(t.Warnings) == 0 {
 			known = t.Root
 		}

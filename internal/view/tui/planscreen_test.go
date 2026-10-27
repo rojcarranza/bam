@@ -966,7 +966,7 @@ func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	var result *treePreviewMsg
 	var prog *treePreviewProgressMsg
-	for _, msg := range runBatch(treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7)) {
+	for _, msg := range runBatch(treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false)) {
 		switch v := msg.(type) {
 		case treePreviewMsg:
 			result = &v
@@ -986,7 +986,7 @@ func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
 // Bamboo, or it races whatever the screen does next (#93).
 func TestTreePreviewCmdReadsNothingUntilItRuns(t *testing.T) {
 	m, f := treeTUIModel(t)
-	cmd := treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7)
+	cmd := treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false)
 	require.Zero(t, f.ListCalls("PROJ-PROV"), "built, not run")
 	require.Zero(t, f.GetCalls("PROJ-BUILD-44"), "built, not run")
 	batch, ok := cmd().(tea.BatchMsg)

@@ -1793,7 +1793,7 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		// closing it stops its watch and drops its loads still in flight.
 		m.closePlan()
 		m.screen = screenTree
-		return m.watchTree() // watching paused while the logs were open
+		return m.watchTree(false) // watching paused while the logs were open
 	case m.screen == screenLogs:
 		m.stopFollow()
 		m.logsGen++ // abandon a load still in flight
@@ -1847,7 +1847,7 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		m.fromTree = false
 		m.closePlan()
 		m.screen = screenTree
-		return m.watchTree() // watching paused while the build was open
+		return m.watchTree(false) // watching paused while the build was open
 	case m.screen == screenTree:
 		return m.closeTree()
 	case m.screen == screenSet:

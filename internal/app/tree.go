@@ -48,6 +48,7 @@ func ParentOf(reason string) (string, bool) {
 type TreeOptions struct {
 	Depth      int                // levels of builds below the root; 0 means all
 	OnProgress func(TreeProgress) // BuildTree reports how far it got; calls are serialized and end before it returns
+	Shared     bool               // start from the scan of another recent tree of the root's plan, and lend this one on
 	track      *treeTracker       // set by BuildTree and WatchTree
 }
 
@@ -145,6 +146,9 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	tr := o.track
 	var warnings []string
+	if prev == nil && o.Shared {
+		prev = s.sharedScan(root)
+	}
 	scan := prev
 	limit := treeRefresh
 	if scan == nil {
@@ -190,6 +194,9 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	sort.Strings(warnings)
 	t.Warnings, t.State = warnings, TreeState(t.Root)
+	if o.Shared {
+		s.keepScan(root.PlanKey, scan)
+	}
 	return t, scan, nil
 }
 

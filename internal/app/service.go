@@ -38,6 +38,7 @@ type Service struct {
 	Getenv func(string) string
 
 	estimates estimateCache // medians of plan histories, for servers without progress
+	scans     scanCache     // the newest tree scan of each plan, for TreeOptions.Shared
 }
 
 // ProjectKeys is the projects that scope navigation on this server

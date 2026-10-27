@@ -75,12 +75,13 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 		m.buildTree.tree, m.buildTree.have = t, true
 	}
 	m.screen = screenTree
-	return m.watchTree()
+	return m.watchTree(false)
 }
 
-// watchTree starts a fresh watch on the screen's root, so builds a rerun
-// restarted are read again.
-func (m Model) watchTree() (tea.Model, tea.Cmd) {
+// watchTree starts a new watch on the screen's root. Unless fresh, it starts
+// from the scan of another build of the root's plan; fresh, it reads every
+// plan again, so builds a rerun restarted are read again.
+func (m Model) watchTree(fresh bool) (tea.Model, tea.Cmd) {
 	m.stopTree()
 	m.buildTree.refreshing, m.buildTree.failed = m.buildTree.have, false
 	if m.svc == nil {
@@ -88,7 +89,7 @@ func (m Model) watchTree() (tea.Model, tea.Cmd) {
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.treeCancel = cancel
-	m.treeCh = m.svc.WatchTree(ctx, m.buildTree.root, app.TreeOptions{})
+	m.treeCh = m.svc.WatchTree(ctx, m.buildTree.root, app.TreeOptions{Shared: !fresh})
 	return m, treeCmd(m.treeCh, m.treeGen)
 }
 
@@ -324,7 +325,7 @@ func (m Model) handleTreeKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Copy):
 		return m.copySelection()
 	case key.Matches(msg, keys.Refresh):
-		return m.watchTree()
+		return m.watchTree(true)
 	case key.Matches(msg, keys.RerunFailed):
 		return m.askTreeRerun()
 	case key.Matches(msg, keys.Server):
@@ -509,5 +510,5 @@ func (m Model) handleTreeRerun(msg treeRerunMsg) (tea.Model, tea.Cmd) {
 	if m.screen != screenTree {
 		return m, nil
 	}
-	return m.watchTree()
+	return m.watchTree(true)
 }

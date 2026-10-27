@@ -107,7 +107,8 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 			if value == "" && !isSecretDraft(dv) {
 				d.Required = append(d.Required, v.Name)
 			}
-			if !o.Full && value == v.Value && value != "" && !isSecretDraft(dv) {
+			// A secret the plan stores is left out too: the plan already sends it.
+			if !o.Full && value == v.Value && value != "" {
 				continue
 			}
 			d.Vars = append(d.Vars, dv)

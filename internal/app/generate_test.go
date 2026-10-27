@@ -5,6 +5,7 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +64,6 @@ func TestGenerateTargetFillsValuesFromNamedBuild(t *testing.T) {
 		{Name: "cluster_type", Value: "dcos", Comment: "from PROJ-PROV12-8"},
 		{Name: "compute_nodes", Value: "3", Comment: "from PROJ-PROV12-8"},
 		{Name: "cluster_name", Value: "beta", Comment: "from PROJ-PROV12-8"},
-		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD"},
 		{Name: "global_flag", Value: "x", Comment: "from PROJ-PROV12-8; not declared by the plan"},
 	}, d.Vars)
 	assert.Empty(t, d.Required)
@@ -119,17 +119,19 @@ func TestGenerateTargetLeanKeepsDifferingValues(t *testing.T) {
 	}
 	assert.NotContains(t, names, "cluster_type", "equal to the plan default")
 	assert.Contains(t, names, "compute_nodes")
-	assert.Contains(t, names, "db_password", "secrets stay as ${ENV} references")
+	assert.NotContains(t, names, "db_password", "a secret the plan stores is sent by the plan")
 	assert.Contains(t, names, "global_flag", "undeclared variables are always kept")
 }
 
 func TestGenerateTargetLeanByDefault(t *testing.T) {
-	s := newService(t, fakeBamboo())
+	p := fakeBamboo()
+	p.Variables["PROJ-PROV"] = append(p.Variables["PROJ-PROV"], provider.Variable{Name: "api_secret", Masked: true})
+	s := newService(t, p)
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV"})
 	require.NoError(t, err)
 	assert.False(t, d.Full)
 	assert.Equal(t, []config.DraftVar{
 		{Name: "cluster_name", Value: "", Comment: "no plan default"},
-		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD"},
-	}, d.Vars, "plan defaults are left out; empty and secret variables stay")
+		{Name: "api_secret", Value: "${API_SECRET}", Comment: "masked by Bamboo; set env var API_SECRET"},
+	}, d.Vars, "plan defaults and stored secrets are left out; empty variables stay")
 }

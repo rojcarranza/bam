@@ -33,11 +33,10 @@ The preset is lean: it lists only the variables you need to look at, with a comm
         variables:
           region: ""  # no plan default; last used "eu" in PROJ-DEPLOY-41
           version: ""  # no plan default; last used "2.4.0" in PROJ-DEPLOY-41
-          deploy_token: "${DEPLOY_TOKEN}"  # masked by Bamboo; set env var DEPLOY_TOKEN
         # required: [region, version]
 
 - A variable with no plan default gets an empty value. The `# required:` line suggests making those required; uncomment it and bam refuses to run until they have a value.
-- A secret Bamboo masks becomes a `${ENV_NAME}` reference. Export that environment variable; the value never lives in a file.
+- A secret the plan already stores is left out too: Bamboo sends the stored value. A secret with no stored value, or any secret under `--full`, becomes a `${ENV_NAME}` reference, such as `deploy_token: "${DEPLOY_TOKEN}"  # masked by Bamboo; set env var DEPLOY_TOKEN`. Export that environment variable; the value never lives in a file.
 - `bam preset show deploy-qa` lists the full set a run would send, plan defaults included.
 
 Add `--full` to also list every plan default (commented `# plan default`) and commented `# branch:`, `# options:` and `# watch: true` lines to fill in:
@@ -54,7 +53,7 @@ To start from the values a build already ran with, name it with `--from` (a numb
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --from 41
 
-Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. Secrets still become `${ENV_NAME}` references. Without `--from`, the last build's values appear only in the comments. A variable whose build value equals the plan default is left out unless you add `--full`.
+Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. Secrets become `${ENV_NAME}` references only when the plan stores none or with `--full`, since bam cannot read the value a build used. Without `--from`, the last build's values appear only in the comments. A variable whose build value equals the plan default is left out unless you add `--full`.
 
 A full build key names the plan too, so `--plan` can go; a branch build also sets the preset's `branch:` unless `--branch` says otherwise:
 

@@ -14,7 +14,7 @@ Windows is not covered here.
 | golangci-lint v2 | the lint gate (`make lint`) | yes |
 | curl | downloads in this guide | yes |
 | gopls | Go language server for your editor | recommended |
-| goreleaser v2 | release builds (`goreleaser build --snapshot`) | only for release work |
+| goreleaser v2 | release builds (`make release`, `goreleaser build --snapshot`) | only for release work |
 | GitHub CLI (`gh`) | pull requests | optional |
 | no-mistakes | the push gate (see Before you push) | yes |
 
@@ -225,6 +225,7 @@ Also used later:
 | `make record ARGS='-target provision'` | records scrubbed fixtures from your own Bamboo (see below) |
 | `make e2e ARGS='-target smoke'` | end-to-end test against a real Bamboo |
 | `goreleaser build --snapshot --clean` | cross-platform release build into `dist/`; release work only |
+| `make release VERSION=x.y.z` | publishes a release; see [Releasing](#releasing) |
 
 ### Before you push
 
@@ -247,6 +248,27 @@ GOFLAGS=-race make test
 make lint check-fixtures
 make docs && git status --porcelain docs/cli   # must print nothing
 ```
+
+## Releasing
+
+Releases are published from the maintainer's machine; there is no release
+workflow. First merge a pull request that renames `## [Unreleased]` in
+`CHANGELOG.md` to `## [x.y.z] - YYYY-MM-DD`, adds a fresh empty
+`[Unreleased]` and the compare link. Then, with `gh auth login` done:
+
+```bash
+git checkout main && git pull
+make release VERSION=x.y.z
+```
+
+`scripts/release.sh` refuses before it changes anything unless the tree is
+clean, `HEAD` is `origin/main`, the tag `vx.y.z` is new and `CHANGELOG.md` has
+a section for `x.y.z`. It then runs the tests, tags `vx.y.z`, pushes the tag
+to `origin` (past the pre-push hook) and runs `goreleaser release`, which
+builds the archives in `.goreleaser.yaml` and publishes the GitHub release with
+that section as the notes. If goreleaser fails after the tag is pushed, fix
+the cause and run `GITHUB_TOKEN=$(gh auth token) goreleaser release --clean
+--release-notes=<file with the section>` on the tag.
 
 ## Run bam without a Bamboo
 

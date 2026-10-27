@@ -165,7 +165,7 @@ func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error)
 	}
 	return ResolvedServer{}, errs.Configf("no server selected").
 		WithWhy("configured aliases: " + strings.Join(aliases, ", ")).
-		WithTry("pass --server ALIAS, or set default_server in .bam.yaml")
+		WithTry("pass --server ALIAS, or run bam server default ALIAS")
 }
 
 // ProjectKeys returns the projects that scope navigation for server s.

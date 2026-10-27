@@ -26,6 +26,7 @@ bam server [flags]
 
 * [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
 * [bam server add](bam_server_add.md)	 - Add a server alias to the machine config, then log in
+* [bam server default](bam_server_default.md)	 - Make a server alias the machine-wide default
 * [bam server list](bam_server_list.md)	 - List server aliases and whether a token is stored
 * [bam server rm](bam_server_rm.md)	 - Remove a server alias from the machine config
 

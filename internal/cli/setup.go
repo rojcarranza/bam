@@ -23,7 +23,7 @@ func init() { commandSets = append(commandSets, addSetup) }
 
 func addSetup(root *cobra.Command, r *runtime) {
 	server := &cobra.Command{Use: "server", Short: "Manage Bamboo server aliases", GroupID: groupSetup}
-	server.AddCommand(newServerAddCmd(r), newServerListCmd(r), newServerRmCmd(r))
+	server.AddCommand(newServerAddCmd(r), newServerListCmd(r), newServerRmCmd(r), newServerDefaultCmd(r))
 	for _, c := range []*cobra.Command{server, newLoginCmd(r), newLogoutCmd(r), newWhoamiCmd(r)} {
 		c.GroupID = groupSetup
 		root.AddCommand(c)
@@ -189,6 +189,31 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "removed server %s from %s\n", alias, r.env.Paths.MachineConfig)
+			return nil
+		}),
+	}
+}
+
+func newServerDefaultCmd(r *runtime) *cobra.Command {
+	return &cobra.Command{
+		Use:        "default <alias>",
+		Short:      "Make a server alias the machine-wide default",
+		SuggestFor: []string{"use"},
+		Args:       cobra.ExactArgs(1),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			cfg, err := r.config()
+			if err != nil {
+				return err
+			}
+			alias := args[0]
+			// A machine default naming a repo's alias would break every other repo.
+			if _, ok := cfg.Machine.Servers[alias]; !ok {
+				return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry("bam server list")
+			}
+			if err := config.SetMachineDefaultServer(r.env.Paths.MachineConfig, alias); err != nil {
+				return err
+			}
+			fmt.Fprintf(r.env.Stdout, "default server is now %s in %s\n", alias, r.env.Paths.MachineConfig)
 			return nil
 		}),
 	}

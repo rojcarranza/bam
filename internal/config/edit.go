@@ -79,6 +79,16 @@ func RemoveMachineServer(path, alias string) error {
 	return saveDoc(path, doc)
 }
 
+// SetMachineDefaultServer sets default_server in the machine file.
+func SetMachineDefaultServer(path, alias string) error {
+	doc, err := loadDoc(path)
+	if err != nil {
+		return err
+	}
+	setKey(doc.Content[0], scalar("default_server"), scalar(alias))
+	return saveDoc(path, doc)
+}
+
 // InitFile is what bam init writes besides targets.
 type InitFile struct {
 	ServerAlias string

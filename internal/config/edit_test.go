@@ -102,6 +102,14 @@ repos:
 `, string(data))
 }
 
+func TestSetMachineDefaultServer(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "version: 1 # keep\ndefault_server: work\n")
+	require.NoError(t, SetMachineDefaultServer(path, "home"))
+	data, _ := os.ReadFile(path)
+	assert.Equal(t, "version: 1 # keep\ndefault_server: home\n", string(data))
+}
+
 func TestWriteInitFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".bam.yaml")

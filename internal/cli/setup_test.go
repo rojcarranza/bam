@@ -27,6 +27,12 @@ func TestServerAddListRm(t *testing.T) {
 	assert.Regexp(t, `work\s+https://bamboo.example.com\s+project\s+yes`, h.stdout.String())
 	assert.Regexp(t, `home\s+http://bamboo.lab.example:8085\s+machine\s+no`, h.stdout.String())
 
+	assert.Equal(t, 0, h.run("server", "default", "home"))
+	data, _ = os.ReadFile(h.env.Paths.MachineConfig)
+	assert.Contains(t, string(data), "default_server: home")
+	assert.Equal(t, 2, h.run("server", "default", "work"), "a project alias cannot be the machine default")
+	assert.Equal(t, 2, h.run("server", "default", "nope"))
+
 	assert.Equal(t, 0, h.run("server", "rm", "home"))
 	assert.Equal(t, 2, h.run("server", "rm", "work"))
 	assert.Contains(t, h.stderr.String(), ".bam.yaml")

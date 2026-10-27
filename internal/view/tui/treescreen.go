@@ -19,6 +19,7 @@ type treeScreen struct {
 	root       string
 	tree       app.Tree
 	have       bool
+	refreshing bool             // tree came from the session cache; the watch has not sent one yet
 	progress   app.TreeProgress // how far the first refresh got, until have
 	cursor     int              // over build rows only
 	from       screen
@@ -67,6 +68,9 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 	m.stopWatch()
 	m.rerunGen++ // a rerun started on another tree reports to that one only
 	m.buildTree = treeScreen{root: key, from: from, back: back}
+	if t, ok := m.trees[key]; ok {
+		m.buildTree.tree, m.buildTree.have, m.buildTree.refreshing = t, true, true
+	}
 	m.screen = screenTree
 	return m.watchTree()
 }
@@ -145,7 +149,8 @@ func (m Model) handleTreeEvent(msg treeEventMsg) (tea.Model, tea.Cmd) {
 		if n, ok := m.treeSelected(); ok {
 			selected = n.Build.Key
 		}
-		m.buildTree.tree, m.buildTree.have = e.Tree, true
+		m.buildTree.tree, m.buildTree.have, m.buildTree.refreshing = e.Tree, true, false
+		m.keepTree(m.buildTree.root, e.Tree)
 		m.buildTree.cursor = 0
 		for i, l := range m.treeBuildRows() {
 			if l.node.Build.Key == selected {
@@ -352,6 +357,9 @@ func (m Model) treeScreenView() string {
 	head := " " + m.buildTree.root
 	if m.buildTree.have {
 		head += " · " + stateCell(t.State)
+		if m.buildTree.refreshing {
+			head += " · refreshing…"
+		}
 	} else {
 		head += " · " + view.TreeProgressText(m.buildTree.progress)
 	}

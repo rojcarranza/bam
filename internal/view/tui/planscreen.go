@@ -364,14 +364,23 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 	}
 	m.plan.tree = treePreview{key: msg.Key, tree: msg.Tree, have: true, err: msg.Err}
 	m.clampTreePreview()
-	if msg.Err == nil && msg.Tree.Root != nil &&
-		app.TreeFinished(msg.Tree.Root.Build.State) && msg.Tree.State != provider.StateRunning {
-		if m.trees == nil {
-			m.trees = map[string]app.Tree{}
-		}
-		m.trees[msg.Key] = msg.Tree
+	if msg.Err == nil {
+		m.keepTree(msg.Key, msg.Tree)
 	}
 	return m, nil
+}
+
+// keepTree caches t for the session when it is final, and otherwise drops
+// any cached tree for key: a rerun makes a cached tree stale.
+func (m *Model) keepTree(key string, t app.Tree) {
+	if t.Root == nil || !app.TreeFinished(t.Root.Build.State) || t.State == provider.StateRunning {
+		delete(m.trees, key)
+		return
+	}
+	if m.trees == nil {
+		m.trees = map[string]app.Tree{}
+	}
+	m.trees[key] = t
 }
 
 // treePreviewProgressed shows how far the Tree panel's read has got, if it

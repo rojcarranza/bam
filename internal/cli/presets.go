@@ -121,8 +121,9 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	var plan, from, branch, file string
 	var shared, printOnly, force, full bool
 	cmd := &cobra.Command{
-		Use:   "add <name> --plan KEY",
-		Short: "Generate a run preset from a plan's declared variables",
+		Use:        "add <name> --plan KEY",
+		Short:      "Generate a run preset from a plan's declared variables",
+		SuggestFor: []string{"new", "create"},
 		Long: "add reads the plan's declared variables from Bamboo and writes a preset named <name>.\n" +
 			"It writes the plan's project file in your presets directory (~/bam/presets/proj.yaml for\n" +
 			"PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every\n" +

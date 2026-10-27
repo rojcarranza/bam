@@ -49,6 +49,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "run <plan|preset>",
 		Short:             "Trigger a plan or preset with variables",
+		SuggestFor:        []string{"trigger", "start"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -440,8 +441,9 @@ func newCancelCmd(r *runtime) *cobra.Command {
 	var last bool
 	var branch string
 	cmd := &cobra.Command{
-		Use:   "cancel [<build>|<plan>|<preset>]",
-		Short: "Stop a queued or running build",
+		Use:        "cancel [<build>|<plan>|<preset>]",
+		Short:      "Stop a queued or running build",
+		SuggestFor: []string{"stop", "kill", "abort"},
 		Long: "Stop a queued or running build.\n\n" +
 			"Bamboo stops a build by removing its unfinished jobs from the queue, so a\n" +
 			"stage that has not started yet can still be queued afterwards. Check the\n" +

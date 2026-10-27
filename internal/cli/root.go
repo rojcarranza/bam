@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -150,13 +151,21 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 	path := cmd.CommandPath()
 	try := path + " --help"
 	var names []string
+	suggest := ""
 	for _, c := range cmd.Commands() {
-		if c.IsAvailableCommand() {
-			names = append(names, c.Name())
+		if !c.IsAvailableCommand() {
+			continue
+		}
+		names = append(names, c.Name())
+		if slices.Contains(c.SuggestFor, strings.ToLower(args[0])) {
+			suggest = c.Name()
 		}
 	}
-	if s := app.Closest(args[0], names, 1); len(s) > 0 {
-		try = fmt.Sprintf("did you mean %s %s? %s shows them all", path, s[0], try)
+	if s := app.Closest(args[0], names, 1); suggest == "" && len(s) > 0 {
+		suggest = s[0]
+	}
+	if suggest != "" {
+		try = fmt.Sprintf("did you mean %s %s? %s shows them all", path, suggest, try)
 	}
 	return errs.Usagef("unknown command %q for %q", args[0], path).WithTry(try)
 }

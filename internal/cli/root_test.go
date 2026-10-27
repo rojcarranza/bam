@@ -60,10 +60,13 @@ func TestUnknownSubcommandIsUsageError(t *testing.T) {
 
 func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	for args, want := range map[string]string{
-		"biuld":        "try: did you mean bam build? bam --help shows them all",
-		"pln":          "try: did you mean bam plan? bam --help shows them all",
-		"build lsit":   "try: did you mean bam build list? bam build --help shows them all",
-		"server xyzzy": "try: bam server --help\n",
+		"biuld":         "try: did you mean bam build? bam --help shows them all",
+		"pln":           "try: did you mean bam plan? bam --help shows them all",
+		"build lsit":    "try: did you mean bam build list? bam build --help shows them all",
+		"server xyzzy":  "try: bam server --help\n",
+		"build history": "try: did you mean bam build list? bam build --help shows them all",
+		"build stop":    "try: did you mean bam build cancel? bam build --help shows them all",
+		"server remove": "try: did you mean bam server rm? bam server --help shows them all",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

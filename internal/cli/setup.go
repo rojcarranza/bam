@@ -166,9 +166,10 @@ func yesNo(b bool) string {
 
 func newServerRmCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "rm <alias>",
-		Short: "Remove a server alias from the machine config",
-		Args:  cobra.ExactArgs(1),
+		Use:        "rm <alias>",
+		Short:      "Remove a server alias from the machine config",
+		SuggestFor: []string{"remove", "delete"},
+		Args:       cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {

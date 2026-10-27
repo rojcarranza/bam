@@ -372,6 +372,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "list <plan>",
 		Short:             "List recent builds of a plan",
+		SuggestFor:        []string{"history", "builds"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

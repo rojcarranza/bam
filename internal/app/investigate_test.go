@@ -52,3 +52,14 @@ func TestInvestigateTruncatedLogKeepsLineNumbers(t *testing.T) {
 	assert.Equal(t, 1002, j.Errors[0].Line)
 	assert.Equal(t, 1001, j.Errors[0].Start)
 }
+
+func TestInvestigateConfiguredChildren(t *testing.T) {
+	s := newService(t, logsProvider())
+	inv, err := s.Investigate(bg, failedBuild(), InvestigateOptions{})
+	require.NoError(t, err)
+	assert.Empty(t, inv.Children)
+	s.Cfg.Project.Children = map[string][]string{"PROJ-BUILD12": {"OPS-DEPLOY"}}
+	inv, err = s.Investigate(bg, failedBuild(), InvestigateOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"OPS-DEPLOY"}, inv.Children)
+}

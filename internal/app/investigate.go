@@ -27,6 +27,7 @@ type Investigation struct {
 	Jobs        []JobErrors // failed jobs in stage order
 	LikelyCause string      // empty when no log matched a pattern
 	Changes     *Comparison // set by the caller for --compare; nil otherwise
+	Children    []string    // child plans configured for the build's plan; a tree may show more failures
 }
 
 // Investigate reads the failed jobs' logs of b and finds their error lines.
@@ -39,6 +40,12 @@ func (s *Service) Investigate(ctx context.Context, b provider.Build, o Investiga
 	logs, err := s.Logs(ctx, b, LogsOptions{Failed: true})
 	if err != nil {
 		return inv, err
+	}
+	if s.Cfg != nil {
+		// A broken children: map is for bam build tree to report; it only costs this hint.
+		if m, err := s.Cfg.Children(); err == nil {
+			inv.Children = m[b.PlanKey]
+		}
 	}
 	for _, l := range logs {
 		je := JobErrors{Job: l.Job, Stage: l.Stage, Short: ShortJobKey(b, l.Job), Errors: ErrorBlocks(l.Lines, o.Context, o.Max)}

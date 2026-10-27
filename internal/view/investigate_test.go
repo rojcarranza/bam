@@ -82,3 +82,10 @@ func TestInvestigationTruncatedLog(t *testing.T) {
 	require.Contains(t, buf.String(), "\nCheck / Lint (LINT)  no known error line\n  log truncated: the first 1000 lines were not read\n")
 	require.Equal(t, 1000, InvestigationJSON(inv).Jobs[0].SkippedLines)
 }
+
+func TestInvestigationChildTreeHint(t *testing.T) {
+	o, buf := testOut(false)
+	b := provider.Build{Key: "PROJ-API-142", State: provider.StateFailed}
+	require.NoError(t, Investigation(o, app.Investigation{Build: b, Children: []string{"OPS-DEPLOY"}}))
+	require.Contains(t, buf.String(), "try: bam build tree PROJ-API-142\ntry: bam build rerun PROJ-API-142\n")
+}

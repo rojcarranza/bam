@@ -176,7 +176,14 @@ func TestChoosingABranchLoadsThatBranchPlansBuilds(t *testing.T) {
 	require.Equal(t, overlayNone, m.overlay)
 	require.Equal(t, "PROJ-PROV12", m.buildsPlan)
 	require.NotNil(t, cmd)
-	require.Equal(t, "PROJ-PROV12", cmd().(buildsLoadedMsg).PlanKey)
+	loaded := cmd().(buildsLoadedMsg)
+	require.Equal(t, "PROJ-PROV12", loaded.PlanKey)
+	// The branch plan's result list does not name its branch; the picker did.
+	m, _ = send(m, loaded)
+	require.NotEmpty(t, m.builds.items)
+	for _, b := range m.builds.items {
+		require.Equal(t, "develop", b.Branch)
+	}
 }
 
 // TestBranchSwitchCancelsTheWatch: the watched build belongs to the old

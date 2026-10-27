@@ -103,6 +103,9 @@ type Model struct {
 
 	project    string // the project filter; empty means every project
 	buildsPlan string // the plan (or branch plan) the Builds panel holds
+	// branchNames maps branch plan keys to their short names, learned from
+	// the branch picker: a branch plan's result list does not name its branch.
+	branchNames map[string]string
 
 	detail     *provider.Build
 	progress   provider.Progress // the server's estimate for detail, if any
@@ -363,6 +366,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.builds.loading = false
 		m.plan.buildsStale = false
 		m.buildsPlan = msg.PlanKey
+		app.WithBranch(msg.Builds, m.branchNames[msg.PlanKey])
 		m.builds.setItems(msg.Builds)
 		if m.plan.key != "" {
 			return m.planBuildsLoaded()
@@ -401,8 +405,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The first row is the master plan itself, so one list both sets and
 		// clears the branch.
 		items := []pickerItem{{Label: "default branch", Value: msg.MasterKey}}
+		if m.branchNames == nil {
+			m.branchNames = map[string]string{}
+		}
 		for _, br := range msg.Branches {
 			items = append(items, pickerItem{Label: br.ShortName, Value: br.Key, Detail: br.Name})
+			m.branchNames[br.Key] = br.ShortName
 		}
 		m.picker.setItems(items)
 		m.picker.cursor = indexOf(items, m.buildsPlan)

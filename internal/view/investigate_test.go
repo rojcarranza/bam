@@ -26,7 +26,21 @@ func TestInvestigationNoMatchAndRepeats(t *testing.T) {
 		"\nCheck / Unit (UNIT)  first error at line 3\n"+
 		"  >     3  panic: boom\n"+
 		"         (seen 2 times)\n"+
-		"\nLikely cause: panic: boom (job UNIT)\n"+
+		"\nFailed tests: none reported\n"+
+		"Likely cause: panic: boom (job UNIT)\n"+
 		"try: bam build logs PROJ-PLAN-44 --job LINT\n"+
-		"try: bam build logs PROJ-PLAN-44 --job UNIT\n", buf.String())
+		"try: bam build logs PROJ-PLAN-44 --job UNIT\n"+
+		"try: bam build rerun PROJ-PLAN-44\n"+
+		"try: bam open PROJ-PLAN-44\n", buf.String())
+}
+
+func TestInvestigationFailedTests(t *testing.T) {
+	o, buf := testOut(false)
+	b := provider.Build{Key: "PROJ-PLAN-44", State: provider.StateFailed, FailedTests: []string{"a", "b", "c", "d", "e", "f", "g"}}
+	require.NoError(t, Investigation(o, app.Investigation{Build: b}))
+	require.Contains(t, buf.String(), "\nFailed tests: a, b, c, d, e (+2 more)\n")
+	b.FailedTests = b.FailedTests[:2]
+	buf.Reset()
+	require.NoError(t, Investigation(o, app.Investigation{Build: b}))
+	require.Contains(t, buf.String(), "\nFailed tests: a, b\n")
 }

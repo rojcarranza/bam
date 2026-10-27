@@ -38,6 +38,13 @@ func Investigation(o Out, inv app.Investigation) error {
 		}
 	}
 	sb.WriteString("\n")
+	if t := b.FailedTests; len(t) > 5 {
+		fmt.Fprintf(&sb, "Failed tests: %s (+%d more)\n", strings.Join(t[:5], ", "), len(t)-5)
+	} else if len(t) > 0 {
+		fmt.Fprintf(&sb, "Failed tests: %s\n", strings.Join(t, ", "))
+	} else {
+		sb.WriteString("Failed tests: none reported\n")
+	}
 	if inv.LikelyCause != "" {
 		fmt.Fprintf(&sb, "Likely cause: %s\n", inv.LikelyCause)
 	} else {
@@ -46,6 +53,7 @@ func Investigation(o Out, inv app.Investigation) error {
 	for _, j := range inv.Jobs {
 		fmt.Fprintf(&sb, "try: bam build logs %s --job %s\n", b.Key, j.Short)
 	}
+	fmt.Fprintf(&sb, "try: bam build rerun %s\ntry: bam open %s\n", b.Key, b.Key)
 	_, err := fmt.Fprint(o.W, sb.String())
 	return err
 }

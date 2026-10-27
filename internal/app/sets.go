@@ -746,8 +746,11 @@ func DescribeSet(cfg *config.Config, getenv func(string) string, name string) (S
 func UnknownSet(cfg *config.Config, name string) *errs.Error {
 	e := errs.Usagef("unknown set %q", name).WithTry("bam set list")
 	all, err := cfg.Sets()
-	if err != nil || len(all) == 0 {
+	if err != nil {
 		return e
+	}
+	if len(all) == 0 {
+		return e.WithWhy("no sets are configured").WithTry("add sets: to .bam.yaml; see bam set run --help")
 	}
 	names := sortedNames(all)
 	if c := Closest(name, names, 1); len(c) > 0 {

@@ -106,6 +106,11 @@ func TestPlanSetUnknownSet(t *testing.T) {
 	require.Equal(t, errs.KindUsage, errs.KindOf(err))
 }
 
+func TestUnknownSetWithNoSetsSaysHowToAddOne(t *testing.T) {
+	err := UnknownSet(&config.Config{Machine: &config.MachineFile{Version: 1}}, "nope")
+	require.Equal(t, "no sets are configured add sets: to .bam.yaml; see bam set run --help", errTry(err))
+}
+
 func errTry(err error) string {
 	var e *errs.Error
 	if errors.As(err, &e) {

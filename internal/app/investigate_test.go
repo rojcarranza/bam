@@ -37,3 +37,18 @@ func TestInvestigateSkipsBuildsThatDidNotFail(t *testing.T) {
 	assert.Empty(t, inv.Jobs)
 	assert.Empty(t, inv.LikelyCause)
 }
+
+func TestInvestigateTruncatedLogKeepsLineNumbers(t *testing.T) {
+	p := logsProvider()
+	p.Logs["PROJ-BUILD12-INT-44"] = []string{"x", "Error: boom"}
+	p.LogSkipped = map[string]int{"PROJ-BUILD12-INT-44": 1000}
+	s := newService(t, p)
+	inv, err := s.Investigate(bg, failedBuild(), InvestigateOptions{Context: 1})
+	require.NoError(t, err)
+	assert.Zero(t, inv.Jobs[0].Skipped)
+	j := inv.Jobs[1]
+	assert.Equal(t, 1000, j.Skipped)
+	require.Len(t, j.Errors, 1)
+	assert.Equal(t, 1002, j.Errors[0].Line)
+	assert.Equal(t, 1001, j.Errors[0].Start)
+}

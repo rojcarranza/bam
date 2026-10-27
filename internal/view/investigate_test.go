@@ -71,3 +71,14 @@ func TestChangesLine(t *testing.T) {
 	assert.Equal(t, "Changed since last success (PROJ-PLAN-41): no revision or variable changed, variables not readable on this server\n",
 		changesLine(app.Comparison{Since: since}))
 }
+
+func TestInvestigationTruncatedLog(t *testing.T) {
+	o, buf := testOut(false)
+	inv := app.Investigation{
+		Build: provider.Build{Key: "PROJ-PLAN-44", State: provider.StateFailed},
+		Jobs:  []app.JobErrors{{Job: provider.Job{Name: "Lint"}, Stage: "Check", Short: "LINT", Skipped: 1000}},
+	}
+	require.NoError(t, Investigation(o, inv))
+	require.Contains(t, buf.String(), "\nCheck / Lint (LINT)  no known error line\n  log truncated: the first 1000 lines were not read\n")
+	require.Equal(t, 1000, InvestigationJSON(inv).Jobs[0].SkippedLines)
+}

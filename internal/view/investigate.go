@@ -22,9 +22,12 @@ func Investigation(o Out, inv app.Investigation) error {
 		fmt.Fprintf(&sb, "\n%s / %s (%s)", j.Stage, j.Job.Name, j.Short)
 		if len(j.Errors) == 0 {
 			sb.WriteString("  no known error line\n")
-			continue
+		} else {
+			fmt.Fprintf(&sb, "  first error at line %d\n", j.Errors[0].Line)
 		}
-		fmt.Fprintf(&sb, "  first error at line %d\n", j.Errors[0].Line)
+		if j.Skipped > 0 {
+			fmt.Fprintf(&sb, "  log truncated: the first %d lines were not read\n", j.Skipped)
+		}
 		for _, e := range j.Errors {
 			for i, l := range e.Context {
 				n, mark := e.Start+i, "  "
@@ -118,6 +121,8 @@ type JobErrorsDoc struct {
 	Stage  string          `json:"stage"`
 	Short  string          `json:"short"`
 	Errors []ErrorBlockDoc `json:"errors"`
+	// SkippedLines counts the lines at the start of a long log that were not read.
+	SkippedLines int `json:"skipped_lines"`
 }
 
 type InvestigationDoc struct {
@@ -143,7 +148,7 @@ type ChangesDoc struct {
 func InvestigationJSON(inv app.Investigation) InvestigationDoc {
 	d := InvestigationDoc{Build: BuildJSON(inv.Build), LikelyCause: inv.LikelyCause, Jobs: []JobErrorsDoc{}}
 	for _, j := range inv.Jobs {
-		jd := JobErrorsDoc{Key: j.Job.Key, URL: j.Job.URL, Name: j.Job.Name, Stage: j.Stage, Short: j.Short, Errors: []ErrorBlockDoc{}}
+		jd := JobErrorsDoc{Key: j.Job.Key, URL: j.Job.URL, Name: j.Job.Name, Stage: j.Stage, Short: j.Short, Errors: []ErrorBlockDoc{}, SkippedLines: j.Skipped}
 		for _, e := range j.Errors {
 			jd.Errors = append(jd.Errors, ErrorBlockDoc{Line: e.Line, Text: e.Text, Pattern: e.Pattern, Start: e.Start, Context: e.Context, Count: e.Count})
 		}

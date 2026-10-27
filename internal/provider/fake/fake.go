@@ -27,6 +27,7 @@ type Provider struct {
 	BuildVars    map[string]map[string]string
 	BuildVarsErr error
 	Logs         map[string][]string // by job result key
+	LogSkipped   map[string]int      // by job result key: lines before Logs that a long log's read left out
 	// LogGrowth is a log that grows: the n-th FetchLog of a key sees the n-th
 	// snapshot of the whole log, the last one repeating. It wins over Logs.
 	LogGrowth     map[string][][]string // by job result key
@@ -278,7 +279,7 @@ func (f *Provider) FetchLog(_ context.Context, key string, o provider.LogOptions
 	if o.Offset > len(lines) {
 		o.Offset = len(lines)
 	}
-	return provider.LogChunk{Lines: lines[o.Offset:], Next: len(lines)}, nil
+	return provider.LogChunk{Lines: lines[o.Offset:], Next: f.LogSkipped[key] + len(lines)}, nil
 }
 
 // LogCalls reports how many times FetchLog was called for key.

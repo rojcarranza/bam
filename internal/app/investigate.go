@@ -25,6 +25,7 @@ type Investigation struct {
 	Build       provider.Build
 	Jobs        []JobErrors // failed jobs in stage order
 	LikelyCause string      // empty when no log matched a pattern
+	Changes     *Comparison // set by the caller for --compare; nil otherwise
 }
 
 // Investigate reads the failed jobs' logs of b and finds their error lines.

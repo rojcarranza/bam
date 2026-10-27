@@ -5,6 +5,7 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,4 +59,15 @@ func TestInvestigationParentTreeHint(t *testing.T) {
 	buf.Reset()
 	require.NoError(t, Investigation(o, app.Investigation{Build: b}))
 	require.NotContains(t, buf.String(), "bam build tree")
+}
+
+func TestChangesLine(t *testing.T) {
+	since := provider.Build{Key: "PROJ-PLAN-41"}
+	assert.Equal(t, "Changed since last success: no earlier successful build\n", changesLine(app.Comparison{}))
+	assert.Equal(t, "Changed since last success (PROJ-PLAN-41): app a1b2c3d (was 9f8e7d6), old (removed, was x), var NEW=y (new)\n",
+		changesLine(app.Comparison{Since: since,
+			Revisions: []app.Change{{Name: "app", Was: "9f8e7d6aaaa", Now: "a1b2c3dbbbb"}, {Name: "old", Was: "x"}},
+			Variables: []app.Change{{Name: "NEW", Now: "y"}}}))
+	assert.Equal(t, "Changed since last success (PROJ-PLAN-41): no revision or variable changed, variables not readable on this server\n",
+		changesLine(app.Comparison{Since: since}))
 }

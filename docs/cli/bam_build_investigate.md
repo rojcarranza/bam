@@ -10,6 +10,7 @@ bam build investigate [<build>|<plan>|<preset>] [flags]
 
 ```
       --branch string   plan branch when a plan or preset is given
+      --compare         show revisions and variables changed since the last successful build
       --context int     lines of context around each error (default 3)
   -h, --help            help for investigate
       --last            the last build bam triggered from this repository

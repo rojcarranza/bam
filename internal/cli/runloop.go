@@ -344,6 +344,7 @@ func newLogsCmd(r *runtime) *cobra.Command {
 func newInvestigateCmd(r *runtime) *cobra.Command {
 	var last bool
 	var branch string
+	var compare bool
 	var opts app.InvestigateOptions
 	cmd := &cobra.Command{
 		Use:               "investigate [<build>|<plan>|<preset>]",
@@ -372,6 +373,13 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if compare && b.State == provider.StateFailed {
+				c, err := svc.CompareLastSuccess(ctx, b)
+				if err != nil {
+					return err
+				}
+				inv.Changes = &c
+			}
 			if r.flags.json {
 				return view.WriteJSON(r.env.Stdout, view.InvestigationJSON(inv))
 			}
@@ -387,6 +395,7 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
 	f.IntVar(&opts.Context, "context", 3, "lines of context around each error")
 	f.IntVar(&opts.Max, "max", 5, "error blocks per job; 0 for all")
+	f.BoolVar(&compare, "compare", false, "show revisions and variables changed since the last successful build")
 	return cmd
 }
 

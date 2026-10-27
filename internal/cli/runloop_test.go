@@ -394,3 +394,28 @@ func TestInvestigateJSON(t *testing.T) {
   "jobs": []`)
 	assert.Empty(t, h.stderr.String())
 }
+
+func TestInvestigateCompare(t *testing.T) {
+	h := newHarness(t)
+	h.fake.History["PROJ-PROV12"] = append(h.fake.History["PROJ-PROV12"],
+		provider.Build{Key: "PROJ-PROV12-7", PlanKey: "PROJ-PROV12", Number: 7, State: provider.StateSuccess})
+	h.fake.BuildVars["PROJ-PROV12-7"] = map[string]string{"cluster_type": "k8s", "cluster_name": "beta"}
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-PROV12-8", "--compare"))
+	assert.Contains(t, h.stdout.String(), "Changed since last success (PROJ-PROV12-7): var cluster_type=dcos (was k8s)\n")
+
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-PROV12-8", "--compare", "--json"))
+	var doc struct {
+		Changes struct {
+			Since     struct{ Key string }
+			Revisions []map[string]string
+			Variables []map[string]string
+		}
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Equal(t, "PROJ-PROV12-7", doc.Changes.Since.Key)
+	assert.Equal(t, []map[string]string{}, doc.Changes.Revisions)
+	assert.Equal(t, []map[string]string{{"name": "cluster_type", "was": "k8s", "now": "dcos"}}, doc.Changes.Variables)
+
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-PROV12-8", "--json"))
+	assert.Contains(t, h.stdout.String(), `"changes": null`)
+}

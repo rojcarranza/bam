@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/view/style"
 )
 
@@ -50,6 +51,9 @@ func Investigation(o Out, inv app.Investigation) error {
 	} else {
 		sb.WriteString("Likely cause: unknown, no log line matched a known error pattern\n")
 	}
+	if c := inv.Changes; c != nil {
+		sb.WriteString(changesLine(*c))
+	}
 	for _, j := range inv.Jobs {
 		fmt.Fprintf(&sb, "try: bam build logs %s --job %s\n", b.Key, j.Short)
 	}
@@ -64,6 +68,39 @@ func Investigation(o Out, inv app.Investigation) error {
 	_, err := fmt.Fprint(o.W, sb.String())
 	return err
 }
+
+// changesLine is the --compare line: what differs from the last success.
+func changesLine(c app.Comparison) string {
+	if c.Since.Key == "" {
+		return "Changed since last success: no earlier successful build\n"
+	}
+	var parts []string
+	for _, r := range c.Revisions {
+		parts = append(parts, changeText(r.Name+" ", shortRev(r.Now), shortRev(r.Was)))
+	}
+	for _, v := range c.Variables {
+		parts = append(parts, changeText("var "+v.Name+"=", v.Now, v.Was))
+	}
+	if len(parts) == 0 {
+		parts = []string{"no revision or variable changed"}
+	}
+	if c.Variables == nil {
+		parts = append(parts, "variables not readable on this server")
+	}
+	return fmt.Sprintf("Changed since last success (%s): %s\n", c.Since.Key, strings.Join(parts, ", "))
+}
+
+func changeText(label, now, was string) string {
+	switch {
+	case now == "":
+		return label + "(removed, was " + was + ")"
+	case was == "":
+		return label + now + " (new)"
+	}
+	return label + now + " (was " + was + ")"
+}
+
+func shortRev(r string) string { return provider.Revision{Revision: r}.Short() }
 
 type ErrorBlockDoc struct {
 	Line    int      `json:"line"`
@@ -87,6 +124,19 @@ type InvestigationDoc struct {
 	Build       BuildDoc       `json:"build"`
 	LikelyCause string         `json:"likely_cause"`
 	Jobs        []JobErrorsDoc `json:"jobs"`
+	Changes     *ChangesDoc    `json:"changes"` // null without --compare
+}
+
+type ChangeDoc struct {
+	Name string `json:"name"`
+	Was  string `json:"was"`
+	Now  string `json:"now"`
+}
+
+type ChangesDoc struct {
+	Since     *BuildDoc   `json:"since"`     // null when no earlier build succeeded
+	Revisions []ChangeDoc `json:"revisions"` // by repository name
+	Variables []ChangeDoc `json:"variables"` // null when the server cannot read build variables back
 }
 
 // InvestigationJSON is the `build investigate --json` document.
@@ -99,5 +149,24 @@ func InvestigationJSON(inv app.Investigation) InvestigationDoc {
 		}
 		d.Jobs = append(d.Jobs, jd)
 	}
+	if c := inv.Changes; c != nil {
+		cd := &ChangesDoc{Revisions: changeDocs(c.Revisions)}
+		if c.Since.Key != "" {
+			sd := BuildJSON(c.Since)
+			cd.Since = &sd
+		}
+		if c.Variables != nil {
+			cd.Variables = changeDocs(c.Variables)
+		}
+		d.Changes = cd
+	}
 	return d
+}
+
+func changeDocs(cs []app.Change) []ChangeDoc {
+	out := []ChangeDoc{}
+	for _, c := range cs {
+		out = append(out, ChangeDoc(c))
+	}
+	return out
 }

@@ -187,7 +187,9 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			if d.Note != "" {
 				fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
 			}
-			fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
+			if len(d.Vars) > 0 {
+				fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
+			}
 			return nil
 		}),
 	}
@@ -439,7 +441,7 @@ func newInitCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "wrote %s\n", path)
-			if len(drafts) > 0 {
+			if slices.ContainsFunc(drafts, func(d config.TargetDraft) bool { return len(d.Vars) > 0 }) {
 				fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
 			}
 			return nil

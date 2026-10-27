@@ -478,3 +478,10 @@ func TestPresetAddFullKeepsPlanDefaultsAndScaffolding(t *testing.T) {
 	assert.Contains(t, full, "# branch: develop")
 	assert.Contains(t, full, "# watch: true")
 }
+
+func TestPresetAddWithNothingCopiedSkipsTheReviewHint(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("preset", "add", "b2", "--plan", "PROJ-BUILD"))
+	assert.Contains(t, h.stdout.String(), "added preset b2 to ")
+	assert.NotContains(t, h.stderr.String(), "review before commit", "a preset with no variables copied nothing from Bamboo")
+}

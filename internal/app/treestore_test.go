@@ -49,3 +49,26 @@ func TestTreeStoreRebuildsACorruptFile(t *testing.T) {
 	_, ok = (&TreeStore{Dir: dir}).Get("https://bamboo.example.com", "PROJ-BUILD-44", time.Now())
 	require.True(t, ok)
 }
+
+func TestTreeStoreDropsTreesFromAnotherServerVersion(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	origin := "https://bamboo.example.com"
+	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess}
+
+	s := &TreeStore{Dir: dir}
+	s.Server(origin, "9.6.2", now)
+	s.Keep(origin, "PROJ-BUILD-44", done, now)
+
+	same := &TreeStore{Dir: dir}
+	same.Server(origin, "9.6.2", now)
+	_, ok := same.Get(origin, "PROJ-BUILD-44", now)
+	require.True(t, ok, "the same server version keeps its trees")
+
+	upgraded := &TreeStore{Dir: dir}
+	upgraded.Server(origin, "10.2.0", now)
+	_, ok = upgraded.Get(origin, "PROJ-BUILD-44", now)
+	require.False(t, ok, "an upgraded server rebuilds the index")
+	_, ok = (&TreeStore{Dir: dir}).Get(origin, "PROJ-BUILD-44", now)
+	require.False(t, ok, "and the drop reaches disk")
+}

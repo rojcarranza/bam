@@ -93,6 +93,7 @@ func connectCmd(ctx context.Context, d Deps, alias string, gen int) tea.Cmd {
 		if err != nil {
 			return errMsg{Err: err, Where: "connect", Stream: streamConnect, Gen: gen}
 		}
+		svc.TreeServer(info.Version)
 		user, err := svc.P.CurrentUser(ctx)
 		if err != nil {
 			return errMsg{Err: err, Where: "connect", Stream: streamConnect, Gen: gen}

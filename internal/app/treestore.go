@@ -21,8 +21,9 @@ const treeTTL = 7 * 24 * time.Hour
 type TreeStore struct {
 	Dir string
 
-	mu    sync.Mutex
-	files map[string]map[string]savedTree // origin → root key → tree
+	mu       sync.Mutex
+	files    map[string]map[string]savedTree // origin → root key → tree
+	versions map[string]string               // origin → Bamboo version the trees were read from
 }
 
 type savedTree struct {
@@ -32,6 +33,7 @@ type savedTree struct {
 
 type treeFile struct {
 	Version int                  `json:"version"`
+	Server  string               `json:"server,omitempty"` // Bamboo version; empty when not known yet
 	Trees   map[string]savedTree `json:"trees"`
 }
 
@@ -64,9 +66,29 @@ func (s *TreeStore) trees(origin string, now time.Time) map[string]savedTree {
 	}
 	if s.files == nil {
 		s.files = map[string]map[string]savedTree{}
+		s.versions = map[string]string{}
 	}
 	s.files[origin] = f.Trees
+	s.versions[origin] = f.Server
 	return f.Trees
+}
+
+// Server records the Bamboo version origin runs. Trees saved from another
+// version are dropped, since an upgrade may change what Bamboo reports.
+func (s *TreeStore) Server(origin, version string, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	trees := s.trees(origin, now)
+	old := s.versions[origin]
+	if version == "" || old == version {
+		return
+	}
+	s.versions[origin] = version
+	if old == "" {
+		return // saved before the version was known: kept, and stamped on the next save
+	}
+	clear(trees)
+	s.save(origin, trees)
 }
 
 // Get returns the saved tree for root key on origin.
@@ -95,7 +117,12 @@ func (s *TreeStore) Keep(origin, key string, t Tree, now time.Time) {
 	} else {
 		trees[key] = savedTree{Saved: now, Tree: t}
 	}
-	data, err := json.Marshal(treeFile{Version: 1, Trees: trees})
+	s.save(origin, trees)
+}
+
+// save writes origin's trees. The caller holds s.mu.
+func (s *TreeStore) save(origin string, trees map[string]savedTree) {
+	data, err := json.Marshal(treeFile{Version: 1, Server: s.versions[origin], Trees: trees})
 	if err != nil {
 		return
 	}
@@ -115,6 +142,14 @@ func (s *Service) CachedTree(key string) (Tree, bool) {
 		return Tree{}, false
 	}
 	return s.Trees.Get(s.Origin, key, s.Clock.Now())
+}
+
+// TreeServer tells the tree store which Bamboo version this server runs, so
+// trees saved from another version are dropped.
+func (s *Service) TreeServer(version string) {
+	if s.Trees != nil {
+		s.Trees.Server(s.Origin, version, s.Clock.Now())
+	}
 }
 
 // KeepTree saves a final tree read for key, or forgets a saved one that runs

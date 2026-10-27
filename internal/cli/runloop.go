@@ -340,7 +340,7 @@ func newLogsCmd(r *runtime) *cobra.Command {
 	f.BoolVar(&failed, "failed", false, "only failed jobs")
 	f.StringVar(&job, "job", "", "one job: JOB1, PROJ-PLAN-JOB1 or its result key")
 	f.BoolVar(&follow, "follow", false, "keep printing new lines until the job finishes")
-	f.IntVar(&tail, "tail", 0, "last N lines per job")
+	f.IntVar(&tail, "tail", 0, "last N lines per job; 0 prints the whole log")
 	return cmd
 }
 

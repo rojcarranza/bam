@@ -539,7 +539,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if limit < 1 {
-				return errs.Usagef("--limit must be at least 1, not %d", limit)
+				return errs.Usagef("--limit takes 1 or more, not %d", limit)
 			}
 			ctx := cmd.Context()
 			svc, _, err := r.connectFor(ctx, args[0])

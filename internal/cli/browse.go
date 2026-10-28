@@ -467,13 +467,18 @@ func stateNames() []string {
 	return names
 }
 
+func squashState(s string) string {
+	return strings.NewReplacer("_", "", "-", "", " ", "").Replace(s)
+}
+
 func parseState(s string) (provider.State, error) {
 	if s == "" {
 		return "", nil
 	}
 	for _, st := range provider.AllStates() {
-		// Bamboo's own UI and API capitalize states ("Failed"), so accept any case.
-		if strings.EqualFold(string(st), s) {
+		// Bamboo's own UI and API spell states "Failed" and "NotBuilt", so accept
+		// any case and ignore _, - and spaces.
+		if strings.EqualFold(squashState(string(st)), squashState(s)) {
 			return st, nil
 		}
 	}

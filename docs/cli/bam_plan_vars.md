@@ -8,7 +8,7 @@ List a plan's variables with the values a recent build used. With text, list
 only the variables whose name contains it, ignoring case.
 
 ```
-bam plan vars <plan> [text] [flags]
+bam plan vars <plan|preset> [text] [flags]
 ```
 
 ### Examples

@@ -3,7 +3,7 @@
 Show a plan: URL, branches, variables, recent builds
 
 ```
-bam plan show <plan> [flags]
+bam plan show <plan|preset> [flags]
 ```
 
 ### Options

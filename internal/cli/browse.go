@@ -46,7 +46,7 @@ func (r *runtime) note(msg, try string) {
 	}
 }
 
-// completeTargets offers target names for a <plan> argument.
+// completeTargets offers target names for a <plan|preset> argument.
 func (r *runtime) completeTargets(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -360,7 +360,7 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 func newPlanShowCmd(r *runtime) *cobra.Command {
 	var branch string
 	cmd := &cobra.Command{
-		Use:               "show <plan>",
+		Use:               "show <plan|preset>",
 		Short:             "Show a plan: URL, branches, variables, recent builds",
 		SuggestFor:        showSuggest,
 		Args:              cobra.ExactArgs(1),
@@ -421,7 +421,7 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 func newPlanVarsCmd(r *runtime) *cobra.Command {
 	var branch, from string
 	cmd := &cobra.Command{
-		Use:   "vars <plan> [text]",
+		Use:   "vars <plan|preset> [text]",
 		Short: "List a plan's variables with the values a recent build used",
 		Long: "List a plan's variables with the values a recent build used. With text, list\n" +
 			"only the variables whose name contains it, ignoring case.",
@@ -476,7 +476,7 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 
 func newPlanBranchesCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "branches <plan> [text]",
+		Use:   "branches <plan|preset> [text]",
 		Short: "List a plan's branches",
 		Long: "List a plan's branches. With text, list only the branches whose name or key\n" +
 			"contains it, ignoring case.",
@@ -564,7 +564,7 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 	var branch string
 	var last int
 	cmd := &cobra.Command{
-		Use:               "stats <plan>",
+		Use:               "stats <plan|preset>",
 		Short:             "Success rate, durations and failing jobs over a plan's last builds",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
@@ -608,7 +608,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 	var branch, state string
 	var limit int
 	cmd := &cobra.Command{
-		Use:               "list <plan>",
+		Use:               "list <plan|preset>",
 		Short:             "List recent builds of a plan",
 		SuggestFor:        []string{"history", "builds", "ls"},
 		Args:              cobra.ExactArgs(1),

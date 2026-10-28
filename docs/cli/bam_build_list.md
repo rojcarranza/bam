@@ -3,7 +3,7 @@
 List recent builds of a plan
 
 ```
-bam build list <plan> [flags]
+bam build list <plan|preset> [flags]
 ```
 
 ### Options

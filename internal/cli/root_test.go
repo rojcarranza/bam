@@ -190,6 +190,7 @@ func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
 func TestWrongArgCountPointsAtHelp(t *testing.T) {
 	for args, want := range map[string]string{
 		"run":              "error: missing <plan|preset>\n  try: bam run <plan|preset>; bam run --help shows more\n",
+		"build list":       "error: missing <plan|preset>\n  try: bam build list <plan|preset>; bam build list --help shows more\n",
 		"preset add":       "error: missing <name>\n  try: bam preset add <name> --plan KEY; bam preset add --help shows more\n",
 		"build show a b":   "error: unexpected argument \"b\"\n  try: bam build show [<build>|<plan>|<preset>]; bam build show --help shows more\n",
 		"server add w x y": "error: unexpected arguments \"x\", \"y\"\n  try: bam server add <alias> --url URL; bam server add --help shows more\n",

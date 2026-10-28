@@ -3,7 +3,7 @@
 Success rate, durations and failing jobs over a plan's last builds
 
 ```
-bam plan stats <plan> [flags]
+bam plan stats <plan|preset> [flags]
 ```
 
 ### Options

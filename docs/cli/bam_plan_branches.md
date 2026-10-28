@@ -8,7 +8,7 @@ List a plan's branches. With text, list only the branches whose name or key
 contains it, ignoring case.
 
 ```
-bam plan branches <plan> [text] [flags]
+bam plan branches <plan|preset> [text] [flags]
 ```
 
 ### Examples

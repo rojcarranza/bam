@@ -442,4 +442,11 @@ func TestRunDryRunWarnsOfADisabledPlan(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "warning: PROJ-PROV is disabled in Bamboo, so a real run would be refused")
 	assert.Equal(t, 0, h.run("run", "PROJ-BUILD", "--dry-run"), h.stderr.String())
 	assert.NotContains(t, h.stderr.String(), "disabled")
+	assert.Equal(t, 0, h.run("run", "PROJ-BUILD", "--dry-run", "--json"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `"warnings": []`, "no warning is an empty list")
+	assert.Equal(t, 0, h.run("run", "PROJ-PROV", "--var", "cluster_name=x", "--dry-run", "--json"), h.stderr.String())
+	var doc struct{ Warnings []string }
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	require.Len(t, doc.Warnings, 1, "the --json document repeats the warning")
+	assert.Contains(t, doc.Warnings[0], "PROJ-PROV is disabled in Bamboo")
 }

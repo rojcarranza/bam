@@ -42,9 +42,9 @@ A running build carries the server's duration estimate as well:
 
 `run --json` without `--watch`, and `run --dry-run --json`, print one document:
 
-    {"key":"PROJ-BUILD-46","url":"...","plan_key":"PROJ-BUILD","branch":"","revision":"9b30b9a...","revision_from":"PROJ-BUILD-41","variables":{"env":"qa"}}
+    {"key":"PROJ-BUILD-46","url":"...","plan_key":"PROJ-BUILD","branch":"","revision":"9b30b9a...","revision_from":"PROJ-BUILD-41","variables":{"env":"qa"},"warnings":[]}
 
-`key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked.
+`key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked. `warnings` repeats the warnings printed to stderr (an undeclared `--var`, or on a dry run a plan disabled in Bamboo), `[]` when there are none.
 
 ## Cancel and rerun
 

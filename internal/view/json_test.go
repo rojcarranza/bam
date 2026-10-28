@@ -53,7 +53,7 @@ func TestRunJSONMasksSecrets(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, WriteNDJSON(&buf, doc))
 	assert.NotContains(t, buf.String(), "hunter2")
-	assert.Equal(t, `{"key":"PROJ-BUILD-45","url":"https://bamboo.example.com/browse/PROJ-BUILD-45","plan_key":"PROJ-BUILD12","branch":"develop","revision":"","revision_from":"","variables":{"db_password":"********","env":"staging"}}`+"\n", buf.String())
+	assert.Equal(t, `{"key":"PROJ-BUILD-45","url":"https://bamboo.example.com/browse/PROJ-BUILD-45","plan_key":"PROJ-BUILD12","branch":"develop","revision":"","revision_from":"","variables":{"db_password":"********","env":"staging"},"warnings":[]}`+"\n", buf.String())
 }
 
 func TestRunJSONCarriesTheRevision(t *testing.T) {

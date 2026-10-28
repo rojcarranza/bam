@@ -40,9 +40,8 @@ var ansiRe = regexp.MustCompile("\x1b\\[[0-9;]*[A-Za-z]")
 
 // ErrorBlocks finds the error lines in a job log, in log order, so the first
 // block is the likely cause. A text seen again only raises the first block's
-// Count. It returns at most limit blocks (0 = all), each with n lines of
-// context either side.
-func ErrorBlocks(lines []string, n, limit int) []ErrorBlock {
+// Count. Each block has n lines of context either side.
+func ErrorBlocks(lines []string, n int) []ErrorBlock {
 	n = max(n, 0) // a negative context would slice backwards and panic
 	clean := make([]string, len(lines))
 	for i, l := range lines {
@@ -58,9 +57,6 @@ func ErrorBlocks(lines []string, n, limit int) []ErrorBlock {
 		text := strings.TrimSpace(l)
 		if j, ok := seen[text]; ok {
 			out[j].Count++
-			continue
-		}
-		if limit > 0 && len(out) == limit {
 			continue
 		}
 		from, to := max(0, i-n), min(len(clean), i+n+1)

@@ -51,6 +51,11 @@ func Investigation(o Out, inv app.Investigation) error {
 				fmt.Fprintf(&sb, "         (seen %d times)\n", e.Count)
 			}
 		}
+		if j.Hidden == 1 {
+			sb.WriteString("  1 more error not shown; --max 0 shows all\n")
+		} else if j.Hidden > 1 {
+			fmt.Fprintf(&sb, "  %d more errors not shown; --max 0 shows all\n", j.Hidden)
+		}
 	}
 	sb.WriteString("\n")
 	if t := b.FailedTests; len(t) > 5 {
@@ -137,6 +142,8 @@ type JobErrorsDoc struct {
 	Errors []ErrorBlockDoc `json:"errors"`
 	// SkippedLines counts the lines at the start of a long log that were not read.
 	SkippedLines int `json:"skipped_lines"`
+	// HiddenErrors counts the error blocks --max left out.
+	HiddenErrors int `json:"hidden_errors"`
 }
 
 type InvestigationDoc struct {
@@ -162,7 +169,7 @@ type ChangesDoc struct {
 func InvestigationJSON(inv app.Investigation) InvestigationDoc {
 	d := InvestigationDoc{Build: BuildJSON(inv.Build), LikelyCause: inv.LikelyCause, Jobs: []JobErrorsDoc{}}
 	for _, j := range inv.Jobs {
-		jd := JobErrorsDoc{Key: j.Job.Key, URL: j.Job.URL, Name: j.Job.Name, Stage: j.Stage, Short: j.Short, Errors: []ErrorBlockDoc{}, SkippedLines: j.Skipped}
+		jd := JobErrorsDoc{Key: j.Job.Key, URL: j.Job.URL, Name: j.Job.Name, Stage: j.Stage, Short: j.Short, Errors: []ErrorBlockDoc{}, SkippedLines: j.Skipped, HiddenErrors: j.Hidden}
 		for _, e := range j.Errors {
 			jd.Errors = append(jd.Errors, ErrorBlockDoc{Line: e.Line, Text: e.Text, Pattern: e.Pattern, Start: e.Start, Context: e.Context, Count: e.Count})
 		}

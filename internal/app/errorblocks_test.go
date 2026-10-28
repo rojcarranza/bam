@@ -27,17 +27,17 @@ func TestErrorBlocksPatterns(t *testing.T) {
 		"\x1b[31m│\x1b[0m \x1b[1m\x1b[31mError: \x1b[0mtimeout":                "error",
 	}
 	for line, want := range cases {
-		got := ErrorBlocks([]string{line}, 0, 0)
+		got := ErrorBlocks([]string{line}, 0)
 		if assert.Len(t, got, 1, line) {
 			assert.Equal(t, want, got[0].Pattern, line)
 		}
 	}
 	for _, line := range []string{"Starting integration tests", "0 errors, 0 warnings", "error handling enabled", "ok  example.com/app 0.2s", "FAILED (failures=1)"} {
-		assert.Empty(t, ErrorBlocks([]string{line}, 0, 0), line)
+		assert.Empty(t, ErrorBlocks([]string{line}, 0), line)
 	}
 }
 
-func TestErrorBlocksContextDedupeAndLimit(t *testing.T) {
+func TestErrorBlocksContextAndDedupe(t *testing.T) {
 	lines := []string{
 		"terraform apply -auto-approve tfplan", // 1
 		"aws_s3_bucket.artifacts: Creating...", // 2
@@ -47,19 +47,15 @@ func TestErrorBlocksContextDedupeAndLimit(t *testing.T) {
 		"retrying",                             // 6
 		"Failing task since return code of [terraform] was 1 while expected 0", // 7
 	}
-	got := ErrorBlocks(lines, 1, 0)
+	got := ErrorBlocks(lines, 1)
 	assert.Equal(t, []ErrorBlock{
 		{Line: 3, Text: "Error: BucketAlreadyExists", Pattern: "error", Start: 2, Context: lines[1:4], Count: 2},
 		{Line: 7, Text: lines[6], Pattern: "bamboo-task", Start: 6, Context: lines[5:7], Count: 1},
 	}, got)
-
-	got = ErrorBlocks(lines, 0, 1)
-	assert.Len(t, got, 1)
-	assert.Equal(t, 2, got[0].Count, "a repeat still counts once the limit is reached")
 }
 
 func TestErrorBlocksNegativeContextIsNone(t *testing.T) {
-	b := ErrorBlocks([]string{"start", "Error: boom", "end"}, -2, 0)
+	b := ErrorBlocks([]string{"start", "Error: boom", "end"}, -2)
 	if assert.Len(t, b, 1) {
 		assert.Equal(t, []string{"Error: boom"}, b[0].Context)
 	}

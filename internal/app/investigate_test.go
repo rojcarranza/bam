@@ -25,6 +25,8 @@ func TestInvestigate(t *testing.T) {
 	assert.Equal(t, "Test", inv.Jobs[1].Stage)
 	require.Len(t, inv.Jobs[1].Errors, 1)
 	assert.Equal(t, []string{"terraform apply", "Error: BucketAlreadyExists", "x"}, inv.Jobs[1].Errors[0].Context)
+	assert.Equal(t, 1, inv.Jobs[1].Hidden, "the bamboo-task line is past --max")
+	assert.Zero(t, inv.Jobs[0].Hidden)
 	assert.Equal(t, "Error: BucketAlreadyExists (job INT)", inv.LikelyCause)
 }
 

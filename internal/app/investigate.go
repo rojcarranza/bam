@@ -19,6 +19,7 @@ type JobErrors struct {
 	Short   string // job part of the key, e.g. APPLY
 	Errors  []ErrorBlock
 	Skipped int // lines at the start of a long log that were not read
+	Hidden  int // error blocks left out by InvestigateOptions.Max
 }
 
 // Investigation is why a build failed, as far as its logs tell.
@@ -48,7 +49,10 @@ func (s *Service) Investigate(ctx context.Context, b provider.Build, o Investiga
 		}
 	}
 	for _, l := range logs {
-		je := JobErrors{Job: l.Job, Stage: l.Stage, Short: ShortJobKey(b, l.Job), Errors: ErrorBlocks(l.Lines, o.Context, o.Max)}
+		je := JobErrors{Job: l.Job, Stage: l.Stage, Short: ShortJobKey(b, l.Job), Errors: ErrorBlocks(l.Lines, o.Context)}
+		if o.Max > 0 && len(je.Errors) > o.Max {
+			je.Hidden, je.Errors = len(je.Errors)-o.Max, je.Errors[:o.Max]
+		}
 		// The provider reads only the last part of a very long log; Next
 		// still counts the whole log, so line numbers shift by what it left out.
 		if je.Skipped = max(0, l.Next-len(l.Lines)); je.Skipped > 0 {

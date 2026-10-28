@@ -106,3 +106,18 @@ func TestInvestigationOverlappingBlocksPrintEachLineOnce(t *testing.T) {
 		"  >     2  Error: timeout\n"+
 		"  >     3  Failing task since return code of [terraform] was 1\n\n")
 }
+
+func TestInvestigationHiddenErrors(t *testing.T) {
+	for hidden, want := range map[int]string{1: "  1 more error not shown", 3: "  3 more errors not shown"} {
+		o, buf := testOut(false)
+		inv := app.Investigation{
+			Build: provider.Build{Key: "PROJ-PLAN-44", State: provider.StateFailed},
+			Jobs: []app.JobErrors{{Job: provider.Job{Name: "Apply"}, Stage: "Deploy", Short: "APPLY", Hidden: hidden, Errors: []app.ErrorBlock{
+				{Line: 2, Text: "Error: timeout", Start: 2, Context: []string{"Error: timeout"}, Count: 1},
+			}}},
+		}
+		require.NoError(t, Investigation(o, inv))
+		require.Contains(t, buf.String(), "  >     2  Error: timeout\n"+want+"; --max 0 shows all\n")
+		require.Equal(t, hidden, InvestigationJSON(inv).Jobs[0].HiddenErrors)
+	}
+}

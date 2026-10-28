@@ -149,7 +149,8 @@ stopped. Interrupting stops watching only; continue with bam set resume.`,
 			}
 			switch {
 			case name != "" && file != "":
-				return errs.Usagef("give a set name or -f, not both")
+				return errs.Usagef("give a set name or -f, not both").
+					WithWhy("a train file holds one set").WithTry("bam set run -f " + file)
 			case name == "" && file == "":
 				return errs.Usagef("give a set name or -f FILE").WithTry("bam set list")
 			}

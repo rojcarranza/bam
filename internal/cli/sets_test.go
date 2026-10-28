@@ -328,6 +328,7 @@ func TestSetRunNameAndFileTogether(t *testing.T) {
 	p := trainPath(t, h)
 	require.Equal(t, 2, h.run("set", "run", "release", "-f", p))
 	require.Contains(t, h.stderr.String(), "a set name or -f, not both")
+	require.Contains(t, h.stderr.String(), "try: bam set run -f "+p)
 	require.Equal(t, 2, h.run("set", "run"))
 	require.Contains(t, h.stderr.String(), "a set name or -f")
 	require.Empty(t, h.connectOpts, "no network before the check")

@@ -35,8 +35,8 @@ func TestSetDetailMasksSecrets(t *testing.T) {
 	out := buf.String()
 	require.Contains(t, out, "stage 1  publish-specs\n")
 	require.Contains(t, out, "stage 2  provision, deploy\n  provision  OPS-PROV  branch release-1\n  deploy  OPS-DEP  branch default\n")
-	require.Contains(t, out, "deploy  deploy_token  ${DEPLOY_TOKEN} (unset)")
-	require.Contains(t, out, "deploy  env           qa")
+	require.Contains(t, out, "  deploy  OPS-DEP  branch default\n    deploy_token  ${DEPLOY_TOKEN} (unset)\n")
+	require.Contains(t, out, "    env           qa\n")
 	require.Contains(t, out, "********")
 	require.NotContains(t, out, "hunter2")
 	require.Contains(t, out, "2h0m0s")
@@ -166,9 +166,9 @@ func TestSetDetailShowsMatricesAndRuns(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, SetDetail(o, matrixInfo()))
 	out := buf.String()
-	require.Contains(t, out, "deploy  matrix env=[qa prod] region=[eu]")
-	require.Contains(t, out, "smoke  matrix 1 variable set")
-	require.Contains(t, out, "    deploy[env=qa,region=eu]\n")
+	require.Contains(t, out, "    matrix env=[qa prod] region=[eu]\n")
+	require.Contains(t, out, "    matrix 1 variable set\n")
+	require.Contains(t, out, "      deploy[env=qa,region=eu]\n")
 }
 
 func TestSetJSONCarriesMatrixAndRuns(t *testing.T) {

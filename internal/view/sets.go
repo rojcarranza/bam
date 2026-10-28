@@ -45,23 +45,21 @@ func SetDetail(o Out, s app.SetInfo) error {
 		fmt.Fprintf(o.W, "stage %d  %s\n", i+1, strings.Join(names, ", "))
 		for _, r := range st {
 			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", r.Target, r.Plan, branchLabel(r.Branch))
-			if r.MatrixLine == "" {
-				continue
+			if r.MatrixLine != "" {
+				fmt.Fprintf(o.W, "    matrix %s\n", r.MatrixLine)
+				for _, n := range r.Runs {
+					fmt.Fprintf(o.W, "      %s\n", n)
+				}
 			}
-			fmt.Fprintf(o.W, "  %s  matrix %s\n", r.Target, r.MatrixLine)
-			for _, n := range r.Runs {
-				fmt.Fprintf(o.W, "    %s\n", n)
-			}
-		}
-		t := Table{Indent: "    ", Headers: []string{"", "", ""}}
-		for _, r := range st {
+			// Variables sit under their preset's line, so the name is not repeated per row.
+			t := Table{Indent: "    ", Headers: []string{"", ""}}
 			for _, v := range r.Vars {
-				t.Rows = append(t.Rows, []string{r.Target, v.Name, v.Display()})
+				t.Rows = append(t.Rows, []string{v.Name, v.Display()})
 			}
-		}
-		if len(t.Rows) > 0 {
-			if err := RenderRows(o, t); err != nil {
-				return err
+			if len(t.Rows) > 0 {
+				if err := RenderRows(o, t); err != nil {
+					return err
+				}
 			}
 		}
 	}

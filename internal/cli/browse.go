@@ -631,7 +631,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "show [<build>|<plan>|<preset>]",
 		Short:             "Show a build: state, stages, jobs, failure summary",
-		SuggestFor:        showSuggest,
+		SuggestFor:        append(slices.Clone(showSuggest), "status"),
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

@@ -682,8 +682,9 @@ func isBranchOf(key, master string) bool {
 	return true
 }
 
-// homeHeader is the line above the table: where, what and how it is sorted.
-func (m Model) homeHeader() string {
+// homeHeader is the line above the table: where, what and how it is sorted,
+// fitted to width columns (0 means no limit).
+func (m Model) homeHeader(width int) string {
 	project := m.project
 	if project == "" {
 		project = "all"
@@ -705,11 +706,11 @@ func (m Model) homeHeader() string {
 	if m.deps.Version != "" {
 		bam += " " + m.deps.Version
 	}
-	parts := []string{bam, m.server, m.info.Version, m.user.Name, "project " + project,
-		count, "sort " + sortLabel}
+	id := []string{bam, m.server, m.info.Version, m.user.Name}
+	parts := []string{"project " + project, count, "sort " + sortLabel}
 	if m.home.view == homeSets || m.home.view == homeProjects {
 		// Sets are not filtered by project.
-		parts = append(parts[:4], count, "sort "+sortLabel)
+		parts = parts[1:]
 	}
 	if query != "" {
 		parts = append(parts, "filter /"+query)
@@ -717,7 +718,19 @@ func (m Model) homeHeader() string {
 	if s := m.homeLoadMarker(); s != "" {
 		parts = append(parts, s)
 	}
-	return " " + strings.Join(parts, " · ")
+	line := func() string { return " " + strings.Join(append(append([]string{}, id...), parts...), " · ") }
+	// When it does not fit, who and where go first (bam, Bamboo version,
+	// user, server), so the count, sort and filter stay on screen.
+	for _, drop := range []int{0, 1, 1, 0} {
+		if width <= 0 || lipgloss.Width(line()) <= width {
+			break
+		}
+		id = append(id[:drop], id[drop+1:]...)
+	}
+	if width <= 0 {
+		return line()
+	}
+	return cut(line(), width)
 }
 
 // homeLoadMarker is "refreshing…", "stale 3m", "stale" or "": what both
@@ -858,7 +871,7 @@ func titleRule(width int, title, right string) string {
 // rule when the terminal has room, else the one-line header.
 func (m Model) homeChrome() []string {
 	if m.width < 60 || m.height < 20 {
-		return []string{truncate(m.homeHeader(), m.width)}
+		return []string{m.homeHeader(m.width)}
 	}
 	title, right := m.homeTitle()
 	return append(m.homeHeaderBlock(m.width), titleRule(m.width, title, right))

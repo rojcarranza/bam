@@ -418,9 +418,9 @@ func TestHomeGoldenPresets120x30(t *testing.T) {
 func TestTheHeaderCountsOnePlanInTheSingular(t *testing.T) {
 	m := homeModel()
 	m.applyFilter("fail")
-	require.Contains(t, m.homeHeader(), "· 1 plan ·")
+	require.Contains(t, m.homeHeader(0), "· 1 plan ·")
 	m.applyFilter("")
-	require.Contains(t, m.homeHeader(), "· 4 plans ·")
+	require.Contains(t, m.homeHeader(0), "· 4 plans ·")
 }
 
 func TestCursorRowSpansTheTable(t *testing.T) {
@@ -456,7 +456,7 @@ func TestHomeHeaderBlockNamesBamAndBambooVersions(t *testing.T) {
 	m := goldenHome(120, 30)
 	m.deps.Version = "v0.3.0"
 	require.Contains(t, m.View(), "bam v0.3.0 · Bamboo 9.6.4")
-	require.Contains(t, m.homeHeader(), "bam v0.3.0 · lab · 9.6.4 · jdoe")
+	require.Contains(t, m.homeHeader(0), "bam v0.3.0 · lab · 9.6.4 · jdoe")
 }
 
 func TestHomeTitleCarriesProjectFilterAndCount(t *testing.T) {
@@ -487,7 +487,8 @@ func TestTitleRuleFillsTheWidth(t *testing.T) {
 func TestSmallTerminalsKeepTheOneLineHeader(t *testing.T) {
 	for _, size := range [][2]int{{80, 19}, {59, 30}} {
 		v := goldenHome(size[0], size[1]).View()
-		require.True(t, strings.HasPrefix(v, " bam · lab"), "%dx%d", size[0], size[1])
+		require.Contains(t, strings.Split(v, "\n")[0], " lab · ", "%dx%d", size[0], size[1])
+		require.Contains(t, strings.Split(v, "\n")[0], "· 4 plans · sort key↑", "%dx%d", size[0], size[1])
 		require.NotContains(t, v, "Server:")
 	}
 }
@@ -508,3 +509,21 @@ func TestHomeFillsTheTerminalExactly(t *testing.T) {
 }
 
 func TestHomeGolden80x12(t *testing.T) { requireGolden(t, "home-80x12", goldenHome(80, 12).View()) }
+
+func TestTheCompactHeaderDropsWhoAndWhereBeforeTheCount(t *testing.T) {
+	m := homeModel()
+	m.deps.Version = "v0.3.0"
+	m.info = provider.ServerInfo{Version: "9.6.4"}
+	m.user = provider.User{Name: "jdoe"}
+	m.applyFilter("prov")
+	full := m.homeHeader(0)
+	require.Contains(t, full, "bam v0.3.0 · lab · 9.6.4 · jdoe · project all")
+	fitted := m.homeHeader(lipgloss.Width(full) - 1)
+	require.NotContains(t, fitted, "bam v0.3.0")
+	require.Contains(t, fitted, "lab · 9.6.4 · jdoe · project all")
+	narrow := m.homeHeader(70)
+	require.LessOrEqual(t, lipgloss.Width(narrow), 70)
+	require.NotContains(t, narrow, "jdoe")
+	require.Contains(t, narrow, "sort key↑ · filter /prov")
+	require.Equal(t, " p…", m.homeHeader(3), "too narrow even for the essentials still ends in …")
+}

@@ -471,7 +471,7 @@ func newCancelCmd(r *runtime) *cobra.Command {
 			if r.flags.json {
 				return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "stopped": true})
 			}
-			fmt.Fprintf(r.env.Stdout, "stopping %s\n", key)
+			fmt.Fprintf(r.env.Stdout, "stopping %s\n  watch: bam watch %s\n", key, key)
 			return nil
 		}),
 	}

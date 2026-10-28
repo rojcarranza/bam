@@ -146,7 +146,7 @@ func TestCancel(t *testing.T) {
 	h := newHarness(t)
 	h.fake.Sequences = map[string][]provider.Build{"PROJ-BUILD-483": {{Key: "PROJ-BUILD-483", State: provider.StateRunning}}}
 	assert.Equal(t, 0, h.run("build", "cancel", "PROJ-BUILD-483"))
-	assert.Contains(t, h.stdout.String(), "stopping PROJ-BUILD-483")
+	assert.Equal(t, "stopping PROJ-BUILD-483\n  watch: bam watch PROJ-BUILD-483\n", h.stdout.String())
 	assert.Equal(t, []string{"PROJ-BUILD-483"}, h.fake.Stopped)
 
 	assert.Equal(t, 0, h.run("build", "cancel", "PROJ-BUILD-482"))

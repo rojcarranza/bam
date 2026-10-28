@@ -36,6 +36,15 @@ func addPresets(root *cobra.Command, r *runtime) {
 				WithWhy("presets run with bam run").
 				WithTry(try)
 		}
+		if slices.Contains([]string{"edit", "update", "modify", "change", "set"}, args[0]) {
+			try := "bam preset show <name> prints the file that defines it"
+			if len(args) > 1 {
+				try = "bam preset show " + args[1] + " prints the file that defines it"
+			}
+			return errs.Usagef("bam preset has no %q command", args[0]).
+				WithWhy("presets are edited in YAML, in the file that defines them").
+				WithTry(try)
+		}
 		return unknownCommand(cmd, args)
 	}
 	c := newInitCmd(r)

@@ -109,6 +109,25 @@ func TestSetRunInterruptedExits130(t *testing.T) {
 	require.Empty(t, h.fake.Triggered)
 }
 
+func TestSetListFiltersByText(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "list", "REL"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "release  2       2")
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("set", "list", "Provision"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "release", "matches a preset in the set")
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("set", "list", "zzz"))
+	require.Empty(t, h.stdout.String())
+	require.Contains(t, h.stderr.String(), `no sets match "zzz"`)
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("--json", "set", "list", "zzz"))
+	require.Equal(t, "[]\n", h.stdout.String())
+}
+
 func TestSetListShowStatusResume(t *testing.T) {
 	h := setHarness(t, provider.StateSuccess)
 	require.Equal(t, 0, h.run("set", "list"), h.stderr.String())

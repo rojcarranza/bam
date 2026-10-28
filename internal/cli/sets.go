@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -42,11 +43,14 @@ func (r *runtime) setStore() *app.SetStore {
 
 func newSetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "list",
+		Use:        "list [text]",
 		SuggestFor: []string{"ls"},
 		Short:      "List release train sets",
-		Args:       cobra.NoArgs,
-		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
+		Long: "List release train sets.\n" +
+			"With text, list only the sets whose name or one of whose presets contains it, ignoring case.",
+		Example: "  bam set list\n  bam set list prov",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
 				return err
@@ -55,12 +59,32 @@ func newSetListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if len(args) == 1 {
+				text := strings.ToLower(args[0])
+				infos = slices.DeleteFunc(infos, func(s app.SetInfo) bool {
+					if strings.Contains(strings.ToLower(s.Name), text) {
+						return false
+					}
+					for _, stage := range s.Stages {
+						for _, run := range stage {
+							if strings.Contains(strings.ToLower(run.Target), text) {
+								return false
+							}
+						}
+					}
+					return true
+				})
+			}
 			if r.flags.json {
 				docs := []view.SetDoc{}
 				for _, s := range infos {
 					docs = append(docs, view.SetJSON(s))
 				}
 				return view.WriteJSON(r.env.Stdout, docs)
+			}
+			if len(infos) == 0 && len(args) == 1 {
+				r.note(fmt.Sprintf("no sets match %q", args[0]), "bam set list")
+				return nil
 			}
 			if len(infos) == 0 {
 				r.note("no sets configured", "add sets: to .bam.yaml; see bam set run --help")

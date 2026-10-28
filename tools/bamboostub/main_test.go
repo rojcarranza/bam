@@ -99,6 +99,14 @@ func TestTriggeredBuildRunsToSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, provider.StateSuccess, got.State)
 	assert.False(t, got.FinishedAt.IsZero())
+
+	// A finished build keeps its duration: watching it an hour later must
+	// not show it an hour longer.
+	advance(s, time.Hour)
+	later, err := c.GetBuild(ctx, b.Key)
+	require.NoError(t, err)
+	assert.Equal(t, got.FinishedAt, later.FinishedAt)
+	assert.Equal(t, got.Duration, later.Duration)
 }
 
 // TestTriggerWithARevisionReportsCustomRevisionBuild: bam.Client.Trigger
@@ -116,7 +124,7 @@ func TestTriggerWithARevisionReportsCustomRevisionBuild(t *testing.T) {
 }
 
 func TestCancelledBuildReportsStopped(t *testing.T) {
-	_, c := testStub(t)
+	s, c := testStub(t)
 	ctx := context.Background()
 
 	b, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
@@ -126,6 +134,11 @@ func TestCancelledBuildReportsStopped(t *testing.T) {
 	got, err := c.GetBuild(ctx, b.Key)
 	require.NoError(t, err)
 	assert.Equal(t, provider.StateStopped, got.State)
+
+	advance(s, time.Hour)
+	later, err := c.GetBuild(ctx, b.Key)
+	require.NoError(t, err)
+	assert.Equal(t, got.Duration, later.Duration)
 }
 
 func TestLogsComeFromTheFixture(t *testing.T) {

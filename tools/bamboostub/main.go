@@ -66,7 +66,7 @@ type build struct {
 	planKey string
 	number  int
 	started time.Time
-	stopped bool
+	stopped time.Time // when bam build cancel stopped it; zero while it runs on
 }
 
 func newStub(fixtures string) *stub {
@@ -84,7 +84,7 @@ func newStub(fixtures string) *stub {
 // is Finished/Unknown, which is what Bamboo reports and bam shows as stopped.
 func (s *stub) phase(b *build) (string, string) {
 	switch d := s.now().Sub(b.started); {
-	case b.stopped:
+	case !b.stopped.IsZero():
 		return "Finished", "Unknown"
 	case d < s.queued:
 		return "Queued", "Unknown"
@@ -93,6 +93,20 @@ func (s *stub) phase(b *build) (string, string) {
 	default:
 		return "Finished", "Successful"
 	}
+}
+
+// ended is when a simulated build's clock stopped: when it was cancelled, when
+// it finished, or now while it is still going, so a finished build keeps the
+// duration and completed time it finished with.
+func (s *stub) ended(b *build) time.Time {
+	end := b.started.Add(s.queued + s.running)
+	if !b.stopped.IsZero() && b.stopped.Before(end) {
+		end = b.stopped
+	}
+	if now := s.now(); now.Before(end) {
+		return now
+	}
+	return end
 }
 
 func (s *stub) fixture(w http.ResponseWriter, name string) []byte {
@@ -136,7 +150,7 @@ func stamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z
 // down to the one stage and one job bam needs to draw its panels.
 func (s *stub) liveDetail(key string, b *build) []byte {
 	life, state := s.phase(b)
-	elapsed := int(s.now().Sub(b.started) / time.Millisecond)
+	elapsed := int(s.ended(b).Sub(b.started) / time.Millisecond)
 	doc := map[string]any{
 		"key": key, "buildResultKey": key, "buildNumber": b.number,
 		"state": state, "lifeCycleState": life,
@@ -155,7 +169,7 @@ func (s *stub) liveDetail(key string, b *build) []byte {
 		}}},
 	}
 	if life == "Finished" {
-		doc["buildCompletedTime"] = stamp(s.now())
+		doc["buildCompletedTime"] = stamp(s.ended(b))
 	}
 	out, err := json.Marshal(doc)
 	if err != nil { // the document is built here, so this cannot happen
@@ -284,7 +298,7 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		b := s.live[key]
 		if b != nil {
-			b.stopped = true
+			b.stopped = s.now()
 		}
 		s.mu.Unlock()
 		if b == nil {

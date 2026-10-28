@@ -207,6 +207,18 @@ func TestPresetAddChecksThePlanKeyBeforeConnecting(t *testing.T) {
 	assert.Empty(t, h.connectOpts, "bad input is reported before any server is picked")
 }
 
+func TestInitWithoutServerSuggestsTheSelectedOne(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte("version: 1\nservers:\n  lab:\n    url: https://bamboo.lab.example\n"), 0o644))
+	assert.Equal(t, 2, h.run("init", "--project", "LAB"))
+	assert.Equal(t, "error: --server ALIAS is required\n  try: bam init --server lab --project LAB\n", h.stderr.String())
+
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	h.vars["BAM_URL"] = workOrigin
+	assert.Equal(t, 2, h.run("init", "--project", "PROJ"))
+	assert.Equal(t, "error: --server ALIAS is required\n  try: bam init --server work --url "+workOrigin+" --project PROJ\n", h.stderr.String())
+}
+
 func TestInit(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--project", "PROJ"), ".bam.yaml exists")

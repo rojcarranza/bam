@@ -540,7 +540,18 @@ func newInitCmd(r *runtime) *cobra.Command {
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			alias := r.flags.server
 			if alias == "" {
-				return errs.Usagef("--server ALIAS is required").WithTry(initTry("work", url, projects, plans))
+				// Suggest the server bam would pick anyway; BAM_URL has no alias, so offer its URL.
+				suggest, u := "work", url
+				if cfg, err := r.config(); err == nil {
+					if s, err := cfg.SelectServer("", ""); err == nil {
+						if s.Alias != config.EnvServerAlias {
+							suggest = s.Alias
+						} else if u == "" {
+							u = s.URL
+						}
+					}
+				}
+				return errs.Usagef("--server ALIAS is required").WithTry(initTry(suggest, u, projects, plans))
 			}
 			if len(projects) == 0 {
 				return errs.Usagef("--project is required").WithTry(initTry(alias, url, projects, plans))

@@ -119,6 +119,22 @@ func TestLoginAndLogoutTakeAliasFromServerFlag(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "missing <alias>")
 }
 
+func TestServerAliasArgsMatchAnyCase(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("logout", "WORK"))
+	assert.Contains(t, h.stdout.String(), "logged out of work")
+	h.stdin = "s3cret\n"
+	assert.Equal(t, 0, h.run("login", "--server", "Work", "--with-token"))
+	assert.Equal(t, "s3cret", h.kr.m["bam|"+workOrigin])
+
+	assert.Equal(t, 0, h.run("server", "add", "home", "--url", "http://bamboo.lab.example:8085"))
+	assert.Equal(t, 0, h.run("server", "default", "HOME"))
+	assert.Contains(t, h.stdout.String(), "default server is now home")
+	assert.Equal(t, 0, h.run("server", "rm", "Home"))
+	assert.Contains(t, h.stdout.String(), "removed server home")
+	assert.Contains(t, h.stdout.String(), "cleared the machine default_server")
+}
+
 func TestWhoami(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("whoami"))

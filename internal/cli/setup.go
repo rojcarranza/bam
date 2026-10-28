@@ -187,7 +187,7 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			alias := args[0]
+			alias := cfg.Alias(args[0])
 			if _, inMachine := cfg.Machine.Servers[alias]; !inMachine {
 				if cfg.Project != nil {
 					if _, inProject := cfg.Project.Servers[alias]; inProject {
@@ -240,7 +240,7 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 				fmt.Fprintln(r.env.Stdout, cur)
 				return nil
 			}
-			alias := args[0]
+			alias := cfg.Alias(args[0])
 			// A machine default naming a repo's alias would break every other repo.
 			if _, ok := cfg.Machine.Servers[alias]; !ok {
 				if len(cfg.Servers()) == 0 {
@@ -302,6 +302,7 @@ func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
 	if err != nil {
 		return err
 	}
+	alias = cfg.Alias(alias)
 	s, ok := cfg.Servers()[alias]
 	if !ok || s.URL == "" {
 		return cfg.UnknownServer(alias)
@@ -374,7 +375,7 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			alias := r.alias(args)
+			alias := cfg.Alias(r.alias(args))
 			s, ok := cfg.Servers()[alias]
 			if !ok {
 				// UnknownServer's hint, bam server add, is no way to log out.

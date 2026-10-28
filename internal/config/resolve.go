@@ -109,7 +109,7 @@ func (c *Config) expand(path string) string {
 // lists the aliases that do, so a mistyped --server is easy to spot.
 func (c *Config) UnknownServer(alias string) *errs.Error {
 	e := errs.Configf("no server alias %q", alias).
-		WithTry(fmt.Sprintf("bam server add %s --url URL", alias))
+		WithTry(serverAddTry(alias))
 	var names []string
 	for n, s := range c.Servers() {
 		if s.URL != "" {
@@ -121,6 +121,17 @@ func (c *Config) UnknownServer(alias string) *errs.Error {
 		e = e.WithWhy("servers: " + strings.Join(names, ", "))
 	}
 	return e
+}
+
+// serverAddTry suggests the bam server add command for alias, lowercased
+// because server add only accepts aliases matching ^[a-z][a-z0-9_-]*$.
+func serverAddTry(alias string) string {
+	if a := strings.ToLower(alias); ValidTargetName(a) {
+		alias = a
+	} else {
+		alias = "<alias>"
+	}
+	return fmt.Sprintf("bam server add %s --url URL", alias)
 }
 
 // Alias returns the configured spelling of a server alias typed in any
@@ -332,7 +343,7 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 	if t.Server != "" {
 		if _, ok := servers[t.Server]; !ok {
 			return errs.Configf("preset %q uses unknown server %q", t.Name, t.Server).
-				WithTry(fmt.Sprintf("bam server add %s --url URL", t.Server))
+				WithTry(serverAddTry(t.Server))
 		}
 	}
 	for _, name := range sortedKeys(t.Options) {

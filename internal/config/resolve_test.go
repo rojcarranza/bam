@@ -92,6 +92,12 @@ func TestServerSelectionSingleAndNone(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Contains(t, e.Try, "bam server add missing --url")
 	assert.Equal(t, "servers: only, second", e.Why, "a mistyped alias shows the real ones")
+	_, err = c.SelectServer("Missing", "")
+	require.ErrorAs(t, err, &e)
+	assert.Contains(t, e.Try, "bam server add missing --url", "server add only accepts lowercase aliases")
+	_, err = c.SelectServer("my server", "")
+	require.ErrorAs(t, err, &e)
+	assert.Contains(t, e.Try, "bam server add <alias> --url", "never suggest an alias server add rejects")
 
 	_, err = (&Config{Machine: &MachineFile{Version: 1}}).SelectServer("missing", "")
 	require.ErrorAs(t, err, &e)

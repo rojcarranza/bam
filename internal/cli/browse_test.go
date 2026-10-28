@@ -285,6 +285,14 @@ func TestColorFlagCompletesModes(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "auto\nalways\nnever\n:4\n")
 }
 
+func TestArgumentsNeverCompleteFileNames(t *testing.T) {
+	h := newHarness(t)
+	for _, line := range [][]string{{"preset", "list", ""}, {"set", "list", ""}, {"project", "list", ""}, {"doctor", ""}, {""}} {
+		h.run(append([]string{"__complete"}, line...)...)
+		assert.Contains(t, h.stdout.String(), ":4\n", line)
+	}
+}
+
 func TestBranchFlagCompletesPlanBranches(t *testing.T) {
 	h := newHarness(t)
 	for _, line := range [][]string{

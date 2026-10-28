@@ -156,10 +156,14 @@ func newRoot(r *runtime) *cobra.Command {
 }
 
 // completePlanFlags registers plan branch completion on every --branch flag
-// and recent build completion on every --from flag.
+// and recent build completion on every --from flag. A command without its own
+// argument completion offers nothing: no bam argument is a file name.
 func completePlanFlags(cmd *cobra.Command, r *runtime) {
 	for _, c := range cmd.Commands() {
 		completePlanFlags(c, r)
+	}
+	if cmd.ValidArgsFunction == nil && len(cmd.ValidArgs) == 0 {
+		cmd.ValidArgsFunction = cobra.NoFileCompletions
 	}
 	if cmd.LocalFlags().Lookup("branch") != nil {
 		_ = cmd.RegisterFlagCompletionFunc("branch", r.completeBranch)

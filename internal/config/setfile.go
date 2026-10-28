@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
+	"gopkg.in/yaml.v3"
 )
 
 // setFile is a train file: one set, with an optional name.
@@ -15,6 +16,24 @@ type setFile struct {
 	Name    string   `yaml:"name,omitempty"`
 	Timeout Duration `yaml:"timeout,omitempty"`
 	Stages  []Stage  `yaml:"stages"`
+}
+
+// UnmarshalYAML takes a bare list of stages as shorthand for stages:, as Set does.
+func (f *setFile) UnmarshalYAML(n *yaml.Node) error {
+	switch n.Kind {
+	case yaml.SequenceNode:
+		return n.Decode(&f.Stages)
+	case yaml.MappingNode:
+		// Decode does not inherit the file's KnownFields; see Stage.
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			if k := n.Content[i]; k.Value != "name" && k.Value != "stages" && k.Value != "timeout" {
+				return fmt.Errorf("line %d: unknown field %q in a train file", k.Line, k.Value)
+			}
+		}
+		type plain setFile
+		return n.Decode((*plain)(f))
+	}
+	return fmt.Errorf("line %d: expected a train file (stages: [[preset], ...]), found a single value", n.Line)
 }
 
 // LoadSetFile reads one set from a train file and checks it as a configured

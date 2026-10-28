@@ -237,7 +237,7 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 		}
 		names = append(names, c.Name())
 		if slices.Contains(c.SuggestFor, strings.ToLower(args[0])) {
-			suggest = []string{c.Name()}
+			suggest = []string{withFlag(c.Name(), c, strings.ToLower(args[0]))}
 		}
 	}
 	if len(suggest) == 0 {
@@ -271,6 +271,15 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 	return errs.Usagef("unknown command %q for %q", args[0], path).WithTry(try)
 }
 
+// withFlag adds the flag a SuggestFor word names, so "bam build compare"
+// suggests "bam build investigate --compare", not a bare investigate.
+func withFlag(name string, c *cobra.Command, word string) string {
+	if c.LocalFlags().Lookup(word) != nil {
+		return name + " --" + word
+	}
+	return name
+}
+
 // nestedCommands finds the grandchildren that "bam cancel" or "bam rerun"
 // meant, by name, alias or SuggestFor: "build cancel", or "build rerun" and
 // "set rerun". More than two matches are kept only when they share one name,
@@ -283,7 +292,7 @@ func nestedCommands(cmd *cobra.Command, word string) []string {
 		}
 		for _, c := range group.Commands() {
 			if c.IsAvailableCommand() && (c.Name() == word || slices.Contains(c.Aliases, word) || slices.Contains(c.SuggestFor, word)) {
-				found = append(found, group.Name()+" "+c.Name())
+				found = append(found, withFlag(group.Name()+" "+c.Name(), c, word))
 			}
 		}
 	}

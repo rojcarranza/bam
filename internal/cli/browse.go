@@ -50,8 +50,10 @@ func (r *runtime) note(msg, try string) {
 	}
 }
 
-// completeTargets offers target names for a <plan|preset> argument.
-func (r *runtime) completeTargets(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+// completeTargets offers target names for a <plan|preset> argument, and once
+// a project key and dash are typed (PROJ-), that project's plan keys: one
+// request, made only then so a bare Tab stays offline.
+func (r *runtime) completeTargets(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
@@ -63,6 +65,14 @@ func (r *runtime) completeTargets(_ *cobra.Command, args []string, _ string) ([]
 	var names []string
 	for n := range all {
 		names = append(names, n)
+	}
+	if project, _, ok := strings.Cut(toComplete, "-"); ok && app.IsProjectKey(project) {
+		if svc, _, err := r.connect(cmd.Context(), ""); err == nil {
+			plans, _ := svc.P.ListPlans(cmd.Context(), project)
+			for _, p := range plans {
+				names = append(names, p.Key+"\t"+p.Name)
+			}
+		}
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
 }

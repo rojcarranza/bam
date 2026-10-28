@@ -450,3 +450,13 @@ func TestRunDryRunWarnsOfADisabledPlan(t *testing.T) {
 	require.Len(t, doc.Warnings, 1, "the --json document repeats the warning")
 	assert.Contains(t, doc.Warnings[0], "PROJ-PROV is disabled in Bamboo")
 }
+
+func TestTargetArgumentCompletesPlanKeysAfterAProjectKey(t *testing.T) {
+	h := newHarness(t)
+	h.run("__complete", "logs", "PROJ-")
+	assert.Contains(t, h.stdout.String(), "PROJ-BUILD\tBuild and test\nPROJ-PROV\tProvision lab\n:4\n")
+	h.run("__complete", "logs", "")
+	assert.NotContains(t, h.stdout.String(), "PROJ-BUILD", "a bare Tab makes no request")
+	h.run("__complete", "logs", "provision-")
+	assert.NotContains(t, h.stdout.String(), "PROJ-", "a preset name is not a project key")
+}

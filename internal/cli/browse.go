@@ -2,7 +2,9 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -294,6 +296,12 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 			for _, k := range keys {
 				plans, err := svc.P.ListPlans(cmd.Context(), k)
 				if err != nil {
+					var e *errs.Error
+					if errors.Is(err, errs.ErrNotFound) && errors.As(err, &e) {
+						if c := errs.Closest(k, slices.Sorted(maps.Keys(names)), 1); len(c) > 0 {
+							_ = e.WithTry("did you mean bam plan list " + c[0] + "?")
+						}
+					}
 					return err
 				}
 				groups = append(groups, view.PlanGroup{Project: provider.Project{Key: k, Name: names[k], URL: svc.P.URL(k)}, Plans: plans})

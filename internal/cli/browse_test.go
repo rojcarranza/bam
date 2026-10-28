@@ -54,6 +54,16 @@ func TestPlanListWithoutProjectsIsUsageError(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "projects on work: OPS, PROJ, LAB, QA, WEB and 2 more (bam project list)")
 }
 
+func TestPlanListSuggestsCloseProject(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 5, h.run("plan", "list", "PRJ"))
+	assert.Contains(t, h.stderr.String(), "project PRJ not found")
+	assert.Contains(t, h.stderr.String(), "try: did you mean bam plan list PROJ?")
+
+	assert.Equal(t, 5, h.run("plan", "list", "ZZZZZZ"))
+	assert.NotContains(t, h.stderr.String(), "did you mean")
+}
+
 func TestPlanListCompletesProjectKeys(t *testing.T) {
 	h := newHarness(t)
 	h.fake.Projects = append(h.fake.Projects, provider.Project{Key: "OPS"})

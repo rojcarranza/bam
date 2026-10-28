@@ -1157,6 +1157,8 @@ func TestTheKeyLineOffersFOnlyOnTheRevisionRowWithAHint(t *testing.T) {
 	require.NotContains(t, m.keyLine(), "f use")
 	m.form.cursor = len(m.form.fields)
 	require.Contains(t, m.keyLine(), "f use #41's revision")
+	m, _ = send(m, mkKey("f"))
+	require.NotContains(t, m.keyLine(), "f use", "the commit is already taken")
 	m = formModel()
 	m.form.cursor = len(m.form.fields)
 	require.NotContains(t, m.keyLine(), "f use")

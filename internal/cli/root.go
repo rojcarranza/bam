@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/r0jjames/bam-cli/internal/view/style"
@@ -55,7 +54,7 @@ func Execute(ctx context.Context, args []string, env Env) int {
 		e := errs.Usagef("%s", flagValueMessage(err))
 		if name, ok := strings.CutPrefix(err.Error(), "unknown flag: --"); ok {
 			names := flagNames(c)
-			if near := app.Closest(name, names, 1); len(near) > 0 {
+			if near := errs.Closest(name, names, 1); len(near) > 0 {
 				return e.WithTry("did you mean --" + near[0] + "?")
 			}
 			for _, syn := range flagSynonyms[name] {
@@ -235,7 +234,7 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 		suggest = nestedCommands(cmd, strings.ToLower(args[0]))
 	}
 	if len(suggest) == 0 {
-		suggest = app.Closest(args[0], names, 1)
+		suggest = errs.Closest(args[0], names, 1)
 	}
 	for i, s := range suggest {
 		suggest[i] = path + " " + s

@@ -484,7 +484,7 @@ func parseState(s string) (provider.State, error) {
 	}
 	names := stateNames()
 	e := errs.Usagef("--state must be one of %s, not %q", strings.Join(names, ", "), s)
-	if c := app.Closest(s, names, 1); len(c) > 0 {
+	if c := errs.Closest(s, names, 1); len(c) > 0 {
 		e = e.WithTry("did you mean --state " + c[0] + "?")
 	}
 	return "", e

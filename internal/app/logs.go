@@ -68,7 +68,7 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 			names = append(names, keys[len(keys)-1]+" ("+sj.job.Name+")")
 		}
 		e := errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
-		if c := Closest(o.Job, keys, 1); len(c) > 0 {
+		if c := errs.Closest(o.Job, keys, 1); len(c) > 0 {
 			e = e.WithTry("did you mean --job " + c[0] + "?")
 		}
 		return nil, e

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -108,8 +109,7 @@ func (c *Config) expand(path string) string {
 // UnknownServer is the error for an alias no layer defines with a url. It
 // lists the aliases that do, so a mistyped --server is easy to spot.
 func (c *Config) UnknownServer(alias string) *errs.Error {
-	e := errs.Configf("no server alias %q", alias).
-		WithTry(serverAddTry(alias))
+	e := errs.Configf("no server alias %q", alias)
 	var names []string
 	for n, s := range c.Servers() {
 		if s.URL != "" {
@@ -120,7 +120,16 @@ func (c *Config) UnknownServer(alias string) *errs.Error {
 		slices.Sort(names)
 		e = e.WithWhy("servers: " + strings.Join(names, ", "))
 	}
-	return e
+	return e.WithTry(nearServerTry(alias, names))
+}
+
+// nearServerTry suggests the alias closest to a mistyped one, or failing
+// that the bam server add command for it.
+func nearServerTry(alias string, names []string) string {
+	if near := errs.Closest(alias, names, 1); len(near) > 0 {
+		return "did you mean " + near[0] + "?"
+	}
+	return serverAddTry(alias)
 }
 
 // serverAddTry suggests the bam server add command for alias, lowercased
@@ -343,7 +352,7 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 	if t.Server != "" {
 		if _, ok := servers[t.Server]; !ok {
 			return errs.Configf("preset %q uses unknown server %q", t.Name, t.Server).
-				WithTry(serverAddTry(t.Server))
+				WithTry(nearServerTry(t.Server, slices.Sorted(maps.Keys(servers))))
 		}
 	}
 	for _, name := range sortedKeys(t.Options) {

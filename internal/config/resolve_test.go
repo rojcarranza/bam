@@ -98,6 +98,9 @@ func TestServerSelectionSingleAndNone(t *testing.T) {
 	_, err = c.SelectServer("my server", "")
 	require.ErrorAs(t, err, &e)
 	assert.Contains(t, e.Try, "bam server add <alias> --url", "never suggest an alias server add rejects")
+	_, err = c.SelectServer("secnod", "")
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean second?", e.Try, "a close alias beats adding a new server")
 
 	_, err = (&Config{Machine: &MachineFile{Version: 1}}).SelectServer("missing", "")
 	require.ErrorAs(t, err, &e)
@@ -215,7 +218,8 @@ func TestMergedTargetValidation(t *testing.T) {
 		"project key as plan":       {Target{Plan: "PROJ"}, `plan "PROJ" is not a plan key`, "plan: PROJ-PLAN"},
 		"default not option":        {Target{Plan: "PROJ-A", Defaults: StringMap{"a": "5"}, Options: StringListMap{"a": {"1", "2"}}}, `"5" is not one of 1, 2`, ""},
 		"masked default not option": {Target{Plan: "PROJ-A", Defaults: StringMap{"db_password": "hunter2"}, Options: StringListMap{"db_password": {"a", "b"}}}, `db_password="********" is not one of a, b`, ""},
-		"unknown server":            {Target{Plan: "PROJ-A", Server: "nope"}, `unknown server "nope"`, ""},
+		"unknown server":            {Target{Plan: "PROJ-A", Server: "zzzzzz"}, `unknown server "zzzzzz"`, "bam server add zzzzzz --url URL"},
+		"mistyped server":           {Target{Plan: "PROJ-A", Server: "wrk"}, `unknown server "wrk"`, "did you mean work?"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

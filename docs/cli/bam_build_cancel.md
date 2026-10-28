@@ -18,6 +18,7 @@ bam build cancel [<build>|<plan>|<preset>] [flags]
 
 ```
       --branch string   plan branch when a plan or preset is given
+      --dry-run         show which build would stop, stop nothing
   -h, --help            help for cancel
       --last            the last build bam triggered from this repository
 ```

@@ -443,7 +443,7 @@ func (r *runtime) followLogs(ctx context.Context, svc *app.Service, b provider.B
 }
 
 func newCancelCmd(r *runtime) *cobra.Command {
-	var last bool
+	var last, dryRun bool
 	var branch string
 	cmd := &cobra.Command{
 		Use:        "cancel [<build>|<plan>|<preset>]",
@@ -460,7 +460,14 @@ func newCancelCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			b, done, err := svc.Cancel(cmd.Context(), key)
+			var b provider.Build
+			var done bool
+			if dryRun {
+				b, err = svc.Build(cmd.Context(), key)
+				done = b.State.Finished()
+			} else {
+				b, done, err = svc.Cancel(cmd.Context(), key)
+			}
 			if err != nil {
 				return err
 			}
@@ -469,6 +476,14 @@ func newCancelCmd(r *runtime) *cobra.Command {
 					return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "stopped": false, "state": string(b.State)})
 				}
 				r.note(fmt.Sprintf("%s already finished (%s)", key, b.State), "")
+				return nil
+			}
+			if dryRun {
+				if r.flags.json {
+					return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "state": string(b.State), "stopped": false})
+				}
+				fmt.Fprintf(r.env.Stdout, "would stop %s (%s)\n", key, strings.ReplaceAll(string(b.State), "_", " "))
+				r.note("dry run: nothing stopped", "")
 				return nil
 			}
 			if r.flags.json {
@@ -480,6 +495,7 @@ func newCancelCmd(r *runtime) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show which build would stop, stop nothing")
 	return cmd
 }
 

@@ -162,6 +162,19 @@ func TestCancel(t *testing.T) {
 	assert.Equal(t, "success", doc["state"])
 }
 
+func TestCancelDryRun(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Sequences = map[string][]provider.Build{"PROJ-BUILD-483": {{Key: "PROJ-BUILD-483", State: provider.StateRunning}}}
+	assert.Equal(t, 0, h.run("build", "cancel", "PROJ-BUILD-483", "--dry-run"))
+	assert.Equal(t, "would stop PROJ-BUILD-483 (running)\n", h.stdout.String())
+	assert.Contains(t, h.stderr.String(), "dry run: nothing stopped")
+	assert.Equal(t, 0, h.run("build", "cancel", "PROJ-BUILD-483", "--dry-run", "--json"))
+	assert.JSONEq(t, `{"key":"PROJ-BUILD-483","url":"`+workOrigin+`/browse/PROJ-BUILD-483","state":"running","stopped":false}`, h.stdout.String())
+	assert.Equal(t, 0, h.run("build", "cancel", "PROJ-BUILD-482", "--dry-run"))
+	assert.Contains(t, h.stderr.String(), "PROJ-BUILD-482 already finished (success)")
+	assert.Empty(t, h.fake.Stopped)
+}
+
 func TestOpenAndURL(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("open", "provision-lab"))

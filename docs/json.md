@@ -46,7 +46,7 @@ A running build carries the server's duration estimate as well:
 
 ## Cancel and rerun
 
-`build cancel --json` prints `{"key":"PROJ-BUILD-46","url":"...","stopped":true}`. When the build had already finished, `stopped` is `false` and `state` holds its final state.
+`build cancel --json` prints `{"key":"PROJ-BUILD-46","url":"...","stopped":true}`. When the build had already finished, `stopped` is `false` and `state` holds its final state. With `--dry-run` it stops nothing and prints `{"key":"PROJ-BUILD-46","url":"...","state":"running","stopped":false}`, where `state` is the queued or running state of the build it would stop.
 
 `build rerun --json` without `--watch` prints `{"key":"PROJ-BUILD-45","url":"...","restarted":true}`. With `--watch` it prints the watch events instead. With `--dry-run` it restarts nothing and prints `{"key":"PROJ-BUILD-45","url":"...","state":"failed","restarted":false}`.
 

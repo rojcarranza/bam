@@ -205,6 +205,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&force, "force", false, "replace an existing preset")
 	f.BoolVar(&full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
+	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }
 

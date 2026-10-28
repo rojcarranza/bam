@@ -190,6 +190,14 @@ func TestBranchFlagCompletesPlanBranches(t *testing.T) {
 	assert.NotContains(t, h.stdout.String(), "develop", "a build key names no plan")
 }
 
+func TestPlanFlagCompletesConfiguredPlans(t *testing.T) {
+	h := newHarness(t)
+	for _, line := range [][]string{{"doctor", "--plan", ""}, {"preset", "add", "x", "--plan", ""}} {
+		h.run(append([]string{"__complete"}, line...)...)
+		assert.Equal(t, "PROJ-BUILD\tBuild and test\nPROJ-PROV\tProvision lab\n:4\n", h.stdout.String(), line)
+	}
+}
+
 func TestFromFlagCompletesRecentBuilds(t *testing.T) {
 	h := newHarness(t)
 	h.run("__complete", "run", "build", "--from", "")

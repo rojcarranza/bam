@@ -158,6 +158,7 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&planKey, "plan", "", "plan to probe (default: first plan of the first configured project)")
+	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }
 

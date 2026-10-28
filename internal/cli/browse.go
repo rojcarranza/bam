@@ -95,6 +95,32 @@ func (r *runtime) completeProjects(cmd *cobra.Command, args []string, _ string) 
 	return keys, cobra.ShellCompDirectiveNoFileComp
 }
 
+// completePlans offers the plan keys of the server's configured projects,
+// each described by its name: one request per project, like doctor's default.
+func (r *runtime) completePlans(cmd *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	cfg, err := r.config()
+	if err != nil {
+		return nil, none
+	}
+	server, err := cfg.SelectServer(r.flags.server, "")
+	if err != nil {
+		return nil, none
+	}
+	_, backend, err := r.connectServer(server)
+	if err != nil {
+		return nil, none
+	}
+	var keys []string
+	for _, project := range cfg.ProjectKeys(server) {
+		plans, _ := backend.ListPlans(cmd.Context(), project)
+		for _, p := range plans {
+			keys = append(keys, p.Key+"\t"+p.Name)
+		}
+	}
+	return keys, none
+}
+
 // completeBranch offers the branch names of the plan a command names: its
 // --plan flag (preset add) or its first argument, a plan key or preset.
 func (r *runtime) completeBranch(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {

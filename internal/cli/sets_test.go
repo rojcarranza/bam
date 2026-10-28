@@ -312,3 +312,14 @@ func TestSetResumeOfAFileSetWithFile(t *testing.T) {
 	require.Equal(t, 0, h.run("set", "resume", id, "--file", p), h.stderr.String())
 	require.Len(t, h.fake.Triggered, 1)
 }
+
+func TestSetStatusOfAnUnknownSetSuggestsTheClosest(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	for _, args := range [][]string{{"set", "status", "relase"}, {"set", "resume", "relase"}, {"set", "rerun", "--failed", "relase"}} {
+		require.Equal(t, 2, h.run(args...), args)
+		require.Equal(t, "error: unknown set \"relase\"\n  sets: release\n  try: did you mean release? bam set list shows them all\n", h.stderr.String(), args)
+	}
+	// A configured set that never ran keeps its own message.
+	require.Equal(t, 2, h.run("set", "status", "release"))
+	require.Contains(t, h.stderr.String(), `no set runs in this repository for "release"`)
+}

@@ -397,6 +397,12 @@ func (r *runtime) findSetRun(args []string, match func(app.SetRecord) bool, miss
 		return app.SetRecord{}, err
 	}
 	if !ok {
+		// A name no layer defines is a typo, not a set that never ran.
+		if arg != "" {
+			if _, known, err := cfg.Set(arg); err == nil && !known {
+				return app.SetRecord{}, app.UnknownSet(cfg, arg)
+			}
+		}
 		if missing != nil {
 			return app.SetRecord{}, missing(arg)
 		}

@@ -240,6 +240,10 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + a.Arg + "?"
 			}
 		}
+		// a key copied with Bamboo's '#' before the number, or with a stray trailing dash
+		if k := strings.TrimRight(strings.ReplaceAll(a.Arg, "#", ""), "-"); IsBuildKey(k) {
+			try = "did you mean " + k + "?"
+		}
 		if build, job, ok := SplitJobResult(a.Arg); ok {
 			try = "that is job " + job + " of " + build + ": pass " + build + ", and --job " + job + " for bam logs"
 		}

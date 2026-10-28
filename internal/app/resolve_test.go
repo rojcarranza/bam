@@ -210,11 +210,11 @@ func TestUnknownTargetWithNoPresetsSaysHowToAddOne(t *testing.T) {
 func TestUnknownTargetThatIsALowercaseKeySuggestsTheKey(t *testing.T) {
 	cfg := &config.Config{Machine: &config.MachineFile{Version: 1}}
 	var e *errs.Error
-	for name, want := range map[string]string{"proj-build": "PROJ-BUILD", "proj-build-482": "PROJ-BUILD-482"} {
-		require.ErrorAs(t, UnknownTarget(cfg, name), &e)
-		assert.Equal(t, errs.KindUsage, e.Kind)
-		assert.Equal(t, "keys are uppercase: did you mean "+want+"? bam preset add "+name+" --plan KEY creates a preset by that name", e.Try, name)
-	}
+	require.ErrorAs(t, UnknownTarget(cfg, "proj-build"), &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+	assert.Equal(t, "keys are uppercase: did you mean PROJ-BUILD? bam preset add proj-build --plan KEY creates a preset by that name", e.Try)
+	require.ErrorAs(t, UnknownTarget(cfg, "proj-build-482"), &e)
+	assert.Equal(t, "keys are uppercase: did you mean PROJ-BUILD-482?", e.Try, "a build key is no preset name to add")
 	require.ErrorAs(t, UnknownTarget(cfg, "deploy"), &e)
 	assert.Contains(t, e.Try, "like PROJ-PLAN", "a name that is no key keeps the example")
 }

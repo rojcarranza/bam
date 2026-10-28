@@ -151,6 +151,10 @@ func UnknownTarget(cfg *config.Config, name string) error {
 			WithTry("bam preset list from that repository, or bam preset migrate to use them anywhere")
 	}
 	if len(names) == 0 {
+		if isKey && IsBuildKey(strings.ToUpper(name)) {
+			// a build key never makes sense as a new preset name
+			return e.WithWhy("no presets are configured").WithTry(keys)
+		}
 		if isKey {
 			// with no presets, a lowercase key is a key typed in lowercase
 			return e.WithWhy("no presets are configured").

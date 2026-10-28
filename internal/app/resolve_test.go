@@ -109,6 +109,18 @@ func TestResolveBuild(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-BUILD-7", key)
 
+	key, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ-BUILD-007"})
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BUILD-7", key, "leading zeros are dropped")
+
+	for _, arg := range []string{"PROJ-BUILD-0", "PROJ-BUILD-99999999999999999999"} {
+		_, err = s.ResolveBuild(bg, BuildArg{Arg: arg})
+		var ze *errs.Error
+		require.ErrorAs(t, err, &ze, arg)
+		assert.Equal(t, errs.KindUsage, ze.Kind)
+		assert.Equal(t, "its latest build: pass the plan key, PROJ-BUILD", ze.Try)
+	}
+
 	key, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ-BUILD"})
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-BUILD-482", key, "a plan means its latest build")
@@ -191,6 +203,10 @@ func TestResolveFrom(t *testing.T) {
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	key, _ = s.ResolveFrom(bg, ref, "PROJ-PROV-3")
 	assert.Equal(t, "PROJ-PROV-3", key)
+	key, _ = s.ResolveFrom(bg, ref, "PROJ-PROV-03")
+	assert.Equal(t, "PROJ-PROV-3", key)
+	_, err = s.ResolveFrom(bg, ref, "PROJ-PROV-0")
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	_, err = s.ResolveFrom(bg, ref, "yesterday")
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 

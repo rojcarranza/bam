@@ -234,7 +234,12 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		}
 		return rec.BuildKey, nil
 	case IsBuildKey(a.Arg):
-		return a.Arg, nil
+		k, ok := canonicalBuildKey(a.Arg)
+		if !ok {
+			return "", errs.Usagef("build numbers start at 1, not %s", a.Arg).
+				WithTry("its latest build: pass the plan key, " + a.Arg[:strings.LastIndex(a.Arg, "-")])
+		}
+		return k, nil
 	case a.Arg == "":
 		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
 	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg) && !projectRe.MatchString(a.Arg):
@@ -270,6 +275,14 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 	return builds[0].Key, nil
 }
 
+// canonicalBuildKey drops leading zeros from a build key's number
+// (PROJ-PLAN-007 is PROJ-PLAN-7); ok is false for build 0 or a number too large.
+func canonicalBuildKey(key string) (string, bool) {
+	i := strings.LastIndex(key, "-")
+	n, err := strconv.Atoi(key[i+1:])
+	return key[:i+1] + strconv.Itoa(n), err == nil && n > 0
+}
+
 // tidyBuildKey repairs a key copied with Bamboo's '#' before the number
 // (PROJ-PLAN-#12 or PROJ-PLAN#12) or with a stray trailing dash.
 func tidyBuildKey(s string) string {
@@ -291,7 +304,12 @@ func (s *Service) ResolveFrom(ctx context.Context, ref PlanRef, from string) (st
 		}
 		return ref.PlanKey + "-" + strconv.Itoa(n), nil // 007 names build 7
 	case IsBuildKey(from):
-		return from, nil
+		k, ok := canonicalBuildKey(from)
+		if !ok {
+			return "", errs.Usagef("--from takes a build number from 1 up, not %s", from).
+				WithTry("--from last reuses the latest build")
+		}
+		return k, nil
 	case !strings.EqualFold(from, "last"):
 		e := errs.Usagef("--from takes a build number, a build key or last, not %q", from)
 		if up := strings.ToUpper(from); IsBuildKey(up) {

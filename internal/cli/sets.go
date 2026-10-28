@@ -180,6 +180,19 @@ with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 			if err != nil {
 				return err
 			}
+			if dryRun {
+				seen := map[string]bool{}
+				for _, st := range p.Stages {
+					for _, run := range st {
+						if k := run.Ref.PlanKey; !seen[k] {
+							seen[k] = true
+							if w := svc.DisabledWarning(ctx, k); w != "" {
+								p.Warnings = append(p.Warnings, w)
+							}
+						}
+					}
+				}
+			}
 			view.PrintWarnings(r.env.Stderr, p.Warnings)
 			if dryRun {
 				if r.flags.json {

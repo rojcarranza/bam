@@ -64,6 +64,19 @@ func TestSetRunDryRunTriggersNothingAndWritesNoRecord(t *testing.T) {
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
+func TestSetRunDryRunWarnsOfADisabledPlan(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "run", "release", "--dry-run"), h.stderr.String())
+	require.NotContains(t, h.stderr.String(), "disabled")
+	ps := h.fake.Plans["PROJ"]
+	for i := range ps {
+		ps[i].Disabled = ps[i].Key == "PROJ-BUILD"
+	}
+	require.Equal(t, 0, h.run("set", "run", "release", "--dry-run"), h.stderr.String())
+	require.Equal(t, 1, strings.Count(h.stderr.String(), "warning: PROJ-BUILD is disabled in Bamboo, so a real run would be refused"))
+	require.Empty(t, h.fake.Triggered)
+}
+
 func TestSetRunJSONIsNDJSON(t *testing.T) {
 	h := setHarness(t, provider.StateSuccess)
 	require.Equal(t, 0, h.run("set", "run", "release", "--json"), h.stderr.String())

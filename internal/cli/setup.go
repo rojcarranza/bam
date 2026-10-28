@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,15 @@ import (
 )
 
 var aliasRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+
+// lowerAlias returns alias lowercased when that makes it valid, so a hint
+// for Lab names lab; otherwise it returns alias as typed.
+func lowerAlias(alias string) string {
+	if a := strings.ToLower(alias); aliasRe.MatchString(a) && a != config.EnvServerAlias {
+		return a
+	}
+	return alias
+}
 
 func init() { commandSets = append(commandSets, addSetup) }
 
@@ -46,15 +56,19 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 			// git remote add muscle memory: show the exact command with --url.
 			if len(args) == 2 && url == "" && strings.Contains(args[1], "://") {
 				return errs.Usagef("the server URL goes in --url").
-					WithTry("bam server add " + args[0] + " --url " + args[1])
+					WithTry("bam server add " + lowerAlias(args[0]) + " --url " + args[1])
 			}
 			return cobra.ExactArgs(1)(cmd, args)
 		},
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			alias := args[0]
 			if !aliasRe.MatchString(alias) || alias == config.EnvServerAlias {
-				return errs.Usagef("invalid server alias %q", alias).
+				e := errs.Usagef("invalid server alias %q", alias).
 					WithWhy("aliases are lowercase letters, digits, - and _; \"env\" is reserved for BAM_URL")
+				if a := lowerAlias(alias); a != alias {
+					e = e.WithTry("bam server add " + a + " --url " + cmp.Or(url, "URL"))
+				}
+				return e
 			}
 			if err := checkProjectKeys(projects); err != nil {
 				return err

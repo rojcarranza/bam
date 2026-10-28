@@ -214,6 +214,9 @@ func TestBuildList(t *testing.T) {
 	for _, s := range []string{"not-built", "NotBuilt", "not built"} {
 		assert.Equal(t, 0, h.run("build", "list", "PROJ-BUILD", "--state", s), s)
 	}
+	for _, s := range []string{"Successful", "In progress", "failure", "cancelled"} {
+		assert.Equal(t, 0, h.run("build", "list", "PROJ-BUILD", "--state", s), s)
+	}
 	assert.Equal(t, 0, h.run("build", "list", "PROJ-BUILD", "--state", "FAILED"))
 	assert.Equal(t, "no failed builds for PROJ-BUILD\n  try: bam build list PROJ-BUILD\n", h.stderr.String())
 	assert.Equal(t, 0, h.run("build", "list", "provision-lab", "--state", "success"))

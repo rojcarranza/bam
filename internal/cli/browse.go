@@ -597,6 +597,16 @@ func parseState(s string) (provider.State, error) {
 			return st, nil
 		}
 	}
+	// Bamboo's UI says "Successful" and "In progress"; the rest are common words for the same states.
+	aliases := map[string]provider.State{
+		"successful": provider.StateSuccess, "passed": provider.StateSuccess,
+		"failure": provider.StateFailed, "fail": provider.StateFailed,
+		"inprogress": provider.StateRunning, "building": provider.StateRunning,
+		"cancelled": provider.StateStopped, "canceled": provider.StateStopped,
+	}
+	if st, ok := aliases[strings.ToLower(squashState(s))]; ok {
+		return st, nil
+	}
 	names := stateNames()
 	e := errs.Usagef("--state must be one of %s, not %q", strings.Join(names, ", "), s)
 	if c := errs.Closest(s, names, 1); len(c) > 0 {

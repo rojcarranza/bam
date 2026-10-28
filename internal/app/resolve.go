@@ -240,8 +240,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + n + "?"
 			}
 		}
-		// a key copied with Bamboo's '#' before the number, or with a stray trailing dash
-		if k := strings.TrimRight(strings.ReplaceAll(a.Arg, "#", ""), "-"); IsBuildKey(k) {
+		if k := tidyBuildKey(a.Arg); IsBuildKey(k) {
 			try = "did you mean " + k + "?"
 		}
 		if build, job, ok := SplitJobResult(a.Arg); ok {
@@ -263,6 +262,12 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 	return builds[0].Key, nil
 }
 
+// tidyBuildKey repairs a key copied with Bamboo's '#' before the number
+// (PROJ-PLAN-#12 or PROJ-PLAN#12) or with a stray trailing dash.
+func tidyBuildKey(s string) string {
+	return strings.TrimRight(strings.ReplaceAll(strings.ReplaceAll(s, "-#", "#"), "#", "-"), "-")
+}
+
 // ResolveFrom turns --from into a build key: a number of the resolved plan
 // branch, a full key, or "last" (the most recent manual build, else the most
 // recent build).
@@ -279,7 +284,7 @@ func (s *Service) ResolveFrom(ctx context.Context, ref PlanRef, from string) (st
 		if up := strings.ToUpper(from); IsBuildKey(up) {
 			e = e.WithTry("keys are uppercase: did you mean " + up + "?")
 		}
-		if k := strings.TrimRight(strings.ReplaceAll(from, "#", ""), "-"); k != from && IsBuildKey(k) {
+		if k := tidyBuildKey(from); k != from && IsBuildKey(k) {
 			e = e.WithTry("did you mean " + k + "?")
 		}
 		if n := strings.TrimPrefix(from, "#"); digitsRe.MatchString(n) {

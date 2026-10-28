@@ -133,7 +133,7 @@ func TestResolveBuild(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "that is job INT of PROJ-BUILD-482: pass PROJ-BUILD-482, and --job INT for bam logs", e.Try)
 
-	for _, arg := range []string{"PROJ-BUILD-#482", "PROJ-BUILD-482-"} {
+	for _, arg := range []string{"PROJ-BUILD-#482", "PROJ-BUILD#482", "PROJ-BUILD-482-"} {
 		_, err = s.ResolveBuild(bg, BuildArg{Arg: arg})
 		require.ErrorAs(t, err, &e)
 		assert.Equal(t, "did you mean PROJ-BUILD-482?", e.Try, arg)
@@ -189,7 +189,7 @@ func TestResolveFrom(t *testing.T) {
 	_, err = s.ResolveFrom(bg, ref, "#5")
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "drop Bamboo's '#': --from 5", e.Try)
-	for _, from := range []string{"PROJ-PROV-#5", "PROJ-PROV-5-"} {
+	for _, from := range []string{"PROJ-PROV-#5", "PROJ-PROV#5", "PROJ-PROV-5-"} {
 		_, err = s.ResolveFrom(bg, ref, from)
 		require.ErrorAs(t, err, &e)
 		assert.Equal(t, "did you mean PROJ-PROV-5?", e.Try, from)

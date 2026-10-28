@@ -62,6 +62,12 @@ func Execute(ctx context.Context, args []string, env Env) int {
 					return e.WithTry("did you mean --" + syn + "?")
 				}
 			}
+			// --plan KEY where the command takes the plan as an argument.
+			if token, ok := argFlags[name]; ok {
+				if usage := strings.TrimPrefix(c.Use, c.Name()); strings.Contains(usage, token) {
+					return e.WithTry("the " + name + " is an argument: " + c.CommandPath() + usage)
+				}
+			}
 		}
 		return e.WithTry(c.CommandPath() + " --help")
 	})
@@ -314,6 +320,15 @@ var flagSynonyms = map[string][]string{
 	"limit": {"last"},
 	"last":  {"limit"},
 	"count": {"limit", "last"},
+}
+
+// argFlags maps a flag name users guess to how the command's Use line names
+// that argument.
+var argFlags = map[string]string{
+	"project": "PROJ",
+	"plan":    "plan",
+	"build":   "build",
+	"preset":  "preset",
 }
 
 func flagNames(cmd *cobra.Command) []string {

@@ -180,6 +180,12 @@ func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
 		"build list PROJ-PLAN --last 5":         "error: unknown flag: --last\n  try: did you mean --limit?\n",
 		"build list PROJ-PLAN --count 5":        "error: unknown flag: --count\n  try: did you mean --limit?\n",
 		"run PROJ-PLAN --zzzzzz":                "error: unknown flag: --zzzzzz\n  try: bam run --help\n",
+		"plan list --project PROJ":              "error: unknown flag: --project\n  try: the project is an argument: bam plan list [PROJ...]\n",
+		"build list --plan PROJ-PLAN":           "error: unknown flag: --plan\n  try: the plan is an argument: bam build list <plan|preset>\n",
+		"logs --build PROJ-PLAN-1":              "error: unknown flag: --build\n  try: the build is an argument: bam logs [<build>|<plan>|<preset>]\n",
+		"run --preset deploy":                   "error: unknown flag: --preset\n  try: the preset is an argument: bam run <plan|preset>\n",
+		"whoami --plan PROJ-PLAN":               "error: unknown flag: --plan\n  try: bam whoami --help\n",
+		"plan --plan PROJ-PLAN":                 "error: unknown flag: --plan\n  try: bam plan --help\n",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

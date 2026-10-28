@@ -287,6 +287,9 @@ func planCells(cols []tableCol, p provider.Plan, live *provider.Build, now time.
 			out[i] = p.Key
 		case "NAME":
 			out[i] = p.Name
+			if p.Disabled {
+				out[i] += " (disabled)"
+			}
 		case "STATE":
 			out[i] = state
 		case "#":

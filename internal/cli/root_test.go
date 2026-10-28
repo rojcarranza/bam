@@ -111,6 +111,8 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"compare":         "try: did you mean bam build investigate --compare? bam --help shows them all",
 		"build debug":     "try: did you mean bam build investigate? bam build --help shows them all",
 		"build branches":  "try: did you mean bam plan branches? bam build --help shows them all",
+		"plan variables":  "try: did you mean bam plan vars? bam plan --help shows them all",
+		"params":          "try: did you mean bam plan vars? bam --help shows them all",
 		"plan builds":     "try: did you mean bam build list? bam plan --help shows them all",
 		"plan cancel":     "try: did you mean bam build cancel? bam plan --help shows them all",
 		"build open":      "try: did you mean bam open? bam build --help shows them all",

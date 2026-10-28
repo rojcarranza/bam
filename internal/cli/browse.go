@@ -501,6 +501,7 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 		Long: "List a plan's variables with the values a recent build used. With text, list\n" +
 			"only the variables whose name contains it, ignoring case.",
 		Example:           "  bam plan vars PROJ-BUILD\n  bam plan vars PROJ-BUILD cluster",
+		SuggestFor:        []string{"variables", "variable", "params", "parameters"},
 		Args:              cobra.RangeArgs(1, 2),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

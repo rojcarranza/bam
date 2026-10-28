@@ -174,7 +174,8 @@ LAB-NWINT-487                    ✓ success  1h18m
 `WatchTree` emits a `TreeEvent{Type: TreeUpdate|TreeDone|TreeError, Tree, Err}`:
 
 - The first tree at once, then every 10 seconds: the index is read again, and `GetBuild` runs only for nodes that have not finished and for new nodes.
-- An update is sent only when a node's state, its stages' states or the set of nodes changed.
+- Each refresh also reads the estimate of every running build, since Bamboo may have none when a build starts.
+- An update is sent only when a node's state, its stages' states, whether it has an estimate or the set of nodes changed. A newer estimate alone sends nothing: a live view moves the bars on by itself.
 - It ends with `TreeDone` once every build node has finished and one more refresh after the last one finished found no new node: Bamboo queues children when their parent ends.
 - A refresh in which every build node finished more than a minute ago (by Bamboo's finish times) needs no second one: it ends with `TreeDone` at once, so watching an old build does not wait. The minute leaves room for a server clock that runs ahead.
 - A refresh that fails is retried; three in a row end with `TreeError`.

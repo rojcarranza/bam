@@ -499,6 +499,20 @@ func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
 }
 
+func TestPresetAddMistypedKeysAndNamesGetHints(t *testing.T) {
+	h := newHarness(t)
+	for args, want := range map[string]string{
+		"x --plan proj-prov":     "try: keys are uppercase: did you mean PROJ-PROV?",
+		"x --from proj-prov12-8": "try: keys are uppercase: did you mean --from PROJ-PROV12-8?",
+		"x --from PROJ-PROV":     "try: bam preset add x --plan PROJ-PROV; --from takes a build",
+		"Prov --plan PROJ-PROV":  "try: did you mean prov?",
+	} {
+		h.stderr.Reset()
+		assert.Equal(t, 2, h.run(append([]string{"preset", "add"}, strings.Fields(args)...)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+	}
+}
+
 func TestPresetAddFullKeepsPlanDefaultsAndScaffolding(t *testing.T) {
 	h := newHarness(t)
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())

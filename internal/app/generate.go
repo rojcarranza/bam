@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -32,8 +33,12 @@ func (s *Service) GenerateTarget(ctx context.Context, o GenerateOptions) (config
 // the plan's declared list rather than from a build.
 func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.TargetDraft, bool, error) {
 	if !config.ValidTargetName(o.Name) {
-		return config.TargetDraft{}, false, errs.Usagef("invalid preset name %q", o.Name).
+		e := errs.Usagef("invalid preset name %q", o.Name).
 			WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter")
+		if low := strings.ToLower(o.Name); config.ValidTargetName(low) {
+			e = e.WithTry("did you mean " + low + "?")
+		}
+		return config.TargetDraft{}, false, e
 	}
 	if IsBuildKey(o.From) && (o.PlanKey == "" || o.Branch == "") {
 		b, err := s.P.GetBuild(ctx, o.From)
@@ -54,7 +59,11 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 		}
 	}
 	if !IsPlanKey(o.PlanKey) {
-		return config.TargetDraft{}, false, errs.Usagef("%q is not a plan key", o.PlanKey).WithTry("bam plan list")
+		try := "bam plan list"
+		if up := strings.ToUpper(o.PlanKey); IsPlanKey(up) {
+			try = "keys are uppercase: did you mean " + up + "?"
+		}
+		return config.TargetDraft{}, false, errs.Usagef("%q is not a plan key", o.PlanKey).WithTry(try)
 	}
 	if _, err := s.P.GetPlan(ctx, o.PlanKey); err != nil {
 		return config.TargetDraft{}, false, err

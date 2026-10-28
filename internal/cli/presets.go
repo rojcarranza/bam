@@ -171,8 +171,14 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if plan == "" && !app.IsBuildKey(from) {
-				return errs.Usagef("--plan is required").
-					WithTry(fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0]))
+				try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0])
+				switch up := strings.ToUpper(from); {
+				case app.IsBuildKey(up):
+					try = "keys are uppercase: did you mean --from " + up + "?"
+				case app.IsPlanKey(up):
+					try = fmt.Sprintf("bam preset add %s --plan %s; --from takes a build", args[0], up)
+				}
+				return errs.Usagef("--plan is required").WithTry(try)
 			}
 			if shared && file != "" {
 				return errs.Usagef("--shared and --file cannot be used together").

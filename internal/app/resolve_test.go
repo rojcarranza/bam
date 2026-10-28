@@ -60,6 +60,16 @@ func TestPresetTypedInWrongCaseGetsHint(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "preset names are lowercase: did you mean provision-lab?", e.Try)
 
+	for arg, try := range map[string]string{
+		"PROJ-BUILD-":    "did you mean PROJ-BUILD?",
+		"PROJ-BUILD#482": "its plan, PROJ-BUILD",
+		"PROJ-BUILD-#48": "its plan, PROJ-BUILD",
+	} {
+		_, err = s.ResolvePlan(bg, arg, "")
+		require.ErrorAs(t, err, &e)
+		assert.Equal(t, try, e.Try, arg)
+	}
+
 	_, err = s.ResolvePlan(bg, "Nope", "")
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "bam preset list, or a plan key such as PROJ-PLAN", e.Try)

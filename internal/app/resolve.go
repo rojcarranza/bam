@@ -107,6 +107,10 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 		try := "bam preset list, or a plan key such as PROJ-PLAN"
 		if p := s.lowerPreset(arg); p != "" {
 			try = "preset names are lowercase: did you mean " + p + "?"
+		} else if k := tidyBuildKey(arg); IsPlanKey(k) {
+			try = "did you mean " + k + "?"
+		} else if IsBuildKey(k) {
+			try = "its plan, " + k[:strings.LastIndex(k, "-")]
 		}
 		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).WithTry(try)
 	}

@@ -188,6 +188,10 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 							WithTry("edit " + cfg.ProjectPath)
 					}
 				}
+				if len(cfg.Servers()) == 0 {
+					// RemoveMachineServer's hint, bam server list, would only say there are none.
+					return errs.Usagef("unknown server %q", alias).WithWhy("no servers are configured, so there is nothing to remove")
+				}
 			}
 			if err := config.RemoveMachineServer(r.env.Paths.MachineConfig, alias); err != nil {
 				return err

@@ -54,6 +54,10 @@ func TestPresetsAndPlansCommands(t *testing.T) {
 func TestAUniquePrefixIsAccepted(t *testing.T) {
 	m, _ := runCmdLine(homeModel(), "pre")
 	require.Equal(t, homePresets, m.home.view)
+	m, _ = runCmdLine(homeModel(), "Presets")
+	require.Equal(t, homePresets, m.home.view, "command names match in any case")
+	m, _ = runCmdLine(homeModel(), "PROJ")
+	require.Equal(t, homeProjects, m.home.view, "aliases match in any case")
 }
 
 func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
@@ -71,6 +75,9 @@ func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
 func TestSortCommand(t *testing.T) {
 	m, _ := runCmdLine(homeModel(), "sort -age")
 	require.Equal(t, homeSort{col: colAge, desc: true}, m.home.sort)
+	m, _ = runCmdLine(m, "sort -Name")
+	require.NoError(t, m.err)
+	require.Equal(t, homeSort{col: colName, desc: true}, m.home.sort, "columns match in any case")
 	m, _ = runCmdLine(m, "sort bogus")
 	require.EqualError(t, m.err, `unknown sort column "bogus"; columns: key name state age`)
 	m, _ = runCmdLine(m, "sort stat")

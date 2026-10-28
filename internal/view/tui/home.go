@@ -84,11 +84,11 @@ func (s homeSort) label(v homeView) string {
 }
 
 // parseSort reads a :sort argument: a column of view v, optionally with a
-// leading "-" to reverse it.
+// leading "-" to reverse it, in any case.
 func parseSort(v homeView, arg string) (homeSort, error) {
 	name := strings.TrimPrefix(arg, "-")
 	for i, n := range homeColNames[v] {
-		if n == name {
+		if strings.EqualFold(n, name) {
 			return homeSort{col: homeCol(i), desc: strings.HasPrefix(arg, "-")}, nil
 		}
 	}

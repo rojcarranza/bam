@@ -62,8 +62,9 @@ func commandNames() []string {
 	return out
 }
 
-// findCommand matches a name exactly, else by a unique prefix.
+// findCommand matches a name exactly, else by a unique prefix, in any case.
 func findCommand(name string) (command, error) {
+	name = strings.ToLower(name)
 	var hits []command
 	for _, c := range commands() {
 		if c.name == name || (c.alias != "" && c.alias == name) {

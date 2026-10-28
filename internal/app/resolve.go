@@ -32,6 +32,16 @@ func IsProjectKey(s string) bool { return projectRe.MatchString(s) }
 // IsBuildKey reports whether s looks like PROJ-PLAN-123.
 func IsBuildKey(s string) bool { return buildKeyRe.MatchString(s) }
 
+// SplitJobResult splits a job result key such as PROJ-PLAN-JOB1-12 into its
+// build key (PROJ-PLAN-12) and job short key (JOB1).
+func SplitJobResult(s string) (build, job string, ok bool) {
+	m := jobResultRe.FindStringSubmatch(s)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1] + "-" + m[3], m[2], true
+}
+
 // PlanRef is a resolved plan, and the branch plan to act on.
 type PlanRef struct {
 	PlanKey      string // branch plan key when a branch is chosen, else MasterKey
@@ -230,9 +240,8 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + a.Arg + "?"
 			}
 		}
-		if m := jobResultRe.FindStringSubmatch(a.Arg); m != nil {
-			build := m[1] + "-" + m[3]
-			try = "that is job " + m[2] + " of " + build + ": pass " + build + ", and --job " + m[2] + " for bam logs"
+		if build, job, ok := SplitJobResult(a.Arg); ok {
+			try = "that is job " + job + " of " + build + ": pass " + build + ", and --job " + job + " for bam logs"
 		}
 		return "", errs.Usagef("%q is not a build key, a plan key or a preset", a.Arg).WithTry(try)
 	}

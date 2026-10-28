@@ -140,6 +140,10 @@ func TestLogs(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("logs", "PROJ-PROV12-8", "--json"))
 	assert.Contains(t, h.stdout.String(), `"job": "PROJ-PROV12-TF-8"`)
+
+	assert.Equal(t, 0, h.run("logs", "PROJ-PROV12-TF-8"), "a job result key names the build and the job")
+	assert.Equal(t, "terraform apply\nError: quota exceeded\n", h.stdout.String())
+	assert.Equal(t, 2, h.run("logs", "PROJ-PROV12-NOPE-8"), "the job in the key is honoured")
 }
 
 func TestCancel(t *testing.T) {

@@ -299,6 +299,12 @@ func newLogsCmd(r *runtime) *cobra.Command {
 				return errs.Usagef("--tail takes 0 or more, not %d", tail)
 			}
 			ctx := cmd.Context()
+			// A job result key copied from Bamboo's job page names the build and the job.
+			if len(args) == 1 && job == "" {
+				if build, _, ok := app.SplitJobResult(args[0]); ok {
+					job, args = args[0], []string{build}
+				}
+			}
 			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
 			if err != nil {
 				return err

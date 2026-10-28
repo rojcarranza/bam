@@ -292,10 +292,8 @@ func (c *Config) PresetsUsingServer(alias string) []string {
 			}
 		}
 	}
-	if c.Project != nil {
-		if _, own := c.Project.Servers[alias]; !own {
-			add(c.Project.Targets)
-		}
+	if c.Project != nil && !slices.ContainsFunc(slices.Collect(maps.Keys(c.Project.Servers)), func(s string) bool { return strings.EqualFold(s, alias) }) {
+		add(c.Project.Targets)
 	}
 	add(c.Machine.Targets)
 	for _, r := range c.Machine.Repos {

@@ -34,6 +34,9 @@ func (c *Client) ServerInfo(ctx context.Context) (provider.ServerInfo, error) {
 	if err := c.getJSON(ctx, api+"/info", nil, &i); err != nil {
 		return provider.ServerInfo{}, err
 	}
+	c.mu.Lock()
+	c.version = i.Version
+	c.mu.Unlock()
 	return provider.ServerInfo{Version: i.Version}, nil
 }
 

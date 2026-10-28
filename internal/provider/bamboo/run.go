@@ -130,17 +130,24 @@ func (c *Client) dequeue(ctx context.Context, key string) error {
 // CannotRestart reports whether an earlier RestartBuild learned that this
 // Bamboo refuses restarts. It makes no request.
 func (c *Client) CannotRestart(context.Context) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.caps.CannotRestart(c.now())
+	return c.known().CannotRestart(c.now())
 }
 
 // CannotStop reports whether an earlier StopBuild learned that this Bamboo
 // refuses to stop builds. It makes no request.
 func (c *Client) CannotStop(context.Context) bool {
+	return c.known().CannotStop(c.now())
+}
+
+// known is the capabilities with no request: none when this process has
+// already seen the server run another version than they were learned from.
+func (c *Client) known() Capabilities {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.caps.CannotStop(c.now())
+	if c.version != "" && c.version != c.caps.Version {
+		return Capabilities{}
+	}
+	return c.caps
 }
 
 // RestartBuild asks Bamboo to run a finished build's failed jobs again, in

@@ -267,3 +267,19 @@ func TestDefaultProjectOrder(t *testing.T) {
 	c.Project = nil
 	assert.Empty(t, c.DefaultProject(c.Servers()["home"]), "nothing set means all projects")
 }
+
+func TestPresetsUsingServerSkipsProjectPresetsOfTheProjectsOwnAlias(t *testing.T) {
+	c := &Config{
+		Project: &ProjectFile{
+			Servers: map[string]Server{"Home": {URL: "https://bamboo.lab.example"}},
+			Targets: map[string]Target{"lab-smoke": {Plan: "LAB-SMOKE", Server: "home"}},
+		},
+		Machine: &MachineFile{
+			Servers: map[string]Server{"home": {URL: "https://bamboo.example.com"}},
+			Targets: map[string]Target{"deploy": {Plan: "PROJ-DEPLOY", Server: "HOME"}},
+			Repos:   map[string]Repo{"/src/a": {Targets: map[string]Target{"api": {Plan: "PROJ-API", Server: "home"}}}},
+		},
+		Presets: &PresetsFile{Presets: map[string]Target{"docs": {Plan: "PROJ-DOCS", Server: "home"}, "other": {Plan: "PROJ-X"}}},
+	}
+	assert.Equal(t, []string{"api", "deploy", "docs"}, c.PresetsUsingServer("home"))
+}

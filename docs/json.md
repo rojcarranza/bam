@@ -94,7 +94,7 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 - `line` and `start` are 1-based log line numbers; `context` starts at `start` and holds the error line with `--context` lines either side. `count` is how often the same error text appears in the log.
 - `skipped_lines`: how many lines at the start of a very long log were not read (Bamboo returns only its last part); `0` when the whole log was read. `line` and `start` still count from the start of the whole log.
 - `hidden_errors`: how many more error blocks the job's log has beyond `--max`; `0` when all are shown.
-- `pattern` is one of `error`, `fatal`, `maven`, `gradle`, `go-test`, `npm`, `panic`, `traceback`, `exception`, `bamboo-task`.
+- `pattern` is one of `error`, `fatal`, `maven`, `gradle`, `go-test`, `unittest`, `pytest`, `npm`, `panic`, `traceback`, `exception`, `bamboo-task`.
 - `changes`: `null` without `--compare`. With it, `{"since":{...},"revisions":[{"name":"app","was":"9f8e7d6...","now":"a1b2c3d..."}],"variables":[...]}`. `since` is the last successful build of the same plan or branch before this one (a build document, `null` when none). `revisions` are by repository name, `variables` by variable name, both sorted by name and listing only what differs; `was` or `now` is `""` for a value present in one build only. Secret values are `********`. `variables` is `null` when the server cannot read build variables back.
 
 ## Events

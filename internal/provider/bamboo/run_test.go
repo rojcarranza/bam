@@ -357,6 +357,18 @@ func TestCannotRestartAndStopAskNothing(t *testing.T) {
 	assert.False(t, c.CannotStop(ctx))
 }
 
+func TestCannotRestartAndStopForgetAnotherVersionsAnswer(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/info": {body: `{"version":"10.2.0"}`}})
+	c.caps = Capabilities{Rerun: "no", Stop: "no", Version: "9.6.2", CheckedAt: c.now()}
+	c.versionChecked = true
+	_, err := c.ServerInfo(ctx)
+	require.NoError(t, err)
+	before := len(rec.all())
+	assert.False(t, c.CannotRestart(ctx), "learned from 9.6.2, the server now runs 10.2.0")
+	assert.False(t, c.CannotStop(ctx))
+	assert.Len(t, rec.all(), before, "no request")
+}
+
 func TestRestartBuildRefusedNamesTheBuild(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{"PUT /rest/api/latest/queue/PROJ-BUILD-45": {status: 400,
 		body: `{"message":"Build PROJ-BUILD-45 cannot be restarted"}`}})

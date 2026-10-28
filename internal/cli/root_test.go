@@ -84,6 +84,8 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"target":         "try: did you mean bam preset? bam --help shows them all",
 		"build view":     "try: did you mean bam build show? bam build --help shows them all",
 		"set describe":   "try: did you mean bam set show? bam set --help shows them all",
+		"set rm x":       "error: bam set has no \"rm\" command\n  sets are edited in YAML: under sets: in .bam.yaml, or in a train file\n  try: see bam set run --help\n",
+		"set add":        "error: bam set has no \"add\" command\n",
 		"view":           "try: bam --help\n",
 		"list":           "try: bam --help\n",
 		"rerun":          "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",

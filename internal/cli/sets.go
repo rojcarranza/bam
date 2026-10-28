@@ -19,8 +19,21 @@ import (
 func init() { commandSets = append(commandSets, addSets) }
 
 func addSets(root *cobra.Command, r *runtime) {
-	subgroup(root, "set", "Release trains: presets run in ordered stages", groupRun).
-		AddCommand(newSetListCmd(r), newSetShowCmd(r), newSetRunCmd(r), newSetStatusCmd(r), newSetResumeCmd(r), newSetRerunCmd(r))
+	set := subgroup(root, "set", "Release trains: presets run in ordered stages", groupRun)
+	set.AddCommand(newSetListCmd(r), newSetShowCmd(r), newSetRunCmd(r), newSetStatusCmd(r), newSetResumeCmd(r), newSetRerunCmd(r))
+	set.Args = cobra.ArbitraryArgs
+	set.RunE = func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return cmd.Help()
+		}
+		// Sets are edited as YAML; without this, "set rm" would suggest "set run", which starts a train.
+		if slices.Contains([]string{"add", "new", "create", "rm", "remove", "delete", "edit"}, args[0]) {
+			return errs.Usagef("bam set has no %q command", args[0]).
+				WithWhy("sets are edited in YAML: under sets: in .bam.yaml, or in a train file").
+				WithTry("see bam set run --help")
+		}
+		return unknownCommand(cmd, args)
+	}
 }
 
 func (r *runtime) setStore() *app.SetStore {

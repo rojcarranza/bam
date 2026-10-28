@@ -363,19 +363,19 @@ func (s *stub) detail(w http.ResponseWriter, key string) (string, bool) {
 }
 
 // handleStatus answers the progress endpoint: a running simulated build
-// reports its share of the configured run time, and everything else reports
-// as finished, which is what Bamboo does.
+// reports its share of the configured run time, and everything else gets
+// Bamboo's 404 "not building".
 func (s *stub) handleStatus(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimPrefix(r.URL.Path, api+"/result/status/")
 	s.mu.Lock()
 	b := s.live[key]
 	s.mu.Unlock()
 	if b == nil {
-		writeJSON(w, []byte(`{"currentStage":"","finished":true}`))
+		notBuilding(w, key)
 		return
 	}
 	if life, _ := s.phase(b); life != "InProgress" {
-		writeJSON(w, []byte(`{"currentStage":"","finished":true}`))
+		notBuilding(w, key)
 		return
 	}
 	elapsed := s.now().Sub(b.started) - s.queued
@@ -387,6 +387,13 @@ func (s *stub) handleStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, fmt.Appendf(nil,
 		`{"currentStage":"Build","finished":false,"progress":{"isValid":true,"averageBuildDuration":%d,"buildTime":%d,"percentageCompleted":%.2f}}`,
 		s.running.Milliseconds(), elapsed.Milliseconds(), pct))
+}
+
+// notBuilding is Bamboo 9.6's answer for a result it is not building now.
+func notBuilding(w http.ResponseWriter, key string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = fmt.Fprintf(w, `{"message":"Result %s not building.","status-code":404}`, key)
 }
 
 func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {

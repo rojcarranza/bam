@@ -189,6 +189,7 @@ func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
 		"run --preset deploy":                   "error: unknown flag: --preset\n  try: the preset is an argument: bam run <plan|preset>\n",
 		"whoami --plan PROJ-PLAN":               "error: unknown flag: --plan\n  try: bam whoami --help\n",
 		"plan --plan PROJ-PLAN":                 "error: unknown flag: --plan\n  try: bam plan --help\n",
+		"build show PROJ-PLAN-1 --compare":      "error: unknown flag: --compare\n  try: --compare is a flag of bam build investigate\n",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

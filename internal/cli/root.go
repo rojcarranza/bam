@@ -68,6 +68,9 @@ func Execute(ctx context.Context, args []string, env Env) int {
 					return e.WithTry("the " + name + " is an argument: " + c.CommandPath() + usage)
 				}
 			}
+			if sib := siblingWithFlag(c, name); sib != "" {
+				return e.WithTry("--" + name + " is a flag of " + sib)
+			}
 		}
 		return e.WithTry(c.CommandPath() + " --help")
 	})
@@ -355,6 +358,21 @@ func flagNames(cmd *cobra.Command) []string {
 	cmd.LocalFlags().VisitAll(add)
 	cmd.InheritedFlags().VisitAll(add)
 	return names
+}
+
+// siblingWithFlag names the first command in c's group that has the flag,
+// such as bam build investigate for bam build show --compare. Top-level
+// commands are skipped: their flags rarely carry over to another command.
+func siblingWithFlag(c *cobra.Command, name string) string {
+	if !c.HasParent() || !c.Parent().HasParent() {
+		return ""
+	}
+	for _, sib := range c.Parent().Commands() {
+		if f := sib.LocalFlags().Lookup(name); sib != c && !sib.Hidden && f != nil && !f.Hidden {
+			return sib.CommandPath()
+		}
+	}
+	return ""
 }
 
 // argCountError turns cobra's "accepts 1 arg(s), received 0" into a usage

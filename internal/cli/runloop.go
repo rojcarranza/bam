@@ -346,6 +346,10 @@ func newLogsCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// A plan, preset or --last picks the build; name it so the log is not anonymous.
+			if !r.flags.json && (len(args) == 0 || !app.IsBuildKey(args[0])) {
+				r.note(fmt.Sprintf("%s (%s)", key, b.State), "")
+			}
 			if follow {
 				return r.followLogs(ctx, svc, b, job, tail)
 			}

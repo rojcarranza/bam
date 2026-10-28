@@ -151,6 +151,9 @@ func TestLogs(t *testing.T) {
 	assert.Equal(t, "[]\n", h.stdout.String(), "--json always writes exactly one document, even when empty")
 
 	assert.Equal(t, 2, h.run("logs", "--last"))
+	assert.Equal(t, 0, h.run("logs", "PROJ-PROV12", "--failed"))
+	assert.Equal(t, "terraform apply\nError: quota exceeded\n", h.stdout.String())
+	assert.Equal(t, "PROJ-PROV12-8 (failed)\n", h.stderr.String(), "a plan names the build it picked, on stderr")
 	assert.Equal(t, 0, h.run("logs", "PROJ-PROV12-8", "--follow"))
 	assert.Contains(t, h.stdout.String(), "Error: quota exceeded")
 

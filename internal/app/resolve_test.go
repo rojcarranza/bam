@@ -125,6 +125,9 @@ func TestResolveBuild(t *testing.T) {
 	_, err = s.ResolveBuild(bg, BuildArg{Arg: "482"})
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "did you mean PROJ-BUILD-482?", e.Try, "a bare number takes the plan of the last build run here")
+	_, err = s.ResolveBuild(bg, BuildArg{Arg: "#482"})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean PROJ-BUILD-482?", e.Try, "Bamboo's '#' before a bare number")
 
 	_, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ-BUILD-INT-482"})
 	require.ErrorAs(t, err, &e)
@@ -183,6 +186,9 @@ func TestResolveFrom(t *testing.T) {
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "keys are uppercase: did you mean PROJ-PROV-3?", e.Try)
+	_, err = s.ResolveFrom(bg, ref, "#5")
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "drop Bamboo's '#': --from 5", e.Try)
 }
 
 func TestBuildForgetsExpiredLastBuild(t *testing.T) {

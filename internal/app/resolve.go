@@ -234,10 +234,10 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		if p := s.lowerPreset(a.Arg); p != "" {
 			try = "preset names are lowercase: did you mean " + p + "?"
 		}
-		if digitsRe.MatchString(a.Arg) {
-			try = "a build number needs its plan, as in PROJ-PLAN-" + a.Arg
+		if n := strings.TrimPrefix(a.Arg, "#"); digitsRe.MatchString(n) {
+			try = "a build number needs its plan, as in PROJ-PLAN-" + n
 			if rec, ok, _ := s.State.Last(s.Cfg.RepoRoot); ok && IsBuildKey(rec.BuildKey) {
-				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + a.Arg + "?"
+				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + n + "?"
 			}
 		}
 		// a key copied with Bamboo's '#' before the number, or with a stray trailing dash
@@ -278,6 +278,9 @@ func (s *Service) ResolveFrom(ctx context.Context, ref PlanRef, from string) (st
 		e := errs.Usagef("--from takes a build number, a build key or last, not %q", from)
 		if up := strings.ToUpper(from); IsBuildKey(up) {
 			e = e.WithTry("keys are uppercase: did you mean " + up + "?")
+		}
+		if n := strings.TrimPrefix(from, "#"); digitsRe.MatchString(n) {
+			e = e.WithTry("drop Bamboo's '#': --from " + n)
 		}
 		return "", e
 	}

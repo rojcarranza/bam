@@ -47,7 +47,7 @@ Browse
   bam plan show <plan>
   bam plan vars <plan> [--from N|last]
   bam plan branches <plan>
-  bam build list <plan> [--branch B] [--limit N] [--state STATE]
+  bam build list <plan> [--branch B] [-n|--limit N] [--state STATE]
   bam build show <build>
 
 Run loop                                              shortcut
@@ -55,7 +55,7 @@ Run loop                                              shortcut
         [--branch B] [--watch] [--timeout D] [--dry-run]
   bam build watch <build> [--timeout D]                 bam watch
   bam build logs <build> [--failed] [--job KEY]         bam logs
-        [--follow] [--tail N]
+        [--follow] [-n|--tail N]
   bam build cancel <build>
 
 Links
@@ -402,7 +402,7 @@ It exits 1 when any build in the tree did not succeed, though the triggered buil
 - `bam logs <build>` prints the logs of every job in the build; `--job` selects one; `--failed` selects the failed jobs.
 - With more than one job, each log is preceded by a header: `==> PROJ-BUILD12-INT-44  Integration (failed) <==`.
 - On a TTY, output goes through a pager: `BAM_PAGER`, then the machine file's `pager`, then `PAGER`, then `less -FRX`. On Windows with none set, no pager. On a pipe, raw text.
-- `--tail N` prints the last N lines per job.
+- `--tail N` (`-n N`) prints the last N lines per job.
 - `--follow` polls from the stored offset until the job finishes.
 - `--failed` on a build with no failed jobs prints `no failed jobs in <key>` on stderr and exits 0.
 

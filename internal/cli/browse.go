@@ -522,7 +522,7 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.IntVar(&last, "last", 20, "how many of the newest builds to read (1 to 100)")
+	f.IntVarP(&last, "last", "n", 20, "how many of the newest builds to read (1 to 100)")
 	f.StringVar(&branch, "branch", "", "plan branch to read")
 	return cmd
 }
@@ -585,7 +585,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch")
-	cmd.Flags().IntVar(&limit, "limit", 10, "number of builds")
+	cmd.Flags().IntVarP(&limit, "limit", "n", 10, "number of builds")
 	cmd.Flags().StringVar(&state, "state", "", "only builds in this state, e.g. failed")
 	_ = cmd.RegisterFlagCompletionFunc("state", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return stateNames(), cobra.ShellCompDirectiveNoFileComp

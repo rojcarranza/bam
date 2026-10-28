@@ -11,7 +11,7 @@ bam plan stats <plan> [flags]
 ```
       --branch string   plan branch to read
   -h, --help            help for stats
-      --last int        how many of the newest builds to read (1 to 100) (default 20)
+  -n, --last int        how many of the newest builds to read (1 to 100) (default 20)
 ```
 
 ### Options inherited from parent commands

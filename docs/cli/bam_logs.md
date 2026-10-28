@@ -15,7 +15,7 @@ bam logs [<build>|<plan>|<preset>] [flags]
   -h, --help            help for logs
       --job string      one job: JOB1, PROJ-PLAN-JOB1 or its result key
       --last            the last build bam triggered from this repository
-      --tail int        last N lines per job; 0 prints the whole log
+  -n, --tail int        last N lines per job; 0 prints the whole log
 ```
 
 ### Options inherited from parent commands

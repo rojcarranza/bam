@@ -11,7 +11,7 @@ bam build list <plan> [flags]
 ```
       --branch string   plan branch
   -h, --help            help for list
-      --limit int       number of builds (default 10)
+  -n, --limit int       number of builds (default 10)
       --state string    only builds in this state, e.g. failed
 ```
 

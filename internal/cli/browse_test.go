@@ -219,3 +219,18 @@ func TestFromFlagCompletesRecentBuilds(t *testing.T) {
 	h.run("__complete", "preset", "add", "x", "--from", "")
 	assert.Equal(t, "last\tmost recent manual build\n:4\n", h.stdout.String(), "no plan, so only last")
 }
+
+// -n is the count shorthand head, tail and git log users reach for first.
+func TestCountFlagsTakeDashN(t *testing.T) {
+	h := newHarness(t)
+	for _, c := range [][2][]string{
+		{{"build", "list", "PROJ-BUILD", "--limit", "1"}, {"build", "list", "PROJ-BUILD", "-n", "1"}},
+		{{"logs", "PROJ-PROV12-8", "--tail", "1"}, {"logs", "PROJ-PROV12-8", "-n", "1"}},
+		{{"plan", "stats", "PROJ-BUILD", "--last", "2"}, {"plan", "stats", "PROJ-BUILD", "-n", "2"}},
+	} {
+		assert.Equal(t, 0, h.run(c[0]...), c[0])
+		long := h.stdout.String()
+		assert.Equal(t, 0, h.run(c[1]...), h.stderr.String())
+		assert.Equal(t, long, h.stdout.String(), c[1])
+	}
+}

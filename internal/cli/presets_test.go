@@ -542,6 +542,21 @@ func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
 }
 
+func TestPresetAddPlanAcceptsAPageLink(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
+	out := h.stdout.String()
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--plan", workOrigin+"/browse/PROJ-PROV", "--print"), h.stderr.String())
+	assert.Equal(t, out, h.stdout.String(), "a plan page link works like its key")
+	assert.Equal(t, 3, h.run("preset", "add", "x", "--plan", "https://bamboo.other.example/browse/PROJ-PROV", "--print"))
+	assert.Contains(t, h.stderr.String(), "bam server add <alias> --url https://bamboo.other.example")
+	h.stderr.Reset()
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "https://bamboo.other.example/browse/PROJ-PROV",
+		"--from", workOrigin+"/browse/PROJ-PROV-8", "--print"), "links to two servers")
+	assert.Contains(t, h.stderr.String(), "--plan is on https://bamboo.other.example")
+}
+
 func TestPresetAddMistypedKeysAndNamesGetHints(t *testing.T) {
 	h := newHarness(t)
 	for args, want := range map[string]string{

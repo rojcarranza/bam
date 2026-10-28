@@ -38,7 +38,7 @@ bam preset add <name> --plan KEY [flags]
       --from string     build whose variable values fill the preset: number, key or last
       --full            also write variables equal to the plan default and commented branch, options and watch lines
   -h, --help            help for add
-      --plan string     plan key to generate from; optional when --from is a build key
+      --plan string     plan key or plan page link to generate from; optional when --from is a build key
       --print           print the YAML and write nothing
       --shared          write to the repository's .bam.yaml instead of your presets directory
 ```

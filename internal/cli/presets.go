@@ -186,9 +186,22 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"  bam run deploy-qa --dry-run",
 		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			link := ""
+			// A pasted page link names its server: connect there instead of the default.
+			link, linkKey := "", ""
 			if key, ok := pageKey(from); ok {
-				link, from = from, key
+				link, linkKey, from = from, key, key
+			}
+			if key, ok := pageKey(plan); ok {
+				if link != "" {
+					a, _ := credential.Origin(link)
+					if b, _ := credential.Origin(plan); a != b {
+						return errs.Usagef("--plan is on %s but --from is on %s", b, a).
+							WithTry("pass links to the same server, or plain keys")
+					}
+				} else {
+					link, linkKey = plan, key
+				}
+				plan = key
 			}
 			if plan == "" && !app.IsBuildKey(from) {
 				try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0])
@@ -216,7 +229,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			var svc *app.Service
 			var err error
 			if link != "" {
-				svc, err = r.connectPage(link, from)
+				svc, err = r.connectPage(link, linkKey)
 			} else {
 				svc, _, err = r.connect(cmd.Context(), "")
 			}
@@ -260,7 +273,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.StringVar(&plan, "plan", "", "plan key to generate from; optional when --from is a build key")
+	f.StringVar(&plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
 	f.StringVar(&from, "from", "", "build whose variable values fill the preset: number, key or last")
 	f.StringVar(&branch, "branch", "", "default branch for the preset; defaults to the --from build's branch")
 	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")

@@ -264,14 +264,30 @@ func newLoginCmd(r *runtime) *cobra.Command {
 		Use:               "login <alias>",
 		Short:             "Store a verified personal access token for a server",
 		SuggestFor:        []string{"auth", "token", "signin"},
-		Args:              cobra.ExactArgs(1),
+		Long:              "Store a verified personal access token for a server. The alias defaults to --server.",
+		Args:              r.aliasArg,
 		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			return login(cmd, r, args[0], withToken)
+			return login(cmd, r, r.alias(args), withToken)
 		}),
 	}
 	cmd.Flags().BoolVar(&withToken, "with-token", false, "read the token from stdin instead of prompting")
 	return cmd
+}
+
+// aliasArg lets login and logout take their alias from --server instead.
+func (r *runtime) aliasArg(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 && r.flags.server != "" {
+		return nil
+	}
+	return cobra.ExactArgs(1)(cmd, args)
+}
+
+func (r *runtime) alias(args []string) string {
+	if len(args) == 0 {
+		return r.flags.server
+	}
+	return args[0]
 }
 
 func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
@@ -343,14 +359,15 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 		Use:               "logout <alias>",
 		Short:             "Delete the stored token for a server",
 		SuggestFor:        []string{"signout"},
-		Args:              cobra.ExactArgs(1),
+		Long:              "Delete the stored token for a server. The alias defaults to --server.",
+		Args:              r.aliasArg,
 		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
 				return err
 			}
-			alias := args[0]
+			alias := r.alias(args)
 			s, ok := cfg.Servers()[alias]
 			if !ok {
 				// UnknownServer's hint, bam server add, is no way to log out.

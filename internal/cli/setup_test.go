@@ -102,6 +102,21 @@ func TestLogout(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "no stored token for work")
 }
 
+func TestLoginAndLogoutTakeAliasFromServerFlag(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("logout", "--server", "work"))
+	assert.Contains(t, h.stdout.String(), "logged out of work")
+	_, ok := h.kr.m["bam|"+workOrigin]
+	assert.False(t, ok)
+
+	h.stdin = "s3cret\n"
+	assert.Equal(t, 0, h.run("login", "--server", "work", "--with-token"))
+	assert.Equal(t, "s3cret", h.kr.m["bam|"+workOrigin])
+
+	assert.Equal(t, 2, h.run("logout"))
+	assert.Contains(t, h.stderr.String(), "missing <alias>")
+}
+
 func TestWhoami(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("whoami"))

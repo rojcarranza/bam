@@ -207,33 +207,35 @@ var showSuggest = []string{"view", "info", "describe", "get"}
 func unknownCommand(cmd *cobra.Command, args []string) error {
 	path := cmd.CommandPath()
 	try := path + " --help"
-	var names []string
-	suggest := ""
+	var names, suggest []string
 	for _, c := range cmd.Commands() {
 		if !c.IsAvailableCommand() {
 			continue
 		}
 		names = append(names, c.Name())
 		if slices.Contains(c.SuggestFor, strings.ToLower(args[0])) {
-			suggest = c.Name()
+			suggest = []string{c.Name()}
 		}
 	}
-	if s := app.Closest(args[0], names, 1); suggest == "" && len(s) > 0 {
-		suggest = s[0]
+	if len(suggest) == 0 {
+		suggest = nestedCommands(cmd, strings.ToLower(args[0]))
 	}
-	if suggest == "" {
-		suggest = nestedCommand(cmd, strings.ToLower(args[0]))
+	if len(suggest) == 0 {
+		suggest = app.Closest(args[0], names, 1)
 	}
-	if suggest != "" {
-		try = fmt.Sprintf("did you mean %s %s? %s shows them all", path, suggest, try)
+	if len(suggest) > 0 {
+		for i, s := range suggest {
+			suggest[i] = path + " " + s
+		}
+		try = fmt.Sprintf("did you mean %s? %s shows them all", strings.Join(suggest, " or "), try)
 	}
 	return errs.Usagef("unknown command %q for %q", args[0], path).WithTry(try)
 }
 
-// nestedCommand finds the one grandchild that "bam cancel" or "bam history"
-// meant, by name, alias or SuggestFor, and returns "build cancel". An
-// ambiguous word like "list" returns "".
-func nestedCommand(cmd *cobra.Command, word string) string {
+// nestedCommands finds the grandchildren that "bam cancel" or "bam rerun"
+// meant, by name, alias or SuggestFor: "build cancel", or "build rerun" and
+// "set rerun". A word as common as "list" returns nil.
+func nestedCommands(cmd *cobra.Command, word string) []string {
 	var found []string
 	for _, group := range cmd.Commands() {
 		if !group.IsAvailableCommand() {
@@ -245,10 +247,10 @@ func nestedCommand(cmd *cobra.Command, word string) string {
 			}
 		}
 	}
-	if len(found) != 1 {
-		return ""
+	if len(found) > 2 {
+		return nil
 	}
-	return found[0]
+	return found
 }
 
 // flagValueMessage rewrites pflag's 'invalid argument "x" for "--limit" flag:

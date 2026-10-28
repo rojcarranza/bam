@@ -86,6 +86,7 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"set describe":  "try: did you mean bam set show? bam set --help shows them all",
 		"view":          "try: bam --help\n",
 		"list":          "try: bam --help\n",
+		"rerun":         "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

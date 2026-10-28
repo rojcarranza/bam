@@ -51,6 +51,21 @@ func TestPlanListGroupsConfiguredProjects(t *testing.T) {
 	assert.Equal(t, "PROJ-BUILD", docs[0]["key"])
 }
 
+func TestPlanListFiltersByMatch(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("plan", "list", "--match", "PROVISION"))
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV")
+	assert.NotContains(t, h.stdout.String(), "PROJ-BUILD")
+	assert.Equal(t, 0, h.run("plan", "list", "--match", "build", "--json"))
+	assert.Contains(t, h.stdout.String(), `"key": "PROJ-BUILD"`)
+	assert.NotContains(t, h.stdout.String(), "PROJ-PROV")
+	assert.Equal(t, 0, h.run("plan", "list", "--match", "nope"))
+	assert.Empty(t, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), `no plans match "nope"`)
+	assert.Equal(t, 0, h.run("plan", "list", "--match", "nope", "--json"))
+	assert.Equal(t, "[]\n", h.stdout.String())
+}
+
 func TestPlanListWithoutProjectsIsUsageError(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte("version: 1\nservers:\n  work:\n    url: https://bamboo.example.com\n"), 0o644))

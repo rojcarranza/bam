@@ -272,10 +272,15 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 }
 
 func newPlanListCmd(r *runtime) *cobra.Command {
-	return &cobra.Command{
-		Use:               "list [PROJ...]",
-		SuggestFor:        []string{"ls"},
-		Short:             "List plans of the configured projects, grouped by project",
+	var match string
+	cmd := &cobra.Command{
+		Use:        "list [PROJ...]",
+		SuggestFor: []string{"ls"},
+		Short:      "List plans of the configured projects, grouped by project",
+		Long: "List plans of the configured projects, or of the projects given, grouped by\n" +
+			"project. With --match, list only the plans whose key or name contains the\n" +
+			"text, ignoring case.",
+		Example:           "  bam plan list\n  bam plan list OPS LAB\n  bam plan list --match deploy",
 		ValidArgsFunction: r.completeProjects,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			svc, _, err := r.connect(cmd.Context(), "")
@@ -318,6 +323,14 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 					}
 					return err
 				}
+				if match != "" {
+					plans = slices.DeleteFunc(slices.Clone(plans), func(p provider.Plan) bool {
+						return !strings.Contains(strings.ToLower(p.Key), strings.ToLower(match)) && !strings.Contains(strings.ToLower(p.Name), strings.ToLower(match))
+					})
+					if len(plans) == 0 {
+						continue
+					}
+				}
 				groups = append(groups, view.PlanGroup{Project: provider.Project{Key: k, Name: names[k], URL: svc.P.URL(k)}, Plans: plans})
 			}
 			if r.flags.json {
@@ -329,6 +342,10 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 				}
 				return view.WriteJSON(r.env.Stdout, docs)
 			}
+			if len(groups) == 0 {
+				r.note(fmt.Sprintf("no plans match %q", match), "")
+				return nil
+			}
 			o, err := r.out()
 			if err != nil {
 				return err
@@ -336,6 +353,8 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 			return view.PlanList(o, groups)
 		}),
 	}
+	cmd.Flags().StringVar(&match, "match", "", "only plans whose key or name contains this text, ignoring case")
+	return cmd
 }
 
 func newPlanShowCmd(r *runtime) *cobra.Command {

@@ -118,6 +118,16 @@ func TestLogout(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "no stored token for work")
 }
 
+func TestLogoutEnvServerNotesBAMToken(t *testing.T) {
+	h := newHarness(t)
+	h.vars["BAM_URL"] = "https://ci.bamboo.example.com"
+	h.vars["BAM_TOKEN"] = "envtok"
+	assert.Equal(t, 0, h.run("logout", "env"))
+	assert.Contains(t, h.stdout.String(), "no stored token for env")
+	assert.Contains(t, h.stderr.String(), "note: a token in $BAM_TOKEN is not affected; unset it to log out")
+	assert.NotContains(t, h.stdout.String()+h.stderr.String(), "envtok")
+}
+
 func TestLoginAndLogoutTakeAliasFromServerFlag(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("logout", "--server", "work"))

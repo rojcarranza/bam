@@ -474,6 +474,9 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 			if s.AuthEnv != "" {
 				fmt.Fprintf(r.env.Stderr, "note: a token in $%s is not affected\n", s.AuthEnv)
 			}
+			if s.Token != "" {
+				fmt.Fprintln(r.env.Stderr, "note: a token in $BAM_TOKEN is not affected; unset it to log out")
+			}
 			return nil
 		}),
 	}

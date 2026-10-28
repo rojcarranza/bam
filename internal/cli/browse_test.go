@@ -253,6 +253,8 @@ func TestBuildShow(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("build", "show", workOrigin+"/browse/PROJ-PROV12-8"), "a build page link")
 	assert.Contains(t, h.stdout.String(), "bam logs PROJ-PROV12-8 --job TF")
+	assert.Equal(t, 0, h.run("build", "show", workOrigin+"/chain/result/viewChainResult.action?planKey=PROJ-PROV12&buildNumber=8"), "an older .action link")
+	assert.Contains(t, h.stdout.String(), "bam logs PROJ-PROV12-8 --job TF")
 
 	assert.Equal(t, 2, h.run("build", "show", "--last"))
 	assert.Contains(t, h.stderr.String(), "no build triggered from this repository")
@@ -385,5 +387,21 @@ func TestCountFlagsTakeDashN(t *testing.T) {
 		long := h.stdout.String()
 		assert.Equal(t, 0, h.run(c[1]...), h.stderr.String())
 		assert.Equal(t, long, h.stdout.String(), c[1])
+	}
+}
+
+func TestPageKey(t *testing.T) {
+	for link, want := range map[string]string{
+		"https://bamboo.example.com/browse/PROJ-BUILD-482":                                                        "PROJ-BUILD-482",
+		"https://bamboo.example.com/chain/result/viewChainResult.action?planKey=PROJ-BUILD&buildNumber=482":       "PROJ-BUILD-482",
+		"https://bamboo.example.com/build/result/viewBuildResult.action?buildKey=PROJ-BUILD-JOB1&buildNumber=482": "PROJ-BUILD-JOB1-482",
+		"https://bamboo.example.com/chain/result/viewChainResult.action?planKey=PROJ-BUILD":                       "",
+		"https://bamboo.example.com/x.action?planKey=PROJ-BUILD&buildNumber=48a":                                  "",
+		"https://bamboo.example.com/x.action?planKey=proj-build&buildNumber=482":                                  "",
+		"PROJ-BUILD-482": "",
+	} {
+		got, ok := pageKey(link)
+		assert.Equal(t, want, got, link)
+		assert.Equal(t, want != "", ok, link)
 	}
 }

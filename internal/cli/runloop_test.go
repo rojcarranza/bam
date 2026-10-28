@@ -147,6 +147,8 @@ func TestLogs(t *testing.T) {
 	assert.Equal(t, 0, h.run("logs", workOrigin+"/browse/PROJ-PROV12-TF-8/log"), "a job page link")
 	assert.Equal(t, "terraform apply\nError: quota exceeded\n", h.stdout.String())
 	assert.Equal(t, 2, h.run("logs", workOrigin+"/browse/PROJ-PROV12-NOPE-8"))
+	assert.Equal(t, 0, h.run("logs", workOrigin+"/build/result/viewBuildResultLogs.action?buildKey=PROJ-PROV12-TF&buildNumber=8"), "an older .action job link")
+	assert.Equal(t, "terraform apply\nError: quota exceeded\n", h.stdout.String())
 }
 
 func TestCancel(t *testing.T) {

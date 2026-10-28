@@ -1,10 +1,12 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -777,13 +779,25 @@ func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool,
 // job's .../browse/PROJ-PLAN-JOB1-42/log.
 var pageKeyRe = regexp.MustCompile(`^https?://[^/]+(?:/[^?#]*)?/browse/([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)(?:[/?#]|$)`)
 
-// pageKey returns the key of a pasted Bamboo page link.
+// actionKeyRe is a plan or job key in an older .action link's planKey or buildKey.
+var actionKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$`)
+
+// pageKey returns the key of a pasted Bamboo page link: a .../browse/KEY link,
+// or an .action link such as viewChainResult.action?planKey=PROJ-PLAN&buildNumber=42.
 func pageKey(arg string) (string, bool) {
-	m := pageKeyRe.FindStringSubmatch(arg)
-	if m == nil {
+	if m := pageKeyRe.FindStringSubmatch(arg); m != nil {
+		return m[1], true
+	}
+	u, err := url.Parse(arg)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return "", false
 	}
-	return m[1], true
+	q := u.Query()
+	plan, n := cmp.Or(q.Get("planKey"), q.Get("buildKey")), q.Get("buildNumber")
+	if !actionKeyRe.MatchString(plan) || n == "" || strings.Trim(n, "0123456789") != "" {
+		return "", false
+	}
+	return plan + "-" + n, true
 }
 
 // connectPage connects to the configured server that a page link points at,

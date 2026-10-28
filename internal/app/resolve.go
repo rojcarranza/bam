@@ -222,6 +222,12 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		if p := s.lowerPreset(a.Arg); p != "" {
 			try = "preset names are lowercase: did you mean " + p + "?"
 		}
+		if digitsRe.MatchString(a.Arg) {
+			try = "a build number needs its plan, as in PROJ-PLAN-" + a.Arg
+			if rec, ok, _ := s.State.Last(s.Cfg.RepoRoot); ok && IsBuildKey(rec.BuildKey) {
+				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + a.Arg + "?"
+			}
+		}
 		return "", errs.Usagef("%q is not a build key, a plan key or a preset", a.Arg).WithTry(try)
 	}
 	ref, err := s.ResolvePlan(ctx, a.Arg, a.Branch)

@@ -118,6 +118,14 @@ func TestResolveBuild(t *testing.T) {
 	assert.Equal(t, `"PROJ-BUILD-abc" is not a build key, a plan key or a preset`, e.What)
 	assert.Equal(t, "a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list", e.Try)
 
+	_, err = s.ResolveBuild(bg, BuildArg{Arg: "482"})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "a build number needs its plan, as in PROJ-PLAN-482", e.Try)
+	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-480", Origin: s.Origin}))
+	_, err = s.ResolveBuild(bg, BuildArg{Arg: "482"})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean PROJ-BUILD-482?", e.Try, "a bare number takes the plan of the last build run here")
+
 	_, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ"})
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, errs.KindUsage, e.Kind)

@@ -43,8 +43,13 @@ func SetDetail(o Out, s app.SetInfo) error {
 			names[j] = r.Target
 		}
 		fmt.Fprintf(o.W, "stage %d  %s\n", i+1, strings.Join(names, ", "))
-		for _, r := range st {
-			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", r.Target, r.Plan, branchLabel(r.Branch))
+		lines := make([][3]string, len(st))
+		for j, r := range st {
+			lines[j] = [3]string{r.Target, r.Plan, r.Branch}
+		}
+		heads := runLines(lines)
+		for j, r := range st {
+			fmt.Fprintln(o.W, heads[j])
 			if r.MatrixLine != "" {
 				fmt.Fprintf(o.W, "    matrix %s\n", r.MatrixLine)
 				for _, n := range r.Runs {
@@ -71,8 +76,13 @@ func SetDryRun(o Out, p app.SetPlan) error {
 	fmt.Fprintln(o.W, style.Bold(o.Style, p.Name))
 	for i, st := range p.Stages {
 		fmt.Fprintf(o.W, "stage %d/%d\n", i+1, len(p.Stages))
-		for _, r := range st {
-			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", app.PlanRunName(r), r.Ref.PlanKey, branchLabel(r.Ref.Branch))
+		lines := make([][3]string, len(st))
+		for j, r := range st {
+			lines[j] = [3]string{app.PlanRunName(r), r.Ref.PlanKey, r.Ref.Branch}
+		}
+		heads := runLines(lines)
+		for j, r := range st {
+			fmt.Fprintln(o.W, heads[j])
 			for _, n := range sortedChanged(r.Vars) {
 				v, _ := r.Vars.Get(n)
 				fmt.Fprintf(o.W, "      %s = %s\n", n, v.Display())
@@ -81,6 +91,21 @@ func SetDryRun(o Out, p app.SetPlan) error {
 	}
 	fmt.Fprintln(o.W, "dry run: nothing triggered")
 	return nil
+}
+
+// runLines formats a stage's {name, plan, branch} lines with the name and plan
+// padded to the stage's widest, so the columns line up as in bam set status.
+func runLines(lines [][3]string) []string {
+	nw, pw := 0, 0
+	for _, l := range lines {
+		nw, pw = max(nw, style.Width(l[0])), max(pw, style.Width(l[1]))
+	}
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = "  " + l[0] + strings.Repeat(" ", nw-style.Width(l[0])) + "  " +
+			l[1] + strings.Repeat(" ", pw-style.Width(l[1])) + "  branch " + branchLabel(l[2])
+	}
+	return out
 }
 
 func sortedChanged(vs app.VarSet) []string {

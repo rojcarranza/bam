@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -76,7 +78,10 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 			if url == "" {
 				return errs.Usagef("--url is required").WithTry("bam server add " + alias + " --url https://bamboo.example.com")
 			}
-			if _, err := credential.Origin(url); err != nil {
+			// A trailing slash would list http://host/ beside http://host.
+			url = strings.TrimRight(strings.TrimSpace(url), "/")
+			origin, err := credential.Origin(url)
+			if err != nil {
 				return err
 			}
 			cfg, err := r.config()
@@ -85,6 +90,12 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 			}
 			if _, exists := cfg.Machine.Servers[alias]; exists && !force {
 				return errs.Usagef("server %q already exists in %s", alias, r.env.Paths.MachineConfig).WithTry("pass --force to replace it")
+			}
+			servers := cfg.Servers()
+			for _, n := range slices.Sorted(maps.Keys(servers)) {
+				if o, err := credential.Origin(servers[n].URL); err == nil && o == origin && n != alias {
+					fmt.Fprintf(r.env.Stderr, "note: server %s already points to %s; both aliases share one token\n", n, origin)
+				}
 			}
 			if err := config.SetMachineServer(r.env.Paths.MachineConfig, alias, config.Server{URL: url, Projects: projects}); err != nil {
 				return err

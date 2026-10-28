@@ -17,6 +17,13 @@ func TestServerAddListRm(t *testing.T) {
 	data, err := os.ReadFile(h.env.Paths.MachineConfig)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "url: http://bamboo.lab.example:8085")
+	assert.Equal(t, "next: bam login home\n", h.stderr.String(), "no shared-origin note")
+
+	assert.Equal(t, 0, h.run("server", "add", "work2", "--url", "https://Bamboo.example.com/"))
+	assert.Equal(t, "note: server work already points to https://bamboo.example.com; both aliases share one token\nnext: bam login work2\n", h.stderr.String())
+	data, _ = os.ReadFile(h.env.Paths.MachineConfig)
+	assert.Contains(t, string(data), "url: https://Bamboo.example.com\n", "trailing slash dropped")
+	assert.Equal(t, 0, h.run("server", "rm", "work2"))
 
 	assert.Equal(t, 2, h.run("server", "add", "home", "--url", "http://bamboo.lab.example:8085"), "exists without --force")
 	assert.Equal(t, 3, h.run("server", "add", "bad", "--url", "bamboo.lab.example"), "invalid URL is a config error")

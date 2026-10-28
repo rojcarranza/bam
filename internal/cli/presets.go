@@ -557,6 +557,16 @@ func newInitCmd(r *runtime) *cobra.Command {
 				}
 				return errs.Usagef("--server ALIAS is required").WithTry(initTry(suggest, u, projects, plans))
 			}
+			if alias == config.EnvServerAlias {
+				// A .bam.yaml naming env fails validation and breaks every later command.
+				u := url
+				if cfg, err := r.config(); err == nil && u == "" {
+					u = cfg.Servers()[alias].URL
+				}
+				return errs.Usagef("server alias %q is reserved", alias).
+					WithWhy("env is the server defined by BAM_URL; .bam.yaml needs a named server").
+					WithTry(initTry("work", u, projects, plans))
+			}
 			if len(projects) == 0 {
 				return errs.Usagef("--project is required").WithTry(initTry(alias, url, projects, plans))
 			}

@@ -219,6 +219,19 @@ func TestInitWithoutServerSuggestsTheSelectedOne(t *testing.T) {
 	assert.Equal(t, "error: --server ALIAS is required\n  try: bam init --server work --url "+workOrigin+" --project PROJ\n", h.stderr.String())
 }
 
+func TestInitRefusesTheBAMURLAlias(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+	assert.Equal(t, 2, h.run("init", "--server", "env", "--project", "PROJ"))
+	assert.Equal(t, "error: server alias \"env\" is reserved\n  env is the server defined by BAM_URL; .bam.yaml needs a named server\n"+
+		"  try: bam init --server work --url "+workOrigin+" --project PROJ\n", h.stderr.String())
+	assert.NoFileExists(t, filepath.Join(h.root, ".bam.yaml"))
+	assert.Equal(t, 2, h.run("init", "--server", "env", "--plan", "PROJ-BUILD"))
+	assert.Empty(t, h.connectOpts, "refused before connecting")
+}
+
 func TestInit(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--project", "PROJ"), ".bam.yaml exists")

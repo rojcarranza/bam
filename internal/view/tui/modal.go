@@ -93,6 +93,12 @@ func (m Model) overlayTitle() string {
 	case overlayBranches:
 		return "Branches"
 	case overlayHelp:
+		// A table taller than the box says which rows show and how to reach
+		// the rest, or the keys below the fold look like they do not exist.
+		if total := m.help.vp.TotalLineCount(); m.help.ready && total > m.help.vp.Height {
+			last := min(m.help.vp.YOffset+m.help.vp.Height, total)
+			return fmt.Sprintf("Keys · %d-%d of %d · j k g G scroll", m.help.vp.YOffset+1, last, total)
+		}
 		return "Keys"
 	case overlayError:
 		return "Error"

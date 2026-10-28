@@ -1,6 +1,6 @@
                                                                                 
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓    
-    ┃Keys                                                                  ┃    
+    ┃Keys · 1-19 of 61 · j k g G scroll                                    ┃    
     ┃MOVE  j k ↑ ↓          up / down in the focused panel                 ┃    
     ┃      g G              first / last row                               ┃    
     ┃      tab              next panel: Builds, Stages, Tree               ┃    

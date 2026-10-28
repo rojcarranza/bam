@@ -874,6 +874,12 @@ func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.back()
 		case key.Matches(msg, keys.Quit):
 			return m.quit()
+		case key.Matches(msg, keys.Top):
+			m.help.vp.GotoTop()
+			return m, nil
+		case key.Matches(msg, keys.Bottom):
+			m.help.vp.GotoBottom()
+			return m, nil
 		}
 		var cmd tea.Cmd
 		m.help.vp, cmd = m.help.vp.Update(msg)

@@ -317,6 +317,25 @@ func TestHelpScrollsToItsLastRow(t *testing.T) {
 	require.Contains(t, m.View(), "q ctrl-c", "j must reach the last row")
 }
 
+// TestHelpJumpsAndSaysWhereItIs: G and g reach the ends of a table taller
+// than the box, and the title names the rows on show, so the keys below the
+// fold do not look missing.
+func TestHelpJumpsAndSaysWhereItIs(t *testing.T) {
+	m := goldenModel(80, 24)
+	m, _ = send(m, mkKey("?"))
+	require.Contains(t, m.View(), "Keys · 1-19 of ")
+	require.Contains(t, m.View(), "j k g G scroll")
+
+	m, _ = send(m, mkKey("G"))
+	require.Contains(t, m.View(), "q ctrl-c", "G must reach the last row")
+	total := m.help.vp.TotalLineCount()
+	require.Contains(t, m.View(), fmt.Sprintf("-%d of %d", total, total))
+
+	m, _ = send(m, mkKey("g"))
+	require.Contains(t, m.View(), "Keys · 1-19 of ")
+	require.Equal(t, overlayHelp, m.overlay, "g and G scroll; they do not close help")
+}
+
 // TestHelpFitsWholeOnATallTerminal.
 func TestHelpFitsWholeOnATallTerminal(t *testing.T) {
 	m := goldenModel(120, 50)

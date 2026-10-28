@@ -575,7 +575,15 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 				if ref.Branch != "" {
 					msg += " on branch " + ref.Branch
 				}
-				r.note(msg, "bam run "+args[0])
+				// With a --state filter, the plan may well have builds: offer the unfiltered list.
+				try := "bam run " + args[0]
+				if st != "" {
+					try = "bam build list " + args[0]
+				}
+				if branch != "" {
+					try += " --branch " + branch
+				}
+				r.note(msg, try)
 				return nil
 			}
 			o, err := r.out()

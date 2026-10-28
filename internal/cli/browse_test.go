@@ -117,10 +117,13 @@ func TestBuildList(t *testing.T) {
 	assert.Equal(t, 2, h.run("build", "list", "PROJ-BUILD", "--state", "faild"))
 	assert.Contains(t, h.stderr.String(), "did you mean --state failed?")
 	assert.Equal(t, 0, h.run("build", "list", "PROJ-BUILD", "--state", "FAILED"))
-	assert.Contains(t, h.stderr.String(), "no failed builds for PROJ-BUILD")
+	assert.Equal(t, "no failed builds for PROJ-BUILD\n  try: bam build list PROJ-BUILD\n", h.stderr.String())
 	assert.Equal(t, 0, h.run("build", "list", "provision-lab", "--state", "success"))
 	assert.Empty(t, h.stdout.String())
 	assert.Contains(t, h.stderr.String(), "no success builds for PROJ-PROV12 on branch develop")
+	assert.Contains(t, h.stderr.String(), "try: bam build list provision-lab\n")
+	assert.Equal(t, 0, h.run("build", "list", "PROJ-PROV", "--branch", "develop", "--state", "success"))
+	assert.Contains(t, h.stderr.String(), "try: bam build list PROJ-PROV --branch develop\n")
 
 	// A result list may not say which branch a build ran on, so the branch
 	// comes from the one asked for.

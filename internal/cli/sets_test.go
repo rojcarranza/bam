@@ -387,4 +387,13 @@ func TestSetHistoryListsThisRepositorysRuns(t *testing.T) {
 	require.Len(t, docs, 1)
 	require.Equal(t, id, docs[0]["id"])
 	require.Equal(t, "failed", docs[0]["status"])
+
+	newer := app.SetRecord{Version: 1, ID: app.NewSetID("release", fixedNow.Add(time.Hour)), Set: "release", Origin: workOrigin,
+		Repo: h.root, StartedAt: fixedNow.Add(time.Hour), Status: app.SetSuccessful}
+	require.NoError(t, (&app.SetStore{Dir: h.env.Paths.Sets}).Save(newer))
+	require.Equal(t, 0, h.run("set", "history", "-n", "1"))
+	require.Contains(t, h.stdout.String(), newer.ID)
+	require.NotContains(t, h.stdout.String(), id, "older run past --limit")
+	require.Equal(t, 2, h.run("set", "history", "--limit", "0"))
+	require.Contains(t, h.stderr.String(), "--limit takes 1 or more")
 }

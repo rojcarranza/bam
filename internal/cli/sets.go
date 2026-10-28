@@ -225,15 +225,19 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 }
 
 func newSetHistoryCmd(r *runtime) *cobra.Command {
-	return &cobra.Command{
+	var limit int
+	cmd := &cobra.Command{
 		Use:   "history [set]",
 		Short: "List past set runs of this repository, newest first",
 		Long: "List past set runs of this repository, newest first, with the states bam recorded.\n" +
 			"bam keeps the last 20 runs of each set. Use bam set status <id> for a run's live build states.",
-		Example:           "  bam set history\n  bam set history release",
+		Example:           "  bam set history\n  bam set history release -n 5",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if limit < 1 {
+				return errs.Usagef("--limit takes 1 or more, not %d", limit)
+			}
 			cfg, err := r.config()
 			if err != nil {
 				return err
@@ -245,6 +249,9 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 			recs, err := r.setStore().History(cfg.RepoRoot, set)
 			if err != nil {
 				return err
+			}
+			if len(recs) > limit {
+				recs = recs[:limit]
 			}
 			// A name no layer defines and no run recorded is a typo.
 			if len(recs) == 0 && set != "" {
@@ -274,6 +281,8 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 			return view.SetHistory(o, recs)
 		}),
 	}
+	cmd.Flags().IntVarP(&limit, "limit", "n", 20, "number of runs")
+	return cmd
 }
 
 func newSetResumeCmd(r *runtime) *cobra.Command {

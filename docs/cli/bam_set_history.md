@@ -15,13 +15,14 @@ bam set history [set] [flags]
 
 ```
   bam set history
-  bam set history release
+  bam set history release -n 5
 ```
 
 ### Options
 
 ```
-  -h, --help   help for history
+  -h, --help        help for history
+  -n, --limit int   number of runs (default 20)
 ```
 
 ### Options inherited from parent commands

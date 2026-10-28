@@ -158,12 +158,13 @@ func (m Model) errorBody(width int) string {
 	if m.err == nil {
 		return ""
 	}
-	lines := []string{errorStyle.Render(truncate(errorWhat(m.err), width-4))}
+	// Every part wraps: the reason is the part worth reading, a Bamboo
+	// refusal is often longer than the box is wide, and a plain error has
+	// only its What.
+	wrap := lipgloss.NewStyle().Width(width - 4)
+	lines := []string{errorStyle.Render(wrap.Render(errorWhat(m.err)))}
 	var e *errs.Error
 	if errors.As(m.err, &e) {
-		// Why and Try wrap: the reason is the part worth reading, and a
-		// Bamboo refusal is often longer than the box is wide.
-		wrap := lipgloss.NewStyle().Width(width - 4)
 		if e.Why != "" {
 			lines = append(lines, "", dimStyle.Render(wrap.Render(e.Why)))
 		}

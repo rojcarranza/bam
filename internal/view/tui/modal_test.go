@@ -252,6 +252,18 @@ func TestErrorOverlayShowsWhyAndTry(t *testing.T) {
 	require.Contains(t, v, "bam login")
 }
 
+// TestALongErrorWhatWraps: a plain error has no Why, so its whole message is
+// the What, and a network error is longer than the box is wide.
+func TestALongErrorWhatWraps(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.err = fmt.Errorf("Get \"https://bamboo.example.com/rest/api/latest/result/PROJ-API\": dial tcp: connection refused")
+	body := m.errorBody(40)
+	for _, l := range strings.Split(body, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 40, l)
+	}
+	require.Contains(t, strings.Join(strings.Fields(ansi.Strip(body)), " "), "connection refused")
+}
+
 // TestAuthErrorNamesBamLoginEvenWithoutATry: the UI cannot exit 4, so it must
 // say what to do.
 func TestAuthErrorNamesBamLoginEvenWithoutATry(t *testing.T) {

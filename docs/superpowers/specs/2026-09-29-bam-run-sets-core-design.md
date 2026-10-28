@@ -386,7 +386,7 @@ Each of these is later work with its own spec:
 
 - `bam set rerun --failed`: done, see [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md).
 - Matrix expansion: done, see [`2026-10-05-bam-set-matrix-design.md`](2026-10-05-bam-set-matrix-design.md). Batch files: done as train files, see [`2026-10-06-bam-set-files-design.md`](2026-10-06-bam-set-files-design.md).
-- Plan statistics and set-level history views.
+- Plan statistics: done, see [`2026-10-06-bam-plan-stats-design.md`](2026-10-06-bam-plan-stats-design.md). Set-level history views are still to come.
 - The terminal UI run-sets panel: done, see [`2026-10-06-bam-tui-sets-design.md`](2026-10-06-bam-tui-sets-design.md).
 - An ad hoc command-line form of a set.
 - Runs on more than one Bamboo server in one set.

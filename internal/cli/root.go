@@ -115,7 +115,8 @@ func newRoot(r *runtime) *cobra.Command {
 			}
 			// watch, run and build rerun share --timeout; cobra accepts a negative one silently.
 			if d, err := cmd.Flags().GetDuration("timeout"); err == nil && d < 0 {
-				return errs.Usagef("--timeout takes 0 or more, not %s", cmd.Flags().Lookup("timeout").Value)
+				return errs.Usagef("--timeout takes 0 or more, not %s", cmd.Flags().Lookup("timeout").Value).
+					WithTry("leave out --timeout to watch until the build finishes")
 			}
 			return nil
 		},

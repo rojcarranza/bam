@@ -236,7 +236,7 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if limit < 1 {
-				return errs.Usagef("--limit takes 1 or more, not %d", limit)
+				return errs.Usagef("--limit takes 1 or more, not %d", limit).WithTry("--limit 1 lists only the newest run")
 			}
 			cfg, err := r.config()
 			if err != nil {

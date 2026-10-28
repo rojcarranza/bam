@@ -238,6 +238,7 @@ func TestBuildList(t *testing.T) {
 	assert.Equal(t, 2, h.run("build", "list", "PROJ-BUILD", "--limit", "0"))
 	assert.Equal(t, 2, h.run("build", "list", "PROJ-BUILD", "--limit", "-1"))
 	assert.Contains(t, h.stderr.String(), "--limit takes 1 or more, not -1")
+	assert.Contains(t, h.stderr.String(), "--limit 1 lists only the newest build")
 }
 
 func TestBuildShow(t *testing.T) {

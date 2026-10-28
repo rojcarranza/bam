@@ -468,14 +468,15 @@ func TestInvestigateCompare(t *testing.T) {
 }
 
 func TestNegativeLineCountsAreUsageErrors(t *testing.T) {
-	for _, args := range [][]string{
-		{"build", "investigate", "PROJ-PROV12-8", "--context", "-2"},
-		{"build", "investigate", "PROJ-PROV12-8", "--max", "-1"},
-		{"logs", "PROJ-PROV12-8", "--tail", "-5"},
+	for args, try := range map[string]string{
+		"build investigate PROJ-PROV12-8 --context -2": "--context 0 shows only the error lines",
+		"build investigate PROJ-PROV12-8 --max -1":     "--max 0 shows all error blocks",
+		"logs PROJ-PROV12-8 --tail -5":                 "--tail 0 prints the whole log",
 	} {
 		h := newHarness(t)
-		assert.Equal(t, 2, h.run(args...), args)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
 		assert.Contains(t, h.stderr.String(), "takes 0 or more", args)
+		assert.Contains(t, h.stderr.String(), try, args)
 	}
 }
 
@@ -488,5 +489,6 @@ func TestNegativeTimeoutIsAUsageError(t *testing.T) {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(args...), args)
 		assert.Contains(t, h.stderr.String(), "--timeout takes 0 or more", args)
+		assert.Contains(t, h.stderr.String(), "leave out --timeout", args)
 	}
 }

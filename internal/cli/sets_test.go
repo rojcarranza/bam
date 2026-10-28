@@ -406,4 +406,5 @@ func TestSetHistoryListsThisRepositorysRuns(t *testing.T) {
 	require.NotContains(t, h.stdout.String(), id, "older run past --limit")
 	require.Equal(t, 2, h.run("set", "history", "--limit", "0"))
 	require.Contains(t, h.stderr.String(), "--limit takes 1 or more")
+	require.Contains(t, h.stderr.String(), "--limit 1 lists only the newest run")
 }

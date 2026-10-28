@@ -38,7 +38,7 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 				return errs.Usagef("--rerun-failed needs --yes when it cannot ask").WithTry("add --yes")
 			}
 			if cmd.Flags().Changed("depth") && depth < 1 {
-				return errs.Usagef("--depth takes 1 or more, not %d", depth)
+				return errs.Usagef("--depth takes 1 or more, not %d", depth).WithTry("leave out --depth to show every level")
 			}
 			ctx := cmd.Context()
 			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)

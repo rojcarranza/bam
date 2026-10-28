@@ -704,7 +704,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if limit < 1 {
-				return errs.Usagef("--limit takes 1 or more, not %d", limit)
+				return errs.Usagef("--limit takes 1 or more, not %d", limit).WithTry("--limit 1 lists only the newest build")
 			}
 			ctx := cmd.Context()
 			svc, arg, err := r.resolvePlanArg(ctx, args[0])

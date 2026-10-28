@@ -304,7 +304,7 @@ func newLogsCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if tail < 0 {
-				return errs.Usagef("--tail takes 0 or more, not %d", tail)
+				return errs.Usagef("--tail takes 0 or more, not %d", tail).WithTry("--tail 0 prints the whole log")
 			}
 			ctx := cmd.Context()
 			// A job result key copied from Bamboo's job page names the build and the job.
@@ -387,10 +387,10 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if opts.Context < 0 {
-				return errs.Usagef("--context takes 0 or more, not %d", opts.Context)
+				return errs.Usagef("--context takes 0 or more, not %d", opts.Context).WithTry("--context 0 shows only the error lines")
 			}
 			if opts.Max < 0 {
-				return errs.Usagef("--max takes 0 or more, not %d", opts.Max)
+				return errs.Usagef("--max takes 0 or more, not %d", opts.Max).WithTry("--max 0 shows all error blocks")
 			}
 			ctx := cmd.Context()
 			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)

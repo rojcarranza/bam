@@ -52,6 +52,7 @@ func TestBuildTreeDepthIsCheckedFirst(t *testing.T) {
 	h := treeHarness(t, provider.StateSuccess)
 	assert.Equal(t, 2, h.run("build", "tree", "PROJ-BUILD-482", "--depth", "0"))
 	assert.Contains(t, h.stderr.String(), "--depth takes 1 or more")
+	assert.Contains(t, h.stderr.String(), "leave out --depth to show every level")
 	assert.Empty(t, h.connectOpts, "no connection is made")
 }
 

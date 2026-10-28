@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // confirmState is a pending yes/no question. Action is what yes does; it is a
@@ -13,12 +14,14 @@ type confirmState struct {
 	Action func(Model) (tea.Model, tea.Cmd)
 }
 
-// confirmBody names what yes will do, so the answer is never a guess.
+// confirmBody names what yes will do, so the answer is never a guess. It
+// wraps rather than cuts: the end of a prompt is often what reassures.
 func (m Model) confirmBody(width int) string {
+	wrap := lipgloss.NewStyle().Width(width)
 	return strings.Join([]string{
-		truncate(m.confirm.Prompt, width),
+		wrap.Render(m.confirm.Prompt),
 		"",
-		dimStyle.Render("y or enter to confirm, n or esc to cancel"),
+		wrap.Inherit(dimStyle).Render("y or enter to confirm, n or esc to cancel"),
 	}, "\n")
 }
 

@@ -27,6 +27,8 @@ var logPatterns = []struct {
 	{"maven", regexp.MustCompile(`^\s*\[ERROR\] `)},
 	{"gradle", regexp.MustCompile(`^FAILURE: `)},
 	{"go-test", regexp.MustCompile(`^\s*--- FAIL: `)},
+	{"unittest", regexp.MustCompile(`^(FAIL|ERROR): `)},
+	{"pytest", regexp.MustCompile(`^(FAILED|ERROR) \S+::`)},
 	{"npm", regexp.MustCompile(`^npm (ERR!|error) `)},
 	{"panic", regexp.MustCompile(`^panic: `)},
 	{"traceback", regexp.MustCompile(`^Traceback \(most recent call last\):`)},

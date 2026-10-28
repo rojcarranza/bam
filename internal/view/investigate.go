@@ -28,10 +28,21 @@ func Investigation(o Out, inv app.Investigation) error {
 		if j.Skipped > 0 {
 			fmt.Fprintf(&sb, "  log truncated: the first %d lines were not read\n", j.Skipped)
 		}
+		// Blocks close together share context lines; print each line once
+		// and mark every error line, even one shown as another's context.
+		errLines := map[int]bool{}
+		for _, e := range j.Errors {
+			errLines[e.Line] = true
+		}
+		last := 0
 		for _, e := range j.Errors {
 			for i, l := range e.Context {
 				n, mark := e.Start+i, "  "
-				if n == e.Line {
+				if n <= last {
+					continue
+				}
+				last = n
+				if errLines[n] {
 					mark, l = "> ", style.Bold(o.Style, l)
 				}
 				fmt.Fprintf(&sb, "  %s%5d  %s\n", mark, n, l)

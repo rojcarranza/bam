@@ -15,6 +15,9 @@ func TestErrorBlocksPatterns(t *testing.T) {
 		"[ERROR] Failed to execute goal on project app":                        "maven",
 		"FAILURE: Build failed with an exception.":                             "gradle",
 		"--- FAIL: TestLogin (0.01s)":                                          "go-test",
+		"FAIL: test_login (tests.test_auth.LoginTest)":                         "unittest",
+		"ERROR: test_db (tests.test_db.DbTest)":                                "unittest",
+		"FAILED tests/test_auth.py::test_login - AssertionError":               "pytest",
 		"npm ERR! code ELIFECYCLE":                                             "npm",
 		"panic: runtime error: index out of range":                             "panic",
 		"Traceback (most recent call last):":                                   "traceback",
@@ -29,7 +32,7 @@ func TestErrorBlocksPatterns(t *testing.T) {
 			assert.Equal(t, want, got[0].Pattern, line)
 		}
 	}
-	for _, line := range []string{"Starting integration tests", "0 errors, 0 warnings", "error handling enabled", "ok  example.com/app 0.2s"} {
+	for _, line := range []string{"Starting integration tests", "0 errors, 0 warnings", "error handling enabled", "ok  example.com/app 0.2s", "FAILED (failures=1)"} {
 		assert.Empty(t, ErrorBlocks([]string{line}, 0, 0), line)
 	}
 }

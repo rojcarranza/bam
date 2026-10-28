@@ -89,3 +89,20 @@ func TestInvestigationChildTreeHint(t *testing.T) {
 	require.NoError(t, Investigation(o, app.Investigation{Build: b, Children: []string{"OPS-DEPLOY"}}))
 	require.Contains(t, buf.String(), "try: bam build tree PROJ-API-142\ntry: bam build rerun PROJ-API-142\n")
 }
+
+func TestInvestigationOverlappingBlocksPrintEachLineOnce(t *testing.T) {
+	o, buf := testOut(false)
+	ctx := []string{"start", "Error: timeout", "Failing task since return code of [terraform] was 1"}
+	inv := app.Investigation{
+		Build: provider.Build{Key: "PROJ-PLAN-44", State: provider.StateFailed},
+		Jobs: []app.JobErrors{{Job: provider.Job{Name: "Apply"}, Stage: "Deploy", Short: "APPLY", Errors: []app.ErrorBlock{
+			{Line: 2, Text: ctx[1], Start: 1, Context: ctx, Count: 1},
+			{Line: 3, Text: ctx[2], Start: 2, Context: ctx[1:], Count: 1},
+		}}},
+	}
+	require.NoError(t, Investigation(o, inv))
+	assert.Contains(t, buf.String(), "first error at line 2\n"+
+		"        1  start\n"+
+		"  >     2  Error: timeout\n"+
+		"  >     3  Failing task since return code of [terraform] was 1\n\n")
+}

@@ -160,3 +160,11 @@ repos:
 	assert.Equal(t, "PROJ", cfg.Machine.Servers["work"].DefaultProject)
 	assert.Equal(t, "LAB", cfg.Machine.Repos[dir].DefaultProject)
 }
+
+func TestLoadAcceptsMachineColorInAnyCase(t *testing.T) {
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "m.yaml")
+	writeFile(t, machine, "version: 1\ncolor: Always\n")
+	_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, Getenv: noEnv})
+	require.NoError(t, err)
+}

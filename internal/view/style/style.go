@@ -100,7 +100,7 @@ func Title(s provider.State) string {
 
 // ColorEnabled applies --color, then NO_COLOR, then TTY detection.
 func ColorEnabled(flag, noColor string, tty bool) (bool, error) {
-	switch flag {
+	switch strings.ToLower(flag) {
 	case "always":
 		return true, nil
 	case "never":

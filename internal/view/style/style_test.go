@@ -52,6 +52,8 @@ func TestColorEnabled(t *testing.T) {
 		{"", "1", true, false},
 		{"always", "1", false, true},
 		{"never", "", true, false},
+		{"ALWAYS", "", false, true},
+		{"Never", "", true, false},
 	}
 	for _, tc := range cases {
 		got, err := ColorEnabled(tc.flag, tc.noColor, tc.tty)

@@ -150,7 +150,7 @@ func validateFiles(c *Config) error {
 			}
 		}
 	}
-	switch c.Machine.Color {
+	switch strings.ToLower(c.Machine.Color) {
 	case "", "auto", "always", "never":
 	default:
 		return errs.Configf("%s: color must be auto, always or never, not %q", c.MachinePath, c.Machine.Color).

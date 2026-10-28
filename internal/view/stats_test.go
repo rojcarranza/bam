@@ -53,6 +53,14 @@ func TestPlanStatsViewOneSuccessfulBuild(t *testing.T) {
 	require.Contains(t, buf.String(), "Duration  2m11s (#482)   of 1 successful\n")
 }
 
+func TestPlanStatsViewOneBuildHeader(t *testing.T) {
+	s := fullStats()
+	s.Builds, s.First, s.Last, s.To = 1, 482, 482, statsFrom
+	o, buf := testOut(false)
+	require.NoError(t, PlanStatsView(o, s))
+	require.Contains(t, buf.String(), "PROJ-DEPLOY  last build (#482)\n")
+}
+
 func TestPlanStatsNoFinishedBuilds(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, PlanStatsView(o, app.PlanStats{PlanKey: "PROJ-DEPLOY", Builds: 20, Other: map[provider.State]int{}}))

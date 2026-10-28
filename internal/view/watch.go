@@ -30,7 +30,9 @@ func RunPlan(o Out, ref app.PlanRef, vs app.VarSet) {
 		}
 		parts = append(parts, fmt.Sprintf("%s=%s (%s)", v.Name, v.Display(), v.Source))
 	}
-	if defaults > 0 {
+	if defaults == 1 {
+		parts = append(parts, "+1 plan default")
+	} else if defaults > 1 {
 		parts = append(parts, fmt.Sprintf("+%d plan defaults", defaults))
 	}
 	line := strings.Join(parts, "  ")

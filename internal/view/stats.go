@@ -26,7 +26,11 @@ func PlanStatsView(o Out, s app.PlanStats) error {
 		}
 		head = fmt.Sprintf("%s  branch %s (%s)", master, s.Branch, s.PlanKey)
 	}
-	fmt.Fprintf(o.W, "%s  last %d builds (#%d–#%d, %s)\n", style.Bold(o.Style, head), s.Builds, s.First, s.Last, span(s.To.Sub(s.From)))
+	if s.Builds == 1 {
+		fmt.Fprintf(o.W, "%s  last build (#%d)\n", style.Bold(o.Style, head), s.Last)
+	} else {
+		fmt.Fprintf(o.W, "%s  last %d builds (#%d–#%d, %s)\n", style.Bold(o.Style, head), s.Builds, s.First, s.Last, span(s.To.Sub(s.From)))
+	}
 
 	ok, bad := style.StateGlyph(o.Style, provider.StateSuccess), style.StateGlyph(o.Style, provider.StateFailed)
 	counts := fmt.Sprintf("%d %s  %d %s", s.Passed, ok, s.Failed, bad)

@@ -178,7 +178,9 @@ func TreeNodeNote(n *app.TreeNode, underStage bool) string {
 	if n.FromLog && n.Stage != "" && !underStage {
 		parts = append(parts, "started by stage "+n.Stage)
 	}
-	if c := len(n.Build.FailedTests); c > 0 {
+	if c := len(n.Build.FailedTests); c == 1 {
+		parts = append(parts, "1 test failed")
+	} else if c > 1 {
 		parts = append(parts, fmt.Sprintf("%d tests failed", c))
 	}
 	return strings.Join(parts, " · ")

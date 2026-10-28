@@ -197,3 +197,8 @@ func TestTreeProgressText(t *testing.T) {
 		require.Equal(t, tc.want, TreeProgressText(tc.p))
 	}
 }
+
+func TestTreeNodeNoteCountsOneFailedTest(t *testing.T) {
+	n := &app.TreeNode{Build: provider.Build{FailedTests: []string{"a"}}}
+	require.Equal(t, "1 test failed", TreeNodeNote(n, false))
+}

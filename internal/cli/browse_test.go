@@ -395,7 +395,8 @@ func TestPageKey(t *testing.T) {
 		"https://bamboo.example.com/browse/PROJ-BUILD-482":                                                        "PROJ-BUILD-482",
 		"https://bamboo.example.com/chain/result/viewChainResult.action?planKey=PROJ-BUILD&buildNumber=482":       "PROJ-BUILD-482",
 		"https://bamboo.example.com/build/result/viewBuildResult.action?buildKey=PROJ-BUILD-JOB1&buildNumber=482": "PROJ-BUILD-JOB1-482",
-		"https://bamboo.example.com/chain/result/viewChainResult.action?planKey=PROJ-BUILD":                       "",
+		"https://bamboo.example.com/chain/admin/config/editChainDetails.action?buildKey=PROJ-BUILD":               "PROJ-BUILD",
+		"https://bamboo.example.com/x.action?planKey=PROJ-BUILD&buildNumber=":                                     "",
 		"https://bamboo.example.com/x.action?planKey=PROJ-BUILD&buildNumber=48a":                                  "",
 		"https://bamboo.example.com/x.action?planKey=proj-build&buildNumber=482":                                  "",
 		"PROJ-BUILD-482": "",
@@ -410,6 +411,7 @@ func TestPlanArgAcceptsAPageLink(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("plan", "show", workOrigin+"/browse/PROJ-PROV"), "a plan page link")
 	assert.Contains(t, h.stdout.String(), "PROJ-PROV  Provision lab")
+	assert.Equal(t, 0, h.run("plan", "vars", workOrigin+"/chain/admin/config/editChainDetails.action?buildKey=PROJ-PROV"), "a plan configuration link")
 	assert.Equal(t, 0, h.run("plan", "branches", workOrigin+"/browse/PROJ-PROV"))
 	assert.Contains(t, h.stdout.String(), "develop")
 	assert.Equal(t, 3, h.run("plan", "show", "https://bamboo.other.example/browse/PROJ-PROV"), "an unconfigured server")

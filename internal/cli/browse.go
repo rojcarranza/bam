@@ -796,6 +796,8 @@ var actionKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$`)
 
 // pageKey returns the key of a pasted Bamboo page link: a .../browse/KEY link,
 // or an .action link such as viewChainResult.action?planKey=PROJ-PLAN&buildNumber=42.
+// An .action link without a buildNumber, such as a plan's configuration page
+// (editChainDetails.action?buildKey=PROJ-PLAN), names the plan or job itself.
 func pageKey(arg string) (string, bool) {
 	if m := pageKeyRe.FindStringSubmatch(arg); m != nil {
 		return m[1], true
@@ -806,8 +808,11 @@ func pageKey(arg string) (string, bool) {
 	}
 	q := u.Query()
 	plan, n := cmp.Or(q.Get("planKey"), q.Get("buildKey")), q.Get("buildNumber")
-	if !actionKeyRe.MatchString(plan) || n == "" || strings.Trim(n, "0123456789") != "" {
+	if !actionKeyRe.MatchString(plan) || (q.Has("buildNumber") && (n == "" || strings.Trim(n, "0123456789") != "")) {
 		return "", false
+	}
+	if n == "" {
+		return plan, true
 	}
 	return plan + "-" + n, true
 }

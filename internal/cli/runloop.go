@@ -162,7 +162,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 				return nil
 			}
 			if r.flags.json {
-				return r.watchLoop(ctx, svc, b.Key, limit, "")
+				return r.watchLoop(ctx, svc, b.Key, limit)
 			}
 			view.Queued(o, b, true, ref.RevisionShort())
 			return r.treeLoop(ctx, svc, b.Key, app.TreeOptions{}, false, limit, "bam watch "+b.Key, ref.RevisionShort())
@@ -182,70 +182,37 @@ func newRunCmd(r *runtime) *cobra.Command {
 	return cmd
 }
 
-// watchLoop renders a build until it finishes. Interrupts and timeouts stop
-// watching only; the build keeps running. revision, when set, is the
-// revision the build was asked for; a not-built result then says Bamboo
-// could not build it.
-func (r *runtime) watchLoop(ctx context.Context, svc *app.Service, key string, limit time.Duration, revision string) error {
+// watchLoop writes a build's events as NDJSON until it finishes. Interrupts
+// and timeouts stop watching only; the build keeps running.
+func (r *runtime) watchLoop(ctx context.Context, svc *app.Service, key string, limit time.Duration) error {
 	wctx, cancel := ctx, context.CancelFunc(func() {})
 	if limit > 0 {
 		wctx, cancel = context.WithTimeout(ctx, limit)
 	}
 	defer cancel()
 
-	var rend view.WatchRenderer
-	var tick <-chan time.Time
-	if r.flags.json {
-		rend = view.NewNDJSON(view.Out{W: r.env.Stdout})
-	} else {
-		o, err := r.out()
-		if err != nil {
-			return err
-		}
-		if o.TTY {
-			rend = view.NewLive(o)
-			t := time.NewTicker(time.Second)
-			defer t.Stop()
-			tick = t.C
-		} else {
-			rend = view.NewLines(o)
+	rend := view.NewNDJSON(view.Out{W: r.env.Stdout})
+	for e := range svc.Watch(wctx, key) {
+		rend.Event(e)
+		switch e.Type {
+		case app.EventDone:
+			if e.Build.State != provider.StateSuccess {
+				return &resultError{State: e.Build.State}
+			}
+			return nil
+		case app.EventError:
+			return e.Err
 		}
 	}
-
-	events := svc.Watch(wctx, key)
-	for {
-		select {
-		case e, ok := <-events:
-			if !ok {
-				switch {
-				case ctx.Err() != nil:
-					fmt.Fprintf(r.env.Stderr, "still running: bam watch %s\n", key)
-					return ctx.Err()
-				case wctx.Err() != nil:
-					return errs.New(errs.KindTimeout, fmt.Sprintf("timed out after %s", limit)).
-						WithWhy(key + " is still running").WithTry("bam watch " + key)
-				}
-				return nil
-			}
-			rend.Event(e)
-			switch e.Type {
-			case app.EventDone:
-				if e.Build.State == provider.StateNotBuilt && revision != "" && !r.flags.json {
-					if o, err := r.out(); err == nil {
-						view.RevisionNotBuilt(o, revision)
-					}
-				}
-				if e.Build.State != provider.StateSuccess {
-					return &resultError{State: e.Build.State}
-				}
-				return nil
-			case app.EventError:
-				return e.Err
-			}
-		case <-tick:
-			rend.Tick()
-		}
+	if ctx.Err() != nil {
+		fmt.Fprintf(r.env.Stderr, "still running: bam watch %s\n", key)
+		return ctx.Err()
 	}
+	if wctx.Err() == nil {
+		return nil
+	}
+	return errs.New(errs.KindTimeout, fmt.Sprintf("timed out after %s", limit)).
+		WithWhy(key + " is still running").WithTry("bam watch " + key)
 }
 
 // followBuild watches key as bam watch does: the build tree in text mode,
@@ -259,7 +226,7 @@ func (r *runtime) followBuild(cmd *cobra.Command, args []string, svc *app.Servic
 		}
 	}
 	if r.flags.json {
-		return r.watchLoop(cmd.Context(), svc, key, limit, "")
+		return r.watchLoop(cmd.Context(), svc, key, limit)
 	}
 	return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key, "")
 }

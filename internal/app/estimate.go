@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
@@ -65,6 +67,24 @@ func (s *Service) keepMedian(planKey string, med time.Duration) {
 		s.estimates.m = map[string]time.Duration{}
 	}
 	s.estimates.m[planKey] = med
+}
+
+// estimate is a build's progress: the server's own, or, once the server
+// said it has none (*unsupported), its plan branch's history, whose median
+// is read once and kept. A missing estimate is decoration lost, never a
+// reason to stop watching, so every error becomes a zero Progress.
+func (s *Service) estimate(ctx context.Context, b provider.Build, unsupported *bool) provider.Progress {
+	if !*unsupported {
+		got, err := s.P.BuildProgress(ctx, b.Key)
+		switch {
+		case err == nil:
+			return got
+		case !errors.Is(err, errs.ErrUnsupported):
+			return provider.Progress{}
+		}
+		*unsupported = true
+	}
+	return s.historyProgress(ctx, b)
 }
 
 // historyProgress estimates a running build from its plan branch's history,

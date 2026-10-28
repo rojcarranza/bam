@@ -312,3 +312,27 @@ func TestWatchTreeOfLongFinishedBuildsEndsAtOnce(t *testing.T) {
 	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
 	require.Equal(t, []time.Duration{treePoll}, svc.Clock.(*fakeClock).Waits())
 }
+
+func TestWatchTreeEstimatesRunningBuilds(t *testing.T) {
+	p := treeFake()
+	p.Sequences = map[string][]provider.Build{"PROJ-DOCS-30": {
+		tb("PROJ-DOCS-30", childOf("PROJ-API-142"), provider.StateRunning, 5),
+		tb("PROJ-DOCS-30", childOf("PROJ-API-142"), provider.StateSuccess, 5),
+	}}
+	est := provider.Progress{Valid: true, Average: 10 * time.Minute, Elapsed: 4 * time.Minute, Remaining: 6 * time.Minute, Percent: 0.4}
+	p.Progressions = map[string][]provider.Progress{"PROJ-DOCS-30": {est}}
+	svc := treeService(t, p)
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	require.GreaterOrEqual(t, len(evs), 2)
+	got := map[string]TreeNode{}
+	evs[0].Tree.Root.Walk(func(n *TreeNode, _ int) { got[n.Build.Key] = *n })
+	require.Equal(t, est, got["PROJ-DOCS-30"].Progress, "the running child carries its estimate")
+	require.Equal(t, evs[0].Time, got["PROJ-DOCS-30"].ProgressAt)
+	require.False(t, got["PROJ-API-142"].Progress.Valid, "a finished build has none")
+	require.Zero(t, p.ProgressCalls("PROJ-API-142"), "nor is it asked for one")
+
+	last := evs[len(evs)-1]
+	last.Tree.Root.Walk(func(n *TreeNode, _ int) {
+		require.False(t, n.Progress.Valid, n.Build.Key+" has finished")
+	})
+}

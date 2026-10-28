@@ -2,7 +2,6 @@ package view
 
 import (
 	"encoding/json"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -91,58 +90,6 @@ func TestRevisionNotBuilt(t *testing.T) {
 	assert.Equal(t, "Bamboo could not build revision abc1234\n", buf.String())
 }
 
-func TestResultFailed(t *testing.T) {
-	o, buf := testOut(true)
-	Result(o, failedResult())
-	assert.Equal(t, ""+
-		"✗ Failed   PROJ-BUILD12-44  3m40s   Test › Integration\n"+
-		"  next: bam logs PROJ-BUILD12-44 --failed\n"+
-		"        bam open PROJ-BUILD12-44\n", buf.String())
-}
-
-func TestResultSuccess(t *testing.T) {
-	o, buf := testOut(true)
-	b := failedResult()
-	b.State = provider.StateSuccess
-	b.Stages[1].Jobs[1].State = provider.StateSuccess
-	Result(o, b)
-	assert.Equal(t, "✓ Success   PROJ-BUILD12-44  3m40s\n", buf.String())
-}
-
-func TestLinesRenderer(t *testing.T) {
-	o, buf := testOut(false)
-	r := NewLines(o)
-	b := runningBuild()
-	r.Event(app.Event{Type: app.EventState, Time: fixedNow, Build: b, State: provider.StateRunning})
-	r.Event(app.Event{Type: app.EventStage, Time: fixedNow, Build: b, Name: "Checkout", State: provider.StateSuccess})
-	r.Event(app.Event{Type: app.EventJob, Time: fixedNow, Build: b, Name: "Integration", Key: "PROJ-BUILD12-INT-44", State: provider.StateRunning})
-	r.Tick()
-	r.Event(app.Event{Type: app.EventDone, Time: fixedNow, Build: failedResult(), State: provider.StateFailed})
-	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	assert.Equal(t, "2026-09-12T12:00:00Z PROJ-BUILD12-44 running agent=linux-3", lines[0])
-	assert.Equal(t, "2026-09-12T12:00:00Z PROJ-BUILD12-44 stage Checkout success", lines[1])
-	assert.Equal(t, "2026-09-12T12:00:00Z PROJ-BUILD12-44 job Integration running", lines[2])
-	assert.Equal(t, "✗ Failed   PROJ-BUILD12-44  3m40s   Test › Integration", lines[3])
-	assert.NotContains(t, buf.String(), "\x1b")
-}
-
-func TestLiveRendererRedrawsInPlace(t *testing.T) {
-	o, buf := testOut(true)
-	r := NewLive(o)
-	r.Event(app.Event{Type: app.EventState, Time: fixedNow, Build: runningBuild(), State: provider.StateRunning})
-	first := buf.String()
-	assert.Contains(t, first, "▸ Running  agent linux-3  2m03s")
-	assert.Contains(t, first, "      ▸ Integration")
-	assert.NotContains(t, first, "      ✓ Checkout", "single-job stages do not list their job")
-	n := strings.Count(first, "\n")
-
-	r.Tick()
-	assert.Contains(t, buf.String()[len(first):], "\x1b["+strconv.Itoa(n)+"A\x1b[J", "cursor moves up over the old block")
-
-	r.Event(app.Event{Type: app.EventDone, Time: fixedNow, Build: failedResult(), State: provider.StateFailed})
-	assert.Contains(t, buf.String(), "✗ Failed   PROJ-BUILD12-44  3m40s")
-}
-
 func TestNDJSONRenderer(t *testing.T) {
 	o, buf := testOut(false)
 	r := NewNDJSON(o)
@@ -156,15 +103,11 @@ func TestNDJSONRenderer(t *testing.T) {
 	assert.Equal(t, "failed", last["build"].(map[string]any)["state"])
 }
 
-func TestLinesAndNDJSONSkipProgressEvents(t *testing.T) {
+func TestNDJSONSkipsProgressEvents(t *testing.T) {
 	e := app.Event{Type: app.EventProgress, Time: fixedNow, Build: runningBuild(),
 		Progress: provider.Progress{Valid: true, Average: 4 * time.Minute, Elapsed: 2 * time.Minute, Percent: 0.5}}
 
 	o, buf := testOut(false)
-	NewLines(o).Event(e)
-	assert.Empty(t, buf.String(), "a pipe gets one line per change, and an estimate is not a change")
-
-	o, buf = testOut(false)
 	NewNDJSON(o).Event(e)
 	assert.Empty(t, buf.String(), "NDJSON types stay state, stage, job and done (spec §7)")
 }

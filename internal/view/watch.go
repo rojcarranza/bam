@@ -62,82 +62,6 @@ func RevisionNotBuilt(o Out, revision string) {
 	fmt.Fprintf(o.W, "Bamboo could not build revision %s\n", revision)
 }
 
-// Result prints the final line of a watched build and, unless it passed, what to do next.
-func Result(o Out, b provider.Build) {
-	head := style.Colored(o.Style, b.State, style.Glyph(b.State)+" "+style.Title(b.State))
-	line := fmt.Sprintf("%s   %s  %s", head, o.Key(b.Key, b.URL), Duration(b.Duration))
-	failed := b.FailedJobs()
-	if len(failed) > 0 {
-		for _, s := range b.Stages {
-			for _, j := range s.Jobs {
-				if j.Key == failed[0].Key {
-					line += fmt.Sprintf("   %s › %s", s.Name, j.Name)
-				}
-			}
-		}
-	}
-	fmt.Fprintln(o.W, line)
-	if b.State == provider.StateSuccess {
-		return
-	}
-	indent := "  next: "
-	if len(failed) > 0 {
-		fmt.Fprintf(o.W, "%sbam logs %s --failed\n", indent, b.Key)
-		indent = "        "
-	}
-	fmt.Fprintf(o.W, "%sbam open %s\n", indent, b.Key)
-}
-
-// WatchRenderer shows watch events. Tick lets a live display update its clock.
-type WatchRenderer interface {
-	Event(e app.Event)
-	Tick()
-}
-
-// Live redraws a block in place on a TTY.
-type Live struct {
-	o        Out
-	last     provider.Build
-	progress provider.Progress
-	at       time.Time // when that estimate arrived, so Tick can extrapolate
-	have     bool
-	lines    int
-}
-
-func NewLive(o Out) *Live { return &Live{o: o} }
-
-func (l *Live) Event(e app.Event) {
-	if e.Type == app.EventError {
-		return
-	}
-	l.last, l.have = e.Build, true
-	l.progress, l.at = e.Progress, l.o.Now()
-	l.draw()
-	if e.Type == app.EventDone {
-		fmt.Fprintln(l.o.W)
-		Result(l.o, e.Build)
-	}
-}
-
-func (l *Live) Tick() {
-	if l.have && !l.last.State.Finished() {
-		l.draw()
-	}
-}
-
-func (l *Live) draw() {
-	var b strings.Builder
-	o := l.o
-	o.W = &b
-	block(o, l.last, advance(l.progress, l.o.Now().Sub(l.at)))
-	text := b.String()
-	if l.lines > 0 {
-		fmt.Fprintf(l.o.W, "\x1b[%dA\x1b[J", l.lines)
-	}
-	fmt.Fprint(l.o.W, text)
-	l.lines = strings.Count(text, "\n")
-}
-
 func elapsed(o Out, b provider.Build) time.Duration {
 	switch {
 	case b.State.Finished():
@@ -149,61 +73,6 @@ func elapsed(o Out, b provider.Build) time.Duration {
 	}
 	return 0
 }
-
-func block(o Out, b provider.Build, p provider.Progress) {
-	head := style.Colored(o.Style, b.State, style.Glyph(b.State)+" "+style.Title(b.State))
-	parts := []string{head}
-	if b.Agent != "" {
-		parts = append(parts, "agent "+b.Agent)
-	}
-	if d := elapsed(o, b); d > 0 {
-		parts = append(parts, Duration(d))
-	}
-	if bar := Bar(o, p); bar != "" {
-		parts = append(parts, bar)
-	}
-	fmt.Fprintln(o.W, strings.Join(parts, "  "))
-	if len(b.Stages) == 0 {
-		return
-	}
-	fmt.Fprintln(o.W)
-	t := Table{Indent: "  ", Headers: []string{"", ""}}
-	for _, s := range b.Stages {
-		t.Rows = append(t.Rows, []string{style.StateGlyph(o.Style, s.State) + " " + s.Name, durationIfRun(s.State, s.Duration)})
-		if len(s.Jobs) > 1 {
-			for _, j := range s.Jobs {
-				t.Rows = append(t.Rows, []string{"    " + style.StateGlyph(o.Style, j.State) + " " + j.Name, durationIfRun(j.State, j.Duration)})
-			}
-		}
-	}
-	_ = RenderRows(o, t)
-}
-
-// Lines prints one timestamped line per change, for pipes and CI logs.
-type Lines struct{ o Out }
-
-func NewLines(o Out) *Lines { return &Lines{o: o} }
-
-func (l *Lines) Event(e app.Event) {
-	ts := e.Time.UTC().Format(time.RFC3339)
-	key := e.Build.Key
-	switch e.Type {
-	case app.EventState:
-		extra := ""
-		if e.Build.Agent != "" {
-			extra = " agent=" + e.Build.Agent
-		}
-		fmt.Fprintf(l.o.W, "%s %s %s%s\n", ts, key, e.State, extra)
-	case app.EventStage:
-		fmt.Fprintf(l.o.W, "%s %s stage %s %s\n", ts, key, e.Name, e.State)
-	case app.EventJob:
-		fmt.Fprintf(l.o.W, "%s %s job %s %s\n", ts, key, e.Name, e.State)
-	case app.EventDone:
-		Result(l.o, e.Build)
-	}
-}
-
-func (l *Lines) Tick() {}
 
 // NDJSON writes every event as one JSON line.
 type NDJSON struct{ o Out }
@@ -218,5 +87,3 @@ func (n *NDJSON) Event(e app.Event) {
 	}
 	_ = WriteNDJSON(n.o.W, EventJSON(e))
 }
-
-func (n *NDJSON) Tick() {}

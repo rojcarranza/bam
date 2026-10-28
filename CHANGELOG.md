@@ -21,6 +21,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `bam run --watch` and `bam watch` follow the build and every build it triggers, as a live tree with a progress bar on each running build, and finish only when all of them have; each build that did not succeed is listed with its Bamboo link. `--json` still writes the one build's events.
 - `bam preset add` writes to the plan's project file in `~/bam/presets/` (for example `proj.yaml` for `PROJ-DEPLOY`) by default; `--shared` writes `.bam.yaml`. `--machine` is removed.
 - `bam target` is now `bam preset` (`bam preset add`, `list`, `show`, `sync`); `bam target` is removed. Config files keep the `targets:` key.
 - The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, the bam and Bamboo versions and the user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.

@@ -153,20 +153,7 @@ func (s *Service) Watch(ctx context.Context, key string) <-chan Event {
 			// watching, so every progress error becomes a zero Progress.
 			var pr provider.Progress
 			if !b.State.Finished() {
-				if !noProgress {
-					got, err := s.P.BuildProgress(ctx, key)
-					switch {
-					case err == nil:
-						pr = got
-					case errors.Is(err, errs.ErrUnsupported):
-						noProgress = true
-					}
-				}
-				// A server without progress gets the plan's history instead;
-				// its median is read once and kept.
-				if noProgress {
-					pr = s.historyProgress(ctx, b)
-				}
+				pr = s.estimate(ctx, b, &noProgress)
 			}
 			changes := diff(prev, b)
 			// A poll that changes nothing still brings a fresh estimate; send

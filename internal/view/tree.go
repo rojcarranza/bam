@@ -42,7 +42,15 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	}
 	showStages := !failedOnly || len(root.Children) > 0 || treeBad(root)
 	tb := Table{Headers: []string{"", "", "", ""}}
-	tb.Rows = append(tb.Rows, treeRow(o, root, "", false))
+	running := map[int]*app.TreeNode{}
+	// row adds a build's line, noting a running one for its estimate.
+	row := func(n *app.TreeNode, prefix string, underStage bool) {
+		if !n.NotRun && !n.Loop && !n.Superseded && n.Build.State == provider.StateRunning && n.Progress.Valid {
+			running[len(tb.Rows)] = n
+		}
+		tb.Rows = append(tb.Rows, treeRow(o, n, prefix, underStage))
+	}
+	row(root, "", false)
 	var failed, next []string
 	if treeBad(root) && !root.NotRun {
 		failed = append(failed, treeFailedLine(root.Build))
@@ -53,7 +61,7 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	var add func(n *app.TreeNode, indent string, stages bool)
 	// node is one build's line, and everything under it.
 	node := func(k *app.TreeNode, indent, branch, more string, underStage bool) {
-		tb.Rows = append(tb.Rows, treeRow(o, k, indent+branch, underStage))
+		row(k, indent+branch, underStage)
 		if k.Superseded {
 			return
 		}
@@ -87,6 +95,7 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 		}
 	}
 	add(root, "", showStages)
+	addBars(o, tb, running)
 	if err := RenderRows(o, tb); err != nil {
 		return err
 	}
@@ -144,6 +153,40 @@ func TreeItems(n *app.TreeNode, stages bool) []TreeItem {
 
 // treeRow is one build's line. underStage: it is drawn under the stage that
 // started it, which then need not be named again.
+// addBars puts each running build's estimate, moved on to now, in front of
+// its note. On a terminal it takes only the columns the other cells leave,
+// so a redrawn tree does not wrap; running is the rows' builds by index.
+func addBars(o Out, tb Table, running map[int]*app.TreeNode) {
+	fit := o.TTY && o.Width > 0 // otherwise the bar keeps its own size
+	budget := 0
+	if fit && len(running) > 0 {
+		used := 3 * len(gap)
+		for c := 0; c < 3; c++ {
+			w := 0
+			for _, row := range tb.Rows {
+				w = max(w, style.Width(row[c]))
+			}
+			used += w
+		}
+		budget = o.Width - 1 - used // one short, as ProgressLine keeps
+	}
+	for i, n := range running {
+		p := advance(n.Progress, o.Now().Sub(n.ProgressAt))
+		note := tb.Rows[i][3]
+		bar := Bar(o, p)
+		if fit {
+			room := budget
+			if note != "" {
+				room -= style.Width(note) + len(" · ")
+			}
+			bar = BarWithin(o.Style, p, room)
+		}
+		if bar != "" {
+			tb.Rows[i][3] = strings.TrimSuffix(bar+" · "+note, " · ")
+		}
+	}
+}
+
 func treeRow(o Out, n *app.TreeNode, prefix string, underStage bool) []string {
 	switch {
 	case n.Superseded:
@@ -291,6 +334,7 @@ type TreeLive struct {
 	failed   bool
 	lines    int
 	progress *ProgressLine
+	tree     app.Tree // the last tree drawn; Root is nil before the first
 }
 
 // NewTreeLive draws on o. Progress goes to progress, usually stderr; nil
@@ -319,16 +363,47 @@ func (l *TreeLive) Event(e app.TreeEvent) {
 	if e.Type == app.TreeError {
 		return
 	}
+	l.tree = e.Tree
+	l.draw()
+}
+
+// Tick redraws a running tree so its running builds' times move between
+// refreshes.
+func (l *TreeLive) Tick() {
+	if l.tree.Root != nil && l.tree.State == provider.StateRunning {
+		l.draw()
+	}
+}
+
+func (l *TreeLive) draw() {
 	var b strings.Builder
 	o := l.o
 	o.W = &b
-	_ = TreeText(o, e.Tree, l.failed)
+	_ = TreeText(o, l.tree, l.failed)
 	text := b.String()
 	if l.lines > 0 {
 		fmt.Fprintf(l.o.W, "\x1b[%dA\x1b[J", l.lines)
 	}
 	fmt.Fprint(l.o.W, text)
-	l.lines = strings.Count(text, "\n")
+	l.lines = screenRows(text, l.o.Width)
+}
+
+// screenRows is how many terminal rows text takes on a width-column
+// terminal, counting a line that wraps once per row it spans.
+func screenRows(text string, width int) int {
+	n := 0
+	for _, line := range strings.SplitAfter(text, "\n") {
+		if !strings.HasSuffix(line, "\n") {
+			continue
+		}
+		w := style.Width(strings.TrimSuffix(line, "\n"))
+		if width <= 0 || w <= width {
+			n++
+			continue
+		}
+		n += (w + width - 1) / width
+	}
+	return n
 }
 
 // TreeLines prints one timestamped line per node whose state changed, for

@@ -11,7 +11,9 @@
 //
 // Reads are the fixtures, retargeted to whatever key was asked for. A
 // triggered build is simulated: it stays queued, then runs, then succeeds,
-// and bam build cancel stops it. Any bearer token is accepted.
+// and bam build cancel stops it. With -child, its end queues a build of the
+// child plan, as Bamboo does, so bam build tree and bam run --watch have a
+// tree to follow. Any bearer token is accepted.
 //
 // Flags:
 //
@@ -19,6 +21,8 @@
 //	-fixtures DIR     fixture directory
 //	-queued DURATION  how long a triggered build stays queued (default 5s)
 //	-running DURATION how long it then runs (default 10s)
+//	-child PLAN       plan a triggered build queues a child build of when it ends
+//	-child-fails      that child build fails
 package main
 
 import (
@@ -51,10 +55,12 @@ const (
 )
 
 type stub struct {
-	fixtures string
-	queued   time.Duration
-	running  time.Duration
-	now      func() time.Time
+	fixtures   string
+	queued     time.Duration
+	running    time.Duration
+	child      string // plan of the build a triggered build queues when it ends; "" for none
+	childFails bool
+	now        func() time.Time
 
 	mu    sync.Mutex
 	live  map[string]*build
@@ -68,7 +74,13 @@ type build struct {
 	number  int
 	started time.Time
 	stopped time.Time // when bam build cancel stopped it; zero while it runs on
+	parent  string    // the build whose end queued this one
+	fails   bool
 }
+
+// visible reports whether b exists yet: a child is queued when its parent
+// ends, not when the parent is triggered.
+func (s *stub) visible(b *build) bool { return !s.now().Before(b.started) }
 
 func newStub(fixtures string) *stub {
 	return &stub{
@@ -91,6 +103,8 @@ func (s *stub) phase(b *build) (string, string) {
 		return "Queued", "Unknown"
 	case d < s.queued+s.running:
 		return "InProgress", "Unknown"
+	case b.fails:
+		return "Finished", "Failed"
 	default:
 		return "Finished", "Successful"
 	}
@@ -150,14 +164,26 @@ func stamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z
 // liveDetail renders a simulated build the way Bamboo's result detail reads,
 // down to the one stage and one job bam needs to draw its panels.
 func (s *stub) liveDetail(key string, b *build) []byte {
+	out, err := json.Marshal(s.liveDoc(key, b))
+	if err != nil { // the document is built here, so this cannot happen
+		log.Printf("live detail %s: %v", key, err)
+	}
+	return out
+}
+
+func (s *stub) liveDoc(key string, b *build) map[string]any {
 	life, state := s.phase(b)
+	reason := "Manual build by J Doe"
+	if b.parent != "" {
+		reason = fmt.Sprintf(`Child of <a href="/browse/%s">%s</a>`, b.parent, b.parent)
+	}
 	elapsed := int(s.ended(b).Sub(b.started) / time.Millisecond)
 	doc := map[string]any{
 		"key": key, "buildResultKey": key, "buildNumber": b.number,
 		"state": state, "lifeCycleState": life,
 		"buildStartedTime": stamp(b.started),
 		"buildDuration":    elapsed,
-		"buildReason":      "Manual build by J Doe",
+		"buildReason":      reason,
 		"plan":             map[string]any{"key": b.planKey, "shortName": "Build and test"},
 		"stages": map[string]any{"size": 1, "stage": []any{map[string]any{
 			"name": "Build", "state": state, "lifeCycleState": life,
@@ -172,18 +198,49 @@ func (s *stub) liveDetail(key string, b *build) []byte {
 	if life == "Finished" {
 		doc["buildCompletedTime"] = stamp(s.ended(b))
 	}
-	out, err := json.Marshal(doc)
-	if err != nil { // the document is built here, so this cannot happen
-		log.Printf("live detail %s: %v", key, err)
+	return doc
+}
+
+// serveList answers a plan's build list: the fixture's builds, retargeted,
+// after the simulated builds of that plan that exist yet, newest first.
+func (s *stub) serveList(w http.ResponseWriter, planKey string) {
+	body := s.fixture(w, "results.json")
+	if body == nil {
+		return
 	}
-	return out
+	body = []byte(strings.ReplaceAll(string(body), fixturePlan, planKey))
+	var doc struct {
+		Results map[string]any `json:"results"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		log.Printf("results.json: %v", err)
+		http.Error(w, "fixture unavailable", http.StatusInternalServerError)
+		return
+	}
+	var live []any
+	s.mu.Lock()
+	for n := s.lastN; n > 900; n-- {
+		key := fmt.Sprintf("%s-%d", planKey, n)
+		if b := s.live[key]; b != nil && s.visible(b) {
+			live = append(live, s.liveDoc(key, b))
+		}
+	}
+	s.mu.Unlock()
+	fixed, _ := doc.Results["result"].([]any)
+	doc.Results["result"] = append(live, fixed...)
+	doc.Results["size"] = len(live) + len(fixed)
+	out, err := json.Marshal(doc)
+	if err != nil { // decoded from JSON a moment ago, so this cannot happen
+		log.Printf("results for %s: %v", planKey, err)
+	}
+	writeJSON(w, out)
 }
 
 func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimPrefix(r.URL.Path, api+"/result/")
 	expand := r.URL.Query().Get("expand")
 	if !buildKeyRe.MatchString(key) { // a plan or branch key: list its builds
-		s.serve(w, "results.json", fixturePlan, key)
+		s.serveList(w, key)
 		return
 	}
 	switch {
@@ -207,6 +264,10 @@ func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 	b := s.live[key]
 	s.mu.Unlock()
 	if b != nil {
+		if !s.visible(b) {
+			http.NotFound(w, r)
+			return
+		}
 		writeJSON(w, s.liveDetail(key, b))
 		return
 	}
@@ -332,6 +393,11 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 		num := s.lastN
 		resultKey := fmt.Sprintf("%s-%d", key, num)
 		s.live[resultKey] = &build{planKey: key, number: num, started: s.now()}
+		if s.child != "" && key != s.child {
+			s.lastN++
+			s.live[fmt.Sprintf("%s-%d", s.child, s.lastN)] = &build{planKey: s.child, number: s.lastN,
+				started: s.now().Add(s.queued + s.running), parent: resultKey, fails: s.childFails}
+		}
 		s.mu.Unlock()
 		log.Printf("trigger %s with %d variables", resultKey, len(r.PostForm))
 		// A real Bamboo Data Center reports "Custom revision build" only
@@ -352,6 +418,12 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 		b := s.live[key]
 		if b != nil {
 			b.stopped = s.now()
+			// A stopped build never ends, so it queues no child.
+			for k, c := range s.live {
+				if c.parent == key && !s.visible(c) {
+					delete(s.live, k)
+				}
+			}
 		}
 		s.mu.Unlock()
 		if b == nil {
@@ -431,6 +503,8 @@ func main() {
 	s := newStub("")
 	flag.DurationVar(&s.queued, "queued", s.queued, "how long a triggered build stays queued")
 	flag.DurationVar(&s.running, "running", s.running, "how long a triggered build then runs")
+	flag.StringVar(&s.child, "child", "", "plan a triggered build queues a child build of when it ends")
+	flag.BoolVar(&s.childFails, "child-fails", false, "that child build fails")
 	flag.Parse()
 	s.fixtures = *fixtures
 

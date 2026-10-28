@@ -55,13 +55,15 @@ type TreeOptions struct {
 // TreeNode is one build of a tree, or a configured child that never ran.
 type TreeNode struct {
 	PlanKey    string
-	Build      provider.Build // zero for a not-run node
-	NotRun     bool           // a configured child plan with no build that names the parent
-	Loop       bool           // the build already appears above; its children are not followed
-	Superseded bool           // an older run of the same child plan; it does not count toward the tree
-	FromLog    bool           // linked by a job log of its parent, not by its reason: a script started it
-	Stage      string         // for FromLog, the parent's stage whose job log linked it
-	Children   []*TreeNode    // by plan key, then build number, newest first
+	Build      provider.Build    // zero for a not-run node
+	NotRun     bool              // a configured child plan with no build that names the parent
+	Loop       bool              // the build already appears above; its children are not followed
+	Superseded bool              // an older run of the same child plan; it does not count toward the tree
+	FromLog    bool              // linked by a job log of its parent, not by its reason: a script started it
+	Stage      string            // for FromLog, the parent's stage whose job log linked it
+	Children   []*TreeNode       // by plan key, then build number, newest first
+	Progress   provider.Progress // a running build's estimate; only WatchTree reads one
+	ProgressAt time.Time         // when Progress was read
 }
 
 // Walk calls f for n and every node below it, parents first; the root is at
@@ -671,6 +673,7 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 			}
 		}
 		done := map[string]provider.Build{}
+		noProgress := false
 		var last, settled string
 		var scan *treeScan
 		fails := 0
@@ -710,6 +713,7 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 				})
 				sig := treeSignature(t)
 				if sig != last {
+					s.estimateTree(ctx, t, &noProgress)
 					if !send(TreeEvent{Type: TreeUpdate, Tree: t}) {
 						return
 					}
@@ -744,6 +748,19 @@ func endedBefore(t Tree, cutoff time.Time) bool {
 		}
 	})
 	return ok
+}
+
+// estimateTree reads an estimate for each running build of t. A live view
+// moves the bars on between updates, so they are read only for a tree
+// that is about to be sent.
+func (s *Service) estimateTree(ctx context.Context, t Tree, unsupported *bool) {
+	now := s.Clock.Now()
+	t.Root.Walk(func(n *TreeNode, _ int) {
+		if n.NotRun || n.Loop || n.Superseded || n.Build.State != provider.StateRunning {
+			return
+		}
+		n.Progress, n.ProgressAt = s.estimate(ctx, n.Build, unsupported), now
+	})
 }
 
 // treeSignature is what a watcher compares between refreshes: every node,

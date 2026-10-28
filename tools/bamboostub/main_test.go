@@ -109,6 +109,46 @@ func TestTriggeredBuildRunsToSuccess(t *testing.T) {
 	assert.Equal(t, got.Duration, later.Duration)
 }
 
+// TestChildPlanRunsAfterItsParent: with -child, a triggered build queues a
+// build of the child plan when it finishes, as Bamboo does, so the build
+// tree has something to follow.
+func TestChildPlanRunsAfterItsParent(t *testing.T) {
+	s, c := testStub(t)
+	s.child, s.childFails = "PROJ-OLD", true
+	ctx := context.Background()
+
+	parent, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
+	require.NoError(t, err)
+	children := func() []provider.Build {
+		var out []provider.Build
+		bs, err := c.ListBuilds(ctx, "PROJ-OLD", provider.ListOptions{Limit: 25})
+		require.NoError(t, err)
+		for _, b := range bs {
+			if b.Reason == "Child of "+parent.Key {
+				out = append(out, b)
+			}
+		}
+		return out
+	}
+	require.Empty(t, children(), "no child while the parent runs")
+
+	advance(s, s.queued+s.running)
+	kids := children()
+	require.Len(t, kids, 1, "the parent ended and queued its child")
+	assert.Equal(t, provider.StateQueued, kids[0].State)
+
+	advance(s, s.queued+s.running)
+	got, err := c.GetBuild(ctx, kids[0].Key)
+	require.NoError(t, err)
+	assert.Equal(t, provider.StateFailed, got.State)
+	assert.Equal(t, "Child of "+parent.Key, got.Reason)
+
+	_, err = c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-OLD"})
+	require.NoError(t, err)
+	advance(s, s.queued+s.running)
+	require.Len(t, children(), 1, "the child plan has no child of its own")
+}
+
 // TestTriggerWithARevisionReportsCustomRevisionBuild: bam.Client.Trigger
 // treats any trigger reason other than "Custom revision build" as Bamboo
 // having ignored the revision and stops the build it just queued. The stub

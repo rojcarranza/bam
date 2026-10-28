@@ -1,6 +1,6 @@
 # JSON output
 
-Every read command accepts `--json` and prints one JSON document to stdout. `watch --json` and `run --watch --json` print NDJSON: one event per line, ending with `{"type":"done","build":{...}}`.
+Every read command accepts `--json` and prints one JSON document to stdout. `watch --json` and `run --watch --json` print NDJSON for the one build, not the builds it triggers: one event per line, ending with `{"type":"done","build":{...}}`. `build tree --watch --json` follows the whole tree.
 
 Rules:
 

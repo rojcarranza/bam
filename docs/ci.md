@@ -7,19 +7,19 @@ Set two variables; no config file is needed:
 
     bam run PROJ-DEPLOY --var env=staging --watch --timeout 30m
 
-`bam` never prompts in CI. On a pipe it prints one timestamped line per state change and no colors.
+`bam` never prompts in CI. On a pipe it prints one timestamped line per state change and no colors. `--watch` follows the build and every build it triggers, then prints the tree with a `failed:` line and link for each build that did not succeed.
 
 ## Exit codes
 
 | Code | Meaning |
 | --- | --- |
 | 0 | success (for `run` without `--watch`: the build was queued) |
-| 1 | the watched build finished without success |
+| 1 | the watched build, or a build it triggered, finished without success |
 | 2 | usage error |
 | 3 | configuration error |
 | 4 | authentication error |
 | 5 | Bamboo, network, or unexpected error |
-| 6 | `--timeout` reached; the build is still running |
+| 6 | `--timeout` reached; the builds are still running |
 | 130 | interrupted; the build is still running |
 
 ## In a Bamboo script task

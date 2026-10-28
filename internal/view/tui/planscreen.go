@@ -549,8 +549,9 @@ func (m Model) planHeader(width int) []string {
 	return append(lines, titleRule(width, title, marker))
 }
 
-// planBuildRows is the Builds panel: glyph, number, branch, age, who. Who
-// goes first, then branch, when the panel is narrow.
+// planBuildRows is the Builds panel: glyph, number, branch, age, who, in
+// aligned columns. Columns are dropped for every row at once when the panel
+// is narrow, who first, then branch (§3.3), so no row shows a blank cell.
 func (m Model) planBuildRows(width, height int) string {
 	rows := m.builds.rows()
 	if len(rows) == 0 {
@@ -561,9 +562,31 @@ func (m Model) planBuildRows(width, height int) string {
 	}
 	start, end := m.builds.window(height)
 	inner := width - 4
+	type cells struct{ branch, age, by string }
+	cs := make([]cells, len(rows))
+	// Widths come from every row, not the window, so columns stay put while
+	// the list scrolls.
+	headW, branchW, ageW, byW := 0, 0, 0, 0
+	for i, bd := range rows {
+		c := cells{branchOrDefault(bd), ageShort(m.now().Sub(bd.FinishedAt)), shortBy(bd.Reason)}
+		if bd.FinishedAt.IsZero() {
+			c.age = "–"
+		}
+		if bd.Key == m.plan.older {
+			c.by = "(older)"
+		}
+		cs[i] = c
+		headW = max(headW, lipgloss.Width(fmt.Sprintf("x #%-4d", bd.Number)))
+		branchW, ageW, byW = max(branchW, lipgloss.Width(c.branch)), max(ageW, lipgloss.Width(c.age)), max(byW, lipgloss.Width(c.by))
+	}
+	showBy := headW+2+branchW+2+ageW+2+byW <= inner
+	// A long branch is cut to the room left rather than hiding every branch.
+	room := inner - headW - 2 - ageW - 2
+	showBranch := branchW <= room || room >= len("default")
+	branchW = min(branchW, room)
 	var b strings.Builder
 	for i := start; i < end; i++ {
-		bd := rows[i]
+		bd, c := rows[i], cs[i]
 		focused := m.focus == focusBuilds
 		b.WriteString(m.cursorFor(focused, m.builds.cursor == i))
 		// A dim row is drawn plain and dimmed once: a coloured glyph inside
@@ -573,23 +596,15 @@ func (m Model) planBuildRows(width, height int) string {
 		if !older {
 			glyph = stateStyle(bd.State).Render(glyph)
 		}
-		head := glyph + fmt.Sprintf(" #%-4d", bd.Number)
-		branch, age, by := branchOrDefault(bd), ageShort(m.now().Sub(bd.FinishedAt)), shortBy(bd.Reason)
-		if bd.FinishedAt.IsZero() {
-			age = "–"
+		line := padTo(glyph+fmt.Sprintf(" #%-4d", bd.Number), headW)
+		if showBranch {
+			line += "  " + padTo(cut(c.branch, branchW), branchW)
 		}
-		if older {
-			by = "(older)"
+		line += "  " + padTo(c.age, ageW)
+		if showBy {
+			line += "  " + c.by
 		}
-		// Who goes first, then branch, when the panel is narrow (§3.3).
-		line := head + "  " + branch + "  " + age + "  " + by
-		if lipgloss.Width(line) > inner {
-			line = head + "  " + branch + "  " + age
-		}
-		if lipgloss.Width(line) > inner {
-			line = head + "  " + age
-		}
-		line = truncate(line, inner)
+		line = truncate(strings.TrimRight(line, " "), inner)
 		if older {
 			line = dimStyle.Render(line)
 		}
@@ -599,6 +614,11 @@ func (m Model) planBuildRows(width, height int) string {
 		b.WriteString(line + "\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// padTo pads s with spaces to w terminal columns.
+func padTo(s string, w int) string {
+	return s + strings.Repeat(" ", max(w-lipgloss.Width(s), 0))
 }
 
 // treeBody is the Tree panel: one row per child of the open build.

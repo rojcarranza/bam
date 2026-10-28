@@ -1134,3 +1134,26 @@ func TestTreePanelKeepsItsTreeWhenARefreshFails(t *testing.T) {
 	m, _ = send(m, mkKey("r"))
 	require.Contains(t, m.View(), "triggered · refreshing…", "r tries again")
 }
+
+// TestBuildsColumnsDropForEveryRow: a who that does not fit hides the who
+// column on every row, not one row's cell, and a long branch is cut so the
+// age column still lines up.
+func TestBuildsColumnsDropForEveryRow(t *testing.T) {
+	m := planGolden(80, 24)
+	at := goldenNow.Add(-time.Hour)
+	m.builds.setItems([]provider.Build{
+		{Key: "PROJ-BUILD-3", Number: 3, State: provider.StateSuccess, FinishedAt: at, Reason: "Manual run by J Doe"},
+		{Key: "PROJ-BUILD-2", Number: 2, State: provider.StateFailed, FinishedAt: at, Reason: "Changes by a1b2c3d"},
+	})
+	rows := strings.Split(strings.TrimRight(m.planBuildRows(31, 5), " "), "\n")
+	require.Equal(t, "▸ ✓ #3     default  1h", strings.TrimRight(rows[0], " "))
+	require.Equal(t, "  ✗ #2     default  1h", rows[1])
+
+	m.builds.setItems([]provider.Build{
+		{Key: "PROJ-BUILD-3", Number: 3, State: provider.StateSuccess, FinishedAt: at, Branch: "feature/a-very-long-branch"},
+		{Key: "PROJ-BUILD-2", Number: 2, State: provider.StateFailed, FinishedAt: at, Branch: "main"},
+	})
+	rows = strings.Split(strings.TrimRight(m.planBuildRows(30, 5), " "), "\n")
+	require.Equal(t, "▸ ✓ #3     feature/a-ve…  1h", strings.TrimRight(rows[0], " "))
+	require.Equal(t, "  ✗ #2     main           1h", rows[1])
+}

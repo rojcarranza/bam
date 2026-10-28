@@ -73,6 +73,12 @@ func TestResolveVarsValidationOrder(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "--var cluster_name=VALUE", e.Try)
 
+	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"Cluster_Name=a"}})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "cluster_name is required by preset provision-lab", e.What)
+	assert.Equal(t, "Cluster_Name is set, but names are case-sensitive", e.Why)
+	assert.Equal(t, "--var cluster_name=a", e.Try)
+
 	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_name=a", "cluster_type=nomad"}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `cluster_type="nomad" is not allowed by preset provision-lab`)

@@ -318,8 +318,17 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 	if t := ref.Target; t != nil {
 		for _, name := range t.Required {
 			if v, ok := vars[name]; !ok || v.Value == "" {
-				return VarSet{}, errs.Usagef("%s is required by preset %s", name, t.Name).
+				e := errs.Usagef("%s is required by preset %s", name, t.Name).
 					WithTry(fmt.Sprintf("--var %s=VALUE", name))
+				// Variable names are case-sensitive: --var Env=dev does not set env.
+				for _, other := range out.Vars {
+					if other.Name != name && other.Value != "" && strings.EqualFold(other.Name, name) {
+						e = e.WithWhy(fmt.Sprintf("%s is set, but names are case-sensitive", other.Name)).
+							WithTry(fmt.Sprintf("--var %s=%s", name, other.Display()))
+						break
+					}
+				}
+				return VarSet{}, e
 			}
 		}
 		for _, name := range sortedNames(t.Options) {

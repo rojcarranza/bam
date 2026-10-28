@@ -237,10 +237,16 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 	if len(suggest) == 0 {
 		suggest = app.Closest(args[0], names, 1)
 	}
-	if len(suggest) > 0 {
-		for i, s := range suggest {
-			suggest[i] = path + " " + s
+	for i, s := range suggest {
+		suggest[i] = path + " " + s
+	}
+	// "bam build stats" meant "bam plan stats": look in the sibling groups.
+	if root := cmd.Root(); len(suggest) == 0 && cmd.Parent() == root {
+		for _, s := range nestedCommands(root, strings.ToLower(args[0])) {
+			suggest = append(suggest, root.Name()+" "+s)
 		}
+	}
+	if len(suggest) > 0 {
 		last := len(suggest) - 1
 		said := suggest[last]
 		if last > 0 {

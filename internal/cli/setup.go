@@ -388,7 +388,7 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 				FullName string `json:"full_name"`
 				Error    string `json:"error"`
 			}
-			var rows []row
+			rows := []row{}
 			var first error
 			for _, n := range names {
 				s := servers[n]
@@ -414,6 +414,8 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 				if err := view.WriteJSON(r.env.Stdout, rows); err != nil {
 					return err
 				}
+			} else if len(rows) == 0 {
+				fmt.Fprintln(r.env.Stderr, "no servers configured\n  try: bam server add <alias> --url URL")
 			} else {
 				o, err := r.out()
 				if err != nil {

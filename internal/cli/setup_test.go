@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -109,6 +110,16 @@ func TestWhoami(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("whoami", "--server", "work", "--json"))
 	assert.JSONEq(t, `[{"alias":"work","url":"https://bamboo.example.com","user":"jdoe","full_name":"J Doe","error":""}]`, h.stdout.String())
+}
+
+func TestWhoamiWithNoServers(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	assert.Equal(t, 0, h.run("whoami"))
+	assert.Empty(t, h.stdout.String(), "no empty table")
+	assert.Contains(t, h.stderr.String(), "no servers configured\n  try: bam server add <alias> --url URL")
+	assert.Equal(t, 0, h.run("whoami", "--json"))
+	assert.JSONEq(t, `[]`, h.stdout.String())
 }
 
 func TestProjectFlagMustBeAProjectKey(t *testing.T) {

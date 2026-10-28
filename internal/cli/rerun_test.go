@@ -126,6 +126,20 @@ func TestBuildRerunJSON(t *testing.T) {
 	assert.JSONEq(t, `{"key":"PROJ-PROV-9","url":"`+workOrigin+`/browse/PROJ-PROV-9","restarted":true}`, h.stdout.String())
 }
 
+func TestBuildRerunDryRun(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run"))
+	assert.Contains(t, h.stdout.String(), "would rerun PROJ-PROV-9 (failed)")
+	assert.Contains(t, h.stderr.String(), "dry run: nothing restarted")
+	assert.Empty(t, h.fake.Restarted)
+	h = treeHarness(t, provider.StateFailed)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run", "--json"))
+	assert.JSONEq(t, `{"key":"PROJ-PROV-9","url":"`+workOrigin+`/browse/PROJ-PROV-9","state":"failed","restarted":false}`, h.stdout.String())
+	assert.Empty(t, h.fake.Restarted)
+	h = treeHarness(t, provider.StateSuccess)
+	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run"))
+}
+
 func TestBuildRerunWatch(t *testing.T) {
 	h := treeHarness(t, provider.StateFailed)
 	rerunnable(h, provider.StateSuccess)

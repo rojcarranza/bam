@@ -16,6 +16,7 @@ bam build rerun [<build>|<plan>|<preset>] [flags]
 
 ```
       --branch string      plan branch when a plan or preset is given
+      --dry-run            show which build would rerun, restart nothing
   -h, --help               help for rerun
       --last               the last build bam triggered from this repository
       --timeout duration   with --watch, stop watching after this long (the build keeps running)

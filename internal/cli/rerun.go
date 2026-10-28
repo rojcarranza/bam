@@ -12,7 +12,7 @@ import (
 )
 
 func newBuildRerunCmd(r *runtime) *cobra.Command {
-	var last, watch bool
+	var last, watch, dryRun bool
 	var branch string
 	var timeout time.Duration
 	cmd := &cobra.Command{
@@ -42,6 +42,14 @@ succeeded is refused.`,
 			default:
 				return errs.Usagef("%s is %s; nothing to rerun", key, strings.ReplaceAll(string(b.State), "_", " "))
 			}
+			if dryRun {
+				if r.flags.json {
+					return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "state": b.State, "restarted": false})
+				}
+				fmt.Fprintf(r.env.Stdout, "would rerun %s (%s)\n", key, b.State)
+				r.note("dry run: nothing restarted", "")
+				return nil
+			}
 			_, restarted, err := svc.Restart(ctx, key)
 			if err != nil {
 				return err
@@ -63,6 +71,7 @@ succeeded is refused.`,
 	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
 	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
 	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
+	f.BoolVar(&dryRun, "dry-run", false, "show which build would rerun, restart nothing")
 	f.DurationVar(&timeout, "timeout", 0, "with --watch, stop watching after this long (the build keeps running)")
 	return cmd
 }

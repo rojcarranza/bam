@@ -361,6 +361,10 @@ func newLogsCmd(r *runtime) *cobra.Command {
 				if r.flags.json {
 					return view.WriteJSON(r.env.Stdout, []jobLogDoc{})
 				}
+				if !b.State.Finished() {
+					r.note(fmt.Sprintf("no failed jobs in %s yet; it is %s", key, b.State), "bam watch "+key)
+					return nil
+				}
 				r.note("no failed jobs in "+key, "")
 				return nil
 			}

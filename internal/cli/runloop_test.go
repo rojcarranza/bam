@@ -145,7 +145,12 @@ func TestLogs(t *testing.T) {
 	assert.Equal(t, "Error: quota exceeded\n", h.stdout.String())
 
 	assert.Equal(t, 0, h.run("logs", "PROJ-BUILD-482", "--failed"))
-	assert.Contains(t, h.stderr.String(), "no failed jobs in PROJ-BUILD-482")
+	assert.Equal(t, "no failed jobs in PROJ-BUILD-482\n", h.stderr.String())
+
+	// An unfinished build may still fail, so the note says so and points at watch.
+	h2 := treeHarness(t, provider.StateRunning)
+	assert.Equal(t, 0, h2.run("logs", "PROJ-PROV-9", "--failed"))
+	assert.Equal(t, "no failed jobs in PROJ-PROV-9 yet; it is running\n  try: bam watch PROJ-PROV-9\n", h2.stderr.String())
 
 	assert.Equal(t, 0, h.run("logs", "PROJ-BUILD-482", "--failed", "--json"))
 	assert.Equal(t, "[]\n", h.stdout.String(), "--json always writes exactly one document, even when empty")

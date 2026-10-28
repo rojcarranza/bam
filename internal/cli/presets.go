@@ -521,7 +521,7 @@ func newInitCmd(r *runtime) *cobra.Command {
 					WithTry(fmt.Sprintf("pass --url, or bam server add %s --url URL", alias))
 			}
 			if _, err := credential.Origin(url); err != nil {
-				return err
+				return schemeTry(err, url, func(u string) string { return initTry(alias, u, projects, plans) })
 			}
 			var drafts []config.TargetDraft
 			if len(plans) > 0 {

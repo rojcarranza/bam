@@ -42,6 +42,16 @@ func addSetup(root *cobra.Command, r *runtime) {
 	}
 }
 
+// schemeTry points a URL typed without a scheme (bamboo.example.com) at the
+// same command with https:// in front.
+func schemeTry(err error, url string, try func(url string) string) error {
+	var e *errs.Error
+	if !strings.Contains(url, "://") && errors.As(err, &e) {
+		e.Try = try("https://" + url)
+	}
+	return err
+}
+
 // tokenPageURL is where a Bamboo user creates a personal access token.
 func tokenPageURL(serverURL string) string {
 	return strings.TrimRight(serverURL, "/") + "/profile/userAccessTokens.action"
@@ -82,7 +92,7 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 			url = strings.TrimRight(strings.TrimSpace(url), "/")
 			origin, err := credential.Origin(url)
 			if err != nil {
-				return err
+				return schemeTry(err, url, func(u string) string { return "bam server add " + alias + " --url " + u })
 			}
 			cfg, err := r.config()
 			if err != nil {

@@ -208,6 +208,8 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, "error: --project is required\n  try: bam init --server work --project PROJ --plan PROJ-PROV\n", h.stderr.String())
 
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	assert.Equal(t, 3, h.run("init", "--server", "work", "--url", "bamboo.example.com", "--project", "PROJ"))
+	assert.Equal(t, "error: invalid server URL \"bamboo.example.com\"\n  try: bam init --server work --url https://bamboo.example.com --project PROJ\n", h.stderr.String())
 	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com/", "--project", "PROJ", "--project", "OPS"))
 	assert.Empty(t, h.connectOpts, "init without --plan makes no network call")
 	data, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))

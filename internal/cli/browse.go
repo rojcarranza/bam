@@ -146,15 +146,25 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 			if len(keys) == 0 {
 				keys = r.cfg.ProjectKeys(svc.Server)
 			}
-			if len(keys) == 0 {
-				return errs.Usagef("no projects configured").
-					WithTry("bam plan list PROJ, or add projects: [PROJ] to .bam.yaml")
-			}
 			names := map[string]string{}
-			if projects, err := svc.P.ListProjects(cmd.Context()); err == nil {
-				for _, p := range projects {
-					names[p.Key] = p.Name
+			projects, perr := svc.P.ListProjects(cmd.Context())
+			for _, p := range projects {
+				names[p.Key] = p.Name
+			}
+			if len(keys) == 0 {
+				e, k := errs.Usagef("no projects configured"), "PROJ"
+				if perr == nil && len(projects) > 0 {
+					onServer := make([]string, len(projects))
+					for i, p := range projects {
+						onServer[i] = p.Key
+					}
+					why := "projects on " + svc.Server.Alias + ": " + strings.Join(onServer[:min(5, len(onServer))], ", ")
+					if n := len(onServer) - 5; n > 0 {
+						why += fmt.Sprintf(" and %d more (bam project list)", n)
+					}
+					e, k = e.WithWhy(why), onServer[0]
 				}
+				return e.WithTry("bam plan list " + k + ", or add projects: [" + k + "] to .bam.yaml")
 			}
 			var groups []view.PlanGroup
 			for _, k := range keys {

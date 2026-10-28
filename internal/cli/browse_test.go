@@ -41,8 +41,17 @@ func TestPlanListGroupsConfiguredProjects(t *testing.T) {
 func TestPlanListWithoutProjectsIsUsageError(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte("version: 1\nservers:\n  work:\n    url: https://bamboo.example.com\n"), 0o644))
+	h.fake.Projects = append([]provider.Project{{Key: "OPS", Name: "Operations"}}, h.fake.Projects...)
 	assert.Equal(t, 2, h.run("plan", "list"))
 	assert.Contains(t, h.stderr.String(), "no projects configured")
+	assert.Contains(t, h.stderr.String(), "projects on work: OPS, PROJ", "names the server's projects")
+	assert.Contains(t, h.stderr.String(), "try: bam plan list OPS, or add projects: [OPS] to .bam.yaml")
+
+	for _, k := range []string{"LAB", "QA", "WEB", "API", "DOC"} {
+		h.fake.Projects = append(h.fake.Projects, provider.Project{Key: k})
+	}
+	assert.Equal(t, 2, h.run("plan", "list"))
+	assert.Contains(t, h.stderr.String(), "projects on work: OPS, PROJ, LAB, QA, WEB and 2 more (bam project list)")
 }
 
 func TestPlanShowForTarget(t *testing.T) {

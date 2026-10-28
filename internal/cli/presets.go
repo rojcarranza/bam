@@ -254,9 +254,6 @@ func newPresetRmCmd(r *runtime) *cobra.Command {
 	}
 }
 
-// checkPresetElsewhere refuses to add name to path when another presets file
-// already defines it: names are global across presets files, and --force
-// replaces a preset only in the file that holds it.
 // writePreset adds d to file in the presets directory, by default the plan's
 // project file, and returns the path it wrote. preset add and the UI share it.
 func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file string, force bool) (string, error) {
@@ -273,6 +270,9 @@ func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file str
 	return path, config.WriteTarget(path, []string{"presets"}, d, force)
 }
 
+// checkPresetElsewhere refuses to add name to path when another presets file
+// already defines it: names are global across presets files, and --force
+// replaces a preset only in the file that holds it.
 func checkPresetElsewhere(cfg *config.Config, name, path string) error {
 	all, err := cfg.Targets()
 	if err != nil {

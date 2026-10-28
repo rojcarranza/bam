@@ -39,6 +39,7 @@ func TestConnectWithoutTokenIsAuthError(t *testing.T) {
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "bam login work", e.Try)
+	assert.Empty(t, e.Why)
 }
 
 func TestBAMTokenOnlyForBAMURL(t *testing.T) {
@@ -47,6 +48,9 @@ func TestBAMTokenOnlyForBAMURL(t *testing.T) {
 	h.vars["BAM_TOKEN"] = "ci-token"
 	_, _, err := newRuntime(h).connect(context.Background(), "")
 	assert.Equal(t, errs.KindAuth, errs.KindOf(err), "BAM_TOKEN alone never reaches the work alias")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "BAM_TOKEN is set, but it applies only to the server named by BAM_URL", e.Why)
 
 	h.vars["BAM_URL"] = "https://ci.bamboo.example.com"
 	svc, _, err := newRuntime(h).connect(context.Background(), "")

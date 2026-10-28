@@ -90,6 +90,21 @@ func (r *runtime) store() *credential.Store {
 	return &credential.Store{Keyring: r.env.Keyring, FilePath: r.env.Paths.Credentials, Getenv: r.env.Getenv}
 }
 
+// lookupToken finds the stored token for server, and says why BAM_TOKEN did
+// not count when it is set: it applies only to the BAM_URL server.
+func (r *runtime) lookupToken(server config.ResolvedServer, origin string) (string, credential.Source, error) {
+	token, src, err := r.store().Lookup(server.Alias, origin, server.AuthEnv)
+	var e *errs.Error
+	if err != nil && r.env.Getenv("BAM_TOKEN") != "" && errors.As(err, &e) && e.Kind == errs.KindAuth {
+		why := "BAM_TOKEN is set, but it applies only to the server named by BAM_URL"
+		if e.Why != "" {
+			why = e.Why + "; " + why
+		}
+		e.Why = why
+	}
+	return token, src, err
+}
+
 func (r *runtime) logger() *slog.Logger {
 	if !r.flags.debug {
 		return slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -117,7 +132,7 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 	}
 	token := server.Token
 	if token == "" {
-		token, _, err = r.store().Lookup(server.Alias, origin, server.AuthEnv)
+		token, _, err = r.lookupToken(server, origin)
 		if err != nil {
 			return nil, nil, err
 		}

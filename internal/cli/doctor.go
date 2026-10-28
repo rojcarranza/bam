@@ -87,7 +87,7 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 				add("server", "ok", fmt.Sprintf("%s (%s)", server.Alias, server.URL), nil)
 				source := "BAM_TOKEN"
 				if server.Token == "" {
-					_, src, err := r.store().Lookup(server.Alias, origin, server.AuthEnv)
+					_, src, err := r.lookupToken(server, origin)
 					if err != nil {
 						fail("token", err)
 						return

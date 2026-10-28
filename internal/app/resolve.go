@@ -111,9 +111,9 @@ func UnknownTarget(cfg *config.Config, name string) error {
 		names = append(names, n)
 	}
 	sort.Strings(names)
-	keys := "plan keys are uppercase, like PROJ-PLAN"
+	keys, isKey := "plan keys are uppercase, like PROJ-PLAN", false
 	if up := strings.ToUpper(name); up != name && (IsPlanKey(up) || IsBuildKey(up)) {
-		keys = "keys are uppercase: did you mean " + up + "?"
+		keys, isKey = "keys are uppercase: did you mean "+up+"?", true
 	}
 	e := errs.Usagef("unknown preset %q", name).WithTry("bam preset list; " + keys)
 	other := cfg.OtherRepoTargets()
@@ -132,6 +132,11 @@ func UnknownTarget(cfg *config.Config, name string) error {
 			WithTry("bam preset list from that repository, or bam preset migrate to use them anywhere")
 	}
 	if len(names) == 0 {
+		if isKey {
+			// with no presets, a lowercase key is a key typed in lowercase
+			return e.WithWhy("no presets are configured").
+				WithTry(keys + " or bam preset add " + name + " --plan KEY to create a preset")
+		}
 		return e.WithWhy("no presets are configured").
 			WithTry("bam preset add " + name + " --plan KEY to create it; " + keys)
 	}

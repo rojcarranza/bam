@@ -890,6 +890,9 @@ func (m Model) homeView() string {
 	if m.home.view == homeProjects {
 		lines = m.projectTable(m.width, body)
 	}
+	if hint := m.homeEmptyHint(); hint != "" {
+		lines = append(lines, "", "  "+dimStyle.Render(hint))
+	}
 	if len(lines) > body {
 		lines = lines[:body]
 	}
@@ -903,6 +906,21 @@ func (m Model) homeView() string {
 	}
 	out = append(out, m.statusBar(m.width))
 	return m.overlayView(strings.Join(out, "\n"))
+}
+
+// homeEmptyHint says how to get a first preset or set when the table has
+// none at all, the way bam preset list and bam set list do. It stays quiet
+// while sets load and after a failed load, which the status bar reports.
+func (m Model) homeEmptyHint() string {
+	switch {
+	case m.err != nil:
+		return ""
+	case m.home.view == homePresets && len(m.presets.items) == 0:
+		return "no presets yet: press p on a build in a plan to save one"
+	case m.home.view == homeSets && len(m.sets.items) == 0 && !m.sets.loading:
+		return "no sets yet: add sets: to .bam.yaml, see bam set run --help"
+	}
+	return ""
 }
 
 // countOf is "1 plan", "3 plans": the header's row count.

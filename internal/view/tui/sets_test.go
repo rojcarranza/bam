@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -88,4 +89,21 @@ func TestSetStatusCell(t *testing.T) {
 		require.Contains(t, setStatusCell(&app.SetRecord{Status: st}), want)
 	}
 	_ = provider.StateSuccess
+}
+
+func TestEmptyPresetsAndSetsSayHowToAddOne(t *testing.T) {
+	m := setsModel(t)
+	m.sets.setItems(nil)
+	m.sets.loading = true
+	require.NotContains(t, m.View(), "no sets yet", "no hint while the sets load")
+	m.sets.loading = false
+	require.Contains(t, m.View(), "no sets yet: add sets: to .bam.yaml, see bam set run --help")
+
+	m.home.view = homePresets
+	require.Contains(t, m.View(), "no presets yet: press p on a build in a plan to save one")
+	m.err = errors.New("presets.yaml: bad yaml")
+	require.NotContains(t, m.View(), "no presets yet", "a failed load is not an empty file")
+	m.err = nil
+	m.presets.setItems([]app.TargetInfo{{Name: "smoke", Plan: "PROJ-BUILD"}})
+	require.NotContains(t, m.View(), "no presets yet")
 }

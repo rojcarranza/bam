@@ -182,7 +182,14 @@ func (m Model) statusBar(width int) string {
 	case m.status != "":
 		left = m.status
 	}
-	right := fitHints(m.keyLine(), width-lipgloss.Width(left)-1)
+	keys := m.keyLine()
+	right := fitHints(keys, width-lipgloss.Width(left)-1)
+	if m.err == nil && m.status == "" && right != keys {
+		// Keys beat identity: the home header already names the server,
+		// version and user, so a narrow bar keeps just the server.
+		left = m.server
+		right = fitHints(keys, width-lipgloss.Width(left)-1)
+	}
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
 	if right == "" || gap < 1 {
 		return truncate(left, width)

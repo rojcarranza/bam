@@ -70,6 +70,20 @@ func TestNarrowKeyLinesDropWholeHints(t *testing.T) {
 		"the log footer used to end in half a hint")
 }
 
+// TestNarrowStatusBarKeepsKeysOverIdentity: when the hints do not fit, the
+// version and user go before any key does.
+func TestNarrowStatusBarKeepsKeysOverIdentity(t *testing.T) {
+	m := homeModel()
+	m.info.Version, m.user.Name = "9.6.2", "jdoe"
+	full := ansi.Strip(m.statusBar(120))
+	require.Contains(t, full, m.user.Name, "a wide bar still shows who is signed in")
+	bar := ansi.Strip(m.statusBar(70))
+	require.LessOrEqual(t, lipgloss.Width(bar), 70)
+	require.True(t, strings.HasPrefix(bar, m.server+" "), bar)
+	require.NotContains(t, bar, m.user.Name)
+	require.Contains(t, bar, "R run")
+}
+
 func TestNarrowKeyLinesKeepTheWayOut(t *testing.T) {
 	// The form keeps ^R run too: without it there is no way to start the build.
 	require.Equal(t, "enter edit  ^R run  esc cancel",

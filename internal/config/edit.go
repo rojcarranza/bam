@@ -39,6 +39,23 @@ func WriteTarget(path string, keyPath []string, d TargetDraft, force bool) error
 	return saveDoc(path, doc)
 }
 
+// RemoveTarget deletes the preset name under keyPath in the YAML file at
+// path, keeping the rest of the file and its comments.
+func RemoveTarget(path string, keyPath []string, name string) error {
+	doc, err := loadDoc(path)
+	if err != nil {
+		return err
+	}
+	parent := doc.Content[0]
+	for _, k := range keyPath {
+		parent = mappingValue(parent, k)
+	}
+	if !deleteKey(parent, name) {
+		return errs.Configf("no preset %q under %s in %s", name, strings.Join(keyPath, "."), path)
+	}
+	return saveDoc(path, doc)
+}
+
 // SetMachineServer adds or replaces servers.<alias> in the machine file.
 func SetMachineServer(path, alias string, s Server) error {
 	doc, err := loadDoc(path)

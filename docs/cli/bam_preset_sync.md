@@ -33,5 +33,5 @@ bam preset sync <name> | --all [flags]
 
 ### SEE ALSO
 
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync, migrate
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
 

@@ -18,9 +18,9 @@ import (
 func init() { commandSets = append(commandSets, addPresets) }
 
 func addPresets(root *cobra.Command, r *runtime) {
-	p := subgroup(root, "preset", "Run presets: list, show, add, sync, migrate", groupRun)
+	p := subgroup(root, "preset", "Run presets: list, show, add, rm, sync, migrate", groupRun)
 	p.SuggestFor = []string{"target", "targets"} // bam target was renamed to bam preset
-	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
+	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newPresetRmCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
 	c := newInitCmd(r)
 	c.GroupID = groupSetup
 	root.AddCommand(c)
@@ -205,6 +205,52 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.BoolVar(&force, "force", false, "replace an existing preset")
 	f.BoolVar(&full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
 	return cmd
+}
+
+func newPresetRmCmd(r *runtime) *cobra.Command {
+	return &cobra.Command{
+		Use:               "rm <name>",
+		Short:             "Remove a run preset from every file that defines it",
+		SuggestFor:        []string{"remove", "delete"},
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: r.completeTargets,
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			cfg, err := r.config()
+			if err != nil {
+				return err
+			}
+			t, ok, err := cfg.Target(args[0])
+			if err != nil {
+				return err
+			}
+			if !ok {
+				return app.UnknownTarget(cfg, args[0])
+			}
+			// A set naming the preset would fail every set command once it is gone.
+			sets, err := cfg.Sets()
+			if err != nil {
+				return err
+			}
+			for _, name := range slices.Sorted(maps.Keys(sets)) {
+				for _, st := range sets[name].Stages {
+					for _, run := range st {
+						if run.Target == t.Name {
+							return errs.Usagef("preset %q is used by set %q", t.Name, name).
+								WithWhy("defined in " + sets[name].DefinedIn[len(sets[name].DefinedIn)-1]).
+								WithTry("remove it from the set first")
+						}
+					}
+				}
+			}
+			for _, l := range t.Layers {
+				if err := config.RemoveTarget(l.Path, l.KeyPath, t.Name); err != nil {
+					return err
+				}
+				fmt.Fprintf(r.env.Stdout, "removed preset %s from %s\n", t.Name, l.Path)
+			}
+			return nil
+		}),
+	}
 }
 
 // checkPresetElsewhere refuses to add name to path when another presets file

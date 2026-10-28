@@ -123,6 +123,29 @@ func TestPresetAddRefusesANameInAnotherPresetsFile(t *testing.T) {
 	assert.Regexp(t, `other\s+PROJ-PROV`, h.stdout.String())
 }
 
+func TestPresetRm(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("preset", "add", "build", "--plan", "PROJ-BUILD", "--file", "mine"))
+	personal := filepath.Join(h.home, "bam", "presets", "mine.yaml")
+
+	assert.Equal(t, 0, h.run("preset", "rm", "build"), h.stderr.String())
+	shared := filepath.Join(h.root, ".bam.yaml")
+	assert.Equal(t, "removed preset build from "+shared+"\nremoved preset build from "+personal+"\n", h.stdout.String())
+	project, _ := os.ReadFile(shared)
+	assert.NotContains(t, string(project), "build:")
+	assert.Contains(t, string(project), "provision-lab:", "other presets stay")
+	assert.Equal(t, 2, h.run("preset", "show", "build"))
+	assert.Equal(t, 2, h.run("preset", "rm", "build"), "already gone")
+	assert.Equal(t, 2, h.run("preset", "remove", "x"))
+	assert.Contains(t, h.stderr.String(), "bam preset rm")
+
+	// A preset a set still names is kept.
+	s := setHarness(t, provider.StateSuccess)
+	assert.Equal(t, 2, s.run("preset", "rm", "provision-lab"))
+	assert.Contains(t, s.stderr.String(), `preset "provision-lab" is used by set "release"`)
+	assert.Equal(t, 0, s.run("preset", "show", "provision-lab"))
+}
+
 func TestPresetAddMachineFlagIsGone(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD", "--machine"))

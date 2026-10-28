@@ -38,6 +38,7 @@ Presets
   bam preset list
   bam preset show <name>
   bam preset add <name> (--plan KEY [--from N|last] | --from BUILD-KEY) [--full] [--branch B] [--shared] [--print] [--force]
+  bam preset rm <name>
   bam preset migrate [--dry-run]
 
 Browse
@@ -279,6 +280,8 @@ Output rules:
 `preset migrate [--dry-run]` moves the machine file's targets (top-level and every `repos.<root>.targets`) into the presets file, renaming `defaults` to `variables` and keeping comments; a name already in the presets file or presets directory, defined more than once in the machine file, or using YAML anchors is left and reported; an invalid presets file stops it before any write; emptied `targets` maps and `repos` entries are removed; `.bam.yaml` is never touched.
 
 `preset add` writes under `presets:` to `<presets directory>/<project>.yaml` (§3.4), the plan key's project part lowercased, creating the directory and file when needed; `--file NAME` writes `<presets directory>/NAME.yaml` instead (a trailing `.yaml`/`.yml` is kept; a path, `..`, a leading dot or `--shared` with it is a usage error). A name already in another presets file is a usage error even with `--force`. `--shared` writes to the discovered project file under `targets:`; with no project file it fails and suggests `bam init`. `--print` writes the YAML to stdout and touches no file. An existing target name fails unless `--force`.
+
+`preset rm <name>` deletes the preset from every file that defines it (`.bam.yaml`, the machine file, presets files), keeping comments, and prints each file. A preset a set still names is a usage error that names the set.
 
 `init` writes `.bam.yaml` at the repository root with `version`, the server alias and URL (from `--url`, or copied from the machine file's alias), `default_server`, `projects`, and one generated target per `--plan`. A target name defaults to the lowercased plan part of the key (`PROJ-PROV` → `prov`); `=name` overrides it. An existing `.bam.yaml` fails unless `--force`. `init` without `--plan` makes no network call.
 

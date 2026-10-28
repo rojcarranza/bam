@@ -138,6 +138,7 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "show <name>",
 		Short:             "Show a run preset with its defaults, options and origin",
+		Example:           "  bam preset show provision\n  bam preset show provision --json",
 		SuggestFor:        showSuggest,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
@@ -289,6 +290,7 @@ func newPresetRmCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "rm <name>",
 		Short:             "Remove a run preset from every file that defines it",
+		Example:           "  bam preset rm deploy-qa",
 		SuggestFor:        []string{"remove", "delete"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
@@ -374,6 +376,7 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "sync <name> | --all",
 		Short:             "Add new plan variables to a preset and mark removed ones",
+		Example:           "  bam preset sync provision --dry-run\n  bam preset sync provision\n  bam preset sync --all",
 		Long:              "sync compares a preset with its plan's declared variables. New variables that preset add\nwould write (no plan default, or an empty secret) are added to the preset's variables (or\ndefaults, if the preset uses that older key) with the same values and comments. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
@@ -535,6 +538,7 @@ func newInitCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "init --server ALIAS --project KEY [--plan KEY[=name]]...",
 		Short:      "Write .bam.yaml for this repository, with generated presets",
+		Example:    "  bam init --server work --project PROJ\n  bam init --server work --project PROJ --plan PROJ-BUILD --plan PROJ-DEPLOY=deploy-qa",
 		SuggestFor: []string{"setup", "config", "configure"},
 		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {

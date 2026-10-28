@@ -6,6 +6,14 @@ Success rate, durations and failing jobs over a plan's last builds
 bam plan stats <plan|preset> [flags]
 ```
 
+### Examples
+
+```
+  bam plan stats PROJ-BUILD
+  bam plan stats PROJ-BUILD -n 50
+  bam plan stats provision --branch develop
+```
+
 ### Options
 
 ```

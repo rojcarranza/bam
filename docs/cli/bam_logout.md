@@ -10,6 +10,12 @@ Delete the stored token for a server. The alias defaults to --server.
 bam logout <alias> [flags]
 ```
 
+### Examples
+
+```
+  bam logout work
+```
+
 ### Options
 
 ```

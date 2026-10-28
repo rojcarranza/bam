@@ -217,6 +217,7 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "rm <alias>",
 		Short:             "Remove a server alias from the machine config",
+		Example:           "  bam server rm lab",
 		SuggestFor:        []string{"remove", "delete"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeServers(true),
@@ -261,6 +262,7 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "default [alias]",
 		Short:             "Show or set the machine-wide default server alias",
+		Example:           "  bam server default\n  bam server default work",
 		SuggestFor:        []string{"use"},
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeServers(true),
@@ -437,6 +439,7 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "logout <alias>",
 		Short:             "Delete the stored token for a server",
+		Example:           "  bam logout work",
 		SuggestFor:        []string{"signout"},
 		Long:              "Delete the stored token for a server. The alias defaults to --server.",
 		Args:              r.aliasArg,

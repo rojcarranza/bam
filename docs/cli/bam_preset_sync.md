@@ -13,6 +13,14 @@ defaults, if the preset uses that older key) with the same values and comments. 
 bam preset sync <name> | --all [flags]
 ```
 
+### Examples
+
+```
+  bam preset sync provision --dry-run
+  bam preset sync provision
+  bam preset sync --all
+```
+
 ### Options
 
 ```

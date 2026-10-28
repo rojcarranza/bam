@@ -6,6 +6,12 @@ Remove a server alias from the machine config
 bam server rm <alias> [flags]
 ```
 
+### Examples
+
+```
+  bam server rm lab
+```
+
 ### Options
 
 ```

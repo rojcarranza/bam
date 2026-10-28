@@ -6,6 +6,13 @@ Show a run preset with its defaults, options and origin
 bam preset show <name> [flags]
 ```
 
+### Examples
+
+```
+  bam preset show provision
+  bam preset show provision --json
+```
+
 ### Options
 
 ```

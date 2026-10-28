@@ -6,6 +6,14 @@ Show a set run and the current state of its builds
 bam set status [set|id] [flags]
 ```
 
+### Examples
+
+```
+  bam set status
+  bam set status release
+  bam set status release-20260929T101500Z
+```
+
 ### Options
 
 ```

@@ -104,6 +104,7 @@ func newSetShowCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "show <set>",
 		Short:             "Show a set's stages and variables",
+		Example:           "  bam set show release\n  bam set show release --json",
 		SuggestFor:        showSuggest,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeSets(false),
@@ -210,6 +211,7 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "status [set|id]",
 		Short:             "Show a set run and the current state of its builds",
+		Example:           "  bam set status\n  bam set status release\n  bam set status release-20260929T101500Z",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -305,6 +307,7 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "resume [set|id]",
 		Short:             "Continue an interrupted or timed-out set run",
+		Example:           "  bam set resume\n  bam set resume release\n  bam set resume release-20260929T101500Z --var version=1.4.0",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -344,6 +347,7 @@ restarts each failed build: its failed jobs run again, with the same variables
 and commit, under the same build key. A run that never triggered is triggered.
 When that stage succeeds, the later stages run. Runs that succeeded are left
 alone, and no build is ever stopped.`,
+		Example:           "  bam set rerun --failed\n  bam set rerun release --failed\n  bam set rerun release-20260929T101500Z --failed --var version=1.4.0",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(true),
 		SuggestFor:        []string{"retry", "restart"},

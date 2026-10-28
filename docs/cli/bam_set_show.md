@@ -6,6 +6,13 @@ Show a set's stages and variables
 bam set show <set> [flags]
 ```
 
+### Examples
+
+```
+  bam set show release
+  bam set show release --json
+```
+
 ### Options
 
 ```

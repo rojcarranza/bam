@@ -6,6 +6,12 @@ Remove a run preset from every file that defines it
 bam preset rm <name> [flags]
 ```
 
+### Examples
+
+```
+  bam preset rm deploy-qa
+```
+
 ### Options
 
 ```

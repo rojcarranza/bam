@@ -6,6 +6,13 @@ Show or set the machine-wide default server alias
 bam server default [alias] [flags]
 ```
 
+### Examples
+
+```
+  bam server default
+  bam server default work
+```
+
 ### Options
 
 ```

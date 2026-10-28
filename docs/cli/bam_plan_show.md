@@ -6,6 +6,14 @@ Show a plan: URL, branches, variables, recent builds
 bam plan show <plan|preset> [flags]
 ```
 
+### Examples
+
+```
+  bam plan show PROJ-BUILD
+  bam plan show PROJ-BUILD --branch develop
+  bam plan show provision --json
+```
+
 ### Options
 
 ```

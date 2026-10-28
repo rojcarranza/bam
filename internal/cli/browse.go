@@ -416,11 +416,11 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			svc, _, err := r.connectFor(ctx, args[0])
+			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, args[0], branch)
+			ref, err := svc.ResolvePlan(ctx, arg, branch)
 			if err != nil {
 				return err
 			}
@@ -479,11 +479,11 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			svc, _, err := r.connectFor(ctx, args[0])
+			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, args[0], branch)
+			ref, err := svc.ResolvePlan(ctx, arg, branch)
 			if err != nil {
 				return err
 			}
@@ -535,11 +535,11 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			svc, _, err := r.connectFor(ctx, args[0])
+			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, args[0], "")
+			ref, err := svc.ResolvePlan(ctx, arg, "")
 			if err != nil {
 				return err
 			}
@@ -634,11 +634,11 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 					WithTry(fmt.Sprintf("bam plan stats %s -n %d", args[0], min(max(last, 1), 100)))
 			}
 			ctx := cmd.Context()
-			svc, _, err := r.connectFor(ctx, args[0])
+			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, args[0], branch)
+			ref, err := svc.ResolvePlan(ctx, arg, branch)
 			if err != nil {
 				return err
 			}
@@ -681,11 +681,11 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 				return errs.Usagef("--limit takes 1 or more, not %d", limit)
 			}
 			ctx := cmd.Context()
-			svc, _, err := r.connectFor(ctx, args[0])
+			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, args[0], branch)
+			ref, err := svc.ResolvePlan(ctx, arg, branch)
 			if err != nil {
 				return err
 			}
@@ -711,9 +711,9 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 					msg += " on branch " + ref.Branch
 				}
 				// With a --state filter, the plan may well have builds: offer the unfiltered list.
-				try := "bam run " + args[0]
+				try := "bam run " + arg
 				if st != "" {
-					try = "bam build list " + args[0]
+					try = "bam build list " + arg
 				}
 				if branch != "" {
 					try += " --branch " + branch
@@ -750,6 +750,18 @@ func runningProgress(ctx context.Context, svc *app.Service, builds []provider.Bu
 		}
 	}
 	return out
+}
+
+// resolvePlanArg connects to the right server for a <plan|preset> argument
+// and returns the argument to resolve: a pasted page link's key, looked up on
+// the link's server, or arg itself.
+func (r *runtime) resolvePlanArg(ctx context.Context, arg string) (*app.Service, string, error) {
+	if key, ok := pageKey(arg); ok {
+		svc, err := r.connectPage(arg, key)
+		return svc, key, err
+	}
+	svc, _, err := r.connectFor(ctx, arg)
+	return svc, arg, err
 }
 
 // resolveBuildArg connects to the right server and turns [<build>] / --last into a build key.

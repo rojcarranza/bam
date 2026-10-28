@@ -71,11 +71,11 @@ func newRunCmd(r *runtime) *cobra.Command {
 				return errs.Usagef("--revision from needs --from").WithTry("bam run " + args[0] + " --from last --revision from")
 			}
 			ctx := cmd.Context()
-			svc, _, err := r.connectFor(ctx, args[0])
+			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, args[0], branch)
+			ref, err := svc.ResolvePlan(ctx, arg, branch)
 			if err != nil {
 				return err
 			}

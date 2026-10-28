@@ -263,6 +263,16 @@ func TestUnknownTargetThatIsALowercaseKeySuggestsTheKey(t *testing.T) {
 	assert.Contains(t, e.Try, "like PROJ-PLAN", "a name that is no key keeps the example")
 }
 
+func TestUnknownTargetAmongPresetsSkipsTheKeyExample(t *testing.T) {
+	cfg := &config.Config{Machine: &config.MachineFile{Version: 1, Targets: map[string]config.Target{"web": {Plan: "PROJ-BUILD"}}}}
+	var e *errs.Error
+	require.ErrorAs(t, UnknownTarget(cfg, "nope"), &e)
+	assert.Equal(t, "presets: web", e.Why)
+	assert.Equal(t, "bam preset list", e.Try, "a plain name says nothing about plan keys")
+	require.ErrorAs(t, UnknownTarget(cfg, "proj-build"), &e)
+	assert.Equal(t, "bam preset list; keys are uppercase: did you mean PROJ-BUILD?", e.Try)
+}
+
 func TestResolvePlanWithBuildKeyPointsAtItsPlan(t *testing.T) {
 	s := newService(t, fakeBamboo())
 	_, err := s.ResolvePlan(bg, "PROJ-PLAN-12", "")

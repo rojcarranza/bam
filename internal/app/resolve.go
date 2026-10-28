@@ -150,7 +150,10 @@ func UnknownTarget(cfg *config.Config, name string) error {
 	if up := strings.ToUpper(name); up != name && (IsPlanKey(up) || IsBuildKey(up)) {
 		keys, isKey = "keys are uppercase: did you mean "+up+"?", true
 	}
-	e := errs.Usagef("unknown preset %q", name).WithTry("bam preset list; " + keys)
+	e := errs.Usagef("unknown preset %q", name).WithTry("bam preset list")
+	if isKey {
+		e = e.WithTry("bam preset list; " + keys)
+	}
 	other := cfg.OtherRepoTargets()
 	var roots []string
 	for _, root := range slices.Sorted(maps.Keys(other)) {

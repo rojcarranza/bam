@@ -13,6 +13,15 @@ stopped. Interrupting stops watching only; continue with bam set resume.
 bam set run [set] [-f FILE] [flags]
 ```
 
+### Examples
+
+```
+  bam set run release
+  bam set run release --dry-run
+  bam set run release --var version=1.4.0
+  bam set run -f train.yaml
+```
+
 ### Options
 
 ```

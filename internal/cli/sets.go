@@ -138,6 +138,7 @@ func newSetRunCmd(r *runtime) *cobra.Command {
 
 A failed build ends the set once its stage has finished; no build is ever
 stopped. Interrupting stops watching only; continue with bam set resume.`,
+		Example:           "  bam set run release\n  bam set run release --dry-run\n  bam set run release --var version=1.4.0\n  bam set run -f train.yaml",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

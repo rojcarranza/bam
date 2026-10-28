@@ -620,6 +620,7 @@ func newOpenCmd(r *runtime) *cobra.Command {
 		Use:               "open [<key>|<preset>]",
 		SuggestFor:        []string{"web", "browse"},
 		Short:             "Open a project, plan, build or job in the browser",
+		Example:           "  bam open PROJ-BUILD\n  bam open PROJ-BUILD-482 --job JOB1\n  bam open --last\n  bam open provision",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -647,6 +648,7 @@ func newURLCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "url [<key>|<preset>]",
 		Short:             "Print the Bamboo URL of a project, plan, build or job",
+		Example:           "  bam url PROJ\n  bam url PROJ-BUILD-482\n  bam url --last --job JOB1\n  bam url provision --json",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

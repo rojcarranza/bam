@@ -6,6 +6,15 @@ Open a project, plan, build or job in the browser
 bam open [<key>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam open PROJ-BUILD
+  bam open PROJ-BUILD-482 --job JOB1
+  bam open --last
+  bam open provision
+```
+
 ### Options
 
 ```

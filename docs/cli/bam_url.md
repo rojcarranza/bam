@@ -6,6 +6,15 @@ Print the Bamboo URL of a project, plan, build or job
 bam url [<key>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam url PROJ
+  bam url PROJ-BUILD-482
+  bam url --last --job JOB1
+  bam url provision --json
+```
+
 ### Options
 
 ```

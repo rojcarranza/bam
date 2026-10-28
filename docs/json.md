@@ -103,6 +103,16 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 `state`, `stage` and `job` events carry `progress` while an estimate is available, from Bamboo or from the plan's history, with its `source`. `done` and error events never do: a finished build has a duration, not an estimate.
 
+## Setup checks
+
+`whoami --json` prints one row per configured server, sorted by alias (only the `--server` one when given):
+
+    [{"alias":"work","url":"https://bamboo.example.com","user":"jdoe","full_name":"J Doe","error":""}]
+
+`error` is `""` when the server answered. Otherwise `user` and `full_name` are `""` and `error` holds the message with its hint, for example `no token for server "lab" (https://bamboo.lab.example) (try: bam login lab)`. The rows are printed either way; the exit code is that of the first server that failed.
+
+`doctor --json` checks the selected server and prints `{"checks":[{"name":"config","status":"ok","detail":"..."},...]}` in the order the checks ran: `config`, `server`, `token`, `auth`, then one per capability probed. `status` is `ok`, `error`, `unsupported` or `skipped`; `detail` is the path, server, user or reason shown in the text output, and for an `error` the message with its hint. Checks that depend on a failed one are left out. The exit code is that of the first check that failed.
+
 ## Sets
 
 `set run --json` and `set resume --json` print NDJSON, one set event per line:

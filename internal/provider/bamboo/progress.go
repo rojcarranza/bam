@@ -2,7 +2,10 @@ package bamboo
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -11,8 +14,9 @@ import (
 
 // BuildProgress reports how far a running build has got. A queued or finished
 // build, or one the server has no average for, yields a zero Progress and no
-// error. Callers ask only about builds they have just read, so a 404 here
-// means the status path is missing, not that the build is.
+// error. Bamboo answers 404 "not building" for a result it is not building
+// at that moment, so only another 404, before the endpoint has ever
+// answered, means the status path is missing.
 func (c *Client) BuildProgress(ctx context.Context, key string) (provider.Progress, error) {
 	caps := c.fresh(ctx)
 	if caps.Progress == "no" {
@@ -21,6 +25,12 @@ func (c *Client) BuildProgress(ctx context.Context, key string) (provider.Progre
 	}
 	var s statusDTO
 	if err := c.getJSON(ctx, api+"/result/status/"+url.PathEscape(key), nil, &s); err != nil {
+		if notBuilding(err) || caps.Progress == "yes" && statusOf(err) == http.StatusNotFound {
+			if caps.Progress == "" {
+				c.learn(ctx, func(cp *Capabilities) { cp.Progress = "yes" })
+			}
+			return provider.Progress{}, nil
+		}
 		if isUnsupportedStatus(err) {
 			c.learn(ctx, func(cp *Capabilities) { cp.Progress = "no" })
 			return provider.Progress{}, errs.Bamboof("this Bamboo does not report build progress").
@@ -32,6 +42,12 @@ func (c *Client) BuildProgress(ctx context.Context, key string) (provider.Progre
 		c.learn(ctx, func(cp *Capabilities) { cp.Progress = "yes" })
 	}
 	return mapProgress(s), nil
+}
+
+// notBuilding reports Bamboo's 404 for a result it is not building now.
+func notBuilding(err error) bool {
+	var h *httpError
+	return errors.As(err, &h) && h.Status == http.StatusNotFound && strings.HasSuffix(h.Message, "not building.")
 }
 
 func mapProgress(s statusDTO) provider.Progress {

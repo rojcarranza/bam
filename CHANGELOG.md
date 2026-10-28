@@ -34,6 +34,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `bam build list`, `bam plan show`, `bam plan stats` and the terminal UI's build lists include queued and running builds, so `bam build list` shows the `ETA` of a running build; Bamboo leaves them out unless asked.
 - `bam build show`, the build tree and the terminal UI list a failed build's failed tests on Bamboo 12, which reports them per job; `bam doctor` no longer calls failed tests unsupported there.
 - `bam logs`, `--follow` and the terminal UI's log screens show a job's whole log on Bamboo 12 instead of its last 25 lines.
+- Watching a build shows its progress bar again on Bamboo 9.6: Bamboo's 404 "not building" for a finished or queued build, which `bam doctor` asks about, no longer makes bam decide the server reports no progress.
 
 ## [0.2.1] - 2026-10-08
 

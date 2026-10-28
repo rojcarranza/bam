@@ -331,6 +331,20 @@ func TestFromFlagCompletesRecentBuilds(t *testing.T) {
 	assert.Equal(t, "last\tmost recent manual build\n:4\n", h.stdout.String(), "no plan, so only last")
 }
 
+func TestJobFlagCompletesBuildJobs(t *testing.T) {
+	h := newHarness(t)
+	for _, line := range [][]string{
+		{"logs", "PROJ-PROV12-8", "--job", ""},
+		{"url", "PROJ-PROV12-8", "--job", ""},
+		{"open", "PROJ-PROV12-8", "--job", ""},
+	} {
+		h.run(append([]string{"__complete"}, line...)...)
+		assert.Equal(t, "TF\tTerraform\n:36\n", h.stdout.String(), line)
+	}
+	h.run("__complete", "logs", "--job", "")
+	assert.Equal(t, ":4\n", h.stdout.String(), "no build, no jobs")
+}
+
 // -n is the count shorthand head, tail and git log users reach for first.
 func TestCountFlagsTakeDashN(t *testing.T) {
 	h := newHarness(t)

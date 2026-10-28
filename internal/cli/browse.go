@@ -201,6 +201,30 @@ func (r *runtime) completeFrom(cmd *cobra.Command, args []string, _ string) ([]s
 	return out, none | cobra.ShellCompDirectiveKeepOrder
 }
 
+// completeJob offers the short job keys of the build a command names (a build
+// key, or the latest build of a plan or preset, or --last), each described by
+// its job name.
+func (r *runtime) completeJob(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	last, _ := cmd.Flags().GetBool("last")
+	branch, _ := cmd.Flags().GetString("branch")
+	svc, key, err := r.resolveBuildArg(cmd.Context(), args, last, branch)
+	if err != nil {
+		return nil, none
+	}
+	b, err := svc.P.GetBuild(cmd.Context(), key)
+	if err != nil {
+		return nil, none
+	}
+	var out []string
+	for _, s := range b.Stages {
+		for _, j := range s.Jobs {
+			out = append(out, app.ShortJobKey(b, j)+"\t"+j.Name)
+		}
+	}
+	return out, none | cobra.ShellCompDirectiveKeepOrder
+}
+
 func newProjectListCmd(r *runtime) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{

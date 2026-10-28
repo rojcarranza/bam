@@ -203,3 +203,15 @@ func TestWrongShapeNamesTheExpectedShape(t *testing.T) {
 		require.NotContains(t, errWhyTry(err), "config.", yml)
 	}
 }
+
+func TestVariableWithSeveralValuesPointsAtOptions(t *testing.T) {
+	for yml, want := range map[string]string{
+		"version: 1\ntargets:\n  d:\n    plan: PROJ-D\n    variables:\n      env:\n        required: true\n": `line 7: variable "env" takes a single value, like env: VALUE; found a mapping`,
+		"version: 1\ntargets: {d: {plan: PROJ-D, defaults: {env: [dev, prod]}}}\n":                           `line 2: variable "env" takes a single value, like env: VALUE; found a list`,
+	} {
+		_, err := loadYAML(t, yml, "")
+		require.Error(t, err)
+		require.Contains(t, errWhyTry(err), want, yml)
+		require.Contains(t, errWhyTry(err), "options: {env: [a, b]} and must-set names under required: [env]", yml)
+	}
+}

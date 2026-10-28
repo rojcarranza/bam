@@ -229,8 +229,8 @@ func ValidateEdited(ref PlanRef, base VarSet, flags []string, edits []Edit, gete
 }
 
 // applyInputs lays the flags, then the edits, over base and warns about
-// names the plan does not declare. An edited name already warned about as a
-// flag is not warned about twice.
+// names the plan does not declare, once per name even when it is given
+// several times.
 func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet, error) {
 	set := VarSet{FromBuild: base.FromBuild, DeclaredKnown: base.DeclaredKnown, Declared: base.Declared}
 	set.Warnings = append(set.Warnings, base.Warnings...)
@@ -258,7 +258,7 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 	}
 	warned := map[string]bool{}
 	warnUndeclared := func(name string) {
-		if !set.DeclaredKnown || base.Declared[name] || inTarget(name) {
+		if warned[name] || !set.DeclaredKnown || base.Declared[name] || inTarget(name) {
 			return
 		}
 		warned[name] = true
@@ -282,9 +282,7 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 		v.Value, v.Source = val, "flag"
 	}
 	for _, e := range edits {
-		if !warned[e.Name] {
-			warnUndeclared(e.Name)
-		}
+		warnUndeclared(e.Name)
 		v := get(e.Name)
 		v.Value, v.Source = e.Value, "edit"
 	}

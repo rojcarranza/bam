@@ -202,7 +202,11 @@ func decodeStrict(data []byte, path string, out any) error {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil {
-		return errs.Configf("invalid %s", path).WithWhy(plainShapes(err.Error())).Wrap(err)
+		e := errs.Configf("invalid %s", path).WithWhy(plainShapes(err.Error())).Wrap(err)
+		if mv := (*multiValueError)(nil); errors.As(err, &mv) {
+			e = e.WithTry(fmt.Sprintf("in a preset, list allowed values under options: {%s: [a, b]} and must-set names under required: [%s]", mv.name, mv.name))
+		}
+		return e
 	}
 	return nil
 }

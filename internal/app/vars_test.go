@@ -88,9 +88,9 @@ func TestResolveVarsValidationOrder(t *testing.T) {
 func TestResolveVarsWarnsOnUndeclaredFlag(t *testing.T) {
 	s := newService(t, fakeBamboo())
 	ref, _ := s.ResolvePlan(bg, "PROJ-PROV", "")
-	set, err := s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_nme=x"}})
+	set, err := s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_nme=y", "cluster_nme=x"}})
 	require.NoError(t, err)
-	require.Len(t, set.Warnings, 1)
+	require.Len(t, set.Warnings, 1, "a repeated name warns once")
 	assert.Contains(t, set.Warnings[0], "cluster_nme is not a declared variable of PROJ-PROV")
 	assert.Contains(t, set.Warnings[0], "did you mean cluster_name")
 	assert.Equal(t, "x", set.Changed()["cluster_nme"], "still sent: it may override a global variable")

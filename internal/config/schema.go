@@ -88,12 +88,28 @@ func (m *StringMap) UnmarshalYAML(n *yaml.Node) error {
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		k, v := n.Content[i], n.Content[i+1]
 		if v.Kind != yaml.ScalarNode {
-			return fmt.Errorf("line %d: value of %q must be a single value", v.Line, k.Value)
+			return &multiValueError{line: v.Line, name: k.Value, list: v.Kind == yaml.SequenceNode}
 		}
 		out[k.Value] = v.Value
 	}
 	*m = out
 	return nil
+}
+
+// multiValueError is a variable given a list or mapping instead of one
+// value, usually allowed values or a required flag written in place.
+type multiValueError struct {
+	line int
+	name string
+	list bool
+}
+
+func (e *multiValueError) Error() string {
+	found := "a mapping"
+	if e.list {
+		found = "a list"
+	}
+	return fmt.Sprintf("line %d: variable %q takes a single value, like %s: VALUE; found %s", e.line, e.name, e.name, found)
 }
 
 // StringListMap decodes a mapping of name to a list of scalars.

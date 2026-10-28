@@ -621,9 +621,13 @@ func windowWarnings(windows map[string]planWindow, root provider.Build) []string
 
 // treePoll is the time between two refreshes of a watched tree; treeTries
 // is how many failed refreshes in a row end the watch.
+// treeQuiet is how long ago the last build of a finished tree must have
+// ended for one refresh to settle it: Bamboo queued any children long since.
+// It is well past treePoll so a skewed server clock cannot cut a watch short.
 const (
 	treePoll  = 10 * time.Second
 	treeTries = 3
+	treeQuiet = time.Minute
 )
 
 // TreeEventType names a step of a watched tree.
@@ -647,7 +651,8 @@ type TreeEvent struct {
 
 // WatchTree refreshes the tree of key every treePoll and emits it when it
 // changed. It ends once every build has finished and one more refresh
-// found nothing new, since Bamboo queues children when their parent ends.
+// found nothing new, since Bamboo queues children when their parent ends;
+// a tree whose builds all ended over treeQuiet ago ends at the first.
 // Until the first tree, it sends TreeLoading events saying how far the
 // search got; o.OnProgress is not called. Ending ctx stops watching; no
 // build is stopped.
@@ -711,7 +716,7 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 				}
 				if t.State == provider.StateRunning || scan.unresolved() {
 					settled = ""
-				} else if settled == sig {
+				} else if settled == sig || endedBefore(t, s.Clock.Now().Add(-treeQuiet)) {
 					send(TreeEvent{Type: TreeDone, Tree: t})
 					return
 				} else {
@@ -726,6 +731,18 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 		}
 	}()
 	return ch
+}
+
+// endedBefore reports whether every build in t has a finish time before
+// cutoff; a build with none (not known) counts as not.
+func endedBefore(t Tree, cutoff time.Time) bool {
+	ok := true
+	t.Root.Walk(func(n *TreeNode, _ int) {
+		if !n.NotRun && !n.Loop && (n.Build.FinishedAt.IsZero() || !n.Build.FinishedAt.Before(cutoff)) {
+			ok = false
+		}
+	})
+	return ok
 }
 
 // treeSignature is what a watcher compares between refreshes: every node,

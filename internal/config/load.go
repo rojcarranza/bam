@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -195,9 +196,28 @@ func decodeStrict(data []byte, path string, out any) error {
 // yamlTypeError matches yaml.v3's "line N: cannot unmarshal !!tag[ `value`] into T".
 var yamlTypeError = regexp.MustCompile("line (\\d+): cannot unmarshal !!(\\w+)( `[^`]*`)? into (\\S+)")
 
-// plainShapes rewrites yaml type errors, which name Go types, into the shape
-// the file should have had; lines it does not recognise stay as they are.
+// yamlUnknownField matches yaml.v3's "line N: field X not found in type T".
+var yamlUnknownField = regexp.MustCompile(`line (\d+): field (\S+) not found in type (\S+)`)
+
+// plainShapes rewrites yaml type and unknown-field errors, which name Go
+// types, into plain words; lines it does not recognise stay as they are.
 func plainShapes(msg string) string {
+	places := map[string]string{
+		"config.MachineFile": "the machine config",
+		"config.ProjectFile": "the project config",
+		"config.PresetsFile": "the presets file",
+		"config.Target":      "a preset",
+		"config.Server":      "a server",
+		"config.Repo":        "a repository entry",
+	}
+	msg = yamlUnknownField.ReplaceAllStringFunc(msg, func(m string) string {
+		p := yamlUnknownField.FindStringSubmatch(m)
+		where, ok := places[p[3]]
+		if !ok {
+			return m
+		}
+		return fmt.Sprintf("line %s: unknown field %q in %s", p[1], p[2], where)
+	})
 	found := map[string]string{"seq": "a list", "map": "a mapping"}
 	expected := map[string]string{
 		"config.Target": "a preset (plan: KEY, ...)",

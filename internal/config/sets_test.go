@@ -184,6 +184,8 @@ func TestWrongShapeNamesTheExpectedShape(t *testing.T) {
 		"version: 1\nprojects: PROJ\n":            "line 2: expected a list, found a single value `PROJ`",
 		"version: 1\nservers: {work: [x]}\n":      "line 2: expected a server (url: URL, ...), found a list",
 		"version: 1\ntargets: {d: {plan: [x]}}\n": "line 2: expected a single value, found a list",
+		"version: 1\ntargets: {d: {plann: X}}\n":  `line 2: unknown field "plann" in a preset`,
+		"version: 1\nservrs: {}\n":                `line 2: unknown field "servrs" in the project config`,
 	} {
 		_, err := loadYAML(t, yml, "")
 		require.Error(t, err)

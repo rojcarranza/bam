@@ -98,6 +98,7 @@ func TestSetConfigErrors(t *testing.T) {
 		"negative timeout": {"sets: {rel: {timeout: -5m, stages: [[a]]}}", `"-5m" is not a duration like 45m`},
 		"unknown field":    {"sets: {rel: {stages: [[{target: a, env: x}]]}}", `unknown field "env"`},
 		"literal secret":   {"sets: {rel: {stages: [[{target: a, vars: {db_password: hunter2}}]]}}", "holds a literal secret"},
+		"stages as set":    {"sets: {rel: [[a], [b]]}", "line 7: expected a set (stages: [[preset], ...]), found a list"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg, err := loadYAML(t, base+tc.sets+"\n", "")
@@ -163,5 +164,19 @@ func TestSetLiteralSecretErrorIsDeterministic(t *testing.T) {
 		_, err := loadYAML(t, src, "")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "vars.a_password holds a literal secret")
+	}
+}
+
+func TestWrongShapeNamesTheExpectedShape(t *testing.T) {
+	for yml, want := range map[string]string{
+		"version: 1\ntargets: {d: PROJ-D}\n":      "line 2: expected a preset (plan: KEY, ...), found a single value `PROJ-D`",
+		"version: 1\nprojects: PROJ\n":            "line 2: expected a list, found a single value `PROJ`",
+		"version: 1\nservers: {work: [x]}\n":      "line 2: expected a server (url: URL, ...), found a list",
+		"version: 1\ntargets: {d: {plan: [x]}}\n": "line 2: expected a single value, found a list",
+	} {
+		_, err := loadYAML(t, yml, "")
+		require.Error(t, err)
+		require.Contains(t, errWhyTry(err), want, yml)
+		require.NotContains(t, errWhyTry(err), "config.", yml)
 	}
 }

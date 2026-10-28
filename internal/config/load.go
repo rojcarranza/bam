@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -186,9 +187,43 @@ func decodeStrict(data []byte, path string, out any) error {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil {
-		return errs.Configf("invalid %s", path).WithWhy(err.Error()).Wrap(err)
+		return errs.Configf("invalid %s", path).WithWhy(plainShapes(err.Error())).Wrap(err)
 	}
 	return nil
+}
+
+// yamlTypeError matches yaml.v3's "line N: cannot unmarshal !!tag[ `value`] into T".
+var yamlTypeError = regexp.MustCompile("line (\\d+): cannot unmarshal !!(\\w+)( `[^`]*`)? into (\\S+)")
+
+// plainShapes rewrites yaml type errors, which name Go types, into the shape
+// the file should have had; lines it does not recognise stay as they are.
+func plainShapes(msg string) string {
+	found := map[string]string{"seq": "a list", "map": "a mapping"}
+	expected := map[string]string{
+		"config.Set":    "a set (stages: [[preset], ...])",
+		"config.Target": "a preset (plan: KEY, ...)",
+		"config.Server": "a server (url: URL, ...)",
+		"config.Repo":   "a repository entry (server: ALIAS, ...)",
+		"[]string":      "a list",
+		"string":        "a single value",
+		"int":           "a number",
+		"bool":          "true or false",
+	}
+	return yamlTypeError.ReplaceAllStringFunc(msg, func(m string) string {
+		p := yamlTypeError.FindStringSubmatch(m)
+		want, ok := expected[p[4]]
+		if strings.HasPrefix(p[4], "map[") {
+			want, ok = "a mapping", true
+		}
+		if !ok {
+			return m
+		}
+		got, ok := found[p[2]]
+		if !ok {
+			got = "a single value"
+		}
+		return "line " + p[1] + ": expected " + want + ", found " + got + p[3]
+	})
 }
 
 func checkVersion(v int, path string) error {

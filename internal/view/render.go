@@ -30,7 +30,7 @@ func PlanList(o Out, groups []PlanGroup) error {
 		if i > 0 {
 			fmt.Fprintln(o.W)
 		}
-		fmt.Fprintf(o.W, "%s  %s\n", style.Bold(o.Style, g.Project.Key), g.Project.Name)
+		fmt.Fprintln(o.W, strings.TrimSpace(style.Bold(o.Style, g.Project.Key)+"  "+g.Project.Name))
 		t := Table{Indent: "  ", Headers: []string{"PLAN", "NAME", "LAST", "STATE", "COMPLETED", "REASON"}, Flex: []int{5, 1}}
 		for _, p := range g.Plans {
 			if p.LastBuild == nil {

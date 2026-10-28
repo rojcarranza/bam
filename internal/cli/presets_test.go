@@ -443,6 +443,22 @@ presets:
 	assert.Contains(t, s, "      cluster_type: dcos # the old one\n      cluster_name: \"\"")
 }
 
+func TestPresetListFiltersByText(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("preset", "list", "BUILD"), h.stderr.String())
+	assert.Regexp(t, `build\s+PROJ-BUILD`, h.stdout.String())
+	assert.NotContains(t, h.stdout.String(), "provision-lab")
+
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("preset", "list", "zzz"))
+	assert.Empty(t, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), `no presets match "zzz"`)
+
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("--json", "preset", "list", "zzz"))
+	assert.Equal(t, "[]\n", h.stdout.String())
+}
+
 func TestRunPresetScopedToAnotherRepo(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))

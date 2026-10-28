@@ -2,8 +2,20 @@
 
 List run presets from your presets files, .bam.yaml and the machine config
 
+### Synopsis
+
+List run presets from your presets files, .bam.yaml and the machine config.
+With text, list only the presets whose name or plan contains it, ignoring case.
+
 ```
-bam preset list [flags]
+bam preset list [text] [flags]
+```
+
+### Examples
+
+```
+  bam preset list
+  bam preset list prov
 ```
 
 ### Options

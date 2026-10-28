@@ -62,11 +62,14 @@ func defaultTargetName(planKey string) string {
 
 func newTargetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "list",
+		Use:        "list [text]",
 		SuggestFor: []string{"ls"},
 		Short:      "List run presets from your presets files, .bam.yaml and the machine config",
-		Args:       cobra.NoArgs,
-		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
+		Long: "List run presets from your presets files, .bam.yaml and the machine config.\n" +
+			"With text, list only the presets whose name or plan contains it, ignoring case.",
+		Example: "  bam preset list\n  bam preset list prov",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
 				return err
@@ -74,6 +77,15 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 			infos, err := app.DescribeTargets(cfg, r.env.Getenv)
 			if err != nil {
 				return err
+			}
+			if len(args) == 1 {
+				text, all := strings.ToLower(args[0]), infos
+				infos = nil
+				for _, t := range all {
+					if strings.Contains(strings.ToLower(t.Name), text) || strings.Contains(strings.ToLower(t.Plan), text) {
+						infos = append(infos, t)
+					}
+				}
 			}
 			loc := r.presets()
 			if !r.flags.json {
@@ -89,6 +101,10 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 					docs = append(docs, view.TargetJSON(t))
 				}
 				return view.WriteJSON(r.env.Stdout, docs)
+			}
+			if len(infos) == 0 && len(args) == 1 {
+				r.note(fmt.Sprintf("no presets match %q", args[0]), "bam preset list")
+				return nil
 			}
 			if len(infos) == 0 {
 				r.noPresets(cfg)

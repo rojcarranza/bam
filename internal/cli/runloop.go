@@ -273,6 +273,10 @@ bam draws the build tree, as "bam build tree <build> --watch" does, until
 every build in it has finished, then lists each build that did not succeed.
 Interrupting or timing out never stops a build. --json follows the one
 build and writes its events as NDJSON.`,
+		Example: "  bam watch PROJ-BUILD-482\n" +
+			"  bam watch --last\n" +
+			"  bam watch deploy-qa --branch develop\n" +
+			"  bam watch PROJ-BUILD-482 --timeout 30m",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -302,8 +306,12 @@ func newLogsCmd(r *runtime) *cobra.Command {
 	var branch, job string
 	var tail int
 	cmd := &cobra.Command{
-		Use:               "logs [<build>|<plan>|<preset>]",
-		Short:             "Print job logs; --failed for failed jobs only",
+		Use:   "logs [<build>|<plan>|<preset>]",
+		Short: "Print job logs; --failed for failed jobs only",
+		Example: "  bam logs PROJ-BUILD-482 --failed\n" +
+			"  bam logs --last --failed -n 50\n" +
+			"  bam logs PROJ-BUILD-482 --job JOB1 --follow\n" +
+			"  bam logs PROJ-BUILD-JOB1-482",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

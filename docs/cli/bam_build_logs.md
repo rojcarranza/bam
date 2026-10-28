@@ -6,6 +6,15 @@ Print job logs; --failed for failed jobs only
 bam build logs [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam logs PROJ-BUILD-482 --failed
+  bam logs --last --failed -n 50
+  bam logs PROJ-BUILD-482 --job JOB1 --follow
+  bam logs PROJ-BUILD-JOB1-482
+```
+
 ### Options
 
 ```

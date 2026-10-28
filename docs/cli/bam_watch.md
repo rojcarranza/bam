@@ -15,6 +15,15 @@ build and writes its events as NDJSON.
 bam watch [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam watch PROJ-BUILD-482
+  bam watch --last
+  bam watch deploy-qa --branch develop
+  bam watch PROJ-BUILD-482 --timeout 30m
+```
+
 ### Options
 
 ```

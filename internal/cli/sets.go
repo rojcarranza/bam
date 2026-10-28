@@ -296,7 +296,7 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			rec, err := r.findSetRun(args, resumable, nil)
+			rec, err := r.findSetRun(args, resumable, r.notResumable)
 			if err != nil {
 				return err
 			}
@@ -376,6 +376,20 @@ func noFailedRun(arg string) error {
 
 func resumable(rec app.SetRecord) bool {
 	return rec.Status == app.SetInterrupted || rec.Status == app.SetTimedOut || rec.Status == app.SetRunning
+}
+
+// notResumable explains a resume that finds nothing to continue by the newest
+// run it would otherwise have taken, or returns nil when there is none.
+func (r *runtime) notResumable(arg string) error {
+	cfg, err := r.config()
+	if err != nil {
+		return err
+	}
+	rec, ok, err := r.setStore().Latest(cfg.RepoRoot, arg, nil)
+	if err != nil || !ok {
+		return err
+	}
+	return app.NotResumable(rec)
 }
 
 // planFromRecord is enough of a plan for the live display: the set's name
@@ -492,7 +506,9 @@ func (r *runtime) findSetRun(args []string, match func(app.SetRecord) bool, miss
 			}
 		}
 		if missing != nil {
-			return app.SetRecord{}, missing(arg)
+			if err := missing(arg); err != nil {
+				return app.SetRecord{}, err
+			}
 		}
 		what := "no set runs in this repository"
 		if match != nil {

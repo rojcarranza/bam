@@ -158,6 +158,15 @@ func TestSetListShowStatusResume(t *testing.T) {
 	require.Contains(t, h.stdout.String(), id+"  successful")
 
 	require.Equal(t, 2, h.run("set", "resume"), "nothing left to resume")
+	require.Contains(t, h.stderr.String(), "set run "+id+" succeeded; nothing to resume")
+	require.Contains(t, h.stderr.String(), "try: bam set run release")
+
+	failed := app.NewSetID("release", fixedNow.Add(time.Minute))
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: failed, Set: "release", Origin: workOrigin, Repo: h.root,
+		StartedAt: fixedNow.Add(time.Minute), Status: app.SetFailed, VarNames: []string{},
+		Stages: []app.StageRecord{{Runs: []app.RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-2"}}}}}))
+	require.Equal(t, 2, h.run("set", "resume", "release"))
+	require.Contains(t, h.stderr.String(), "try: bam set rerun --failed "+failed)
 }
 
 func TestSetStatusWithNoRuns(t *testing.T) {

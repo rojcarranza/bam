@@ -505,6 +505,22 @@ func (r *setRun) watchRun(ctx context.Context, i, j int, run SetRunPlan, key str
 	}
 }
 
+// NotResumable says why a finished set run cannot be resumed, or nil when it can.
+func NotResumable(rec SetRecord) error {
+	switch rec.Status {
+	case SetFailed:
+		return errs.Usagef("set run %s failed; resume continues interrupted runs", rec.ID).
+			WithTry("bam set rerun --failed " + rec.ID)
+	case SetSuccessful:
+		again := "bam set run " + rec.Set
+		if rec.File != "" {
+			again = "bam set run -f " + rec.File
+		}
+		return errs.Usagef("set run %s succeeded; nothing to resume", rec.ID).WithTry(again)
+	}
+	return nil
+}
+
 // ResumeSet continues an interrupted or timed-out set run under its own id:
 // it watches the runs that triggered and triggers the ones that did not.
 func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error) {
@@ -512,12 +528,8 @@ func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock S
 	if err != nil {
 		return nil, err
 	}
-	switch rec.Status {
-	case SetFailed:
-		return nil, errs.Usagef("set run %s failed; resume continues interrupted runs", id).
-			WithTry("bam set rerun --failed " + id)
-	case SetSuccessful:
-		return nil, errs.Usagef("set run %s succeeded; nothing to resume", id)
+	if err := NotResumable(rec); err != nil {
+		return nil, err
 	}
 	p, l, err := s.continueSet(ctx, rec, o, lock, "resume")
 	if err != nil {

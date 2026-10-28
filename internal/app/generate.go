@@ -47,6 +47,10 @@ func CheckGenerate(o GenerateOptions) error {
 		try := "bam plan list"
 		if up := strings.ToUpper(o.PlanKey); IsPlanKey(up) {
 			try = "keys are uppercase: did you mean " + up + "?"
+		} else if IsBuildKey(o.PlanKey) {
+			try = "its plan, " + o.PlanKey[:strings.LastIndex(o.PlanKey, "-")]
+		} else if projectRe.MatchString(o.PlanKey) {
+			try = "bam plan list " + o.PlanKey + " to see its plans"
 		}
 		return errs.Usagef("%q is not a plan key", o.PlanKey).WithTry(try)
 	}

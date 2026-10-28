@@ -329,6 +329,17 @@ func (r *runtime) aliasArg(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 && r.flags.server != "" {
 		return nil
 	}
+	if len(args) == 0 {
+		// Name the configured aliases so the user need not run bam server list first.
+		if cfg, err := r.config(); err == nil && len(cfg.Servers()) > 0 {
+			aliases := slices.Sorted(maps.Keys(cfg.Servers()))
+			try := cmd.CommandPath() + " " + aliases[0]
+			if len(aliases) > 1 {
+				try = cmd.CommandPath() + " <alias>; configured: " + strings.Join(aliases, ", ")
+			}
+			return errs.Usagef("missing <alias>").WithTry(try)
+		}
+	}
 	return cobra.ExactArgs(1)(cmd, args)
 }
 

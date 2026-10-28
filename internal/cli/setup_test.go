@@ -131,6 +131,11 @@ func TestLoginAndLogoutTakeAliasFromServerFlag(t *testing.T) {
 
 	assert.Equal(t, 2, h.run("logout"))
 	assert.Contains(t, h.stderr.String(), "missing <alias>")
+	assert.Contains(t, h.stderr.String(), "try: bam logout work\n")
+
+	assert.Equal(t, 0, h.run("server", "add", "home", "--url", "https://bamboo.lab.example"))
+	assert.Equal(t, 2, h.run("login"))
+	assert.Contains(t, h.stderr.String(), "try: bam login <alias>; configured: home, work")
 }
 
 func TestServerAliasArgsMatchAnyCase(t *testing.T) {

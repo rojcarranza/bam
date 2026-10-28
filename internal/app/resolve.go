@@ -224,8 +224,12 @@ func (s *Service) ResolveFrom(ctx context.Context, ref PlanRef, from string) (st
 		return ref.PlanKey + "-" + from, nil
 	case IsBuildKey(from):
 		return from, nil
-	case from != "last":
-		return "", errs.Usagef("--from takes a build number, a build key or last, not %q", from)
+	case !strings.EqualFold(from, "last"):
+		e := errs.Usagef("--from takes a build number, a build key or last, not %q", from)
+		if up := strings.ToUpper(from); IsBuildKey(up) {
+			e = e.WithTry("keys are uppercase: did you mean " + up + "?")
+		}
+		return "", e
 	}
 	builds, err := s.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: 20})
 	if err != nil {

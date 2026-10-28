@@ -288,6 +288,11 @@ func TestRunRevisionFromDryRun(t *testing.T) {
 
 	h = newHarness(t)
 	withRevision(h)
+	assert.Equal(t, 0, h.run("run", "build", "--from", "LAST", "--revision", "FROM", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "Revision 9b30b9a (from #482)\n", "last and from are matched in any case")
+
+	h = newHarness(t)
+	withRevision(h)
 	assert.Equal(t, 0, h.run("run", "build", "--from", "482", "--revision", "from", "--dry-run", "--json"))
 	var doc map[string]any
 	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))

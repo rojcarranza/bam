@@ -135,6 +135,14 @@ func TestResolveFrom(t *testing.T) {
 	assert.Equal(t, "PROJ-PROV-3", key)
 	_, err = s.ResolveFrom(bg, ref, "yesterday")
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+
+	key, err = s.ResolveFrom(bg, ref, "LAST")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV12-8", key, "last is matched in any case")
+	_, err = s.ResolveFrom(bg, ref, "proj-prov-3")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "keys are uppercase: did you mean PROJ-PROV-3?", e.Try)
 }
 
 func TestBuildForgetsExpiredLastBuild(t *testing.T) {

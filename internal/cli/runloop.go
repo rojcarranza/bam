@@ -62,6 +62,9 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if cmd.Flags().Changed("revision") && revision == "" {
 				return errs.Usagef("--revision needs a value")
 			}
+			if strings.EqualFold(revision, revisionFromBuild) {
+				revision = revisionFromBuild
+			}
 			if revision == revisionFromBuild && from == "" {
 				return errs.Usagef("--revision from needs --from").WithTry("bam run " + args[0] + " --from last --revision from")
 			}

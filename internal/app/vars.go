@@ -375,7 +375,7 @@ func (s *Service) PlanVars(ctx context.Context, ref PlanRef, from string) (PlanV
 		default:
 			return res, err
 		}
-	} else if errs.KindOf(err) != errs.KindUsage || from != "last" {
+	} else if errs.KindOf(err) != errs.KindUsage || !strings.EqualFold(from, "last") {
 		return res, err
 	}
 

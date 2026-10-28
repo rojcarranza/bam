@@ -378,9 +378,10 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 
 func newWhoamiCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "whoami",
-		Short: "Show the authenticated user on each configured server",
-		Args:  cobra.NoArgs,
+		Use:        "whoami",
+		SuggestFor: []string{"user", "me"},
+		Short:      "Show the authenticated user on each configured server",
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
 			if err != nil {

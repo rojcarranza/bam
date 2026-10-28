@@ -246,8 +246,9 @@ func newWatchCmd(r *runtime) *cobra.Command {
 	var branch string
 	var timeout time.Duration
 	cmd := &cobra.Command{
-		Use:   "watch [<build>|<plan>|<preset>]",
-		Short: "Follow a build and the builds it triggers; exit 1 if any fails",
+		Use:        "watch [<build>|<plan>|<preset>]",
+		SuggestFor: []string{"wait", "tail", "follow"},
+		Short:      "Follow a build and the builds it triggers; exit 1 if any fails",
 		Long: `Follow a build and the builds it triggers; exit 1 if any fails.
 
 bam draws the build tree, as "bam build tree <build> --watch" does, until
@@ -527,6 +528,7 @@ func newOpenCmd(r *runtime) *cobra.Command {
 	var last bool
 	cmd := &cobra.Command{
 		Use:               "open [<key>|<preset>]",
+		SuggestFor:        []string{"web", "browse"},
 		Short:             "Open a project, plan, build or job in the browser",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,

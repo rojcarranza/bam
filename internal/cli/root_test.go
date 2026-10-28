@@ -108,6 +108,13 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"auth":            "try: did you mean bam login? bam --help shows them all",
 		"token":           "try: did you mean bam login? bam --help shows them all",
 		"signout":         "try: did you mean bam logout? bam --help shows them all",
+		"wait":            "try: did you mean bam watch? bam --help shows them all",
+		"tail":            "try: did you mean bam watch? bam --help shows them all",
+		"follow":          "try: did you mean bam watch? bam --help shows them all",
+		"user":            "try: did you mean bam whoami? bam --help shows them all",
+		"me":              "try: did you mean bam whoami? bam --help shows them all",
+		"web":             "try: did you mean bam open? bam --help shows them all",
+		"browse":          "try: did you mean bam open? bam --help shows them all",
 		"rnu":             "try: did you mean bam run? bam --help shows them all",
 		"completion zhs":  "error: unknown command \"zhs\" for \"bam completion\"\n  try: did you mean bam completion zsh? bam completion --help shows them all\n",
 	} {

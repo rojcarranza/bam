@@ -360,6 +360,14 @@ func TestSetStatusOfAnUnknownSetSuggestsTheClosest(t *testing.T) {
 	// A configured set that never ran keeps its own message.
 	require.Equal(t, 2, h.run("set", "status", "release"))
 	require.Contains(t, h.stderr.String(), `no set runs in this repository for "release"`)
+	require.Contains(t, h.stderr.String(), "try: bam set run release\n")
+	// With one set configured, a bare status names it.
+	require.Equal(t, 2, h.run("set", "status"))
+	require.Contains(t, h.stderr.String(), "try: bam set run release\n")
+	// With none, it says how to add one.
+	h = newHarness(t)
+	require.Equal(t, 2, h.run("set", "status"))
+	require.Contains(t, h.stderr.String(), "try: add sets: to .bam.yaml; see bam set run --help\n")
 }
 
 func TestSetRunVarCompletesThePresetVariables(t *testing.T) {

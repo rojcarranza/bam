@@ -284,7 +284,7 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 				if set != "" {
 					what += fmt.Sprintf(" for %q", set)
 				}
-				r.note(what, "bam set run <set>")
+				r.note(what, setRunTry(cfg, set))
 				return nil
 			}
 			o, err := r.out()
@@ -531,9 +531,28 @@ func (r *runtime) findSetRun(args []string, match func(app.SetRecord) bool, miss
 		if arg != "" {
 			what += fmt.Sprintf(" for %q", arg)
 		}
-		return app.SetRecord{}, errs.Usagef("%s", what).WithTry("bam set run <set>")
+		return app.SetRecord{}, errs.Usagef("%s", what).WithTry(setRunTry(cfg, arg))
 	}
 	return rec, nil
+}
+
+// setRunTry is the hint after "no set runs": the named set, the only set,
+// or how to configure one when there are none.
+func setRunTry(cfg *config.Config, set string) string {
+	if set != "" {
+		return "bam set run " + set
+	}
+	all, err := cfg.Sets()
+	switch {
+	case err != nil || len(all) > 1:
+		return "bam set run <set>"
+	case len(all) == 0:
+		return "add sets: to .bam.yaml; see bam set run --help"
+	}
+	for name := range all {
+		return "bam set run " + name
+	}
+	return ""
 }
 
 // setLoop renders a set run until it ends. An interrupt or timeout stops

@@ -84,6 +84,18 @@ func TestNarrowStatusBarKeepsKeysOverIdentity(t *testing.T) {
 	require.Contains(t, bar, "R run")
 }
 
+// TestStatusBarKeepsTwoSpacesBeforeKeys: a long message never runs into the
+// first key hint with a single space, so the two never read as one sentence.
+func TestStatusBarKeepsTwoSpacesBeforeKeys(t *testing.T) {
+	m := homeModel()
+	m.status = ":sort needs a column; columns: key name state age"
+	for w := 40; w <= 120; w++ {
+		bar := ansi.Strip(m.statusBar(w))
+		rest, whole := strings.CutPrefix(bar, m.status)
+		require.True(t, !whole || rest == "" || strings.HasPrefix(rest, "  "), "width %d: %q", w, bar)
+	}
+}
+
 func TestNarrowKeyLinesKeepTheWayOut(t *testing.T) {
 	// The form keeps ^R run too: without it there is no way to start the build.
 	require.Equal(t, "enter edit  ^R run  esc cancel",

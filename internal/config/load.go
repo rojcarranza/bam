@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -236,6 +237,23 @@ var fieldPlaces = map[string]struct {
 	"config.Target":      {"a preset", reflect.TypeFor[Target]()},
 	"config.Server":      {"a server", reflect.TypeFor[Server]()},
 	"config.Repo":        {"a repository entry", reflect.TypeFor[Repo]()},
+	"config.Set":         {"a set", reflect.TypeFor[Set]()},
+	"config.SetRun":      {"a stage run", reflect.TypeFor[SetRun]()},
+	"config.setFile":     {"a train file", reflect.TypeFor[setFile]()},
+}
+
+// knownFields refuses mapping keys that are not yaml fields of t, in
+// yaml.v3's own wording so decodeStrict words it and suggests a field.
+// Node.Decode does not inherit the file's KnownFields, so types with their
+// own UnmarshalYAML check here.
+func knownFields(n *yaml.Node, t reflect.Type) error {
+	fields := yamlFields(t)
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if k := n.Content[i]; !slices.Contains(fields, k.Value) {
+			return fmt.Errorf("line %d: field %s not found in type %s", k.Line, k.Value, t)
+		}
+	}
+	return nil
 }
 
 // yamlFields lists the yaml field names of a struct type.

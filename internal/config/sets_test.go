@@ -209,6 +209,8 @@ func TestUnknownFieldSuggestsTheClosest(t *testing.T) {
 		"version: 1\ntargets: {d: {plan: X, defauts: {a: b}}}\n": "did you mean defaults?",
 		"version: 1\nservrs: {}\n":                               "did you mean servers?",
 		"version: 1\nservers: {w: {ur: http://x}}\n":             "did you mean url?",
+		"version: 1\nsets: {rel: {stage: [[a]]}}\n":              "did you mean stages?",
+		"version: 1\nsets: {rel: [[{targt: a}]]}\n":              "did you mean target?",
 	} {
 		_, err := loadYAML(t, yml, "")
 		require.Error(t, err)

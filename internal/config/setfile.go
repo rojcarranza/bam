@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -25,10 +26,8 @@ func (f *setFile) UnmarshalYAML(n *yaml.Node) error {
 		return n.Decode(&f.Stages)
 	case yaml.MappingNode:
 		// Decode does not inherit the file's KnownFields; see Stage.
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			if k := n.Content[i]; k.Value != "name" && k.Value != "stages" && k.Value != "timeout" {
-				return fmt.Errorf("line %d: unknown field %q in a train file", k.Line, k.Value)
-			}
+		if err := knownFields(n, reflect.TypeFor[setFile]()); err != nil {
+			return err
 		}
 		type plain setFile
 		return n.Decode((*plain)(f))

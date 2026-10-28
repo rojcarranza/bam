@@ -57,7 +57,7 @@ func TestLoadSetFileErrors(t *testing.T) {
 	for name, tc := range map[string]struct{ file, body, want string }{
 		"bad file name":  {"Train File.yaml", "stages: [[a]]\n", "add name:"},
 		"bad name":       {"t.yaml", "name: Bad\nstages: [[a]]\n", `invalid set name "Bad"`},
-		"unknown key":    {"t.yaml", "stagez: [[a]]\n", `line 1: unknown field "stagez" in a train file`},
+		"unknown key":    {"t.yaml", "stagez: [[a]]\n", `line 1: unknown field "stagez" in a train file did you mean stages?`},
 		"single value":   {"t.yaml", "a\n", "expected a train file (stages: [[preset], ...]), found a single value"},
 		"unknown preset": {"t.yaml", "stages: [[nope]]\n", "presets here: a, b"},
 		"duplicate run":  {"t.yaml", "stages: [[a, a]]\n", `run "a" twice in stage 1`},

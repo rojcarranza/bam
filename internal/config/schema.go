@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -166,10 +167,8 @@ func (s *Set) UnmarshalYAML(n *yaml.Node) error {
 		return n.Decode(&s.Stages)
 	case yaml.MappingNode:
 		// Decode does not inherit the file's KnownFields; see Stage.
-		for i := 0; i+1 < len(n.Content); i += 2 {
-			if k := n.Content[i]; k.Value != "stages" && k.Value != "timeout" {
-				return fmt.Errorf("line %d: unknown field %q in a set", k.Line, k.Value)
-			}
+		if err := knownFields(n, reflect.TypeFor[Set]()); err != nil {
+			return err
 		}
 		type plain Set
 		return n.Decode((*plain)(s))
@@ -192,10 +191,8 @@ func (s *Stage) UnmarshalYAML(n *yaml.Node) error {
 		case yaml.MappingNode:
 			// Decode does not inherit the file's KnownFields, so a typo such
 			// as env: instead of vars: is caught here.
-			for i := 0; i+1 < len(item.Content); i += 2 {
-				if k := item.Content[i]; k.Value != "target" && k.Value != "vars" && k.Value != "matrix" {
-					return fmt.Errorf("line %d: unknown field %q in a stage run", k.Line, k.Value)
-				}
+			if err := knownFields(item, reflect.TypeFor[SetRun]()); err != nil {
+				return err
 			}
 			var r SetRun
 			if err := item.Decode(&r); err != nil {

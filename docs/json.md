@@ -34,6 +34,8 @@ A running build carries the server's duration estimate as well:
 
 ## Plan
 
+`plan list --json` and `plan show --json` give each plan an `enabled` boolean, and `plan branches --json` and the branches in `plan show --json` give one to each branch. It is `false` for a plan or branch that Bamboo has disabled; the text output marks those with `(disabled)`. When Bamboo leaves the flag out, `enabled` is `true`.
+
 `plan show --json` includes a `"variables_error"` string field when the plan's variables could not be read (for example, when the Bamboo server does not expose the variables endpoint). The field is omitted entirely when reading the variables succeeds.
 
 ## Run

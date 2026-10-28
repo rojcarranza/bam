@@ -79,6 +79,7 @@ type PlanDoc struct {
 	Name       string        `json:"name"`
 	ProjectKey string        `json:"project_key"`
 	LastBuild  *LastBuildDoc `json:"last_build"`
+	Enabled    bool          `json:"enabled"`
 }
 
 type ProjectDoc struct {
@@ -189,7 +190,7 @@ func BuildsJSON(bs []provider.Build) []BuildDoc {
 }
 
 func PlanJSON(p provider.Plan) PlanDoc {
-	d := PlanDoc{Key: p.Key, URL: p.URL, Name: p.Name, ProjectKey: p.ProjectKey}
+	d := PlanDoc{Key: p.Key, URL: p.URL, Name: p.Name, ProjectKey: p.ProjectKey, Enabled: !p.Disabled}
 	if lb := p.LastBuild; lb != nil {
 		d.LastBuild = &LastBuildDoc{Key: lb.Key, Number: lb.Number, State: string(lb.State), FinishedAt: timePtr(lb.FinishedAt), Reason: lb.Reason}
 	}

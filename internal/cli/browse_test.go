@@ -132,6 +132,23 @@ func TestPlanBranchesMarksDisabled(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "develop, feat/old (disabled) (2)")
 }
 
+func TestPlanListAndShowMarkDisabledPlans(t *testing.T) {
+	h := newHarness(t)
+	ps := h.fake.Plans["PROJ"]
+	for i := range ps {
+		ps[i].Disabled = ps[i].Key == "PROJ-PROV"
+	}
+	assert.Equal(t, 0, h.run("plan", "list", "PROJ"))
+	assert.Regexp(t, `PROJ-PROV\s+Provision lab \(disabled\)`, h.stdout.String())
+	assert.Regexp(t, `PROJ-BUILD\s+Build and test\s`, h.stdout.String())
+	assert.Equal(t, 0, h.run("plan", "list", "PROJ", "--json"))
+	assert.Regexp(t, `"key": "PROJ-PROV",[^}]*"enabled": false`, h.stdout.String())
+	assert.Equal(t, 0, h.run("plan", "show", "PROJ-PROV"))
+	assert.Contains(t, h.stdout.String(), "Provision lab (disabled)")
+	assert.Equal(t, 0, h.run("plan", "show", "PROJ-PROV", "--json"))
+	assert.Regexp(t, `"enabled": false`, h.stdout.String())
+}
+
 func TestBuildList(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("build", "list", "PROJ-BUILD"))

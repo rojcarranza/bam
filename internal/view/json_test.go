@@ -39,7 +39,7 @@ func TestBuildJSONGolden(t *testing.T) {
 func TestPlanJSONNeverBuilt(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, WriteNDJSON(&buf, PlanJSON(provider.Plan{Key: "PROJ-OLD", URL: "https://bamboo.example.com/browse/PROJ-OLD", Name: "Legacy", ProjectKey: "PROJ"})))
-	assert.Equal(t, `{"key":"PROJ-OLD","url":"https://bamboo.example.com/browse/PROJ-OLD","name":"Legacy","project_key":"PROJ","last_build":null}`+"\n", buf.String())
+	assert.Equal(t, `{"key":"PROJ-OLD","url":"https://bamboo.example.com/browse/PROJ-OLD","name":"Legacy","project_key":"PROJ","last_build":null,"enabled":true}`+"\n", buf.String())
 }
 
 func TestRunJSONMasksSecrets(t *testing.T) {

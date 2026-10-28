@@ -466,7 +466,7 @@ Idempotent cases exit 0: cancelling a build that has already finished prints its
 Core objects:
 
 ```
-Plan    { key, url, name, project_key, last_build: { key, number, state, finished_at, reason } | null }
+Plan    { key, url, name, project_key, last_build: { key, number, state, finished_at, reason } | null, enabled }
 Branch  { key, url, name, short_name, plan_key, enabled }
 Variable{ name, value, masked, source, last_used }
 Target  { name, plan_key, server, branch, defaults, options, required, watch, timeout_ms, defined_in[] }

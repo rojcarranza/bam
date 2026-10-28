@@ -23,6 +23,7 @@ type planDTO struct {
 	Name       string `json:"name"`
 	ShortName  string `json:"shortName"`
 	ProjectKey string `json:"projectKey"`
+	Enabled    *bool  `json:"enabled"`
 }
 
 type branchDTO struct {

@@ -62,6 +62,7 @@ type Plan struct {
 	ProjectKey string
 	URL        string
 	LastBuild  *BuildSummary
+	Disabled   bool // Bamboo will not build it until it is enabled again
 }
 
 type Branch struct {

@@ -34,11 +34,11 @@ func PlanList(o Out, groups []PlanGroup) error {
 		t := Table{Indent: "  ", Headers: []string{"PLAN", "NAME", "LAST", "STATE", "COMPLETED", "REASON"}, Flex: []int{5, 1}}
 		for _, p := range g.Plans {
 			if p.LastBuild == nil {
-				t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), p.Name, "–", style.Dim(o.Style, "– never"), "–", "Never built"})
+				t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), planName(p), "–", style.Dim(o.Style, "– never"), "–", "Never built"})
 				continue
 			}
 			lb := p.LastBuild
-			t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), p.Name, fmt.Sprintf("#%d", lb.Number), o.State(lb.State), o.Time(lb.FinishedAt), lb.Reason})
+			t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), planName(p), fmt.Sprintf("#%d", lb.Number), o.State(lb.State), o.Time(lb.FinishedAt), lb.Reason})
 		}
 		if err := t.Render(o); err != nil {
 			return err
@@ -197,7 +197,7 @@ type PlanDetail struct {
 }
 
 func PlanDetailView(o Out, d PlanDetail) error {
-	fmt.Fprintf(o.W, "%s  %s  %s\n", style.Bold(o.Style, o.Key(d.Plan.Key, d.Plan.URL)), d.Plan.Name, d.Plan.URL)
+	fmt.Fprintf(o.W, "%s  %s  %s\n", style.Bold(o.Style, o.Key(d.Plan.Key, d.Plan.URL)), planName(d.Plan), d.Plan.URL)
 	field(o, "Project", d.Plan.ProjectKey)
 	var names []string
 	for _, b := range d.Branches {
@@ -242,6 +242,14 @@ func Branches(o Out, bs []provider.Branch) error {
 		t.Rows = append(t.Rows, []string{branchName(b), o.Key(b.Key, b.URL)})
 	}
 	return t.Render(o)
+}
+
+// planName marks a plan that Bamboo will not build until it is enabled.
+func planName(p provider.Plan) string {
+	if p.Disabled {
+		return p.Name + " (disabled)"
+	}
+	return p.Name
 }
 
 // branchName marks a branch that Bamboo will not build until it is enabled.

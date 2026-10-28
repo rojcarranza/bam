@@ -63,7 +63,8 @@ func (c *Client) ListPlans(ctx context.Context, project string) ([]provider.Plan
 		if name == "" {
 			name = p.Name
 		}
-		plans[i] = provider.Plan{Key: p.Key, Name: name, ProjectKey: project, URL: c.URL(p.Key)}
+		plans[i] = provider.Plan{Key: p.Key, Name: name, ProjectKey: project, URL: c.URL(p.Key),
+			Disabled: p.Enabled != nil && !*p.Enabled}
 	}
 	return plans, c.fillLastBuilds(ctx, plans)
 }
@@ -150,7 +151,8 @@ func (c *Client) GetPlan(ctx context.Context, key string) (provider.Plan, error)
 	if name == "" {
 		name = p.Name
 	}
-	return provider.Plan{Key: p.Key, Name: name, ProjectKey: p.ProjectKey, URL: c.URL(p.Key)}, nil
+	return provider.Plan{Key: p.Key, Name: name, ProjectKey: p.ProjectKey, URL: c.URL(p.Key),
+		Disabled: p.Enabled != nil && !*p.Enabled}, nil
 }
 
 func (c *Client) ListBranches(ctx context.Context, key string) ([]provider.Branch, error) {

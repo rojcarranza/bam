@@ -86,6 +86,8 @@ func TestListPlansWithLastBuild(t *testing.T) {
 	assert.Equal(t, provider.StateSuccess, plans[0].LastBuild.State)
 	assert.Equal(t, "Manual run by J Doe", plans[0].LastBuild.Reason)
 	assert.Nil(t, plans[1].LastBuild, "never built")
+	assert.False(t, plans[0].Disabled)
+	assert.True(t, plans[1].Disabled, "enabled: false in Bamboo's answer")
 
 	for _, r := range rec.all() {
 		if r.URL.Path == "/rest/api/latest/project/PROJ" {

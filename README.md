@@ -204,7 +204,7 @@ and `bam build cancel` on the command line, stop a build.
 | retry the failed parts of a run | `bam build tree --last --rerun-failed` |
 | read only the failed jobs' logs | `bam logs --last --failed` |
 | stop a build | `bam build cancel --last` |
-| open anything in Bamboo | `bam open PROJ-PLAN-123` |
+| open anything in Bamboo | `bam open PROJ-PLAN-123`, or one job: `bam open PROJ-PLAN-123 --job JOB1` |
 | run a release train of presets, stage by stage | `bam set run release` |
 | continue a train after Ctrl-C | `bam set resume` |
 | run a one-off train from its own file | `bam set run -f hotfix.yaml` |

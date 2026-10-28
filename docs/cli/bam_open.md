@@ -9,8 +9,9 @@ bam open [<key>|<preset>] [flags]
 ### Options
 
 ```
-  -h, --help   help for open
-      --last   the last build bam triggered from this repository
+  -h, --help         help for open
+      --job string   a job of the plan or build, by short key (JOB1)
+      --last         the last build bam triggered from this repository
 ```
 
 ### Options inherited from parent commands

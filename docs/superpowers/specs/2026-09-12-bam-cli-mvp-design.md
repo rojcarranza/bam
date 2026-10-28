@@ -59,8 +59,8 @@ Run loop                                              shortcut
   bam build cancel <build>
 
 Links
-  bam open <key|target|--last>
-  bam url  <key|target|--last>
+  bam open <key|target|--last> [--job JOB]
+  bam url  <key|target|--last> [--job JOB]
 
 Global flags
   --server ALIAS   --json   --color auto|always|never   --debug

@@ -22,6 +22,8 @@ import (
 // anyKeyRe matches project, plan, branch plan, build and job result keys.
 var anyKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
 
+var jobKeyRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+
 func init() { commandSets = append(commandSets, addRunLoop) }
 
 func addRunLoop(root *cobra.Command, r *runtime) {
@@ -499,53 +501,79 @@ func newCancelCmd(r *runtime) *cobra.Command {
 	return cmd
 }
 
-// urlFor builds a Bamboo browse URL without any network call.
-func (r *runtime) urlFor(args []string, last bool) (string, error) {
-	cfg, err := r.config()
+// urlFor builds a Bamboo browse URL without any network call; job, when
+// set, turns a build key into that job's result key.
+func (r *runtime) urlFor(args []string, last bool, job string) (string, error) {
+	base, key, err := r.browseKey(args, last)
 	if err != nil {
 		return "", err
+	}
+	if job != "" {
+		if !jobKeyRe.MatchString(job) {
+			return "", errs.Usagef("--job takes a short job key such as JOB1, not %q", job)
+		}
+		job = strings.ToUpper(job)
+		switch {
+		case app.IsBuildKey(key):
+			i := strings.LastIndex(key, "-")
+			key = key[:i] + "-" + job + key[i:]
+		case app.IsPlanKey(key):
+			key += "-" + job
+		default:
+			return "", errs.Usagef("--job needs a plan or build, not %s", key).WithTry("a build key such as PROJ-PLAN-12")
+		}
+	}
+	return base + "/browse/" + key, nil
+}
+
+// browseKey returns the server URL and the key that urlFor browses.
+func (r *runtime) browseKey(args []string, last bool) (string, string, error) {
+	cfg, err := r.config()
+	if err != nil {
+		return "", "", err
 	}
 	var key, targetServer string
 	switch {
 	case last:
 		rec, ok, err := (&app.StateStore{Path: r.env.Paths.State}).Last(cfg.RepoRoot)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		if !ok {
-			return "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
+			return "", "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
 		}
 		for _, s := range cfg.Servers() {
 			if o, err := credential.Origin(s.URL); err == nil && o == rec.Origin {
-				return strings.TrimRight(s.URL, "/") + "/browse/" + rec.BuildKey, nil
+				return strings.TrimRight(s.URL, "/"), rec.BuildKey, nil
 			}
 		}
-		return rec.Origin + "/browse/" + rec.BuildKey, nil
+		return rec.Origin, rec.BuildKey, nil
 	case len(args) == 0:
-		return "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a preset, or --last")
+		return "", "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a preset, or --last")
 	case config.ValidTargetName(args[0]):
 		t, ok, err := cfg.Target(args[0])
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		if !ok {
-			return "", app.UnknownTarget(cfg, args[0])
+			return "", "", app.UnknownTarget(cfg, args[0])
 		}
 		key, targetServer = t.Plan, t.Server
 	case anyKeyRe.MatchString(args[0]):
 		key = args[0]
 	default:
-		return "", errs.Usagef("%q is not a Bamboo key or a preset", args[0])
+		return "", "", errs.Usagef("%q is not a Bamboo key or a preset", args[0])
 	}
 	server, err := cfg.SelectServer(r.flags.server, targetServer)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return strings.TrimRight(server.URL, "/") + "/browse/" + key, nil
+	return strings.TrimRight(server.URL, "/"), key, nil
 }
 
 func newOpenCmd(r *runtime) *cobra.Command {
 	var last bool
+	var job string
 	cmd := &cobra.Command{
 		Use:               "open [<key>|<preset>]",
 		SuggestFor:        []string{"web", "browse"},
@@ -553,7 +581,7 @@ func newOpenCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			url, err := r.urlFor(args, last)
+			url, err := r.urlFor(args, last, job)
 			if err != nil {
 				return err
 			}
@@ -567,18 +595,20 @@ func newOpenCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
 }
 
 func newURLCmd(r *runtime) *cobra.Command {
 	var last bool
+	var job string
 	cmd := &cobra.Command{
 		Use:               "url [<key>|<preset>]",
 		Short:             "Print the Bamboo URL of a project, plan, build or job",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			url, err := r.urlFor(args, last)
+			url, err := r.urlFor(args, last, job)
 			if err != nil {
 				return err
 			}
@@ -590,6 +620,7 @@ func newURLCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
 }
 

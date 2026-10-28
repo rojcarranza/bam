@@ -155,7 +155,7 @@ func (r *runtime) completeBranch(cmd *cobra.Command, args []string, _ string) ([
 	} else if len(args) > 0 {
 		arg = args[0]
 	}
-	svc, _, err := r.connectFor(cmd.Context(), arg)
+	svc, arg, err := r.resolvePlanArg(cmd.Context(), arg)
 	if err != nil {
 		return nil, none
 	}
@@ -210,10 +210,14 @@ func (r *runtime) recentBuilds(cmd *cobra.Command, args []string) []provider.Bui
 	} else if len(args) > 0 {
 		arg = args[0]
 	}
-	if !config.ValidTargetName(arg) && !app.IsPlanKey(arg) {
+	key := arg
+	if k, ok := pageKey(arg); ok {
+		key = k
+	}
+	if !config.ValidTargetName(key) && !app.IsPlanKey(key) {
 		return nil
 	}
-	svc, _, err := r.connectFor(cmd.Context(), arg)
+	svc, arg, err := r.resolvePlanArg(cmd.Context(), arg)
 	if err != nil {
 		return nil
 	}

@@ -366,7 +366,7 @@ func TestInvestigate(t *testing.T) {
 	assert.Contains(t, out, "Apply / Terraform (TF)  first error at line 2")
 	assert.Contains(t, out, "       1  terraform apply\n  >     2  Error: quota exceeded\n")
 	assert.Contains(t, out, "Likely cause: Error: quota exceeded (job TF)")
-	assert.Contains(t, out, "try: bam build logs PROJ-PROV12-8 --job TF")
+	assert.Contains(t, out, "try: bam logs PROJ-PROV12-8 --job TF")
 
 	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-482"))
 	assert.Empty(t, h.stdout.String())

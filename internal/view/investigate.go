@@ -69,7 +69,7 @@ func Investigation(o Out, inv app.Investigation) error {
 		sb.WriteString(changesLine(*c))
 	}
 	for _, j := range inv.Jobs {
-		fmt.Fprintf(&sb, "try: bam build logs %s --job %s\n", b.Key, j.Short)
+		fmt.Fprintf(&sb, "try: bam logs %s --job %s\n", b.Key, j.Short)
 	}
 	parent := b.Parent
 	if parent == "" {

@@ -29,8 +29,8 @@ func TestInvestigationNoMatchAndRepeats(t *testing.T) {
 		"         (seen 2 times)\n"+
 		"\nFailed tests: none reported\n"+
 		"Likely cause: panic: boom (job UNIT)\n"+
-		"try: bam build logs PROJ-PLAN-44 --job LINT\n"+
-		"try: bam build logs PROJ-PLAN-44 --job UNIT\n"+
+		"try: bam logs PROJ-PLAN-44 --job LINT\n"+
+		"try: bam logs PROJ-PLAN-44 --job UNIT\n"+
 		"try: bam build rerun PROJ-PLAN-44\n"+
 		"try: bam open PROJ-PLAN-44\n", buf.String())
 }

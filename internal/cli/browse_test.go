@@ -166,3 +166,11 @@ func TestProjectFlagCompletesProjectKeys(t *testing.T) {
 	assert.NotContains(t, h.stdout.String(), "PROJ\n", "keys already given are not offered again")
 	assert.Contains(t, h.stdout.String(), "OPS\n")
 }
+
+func TestBuildListCompletesStates(t *testing.T) {
+	h := newHarness(t)
+	h.run("__complete", "build", "list", "PROJ-API", "--state", "")
+	assert.Contains(t, h.stdout.String(), "failed\n")
+	assert.Contains(t, h.stdout.String(), "success\n")
+	assert.Contains(t, h.stdout.String(), ":4\n", "no file completion")
+}

@@ -350,6 +350,14 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 	}
 }
 
+func stateNames() []string {
+	names := []string{}
+	for _, st := range provider.AllStates() {
+		names = append(names, string(st))
+	}
+	return names
+}
+
 func parseState(s string) (provider.State, error) {
 	if s == "" {
 		return "", nil
@@ -359,10 +367,7 @@ func parseState(s string) (provider.State, error) {
 			return st, nil
 		}
 	}
-	names := make([]string, 0, 8)
-	for _, st := range provider.AllStates() {
-		names = append(names, string(st))
-	}
+	names := stateNames()
 	e := errs.Usagef("--state must be one of %s, not %q", strings.Join(names, ", "), s)
 	if c := app.Closest(s, names, 1); len(c) > 0 {
 		e = e.WithTry("did you mean --state " + c[0] + "?")
@@ -473,6 +478,9 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch")
 	cmd.Flags().IntVar(&limit, "limit", 10, "number of builds")
 	cmd.Flags().StringVar(&state, "state", "", "only builds in this state, e.g. failed")
+	_ = cmd.RegisterFlagCompletionFunc("state", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return stateNames(), cobra.ShellCompDirectiveNoFileComp
+	})
 	return cmd
 }
 

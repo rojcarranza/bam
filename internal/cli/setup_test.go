@@ -187,6 +187,15 @@ func TestLogoutUnknownServer(t *testing.T) {
 	assert.Equal(t, "error: no server alias \"x\"\n  no servers are configured, so there is nothing to log out of\n", h.stderr.String())
 }
 
+func TestLoginUnknownServerSuggestsAClose(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 3, h.run("login", "wrk", "--with-token"))
+	assert.Equal(t, "error: no server alias \"wrk\"\n  servers: work\n  try: did you mean bam login work?\n", h.stderr.String())
+
+	assert.Equal(t, 3, h.run("login", "x", "--with-token"))
+	assert.Equal(t, "error: no server alias \"x\"\n  servers: work\n  try: bam server add x --url URL\n", h.stderr.String())
+}
+
 func TestServerRmWithNoServers(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))

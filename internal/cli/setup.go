@@ -340,7 +340,11 @@ func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
 	alias = cfg.Alias(alias)
 	s, ok := cfg.Servers()[alias]
 	if !ok || s.URL == "" {
-		return cfg.UnknownServer(alias)
+		e := cfg.UnknownServer(alias)
+		if near := app.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 && near[0] != alias {
+			e.Try = "did you mean bam login " + near[0] + "?"
+		}
+		return e
 	}
 	origin, err := credential.Origin(s.URL)
 	if err != nil {

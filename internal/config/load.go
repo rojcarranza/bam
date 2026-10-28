@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -205,6 +206,12 @@ func decodeStrict(data []byte, path string, out any) error {
 		e := errs.Configf("invalid %s", path).WithWhy(plainShapes(err.Error())).Wrap(err)
 		if mv := (*multiValueError)(nil); errors.As(err, &mv) {
 			e = e.WithTry(fmt.Sprintf("in a preset, list allowed values under options: {%s: [a, b]} and must-set names under required: [%s]", mv.name, mv.name))
+		} else if p := yamlUnknownField.FindStringSubmatch(err.Error()); p != nil {
+			if t, ok := fieldPlaces[p[3]]; ok {
+				if near := errs.Closest(p[2], yamlFields(t.typ), 1); len(near) == 1 {
+					e = e.WithTry(fmt.Sprintf("did you mean %s?", near[0]))
+				}
+			}
 		}
 		return e
 	}
@@ -217,24 +224,41 @@ var yamlTypeError = regexp.MustCompile("line (\\d+): cannot unmarshal !!(\\w+)( 
 // yamlUnknownField matches yaml.v3's "line N: field X not found in type T".
 var yamlUnknownField = regexp.MustCompile(`line (\d+): field (\S+) not found in type (\S+)`)
 
+// fieldPlaces names, in plain words, the Go types yaml.v3 puts in its
+// unknown-field errors, and keeps each type to suggest its real fields.
+var fieldPlaces = map[string]struct {
+	where string
+	typ   reflect.Type
+}{
+	"config.MachineFile": {"the machine config", reflect.TypeFor[MachineFile]()},
+	"config.ProjectFile": {"the project config", reflect.TypeFor[ProjectFile]()},
+	"config.PresetsFile": {"the presets file", reflect.TypeFor[PresetsFile]()},
+	"config.Target":      {"a preset", reflect.TypeFor[Target]()},
+	"config.Server":      {"a server", reflect.TypeFor[Server]()},
+	"config.Repo":        {"a repository entry", reflect.TypeFor[Repo]()},
+}
+
+// yamlFields lists the yaml field names of a struct type.
+func yamlFields(t reflect.Type) []string {
+	var out []string
+	for f := range t.Fields() {
+		if name, _, _ := strings.Cut(f.Tag.Get("yaml"), ","); name != "" && name != "-" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // plainShapes rewrites yaml type and unknown-field errors, which name Go
 // types, into plain words; lines it does not recognise stay as they are.
 func plainShapes(msg string) string {
-	places := map[string]string{
-		"config.MachineFile": "the machine config",
-		"config.ProjectFile": "the project config",
-		"config.PresetsFile": "the presets file",
-		"config.Target":      "a preset",
-		"config.Server":      "a server",
-		"config.Repo":        "a repository entry",
-	}
 	msg = yamlUnknownField.ReplaceAllStringFunc(msg, func(m string) string {
 		p := yamlUnknownField.FindStringSubmatch(m)
-		where, ok := places[p[3]]
+		place, ok := fieldPlaces[p[3]]
 		if !ok {
 			return m
 		}
-		return fmt.Sprintf("line %s: unknown field %q in %s", p[1], p[2], where)
+		return fmt.Sprintf("line %s: unknown field %q in %s", p[1], p[2], place.where)
 	})
 	found := map[string]string{"seq": "a list", "map": "a mapping"}
 	expected := map[string]string{

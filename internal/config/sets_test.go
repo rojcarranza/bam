@@ -204,6 +204,21 @@ func TestWrongShapeNamesTheExpectedShape(t *testing.T) {
 	}
 }
 
+func TestUnknownFieldSuggestsTheClosest(t *testing.T) {
+	for yml, want := range map[string]string{
+		"version: 1\ntargets: {d: {plan: X, defauts: {a: b}}}\n": "did you mean defaults?",
+		"version: 1\nservrs: {}\n":                               "did you mean servers?",
+		"version: 1\nservers: {w: {ur: http://x}}\n":             "did you mean url?",
+	} {
+		_, err := loadYAML(t, yml, "")
+		require.Error(t, err)
+		require.Contains(t, errWhyTry(err), want, yml)
+	}
+	_, err := loadYAML(t, "version: 1\nzzzzzz: 1\n", "")
+	require.Error(t, err)
+	require.NotContains(t, errWhyTry(err), "did you mean", "no hint when nothing is close")
+}
+
 func TestVariableWithSeveralValuesPointsAtOptions(t *testing.T) {
 	for yml, want := range map[string]string{
 		"version: 1\ntargets:\n  d:\n    plan: PROJ-D\n    variables:\n      env:\n        required: true\n": `line 7: variable "env" takes a single value, like env: VALUE; found a mapping`,

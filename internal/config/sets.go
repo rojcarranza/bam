@@ -97,7 +97,11 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 				if len(targets) == 0 {
 					return e.WithTry("bam preset add " + r.Target + " --plan PROJ-PLAN creates it")
 				}
-				return e.WithTry("presets here: " + strings.Join(sortedKeys(targets), ", "))
+				names := sortedKeys(targets)
+				if near := errs.Closest(r.Target, names, 1); len(near) > 0 {
+					return e.WithTry("did you mean " + near[0] + "?")
+				}
+				return e.WithTry("presets here: " + strings.Join(names, ", "))
 			}
 			for _, x := range r.Expand() {
 				if seen[x.Name] {

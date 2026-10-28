@@ -84,6 +84,7 @@ func TestSetConfigErrors(t *testing.T) {
 		"targets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B, server: work}\n  c: {plan: PROJ-C, server: lab}\n"
 	for name, tc := range map[string]struct{ sets, want string }{
 		"unknown preset":   {"sets: {rel: {stages: [[nope]]}}", `presets here: a, b, c`},
+		"close preset":     {"sets: {rel: {stages: [[a, bb]]}}", "did you mean b?"},
 		"no stages":        {"sets: {rel: {stages: []}}", "has no stages"},
 		"empty stage":      {"sets: {rel: {stages: [[a], []]}}", "stage 2 has no runs"},
 		"duplicate":        {"sets: {rel: {stages: [[a, a]]}}", `run "a" twice in stage 1`},

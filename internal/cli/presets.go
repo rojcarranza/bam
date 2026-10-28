@@ -226,6 +226,10 @@ func newPresetRmCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if !ok {
+				if all, _ := cfg.Targets(); len(all) == 0 && len(cfg.OtherRepoTargets()) == 0 {
+					// UnknownTarget's hint would be to create the preset, which is wrong for rm.
+					return errs.Usagef("unknown preset %q", args[0]).WithWhy("no presets are configured, so there is nothing to remove")
+				}
 				return app.UnknownTarget(cfg, args[0])
 			}
 			// A set naming the preset would fail every set command once it is gone.

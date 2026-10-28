@@ -146,6 +146,13 @@ func TestPresetRm(t *testing.T) {
 	assert.Equal(t, 0, s.run("preset", "show", "provision-lab"))
 }
 
+func TestPresetRmWithNoPresets(t *testing.T) {
+	h := newHarness(t)
+	h.env.WorkDir = t.TempDir()
+	assert.Equal(t, 2, h.run("preset", "rm", "x"))
+	assert.Equal(t, "error: unknown preset \"x\"\n  no presets are configured, so there is nothing to remove\n", h.stderr.String())
+}
+
 func TestPresetAddMachineFlagIsGone(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD", "--machine"))

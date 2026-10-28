@@ -673,8 +673,9 @@ func newURLCmd(r *runtime) *cobra.Command {
 	return cmd
 }
 
-// completeVar completes --var names from the target and values from its options.
-func (r *runtime) completeVar(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// completeVar completes --var names from the target and values from its
+// options, or, for a plan key, the names of the plan's Bamboo variables.
+func (r *runtime) completeVar(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	none := cobra.ShellCompDirectiveNoFileComp
 	if len(args) == 0 {
 		return nil, none
@@ -684,10 +685,23 @@ func (r *runtime) completeVar(_ *cobra.Command, args []string, toComplete string
 		return nil, none
 	}
 	t, ok, err := cfg.Target(args[0])
-	if err != nil || !ok {
+	if err == nil && ok {
+		return targetVars(toComplete, t)
+	}
+	if !app.IsPlanKey(args[0]) || strings.Contains(toComplete, "=") {
 		return nil, none
 	}
-	return targetVars(toComplete, t)
+	svc, key, err := r.resolvePlanArg(cmd.Context(), args[0])
+	if err != nil {
+		return nil, none
+	}
+	vars, _ := svc.P.ListVariables(cmd.Context(), key)
+	var out []string
+	for _, v := range vars {
+		out = append(out, v.Name+"=")
+	}
+	sort.Strings(out)
+	return out, none | cobra.ShellCompDirectiveNoSpace
 }
 
 // targetVars offers name= for every variable the presets declare, or the

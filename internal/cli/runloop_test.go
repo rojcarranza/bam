@@ -236,6 +236,14 @@ func TestVarCompletionUsesTargetOptions(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "provision-lab\n")
 }
 
+func TestVarCompletionOffersAPlanKeysVariables(t *testing.T) {
+	h := newHarness(t)
+	h.run("__complete", "run", "PROJ-PROV", "--var", "")
+	assert.Equal(t, "cluster_name=\ncluster_type=\n:6\n", h.stdout.String())
+	h.run("__complete", "run", "PROJ-PROV", "--var", "cluster_type=")
+	assert.Equal(t, ":4\n", h.stdout.String())
+}
+
 func TestHelpListsShortcuts(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("--help"))

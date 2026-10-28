@@ -458,9 +458,10 @@ func newInitCmd(r *runtime) *cobra.Command {
 	var projects, plans []string
 	var force bool
 	cmd := &cobra.Command{
-		Use:   "init --server ALIAS --project KEY [--plan KEY[=name]]...",
-		Short: "Write .bam.yaml for this repository, with generated presets",
-		Args:  cobra.NoArgs,
+		Use:        "init --server ALIAS --project KEY [--plan KEY[=name]]...",
+		Short:      "Write .bam.yaml for this repository, with generated presets",
+		SuggestFor: []string{"setup", "config", "configure"},
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			alias := r.flags.server
 			if alias == "" {

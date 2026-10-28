@@ -119,6 +119,11 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"web":             "try: did you mean bam open? bam --help shows them all",
 		"browse":          "try: did you mean bam open? bam --help shows them all",
 		"rnu":             "try: did you mean bam run? bam --help shows them all",
+		"setup":           "try: did you mean bam init? bam --help shows them all",
+		"config":          "try: did you mean bam init? bam --help shows them all",
+		"check":           "try: did you mean bam doctor? bam --help shows them all",
+		"ping":            "try: did you mean bam doctor? bam --help shows them all",
+		"ver":             "try: did you mean bam version? bam --help shows them all",
 		"completion zhs":  "error: unknown command \"zhs\" for \"bam completion\"\n  try: did you mean bam completion zsh? bam completion --help shows them all\n",
 	} {
 		h := newHarness(t)

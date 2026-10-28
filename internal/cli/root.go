@@ -334,9 +334,10 @@ func DocsRoot() *cobra.Command {
 
 func newVersionCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
-		Short: "Print the bam version",
-		Args:  cobra.NoArgs,
+		Use:        "version",
+		Short:      "Print the bam version",
+		SuggestFor: []string{"ver"},
+		Args:       cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v := resolveVersion(version, debug.ReadBuildInfo)
 			if r.flags.json {

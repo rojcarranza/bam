@@ -227,6 +227,11 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			alias := cfg.Alias(args[0])
+			if alias == config.EnvServerAlias {
+				return errs.Usagef("server %q is defined by BAM_URL", alias).
+					WithWhy("it is not in any config file, so there is nothing to remove").
+					WithTry("unset BAM_URL BAM_TOKEN")
+			}
 			if _, inMachine := cfg.Machine.Servers[alias]; !inMachine {
 				if cfg.Project != nil {
 					if _, inProject := cfg.Project.Servers[alias]; inProject {
@@ -284,6 +289,11 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 				return nil
 			}
 			alias := cfg.Alias(args[0])
+			if alias == config.EnvServerAlias {
+				return errs.Usagef("server %q is defined by BAM_URL", alias).
+					WithWhy("the machine default must be a server in the machine config").
+					WithTry("bam server add <alias> --url URL, then bam server default <alias>")
+			}
 			// A machine default naming a repo's alias would break every other repo.
 			if _, ok := cfg.Machine.Servers[alias]; !ok {
 				if len(cfg.Servers()) == 0 {

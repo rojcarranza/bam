@@ -273,3 +273,11 @@ func TestServerRmAndDefaultSuggestAClose(t *testing.T) {
 	assert.Equal(t, 2, h.run("server", "default", "zzzzzz"))
 	assert.Equal(t, "error: no server alias \"zzzzzz\" in "+machine+"\n  try: bam server list\n", h.stderr.String())
 }
+
+func TestServerRmAndDefaultExplainTheBAMURLServer(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("server", "rm", "env"))
+	assert.Equal(t, "error: server \"env\" is defined by BAM_URL\n  it is not in any config file, so there is nothing to remove\n  try: unset BAM_URL BAM_TOKEN\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("server", "default", "env"))
+	assert.Equal(t, "error: server \"env\" is defined by BAM_URL\n  the machine default must be a server in the machine config\n  try: bam server add <alias> --url URL, then bam server default <alias>\n", h.stderr.String())
+}

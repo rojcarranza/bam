@@ -86,11 +86,17 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 		return PlanRef{}, errs.Usagef("%q is a build key, not a plan key", arg).
 			WithTry("its plan, " + arg[:strings.LastIndex(arg, "-")])
 	case projectRe.MatchString(arg):
-		return PlanRef{}, errs.Usagef("%q is a project key, not a plan key", arg).
-			WithTry("bam plan list " + arg + " to see its plans")
+		try := "bam plan list " + arg + " to see its plans"
+		if p := s.lowerPreset(arg); p != "" {
+			try += ", or the preset " + p
+		}
+		return PlanRef{}, errs.Usagef("%q is a project key, not a plan key", arg).WithTry(try)
 	default:
-		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).
-			WithTry("bam preset list, or a plan key such as PROJ-PLAN")
+		try := "bam preset list, or a plan key such as PROJ-PLAN"
+		if p := s.lowerPreset(arg); p != "" {
+			try = "preset names are lowercase: did you mean " + p + "?"
+		}
+		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).WithTry(try)
 	}
 	if branch != "" {
 		key, err := s.ResolveBranch(ctx, ref.MasterKey, branch)
@@ -100,6 +106,19 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 		ref.PlanKey, ref.Branch = key, branch
 	}
 	return ref, nil
+}
+
+// lowerPreset returns arg in lowercase when that names a preset, for a
+// preset typed in the wrong case; otherwise "".
+func (s *Service) lowerPreset(arg string) string {
+	low := strings.ToLower(arg)
+	if low == arg || !config.ValidTargetName(low) {
+		return ""
+	}
+	if _, ok, _ := s.Cfg.Target(low); ok {
+		return low
+	}
+	return ""
 }
 
 // UnknownTarget is the usage error for a preset name that does not apply
@@ -196,8 +215,11 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 	case a.Arg == "":
 		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
 	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg) && !projectRe.MatchString(a.Arg):
-		return "", errs.Usagef("%q is not a build key, a plan key or a preset", a.Arg).
-			WithTry("a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list")
+		try := "a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list"
+		if p := s.lowerPreset(a.Arg); p != "" {
+			try = "preset names are lowercase: did you mean " + p + "?"
+		}
+		return "", errs.Usagef("%q is not a build key, a plan key or a preset", a.Arg).WithTry(try)
 	}
 	ref, err := s.ResolvePlan(ctx, a.Arg, a.Branch)
 	if err != nil {

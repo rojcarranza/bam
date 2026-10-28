@@ -48,6 +48,23 @@ func TestResolvePlanFromKey(t *testing.T) {
 	assert.Equal(t, PlanRef{PlanKey: "PROJ-BUILD", MasterKey: "PROJ-BUILD"}, ref)
 }
 
+func TestPresetTypedInWrongCaseGetsHint(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	_, err := s.ResolvePlan(bg, "Provision-Lab", "")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, `"Provision-Lab" is neither a preset nor a plan key`, e.What)
+	assert.Equal(t, "preset names are lowercase: did you mean provision-lab?", e.Try)
+
+	_, err = s.ResolveBuild(bg, BuildArg{Arg: "Provision-Lab"})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "preset names are lowercase: did you mean provision-lab?", e.Try)
+
+	_, err = s.ResolvePlan(bg, "Nope", "")
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "bam preset list, or a plan key such as PROJ-PLAN", e.Try)
+}
+
 func TestResolvePlanErrors(t *testing.T) {
 	s := newService(t, fakeBamboo())
 

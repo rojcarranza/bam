@@ -365,3 +365,26 @@ func TestSetResumeAndRerunVarCompleteTheRecordedPresetVariables(t *testing.T) {
 		require.Equal(t, ":4\n", h.stdout.String(), cmd)
 	}
 }
+
+func TestSetHistoryListsThisRepositorysRuns(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	require.Equal(t, 0, h.run("set", "history"))
+	require.Contains(t, h.stderr.String(), "no set runs in this repository")
+	require.Equal(t, 2, h.run("set", "history", "relase"))
+	require.Contains(t, h.stderr.String(), "did you mean release?")
+
+	id := failedSetRecord(t, h)
+	other := app.SetRecord{Version: 1, ID: app.NewSetID("release", fixedNow.Add(-time.Hour)), Set: "release", Origin: workOrigin,
+		Repo: "/elsewhere", StartedAt: fixedNow.Add(-time.Hour), Status: app.SetSuccessful}
+	require.NoError(t, (&app.SetStore{Dir: h.env.Paths.Sets}).Save(other))
+	require.Equal(t, 0, h.run("set", "history", "release"))
+	require.Regexp(t, id+`\s+failed\s+\S+\s+–\s+1/2 ✓`, h.stdout.String())
+	require.NotContains(t, h.stdout.String(), other.ID, "another repository's run")
+
+	require.Equal(t, 0, h.run("set", "history", "--json"))
+	var docs []map[string]any
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &docs))
+	require.Len(t, docs, 1)
+	require.Equal(t, id, docs[0]["id"])
+	require.Equal(t, "failed", docs[0]["status"])
+}

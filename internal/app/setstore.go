@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -129,15 +130,24 @@ func (s *SetStore) all() ([]SetRecord, error) {
 	return out, nil
 }
 
+// History is every record of repo, of set when set is not empty, newest first.
+func (s *SetStore) History(repo, set string) ([]SetRecord, error) {
+	all, err := s.all()
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(all, func(r SetRecord) bool { return r.Repo != repo || (set != "" && r.Set != set) }), nil
+}
+
 // Latest is the newest record of repo, of set when set is not empty, that
 // match accepts (nil accepts every record).
 func (s *SetStore) Latest(repo, set string, match func(SetRecord) bool) (SetRecord, bool, error) {
-	all, err := s.all()
+	recs, err := s.History(repo, set)
 	if err != nil {
 		return SetRecord{}, false, err
 	}
-	for _, r := range all {
-		if r.Repo == repo && (set == "" || r.Set == set) && (match == nil || match(r)) {
+	for _, r := range recs {
+		if match == nil || match(r) {
 			return r, true, nil
 		}
 	}

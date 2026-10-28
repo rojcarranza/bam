@@ -80,7 +80,7 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"build stop":      "try: did you mean bam build cancel? bam build --help shows them all",
 		"server remove":   "try: did you mean bam server rm? bam server --help shows them all",
 		"cancel":          "try: did you mean bam build cancel? bam --help shows them all",
-		"history":         "try: did you mean bam build list? bam --help shows them all",
+		"history":         "try: did you mean bam build list or bam set history? bam --help shows them all",
 		"target":          "try: did you mean bam preset? bam --help shows them all",
 		"build view":      "try: did you mean bam build show? bam build --help shows them all",
 		"set describe":    "try: did you mean bam set show? bam set --help shows them all",

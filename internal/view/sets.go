@@ -123,6 +123,30 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) e
 	return nil
 }
 
+// SetHistory is bam set history: one row per recorded set run, newest first.
+// It shows the states bam recorded, so it needs no server.
+func SetHistory(o Out, recs []app.SetRecord) error {
+	t := Table{Headers: []string{"RUN", "STATUS", "STARTED", "DURATION", "BUILDS"}}
+	for _, rec := range recs {
+		dur := ""
+		if rec.FinishedAt != nil {
+			dur = Duration(rec.FinishedAt.Sub(rec.StartedAt))
+		}
+		ok, all := 0, 0
+		for _, st := range rec.Stages {
+			for _, r := range st.Runs {
+				all++
+				if r.State == provider.StateSuccess {
+					ok++
+				}
+			}
+		}
+		t.Rows = append(t.Rows, []string{rec.ID, string(rec.Status), o.Time(rec.StartedAt), dashIfEmpty(dur),
+			fmt.Sprintf("%d/%d %s", ok, all, style.StateGlyph(o.Style, provider.StateSuccess))})
+	}
+	return t.Render(o)
+}
+
 // runGlyph is a run's glyph; a run with no state yet is pending.
 func runGlyph(o Out, s provider.State) string {
 	if s == "" {

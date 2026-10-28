@@ -130,4 +130,6 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 `set status --json` prints the record: `id`, `set`, `origin`, `repo`, `status` (`running`, `successful`, `failed`, `interrupted`, `timed_out`), `started_at`, `finished_at`, `var_names`, `file` (the train file, for a set run from one), and `stages[].runs[]` with `target`, `name`, `plan_key`, `build_key`, `state`, `reruns` and `error`. Where the build could be fetched, `state` is its live state and `build` is the build object.
 
+`set history --json` prints an array of these records for this repository, newest first, with the recorded states and no `build` objects.
+
 `set list --json` and `set show --json` print each set's `name`, `timeout_ms`, `defined_in` and `stages[][]` of `{target, vars, matrix, runs}` (`matrix` only on a run that has one, as configured; `runs` the run names it expands to); secret values are masked and `${ENV}` references are shown as written. `set run --dry-run --json` prints `name`, `origin`, `warnings` and `stages[][]` of `{target, name, plan_key, branch, variables}`, with the changed variables only, masked.

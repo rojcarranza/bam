@@ -21,7 +21,7 @@ func init() { commandSets = append(commandSets, addSets) }
 
 func addSets(root *cobra.Command, r *runtime) {
 	set := subgroup(root, "set", "Release trains: presets run in ordered stages", groupRun)
-	set.AddCommand(newSetListCmd(r), newSetShowCmd(r), newSetRunCmd(r), newSetStatusCmd(r), newSetResumeCmd(r), newSetRerunCmd(r))
+	set.AddCommand(newSetListCmd(r), newSetShowCmd(r), newSetRunCmd(r), newSetStatusCmd(r), newSetHistoryCmd(r), newSetResumeCmd(r), newSetRerunCmd(r))
 	set.Args = cobra.ArbitraryArgs
 	set.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
@@ -220,6 +220,58 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			return view.SetStatusView(o, rec, builds)
+		}),
+	}
+}
+
+func newSetHistoryCmd(r *runtime) *cobra.Command {
+	return &cobra.Command{
+		Use:   "history [set]",
+		Short: "List past set runs of this repository, newest first",
+		Long: "List past set runs of this repository, newest first, with the states bam recorded.\n" +
+			"bam keeps the last 20 runs of each set. Use bam set status <id> for a run's live build states.",
+		Example:           "  bam set history\n  bam set history release",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: r.completeSets(true),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			cfg, err := r.config()
+			if err != nil {
+				return err
+			}
+			set := ""
+			if len(args) == 1 {
+				set = args[0]
+			}
+			recs, err := r.setStore().History(cfg.RepoRoot, set)
+			if err != nil {
+				return err
+			}
+			// A name no layer defines and no run recorded is a typo.
+			if len(recs) == 0 && set != "" {
+				if _, known, err := cfg.Set(set); err == nil && !known {
+					return app.UnknownSet(cfg, set)
+				}
+			}
+			if r.flags.json {
+				docs := []view.SetRecordDoc{}
+				for _, rec := range recs {
+					docs = append(docs, view.SetRecordJSON(rec, nil))
+				}
+				return view.WriteJSON(r.env.Stdout, docs)
+			}
+			if len(recs) == 0 {
+				what := "no set runs in this repository"
+				if set != "" {
+					what += fmt.Sprintf(" for %q", set)
+				}
+				r.note(what, "bam set run <set>")
+				return nil
+			}
+			o, err := r.out()
+			if err != nil {
+				return err
+			}
+			return view.SetHistory(o, recs)
 		}),
 	}
 }

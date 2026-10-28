@@ -209,6 +209,7 @@ and `bam build cancel` on the command line, stop a build.
 | continue a train after Ctrl-C | `bam set resume` |
 | run a one-off train from its own file | `bam set run -f hotfix.yaml` |
 | retry a failed train's failed runs, then finish it | `bam set rerun --failed` |
+| list a train's past runs | `bam set history release` |
 
 `--revision` takes a full or short SHA and passes it to Bamboo as given; Bamboo applies it to the plan's default repository. A revision Bamboo cannot build ends as "not built", so add `--watch` to see it. If the server ignores the revision, bam stops the build it queued and exits 5. `--revision from` reuses the commit of the `--from` build, together with its variables.
 

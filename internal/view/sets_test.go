@@ -195,3 +195,21 @@ func TestSetRecordAndEventJSONCarryNames(t *testing.T) {
 	ev, _ := json.Marshal(SetEventJSON(app.SetEvent{Type: app.SetRunDone, Time: setAt, Target: "deploy", Run: "deploy[env=qa]"}))
 	require.Contains(t, string(ev), `"run":"deploy[env=qa]"`)
 }
+
+func TestSetHistoryShowsEachRecordedRun(t *testing.T) {
+	start := time.Date(2026, 9, 29, 10, 15, 0, 0, time.UTC)
+	end := start.Add(12*time.Minute + 3*time.Second)
+	recs := []app.SetRecord{
+		{ID: "release-20260929T101500Z", Set: "release", Status: app.SetFailed, StartedAt: start, FinishedAt: &end,
+			Stages: []app.StageRecord{
+				{Runs: []app.RunRecord{{Target: "publish-specs", State: provider.StateSuccess}}},
+				{Runs: []app.RunRecord{{Target: "provision", State: provider.StateFailed}, {Target: "deploy"}}},
+			}},
+		{ID: "release-20260928T090000Z", Set: "release", Status: app.SetRunning, StartedAt: start.Add(-25 * time.Hour)},
+	}
+	o, buf := testOut(false)
+	require.NoError(t, SetHistory(o, recs))
+	require.Equal(t, "RUN                       STATUS   STARTED               DURATION  BUILDS\n"+
+		"release-20260929T101500Z  failed   2026-09-29T10:15:00Z  12m03s    1/3 ✓\n"+
+		"release-20260928T090000Z  running  2026-09-28T09:15:00Z  –         0/0 ✓\n", buf.String())
+}

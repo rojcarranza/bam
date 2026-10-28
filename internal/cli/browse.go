@@ -501,7 +501,8 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			// Checked before any config or network.
 			if last < 1 || last > 100 {
-				return errs.Usagef("--last takes 1 to 100, not %d", last)
+				return errs.Usagef("--last takes 1 to 100, not %d", last).
+					WithTry(fmt.Sprintf("bam plan stats %s -n %d", args[0], min(max(last, 1), 100)))
 			}
 			ctx := cmd.Context()
 			svc, _, err := r.connectFor(ctx, args[0])

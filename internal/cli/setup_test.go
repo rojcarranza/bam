@@ -242,3 +242,19 @@ func TestServerCompletion(t *testing.T) {
 	h.run("__complete", "login", "home", "")
 	assert.NotContains(t, h.stdout.String(), "work", "one alias only")
 }
+
+func TestServerRmAndDefaultSuggestAClose(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("server", "add", "lab", "--url", "https://bamboo.lab.example"))
+	machine := h.env.Paths.MachineConfig
+
+	assert.Equal(t, 2, h.run("server", "rm", "lb"))
+	assert.Equal(t, "error: no server alias \"lb\" in "+machine+"\n  try: did you mean bam server rm lab?\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("server", "default", "lb"))
+	assert.Equal(t, "error: no server alias \"lb\" in "+machine+"\n  try: did you mean bam server default lab?\n", h.stderr.String())
+
+	assert.Equal(t, 2, h.run("server", "rm", "zzzzzz"))
+	assert.Equal(t, "error: no server alias \"zzzzzz\" in "+machine+"\n  try: bam server list\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("server", "default", "zzzzzz"))
+	assert.Equal(t, "error: no server alias \"zzzzzz\" in "+machine+"\n  try: bam server list\n", h.stderr.String())
+}

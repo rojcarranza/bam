@@ -235,6 +235,9 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 					// RemoveMachineServer's hint, bam server list, would only say there are none.
 					return errs.Usagef("unknown server %q", alias).WithWhy("no servers are configured, so there is nothing to remove")
 				}
+				if near := nearMachineServer(cfg, alias); near != "" {
+					return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry("did you mean bam server rm " + near + "?")
+				}
 			}
 			if err := config.RemoveMachineServer(r.env.Paths.MachineConfig, alias); err != nil {
 				return err
@@ -289,7 +292,11 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 							WithTry("set default_server: " + alias + " in " + cfg.ProjectPath)
 					}
 				}
-				return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry("bam server list")
+				try := "bam server list"
+				if near := nearMachineServer(cfg, alias); near != "" {
+					try = "did you mean bam server default " + near + "?"
+				}
+				return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry(try)
 			}
 			if err := config.SetMachineDefaultServer(r.env.Paths.MachineConfig, alias); err != nil {
 				return err
@@ -330,6 +337,14 @@ func (r *runtime) alias(args []string) string {
 		return r.flags.server
 	}
 	return args[0]
+}
+
+// nearMachineServer is the machine server alias closest to a mistyped one, or "".
+func nearMachineServer(cfg *config.Config, alias string) string {
+	if near := app.Closest(alias, slices.Sorted(maps.Keys(cfg.Machine.Servers)), 1); len(near) > 0 {
+		return near[0]
+	}
+	return ""
 }
 
 func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {

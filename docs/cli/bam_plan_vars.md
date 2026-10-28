@@ -2,8 +2,20 @@
 
 List a plan's variables with the values a recent build used
 
+### Synopsis
+
+List a plan's variables with the values a recent build used. With text, list
+only the variables whose name contains it, ignoring case.
+
 ```
-bam plan vars <plan> [flags]
+bam plan vars <plan> [text] [flags]
+```
+
+### Examples
+
+```
+  bam plan vars PROJ-BUILD
+  bam plan vars PROJ-BUILD cluster
 ```
 
 ### Options

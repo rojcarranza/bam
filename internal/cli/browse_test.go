@@ -110,6 +110,18 @@ func TestPlanVarsShowsLastUsed(t *testing.T) {
 	assert.Regexp(t, `cluster_name\s+–\s+beta`, h.stdout.String())
 }
 
+func TestPlanVarsFiltersByName(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("plan", "vars", "PROJ-PROV", "NAME"))
+	assert.Contains(t, h.stdout.String(), "cluster_name")
+	assert.NotContains(t, h.stdout.String(), "cluster_type")
+	assert.Equal(t, 0, h.run("plan", "vars", "PROJ-PROV", "type", "--json"))
+	assert.Contains(t, h.stdout.String(), `"cluster_type"`)
+	assert.NotContains(t, h.stdout.String(), `"cluster_name"`)
+	assert.Equal(t, 0, h.run("plan", "vars", "PROJ-PROV", "nope"))
+	assert.Contains(t, h.stderr.String(), `no variables on PROJ-PROV match "nope"`)
+}
+
 func TestPlanBranches(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("plan", "branches", "provision-lab"))

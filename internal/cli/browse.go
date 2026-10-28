@@ -388,9 +388,12 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 func newPlanVarsCmd(r *runtime) *cobra.Command {
 	var branch, from string
 	cmd := &cobra.Command{
-		Use:               "vars <plan>",
-		Short:             "List a plan's variables with the values a recent build used",
-		Args:              cobra.ExactArgs(1),
+		Use:   "vars <plan> [text]",
+		Short: "List a plan's variables with the values a recent build used",
+		Long: "List a plan's variables with the values a recent build used. With text, list\n" +
+			"only the variables whose name contains it, ignoring case.",
+		Example:           "  bam plan vars PROJ-BUILD\n  bam plan vars PROJ-BUILD cluster",
+		Args:              cobra.RangeArgs(1, 2),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -407,11 +410,23 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			view.PrintWarnings(r.env.Stderr, res.Warnings)
+			empty := "no variables declared on " + ref.MasterKey
+			if len(args) == 2 {
+				// Match names only: values may be secrets.
+				text, all := strings.ToLower(args[1]), res.Rows
+				res.Rows = nil
+				for _, v := range all {
+					if strings.Contains(strings.ToLower(v.Name), text) {
+						res.Rows = append(res.Rows, v)
+					}
+				}
+				empty = fmt.Sprintf("no variables on %s match %q", ref.MasterKey, args[1])
+			}
 			if r.flags.json {
 				return view.WriteJSON(r.env.Stdout, view.VarRowsJSON(res))
 			}
 			if len(res.Rows) == 0 {
-				r.note("no variables declared on "+ref.MasterKey, "")
+				r.note(empty, "")
 				return nil
 			}
 			o, err := r.out()

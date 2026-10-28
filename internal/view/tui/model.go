@@ -410,7 +410,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.branchNames = map[string]string{}
 		}
 		for _, br := range msg.Branches {
-			items = append(items, pickerItem{Label: br.ShortName, Value: br.Key, Detail: br.Name})
+			detail := br.Name
+			if br.Disabled {
+				detail += " (disabled)"
+			}
+			items = append(items, pickerItem{Label: br.ShortName, Value: br.Key, Detail: detail})
 			m.branchNames[br.Key] = br.ShortName
 		}
 		m.picker.setItems(items)

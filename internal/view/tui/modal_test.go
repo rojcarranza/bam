@@ -156,12 +156,15 @@ func TestBOpensTheBranchPickerForThePlanScreensPlan(t *testing.T) {
 
 	m, _ = send(m, branchesLoadedMsg{Gen: m.pickerGen, MasterKey: "PROJ-PROV", Branches: []provider.Branch{
 		{Key: "PROJ-PROV12", ShortName: "develop", PlanKey: "PROJ-PROV"},
+		{Key: "PROJ-PROV13", ShortName: "old", Name: "Provision - old", PlanKey: "PROJ-PROV", Disabled: true},
 	}})
 	rows := m.picker.rows()
 	require.Equal(t, "default branch", rows[0].Label)
 	require.Equal(t, "PROJ-PROV", rows[0].Value)
 	require.Equal(t, "develop", rows[1].Label)
 	require.Equal(t, "PROJ-PROV12", rows[1].Value)
+	// Bamboo will not build a disabled branch, so the picker says so.
+	require.Equal(t, "Provision - old (disabled)", rows[2].Detail)
 }
 
 func TestChoosingABranchLoadsThatBranchPlansBuilds(t *testing.T) {

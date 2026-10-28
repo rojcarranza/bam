@@ -57,6 +57,10 @@ func TestLogsTailAndJobSelection(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	assert.Contains(t, err.Error(), "JOB1 (Checkout), UNIT (Unit), INT (Integration)")
+	assert.Empty(t, tryOf(t, err), "nothing is close to NOPE")
+	_, err = s.Logs(bg, failedBuild(), LogsOptions{Job: "UNTI"})
+	require.Error(t, err)
+	assert.Equal(t, "did you mean --job UNIT?", tryOf(t, err))
 }
 
 func TestLogsAllJobs(t *testing.T) {
@@ -385,4 +389,11 @@ func TestFollowLogsEndsWithTheContext(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, s.Clock.(*fakeClock).Waits(), "a cancelled follow does not wait another tick")
 	assert.Empty(t, p.Stopped, "ending a follow never stops the build")
+}
+
+func tryOf(t *testing.T, err error) string {
+	t.Helper()
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	return e.Try
 }

@@ -62,10 +62,16 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 			}
 		}
 		names := make([]string, 0, len(all))
+		keys := make([]string, 0, len(all))
 		for _, sj := range all {
-			names = append(names, ShortJobKey(b, sj.job)+" ("+sj.job.Name+")")
+			keys = append(keys, ShortJobKey(b, sj.job))
+			names = append(names, keys[len(keys)-1]+" ("+sj.job.Name+")")
 		}
-		return nil, errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
+		e := errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
+		if c := Closest(o.Job, keys, 1); len(c) > 0 {
+			e = e.WithTry("did you mean --job " + c[0] + "?")
+		}
+		return nil, e
 	}
 	if o.Stage != "" {
 		names := make([]string, 0, len(b.Stages))

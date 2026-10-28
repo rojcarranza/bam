@@ -244,21 +244,18 @@ func Branches(o Out, bs []provider.Branch) error {
 	return t.Render(o)
 }
 
-// planName marks a plan that Bamboo will not build until it is enabled.
-func planName(p provider.Plan) string {
-	if p.Disabled {
-		return p.Name + " (disabled)"
+// MarkDisabled adds the marker for a plan or branch that Bamboo will not
+// build until it is enabled.
+func MarkDisabled(name string, disabled bool) string {
+	if disabled {
+		return name + " (disabled)"
 	}
-	return p.Name
+	return name
 }
 
-// branchName marks a branch that Bamboo will not build until it is enabled.
-func branchName(b provider.Branch) string {
-	if b.Disabled {
-		return b.ShortName + " (disabled)"
-	}
-	return b.ShortName
-}
+func planName(p provider.Plan) string { return MarkDisabled(p.Name, p.Disabled) }
+
+func branchName(b provider.Branch) string { return MarkDisabled(b.ShortName, b.Disabled) }
 
 func Vars(o Out, res app.PlanVarsResult) error {
 	last := "LAST USED"

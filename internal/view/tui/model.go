@@ -14,6 +14,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/view"
 )
 
 // inputMode says what the text input is collecting, if anything.
@@ -410,11 +411,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.branchNames = map[string]string{}
 		}
 		for _, br := range msg.Branches {
-			detail := br.Name
-			if br.Disabled {
-				detail += " (disabled)"
-			}
-			items = append(items, pickerItem{Label: br.ShortName, Value: br.Key, Detail: detail})
+			items = append(items, pickerItem{Label: br.ShortName, Value: br.Key, Detail: view.MarkDisabled(br.Name, br.Disabled)})
 			m.branchNames[br.Key] = br.ShortName
 		}
 		m.picker.setItems(items)

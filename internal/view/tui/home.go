@@ -286,10 +286,7 @@ func planCells(cols []tableCol, p provider.Plan, live *provider.Build, now time.
 		case "KEY":
 			out[i] = p.Key
 		case "NAME":
-			out[i] = p.Name
-			if p.Disabled {
-				out[i] += " (disabled)"
-			}
+			out[i] = view.MarkDisabled(p.Name, p.Disabled)
 		case "STATE":
 			out[i] = state
 		case "#":

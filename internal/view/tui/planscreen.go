@@ -479,11 +479,17 @@ func planLeftWidth(total int) int {
 }
 
 // nameLine is the plan's full name, bold, or its key when the name is not
-// known; the line the plan screen, the run form and the log screen share.
+// known, marked when Bamboo has the plan disabled; the line the plan screen,
+// the run form and the log screen share.
 func (m Model) nameLine(width int, planKey string) string {
 	name := m.planNameOf(planKey)
 	if name == "" {
 		name = planKey
+	}
+	for _, p := range m.plans.items {
+		if p.Key == planKey {
+			name = view.MarkDisabled(name, p.Disabled)
+		}
 	}
 	return " " + titleStyle.Render(cut(name, width-1))
 }

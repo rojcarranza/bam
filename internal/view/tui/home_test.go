@@ -443,10 +443,13 @@ func TestCursorRowNeverExceedsTheTable(t *testing.T) {
 
 func TestPlansTableMarksDisabledPlans(t *testing.T) {
 	m := goldenHome(120, 30)
-	old := provider.Plan{Key: "OPS-OLD", ProjectKey: "OPS", Name: "Old deploy", Disabled: true}
+	old := provider.Plan{Key: "OPS-GONE", ProjectKey: "OPS", Name: "Old deploy", Disabled: true}
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: append(samplePlans(), old)})
 	// Bamboo will not build a disabled plan, so the table says so.
 	require.Contains(t, m.View(), "Old deploy (disabled)")
+	// The plan screen's name line says so too, but not for an enabled plan.
+	require.Contains(t, m.nameLine(80, "OPS-GONE"), "Old deploy (disabled)")
+	require.NotContains(t, m.nameLine(80, samplePlans()[0].Key), "(disabled)")
 }
 
 func TestHomeHeaderBlockNamesContextKeysAndTitle(t *testing.T) {

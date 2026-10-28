@@ -35,5 +35,5 @@ bam server add <alias> --url URL [flags]
 
 ### SEE ALSO
 
-* [bam server](bam_server.md)	 - Manage Bamboo server aliases
+* [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 

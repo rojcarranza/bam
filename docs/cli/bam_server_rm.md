@@ -24,5 +24,5 @@ bam server rm <alias> [flags]
 
 ### SEE ALSO
 
-* [bam server](bam_server.md)	 - Manage Bamboo server aliases
+* [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 

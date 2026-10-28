@@ -34,7 +34,7 @@ func lowerAlias(alias string) string {
 func init() { commandSets = append(commandSets, addSetup) }
 
 func addSetup(root *cobra.Command, r *runtime) {
-	server := &cobra.Command{Use: "server", Short: "Manage Bamboo server aliases", GroupID: groupSetup}
+	server := &cobra.Command{Use: "server", Short: "Server aliases: add, list, rm, default", GroupID: groupSetup}
 	server.AddCommand(newServerAddCmd(r), newServerListCmd(r), newServerRmCmd(r), newServerDefaultCmd(r))
 	for _, c := range []*cobra.Command{server, newLoginCmd(r), newLogoutCmd(r), newWhoamiCmd(r)} {
 		c.GroupID = groupSetup

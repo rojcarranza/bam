@@ -37,5 +37,5 @@ bam project list [text] [flags]
 
 ### SEE ALSO
 
-* [bam project](bam_project.md)	 - Bamboo projects
+* [bam project](bam_project.md)	 - Projects: list
 

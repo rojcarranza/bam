@@ -36,9 +36,9 @@ bam [flags]
 * [bam open](bam_open.md)	 - Open a project, plan, build or job in the browser
 * [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 * [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
-* [bam project](bam_project.md)	 - Bamboo projects
+* [bam project](bam_project.md)	 - Projects: list
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables
-* [bam server](bam_server.md)	 - Manage Bamboo server aliases
+* [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job

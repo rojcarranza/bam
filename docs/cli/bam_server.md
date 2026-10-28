@@ -1,6 +1,6 @@
 ## bam server
 
-Manage Bamboo server aliases
+Server aliases: add, list, rm, default
 
 ```
 bam server [flags]

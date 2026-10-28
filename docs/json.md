@@ -44,6 +44,12 @@ A running build carries the server's duration estimate as well:
 
 `key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked.
 
+## Cancel and rerun
+
+`build cancel --json` prints `{"key":"PROJ-BUILD-46","url":"...","stopped":true}`. When the build had already finished, `stopped` is `false` and `state` holds its final state.
+
+`build rerun --json` without `--watch` prints `{"key":"PROJ-BUILD-45","url":"...","restarted":true}`. With `--watch` it prints the watch events instead.
+
 ## Plan statistics
 
 `plan stats --json` prints one document over the plan's last builds (`--last`, default 20):

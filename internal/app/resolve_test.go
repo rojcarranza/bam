@@ -126,6 +126,10 @@ func TestResolveBuild(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "did you mean PROJ-BUILD-482?", e.Try, "a bare number takes the plan of the last build run here")
 
+	_, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ-BUILD-INT-482"})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "that is job INT of PROJ-BUILD-482: pass PROJ-BUILD-482, and --job INT for bam logs", e.Try)
+
 	_, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ"})
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, errs.KindUsage, e.Kind)

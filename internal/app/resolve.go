@@ -19,6 +19,8 @@ var (
 	buildKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[0-9]+$`)
 	digitsRe   = regexp.MustCompile(`^[0-9]+$`)
 	projectRe  = regexp.MustCompile(`^[A-Z][A-Z0-9]*$`)
+	// jobResultRe is a job's result key, as on Bamboo's job page: PROJ-PLAN-JOB1-12.
+	jobResultRe = regexp.MustCompile(`^([A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*)-([A-Z][A-Z0-9]*)-([0-9]+)$`)
 )
 
 // IsPlanKey reports whether s looks like PROJ-PLAN (or a branch plan key).
@@ -227,6 +229,10 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 			if rec, ok, _ := s.State.Last(s.Cfg.RepoRoot); ok && IsBuildKey(rec.BuildKey) {
 				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + a.Arg + "?"
 			}
+		}
+		if m := jobResultRe.FindStringSubmatch(a.Arg); m != nil {
+			build := m[1] + "-" + m[3]
+			try = "that is job " + m[2] + " of " + build + ": pass " + build + ", and --job " + m[2] + " for bam logs"
 		}
 		return "", errs.Usagef("%q is not a build key, a plan key or a preset", a.Arg).WithTry(try)
 	}

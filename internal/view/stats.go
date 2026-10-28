@@ -15,7 +15,14 @@ import (
 // PlanStatsView is bam plan stats.
 func PlanStatsView(o Out, s app.PlanStats) error {
 	if s.Passed+s.Failed+otherCount(s) == 0 {
-		fmt.Fprintf(o.W, "no finished builds of %s in the last %d\n", s.PlanKey, s.Builds)
+		switch s.Builds {
+		case 0:
+			fmt.Fprintf(o.W, "%s has no builds\n", s.PlanKey)
+		case 1:
+			fmt.Fprintf(o.W, "the last build of %s has not finished\n", s.PlanKey)
+		default:
+			fmt.Fprintf(o.W, "no finished builds of %s in the last %d\n", s.PlanKey, s.Builds)
+		}
 		return nil
 	}
 	head := s.PlanKey

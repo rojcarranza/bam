@@ -106,7 +106,9 @@ func (m Model) stagesBody(width, height int) string {
 		}
 		lines = append(lines, m.cursorFor(focused, m.treeCursor == i)+line)
 	}
-	if n := len(b.FailedTests); n > 0 {
+	if n := len(b.FailedTests); n == 1 {
+		lines = append(lines, "", errorStyle.Render("1 failed test"))
+	} else if n > 1 {
 		lines = append(lines, "", errorStyle.Render(fmt.Sprintf("%d failed tests", n)))
 	}
 	if len(lines) > height {

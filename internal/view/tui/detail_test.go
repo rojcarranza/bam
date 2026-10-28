@@ -72,4 +72,11 @@ func TestStagesBodyShowsTheTreeAndTheFailedTests(t *testing.T) {
 	require.Contains(t, body, "Integration")
 	require.Contains(t, body, "3 failed tests")
 	require.NotContains(t, body, "Compile", "a passing stage stays collapsed")
+
+	one := sampleBuild()
+	one.FailedTests = one.FailedTests[:1]
+	m.detail = &one
+	body = m.stagesBody(56, 20)
+	require.Contains(t, body, "1 failed test")
+	require.NotContains(t, body, "failed tests")
 }

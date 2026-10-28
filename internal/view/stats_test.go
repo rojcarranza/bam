@@ -66,6 +66,12 @@ func TestPlanStatsNoFinishedBuilds(t *testing.T) {
 	require.NoError(t, PlanStatsView(o, app.PlanStats{PlanKey: "PROJ-DEPLOY", Builds: 20, Other: map[provider.State]int{}}))
 	require.Equal(t, "no finished builds of PROJ-DEPLOY in the last 20\n", buf.String())
 
+	for builds, want := range map[int]string{0: "PROJ-DEPLOY has no builds\n", 1: "the last build of PROJ-DEPLOY has not finished\n"} {
+		o, buf := testOut(false)
+		require.NoError(t, PlanStatsView(o, app.PlanStats{PlanKey: "PROJ-DEPLOY", Builds: builds, Other: map[provider.State]int{}}))
+		require.Equal(t, want, buf.String())
+	}
+
 	data, err := json.Marshal(PlanStatsJSON(app.PlanStats{PlanKey: "PROJ-DEPLOY", Other: map[provider.State]int{}}))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"plan_key":"PROJ-DEPLOY","branch":"","builds":0,"first":0,"last":0,"from":null,"to":null,

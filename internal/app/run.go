@@ -56,6 +56,16 @@ func (s *Service) explainDisabled(ctx context.Context, key string, err error) er
 	return err
 }
 
+// DisabledWarning returns a warning when Bamboo would refuse to start key
+// because it is disabled, so a dry run says so before the real run fails;
+// otherwise "". A failed lookup is not a warning: the dry run still holds.
+func (s *Service) DisabledWarning(ctx context.Context, key string) string {
+	if p, err := s.P.GetPlan(ctx, key); err == nil && p.Disabled {
+		return key + " is disabled in Bamboo, so a real run would be refused; enable it in Bamboo: " + p.URL
+	}
+	return ""
+}
+
 // stopIgnoredRevision stops a build that runs the newest commit instead of
 // the revision the user chose, and returns the error that says so.
 func (s *Service) stopIgnoredRevision(ctx context.Context, key string) error {

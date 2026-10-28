@@ -118,6 +118,11 @@ func newRunCmd(r *runtime) *cobra.Command {
 			} else if vs, err = svc.ResolveVars(ctx, ref, app.VarOptions{From: from, Flags: vars}); err != nil {
 				return err
 			}
+			if dryRun {
+				if w := svc.DisabledWarning(ctx, ref.PlanKey); w != "" {
+					vs.Warnings = append(vs.Warnings, w)
+				}
+			}
 			view.PrintWarnings(r.env.Stderr, vs.Warnings)
 			if vs.FromBuild != "" {
 				r.note("variables from "+vs.FromBuild, "")

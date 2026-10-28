@@ -63,6 +63,17 @@ func TestRunExplainsADisabledPlan(t *testing.T) {
 	assert.Equal(t, "enable it in Bamboo: https://bamboo.example.com/browse/PROJ-BUILD", e.Try)
 }
 
+func TestDisabledWarning(t *testing.T) {
+	p := fakeBamboo()
+	s := newService(t, p)
+	assert.Empty(t, s.DisabledWarning(bg, "PROJ-BUILD"))
+	assert.Empty(t, s.DisabledWarning(bg, "PROJ-NOPE"), "a failed lookup is not a warning")
+	p.Plans["PROJ"][0].Disabled = true
+	p.Plans["PROJ"][0].URL = "https://bamboo.example.com/browse/PROJ-BUILD"
+	assert.Equal(t, "PROJ-BUILD is disabled in Bamboo, so a real run would be refused; enable it in Bamboo: https://bamboo.example.com/browse/PROJ-BUILD",
+		s.DisabledWarning(bg, "PROJ-BUILD"))
+}
+
 func TestRunKeepsBambooReasonForAnEnabledPlan(t *testing.T) {
 	p := fakeBamboo()
 	p.TriggerErr = errs.Bamboof("could not start build of PROJ-BUILD").WithWhy("HTTP 400")

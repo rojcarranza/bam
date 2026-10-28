@@ -431,3 +431,15 @@ func TestPlanArgAcceptsAPageLink(t *testing.T) {
 	assert.Equal(t, 3, h.run("plan", "show", "https://bamboo.other.example/browse/PROJ-PROV"), "an unconfigured server")
 	assert.Contains(t, h.stderr.String(), "bam server add <alias> --url https://bamboo.other.example")
 }
+
+func TestRunDryRunWarnsOfADisabledPlan(t *testing.T) {
+	h := newHarness(t)
+	ps := h.fake.Plans["PROJ"]
+	for i := range ps {
+		ps[i].Disabled = ps[i].Key == "PROJ-PROV"
+	}
+	assert.Equal(t, 0, h.run("run", "PROJ-PROV", "--var", "cluster_name=x", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "warning: PROJ-PROV is disabled in Bamboo, so a real run would be refused")
+	assert.Equal(t, 0, h.run("run", "PROJ-BUILD", "--dry-run"), h.stderr.String())
+	assert.NotContains(t, h.stderr.String(), "disabled")
+}

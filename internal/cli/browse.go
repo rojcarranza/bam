@@ -78,6 +78,21 @@ func (r *runtime) completeServers(machineOnly bool) func(*cobra.Command, []strin
 	}
 }
 
+// completeProjects offers the server's project keys not already on the line.
+// It costs one request, like the project list itself.
+func (r *runtime) completeProjects(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	var keys []string
+	if svc, _, err := r.connect(cmd.Context(), ""); err == nil {
+		projects, _ := svc.P.ListProjects(cmd.Context())
+		for _, p := range projects {
+			if !slices.Contains(args, p.Key) {
+				keys = append(keys, p.Key)
+			}
+		}
+	}
+	return keys, cobra.ShellCompDirectiveNoFileComp
+}
+
 func newProjectListCmd(r *runtime) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
@@ -135,8 +150,9 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 
 func newPlanListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list [PROJ...]",
-		Short: "List plans of the configured projects, grouped by project",
+		Use:               "list [PROJ...]",
+		Short:             "List plans of the configured projects, grouped by project",
+		ValidArgsFunction: r.completeProjects,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {

@@ -54,6 +54,16 @@ func TestPlanListWithoutProjectsIsUsageError(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "projects on work: OPS, PROJ, LAB, QA, WEB and 2 more (bam project list)")
 }
 
+func TestPlanListCompletesProjectKeys(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Projects = append(h.fake.Projects, provider.Project{Key: "OPS"})
+	h.run("__complete", "plan", "list", "")
+	assert.Contains(t, h.stdout.String(), "PROJ\nOPS\n")
+	h.run("__complete", "plan", "list", "PROJ", "")
+	assert.NotContains(t, h.stdout.String(), "PROJ\n", "keys already given are not offered again")
+	assert.Contains(t, h.stdout.String(), "OPS\n")
+}
+
 func TestPlanShowForTarget(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("plan", "show", "provision-lab"))

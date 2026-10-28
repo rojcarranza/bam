@@ -186,6 +186,9 @@ func (m Model) formView() string {
 // holds, so a typed secret cannot reach the screen.
 func (m Model) formBody(width, height int) string {
 	if m.form.loading {
+		if m.form.err != nil {
+			return errorStyle.Render("could not load the plan's variables")
+		}
 		return dimStyle.Render("loading the plan's variables…")
 	}
 	nameW := formNameWidth(width)

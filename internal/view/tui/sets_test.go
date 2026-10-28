@@ -107,3 +107,12 @@ func TestEmptyPresetsAndSetsSayHowToAddOne(t *testing.T) {
 	m.presets.setItems([]app.TargetInfo{{Name: "smoke", Plan: "PROJ-BUILD"}})
 	require.NotContains(t, m.View(), "no presets yet")
 }
+
+// TestAFailedSetsLoadEndsLoading: the loading flag must not outlive the
+// request it was set for.
+func TestAFailedSetsLoadEndsLoading(t *testing.T) {
+	m := setsModel(t)
+	m.sets.loading = true
+	m, _ = send(m, errMsg{Err: errBoom, Where: "sets", Stream: streamSets, Gen: m.setsGen})
+	require.False(t, m.sets.loading)
+}

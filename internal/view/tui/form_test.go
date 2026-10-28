@@ -1357,3 +1357,20 @@ func TestAnEmptyOrBadNameAddsNothing(t *testing.T) {
 	require.False(t, m.form.editing)
 	require.Len(t, m.form.fields, 3)
 }
+
+// TestAFailedFormLoadStopsSayingLoading: when the plan or its variables
+// cannot be read, the form must not keep promising them.
+func TestAFailedFormLoadStopsSayingLoading(t *testing.T) {
+	m := formModel()
+	m.form = formState{loading: true}
+	require.Contains(t, m.View(), "loading the plan's variables")
+
+	m, _ = send(m, errMsg{Err: errBoom, Where: "run", Stream: streamRun, Gen: m.formGen})
+	v := m.View()
+	require.NotContains(t, v, "loading the plan's variables")
+	require.Contains(t, v, "could not load the plan's variables")
+	require.NotContains(t, v, "^R run", "no key but esc works on a form that never loaded")
+
+	m, _ = send(m, mkKey("enter"))
+	require.False(t, m.form.editing, "a failed form still has nothing to edit")
+}

@@ -589,6 +589,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Stream == streamProjects {
 			m.projects.loading = false
 		}
+		if msg.Stream == streamSets {
+			m.sets.loading = false
+		}
+		if msg.Stream == streamRun && m.form.loading {
+			// loading stays true: with no fields, keys must stay locked.
+			m.form.err = msg.Err
+		}
 		// plansErr tracks whether the error now showing came from the plans
 		// stream, so a later successful plans load knows whether it is the
 		// one that gets to clear it (finding 5).

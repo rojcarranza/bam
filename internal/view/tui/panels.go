@@ -88,10 +88,14 @@ func branchOrDefault(b provider.Build) string {
 // screen, because the keys do.
 func (m Model) keyLine() string {
 	if m.screen == screenForm {
+		if m.form.loading {
+			// Only esc and q work until the variables arrive.
+			return "esc cancel"
+		}
 		// The f hint replaces "tab next" and "d dry-run" rather than adding
 		// to them: a key line longer than the bar's free space is dropped
 		// whole, and at 80 columns the longer line would not fit.
-		if m.form.onRevision() && m.form.fromRevision != "" && !m.form.loading {
+		if m.form.onRevision() && m.form.fromRevision != "" {
 			return "f use " + app.BuildLabel(m.form.fromBuild) + "'s revision  enter edit  ^R run  esc cancel"
 		}
 		// tab next stays in ? help: with a add and x remove the line

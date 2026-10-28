@@ -228,6 +228,11 @@ func TestOpenAndURL(t *testing.T) {
 	assert.Equal(t, 2, h.run("url", "PROJ-BUILD-482", "--job", "PROJ-BUILD-INT"))
 	assert.Equal(t, 2, h.run("open"))
 
+	assert.Equal(t, 0, h.run("url", "PROJ-BUILD-0482"))
+	assert.Equal(t, workOrigin+"/browse/PROJ-BUILD-482\n", h.stdout.String(), "leading zeros are dropped, as for build show")
+	assert.Equal(t, 2, h.run("url", "PROJ-BUILD-0"))
+	assert.Contains(t, h.stderr.String(), "build numbers start at 1, not PROJ-BUILD-0")
+
 	h.env.OpenBrowser = func(string) error { return errors.New("no display") }
 	assert.Equal(t, 0, h.run("open", "PROJ-BUILD"))
 	assert.Equal(t, workOrigin+"/browse/PROJ-BUILD\n", h.stdout.String())

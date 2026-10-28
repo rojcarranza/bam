@@ -616,6 +616,12 @@ func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (stri
 		key, targetServer, branch = t.Plan, t.Server, t.Branch
 	case anyKeyRe.MatchString(args[0]):
 		key = args[0]
+		if app.IsBuildKey(key) {
+			var err error
+			if key, err = app.CanonicalBuildKey(key); err != nil {
+				return "", "", err
+			}
+		}
 	default:
 		return "", "", errs.Usagef("%q is not a Bamboo key or a preset", args[0])
 	}

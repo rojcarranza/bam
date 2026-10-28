@@ -234,12 +234,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		}
 		return rec.BuildKey, nil
 	case IsBuildKey(a.Arg):
-		k, ok := canonicalBuildKey(a.Arg)
-		if !ok {
-			return "", errs.Usagef("build numbers start at 1, not %s", a.Arg).
-				WithTry("its latest build: pass the plan key, " + a.Arg[:strings.LastIndex(a.Arg, "-")])
-		}
-		return k, nil
+		return CanonicalBuildKey(a.Arg)
 	case a.Arg == "":
 		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
 	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg) && !projectRe.MatchString(a.Arg):
@@ -281,6 +276,19 @@ func canonicalBuildKey(key string) (string, bool) {
 	i := strings.LastIndex(key, "-")
 	n, err := strconv.Atoi(key[i+1:])
 	return key[:i+1] + strconv.Itoa(n), err == nil && n > 0
+}
+
+// CanonicalBuildKey drops leading zeros from a build key's number
+// (PROJ-PLAN-007 is PROJ-PLAN-7). It is a usage error for build 0 or a
+// number too large, so callers that skip ResolveBuild (such as bam url and
+// bam open, which build a URL with no network call) still reject them.
+func CanonicalBuildKey(key string) (string, error) {
+	k, ok := canonicalBuildKey(key)
+	if !ok {
+		return "", errs.Usagef("build numbers start at 1, not %s", key).
+			WithTry("its latest build: pass the plan key, " + key[:strings.LastIndex(key, "-")])
+	}
+	return k, nil
 }
 
 // tidyBuildKey repairs a key copied with Bamboo's '#' before the number

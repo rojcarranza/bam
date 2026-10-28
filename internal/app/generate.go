@@ -43,18 +43,24 @@ func CheckGenerate(o GenerateOptions) error {
 	if o.PlanKey == "" && IsBuildKey(o.From) {
 		return nil // the build names the plan
 	}
-	if !IsPlanKey(o.PlanKey) {
-		try := "bam plan list"
-		if up := strings.ToUpper(o.PlanKey); IsPlanKey(up) {
-			try = "keys are uppercase: did you mean " + up + "?"
-		} else if IsBuildKey(o.PlanKey) {
-			try = "its plan, " + o.PlanKey[:strings.LastIndex(o.PlanKey, "-")]
-		} else if projectRe.MatchString(o.PlanKey) {
-			try = "bam plan list " + o.PlanKey + " to see its plans"
-		}
-		return errs.Usagef("%q is not a plan key", o.PlanKey).WithTry(try)
+	return CheckPlanKey(o.PlanKey)
+}
+
+// CheckPlanKey returns a usage error, with a hint, when a --plan flag value
+// is not a plan key.
+func CheckPlanKey(key string) error {
+	if IsPlanKey(key) {
+		return nil
 	}
-	return nil
+	try := "bam plan list"
+	if up := strings.ToUpper(key); IsPlanKey(up) {
+		try = "keys are uppercase: did you mean " + up + "?"
+	} else if IsBuildKey(key) {
+		try = "its plan, " + key[:strings.LastIndex(key, "-")]
+	} else if projectRe.MatchString(key) {
+		try = "bam plan list " + key + " to see its plans"
+	}
+	return errs.Usagef("%q is not a plan key", key).WithTry(try)
 }
 
 // generate is GenerateTarget that also reports whether the names came from

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -37,6 +38,11 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 			"  bam doctor --plan PROJ-BUILD",
 		Args: cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
+			if planKey != "" {
+				if err := app.CheckPlanKey(planKey); err != nil {
+					return err
+				}
+			}
 			var checks []check
 			var first error
 			add := func(name, status, detail string, err error) {

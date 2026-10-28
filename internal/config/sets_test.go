@@ -79,11 +79,21 @@ func TestSetUnknownPresetWithNoPresets(t *testing.T) {
 	require.Contains(t, errWhyTry(err), "bam preset add deploy --plan PROJ-PLAN creates it")
 }
 
+func TestSetPlanKeyWithNoPresets(t *testing.T) {
+	cfg, err := loadYAML(t, "version: 1\nsets: {rel: {stages: [[PROJ-BUILD]]}}\n", "")
+	if err == nil {
+		_, err = cfg.Sets()
+	}
+	require.Error(t, err)
+	require.Contains(t, errWhyTry(err), "bam preset add build --plan PROJ-BUILD creates one")
+}
+
 func TestSetConfigErrors(t *testing.T) {
 	base := "version: 1\nservers: {work: {url: https://bamboo.example.com}, lab: {url: https://bamboo.lab.example}}\n" +
 		"targets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B, server: work}\n  c: {plan: PROJ-C, server: lab}\n"
 	for name, tc := range map[string]struct{ sets, want string }{
 		"unknown preset":   {"sets: {rel: {stages: [[nope]]}}", `presets here: a, b, c`},
+		"plan key":         {"sets: {rel: {stages: [[PROJ-BUILD]]}}", "a set lists presets, not plans; bam preset add build --plan PROJ-BUILD creates one"},
 		"close preset":     {"sets: {rel: {stages: [[a, bb]]}}", "did you mean b?"},
 		"no stages":        {"sets: {rel: {stages: []}}", "has no stages"},
 		"empty stage":      {"sets: {rel: {stages: [[a], []]}}", "stage 2 has no runs"},

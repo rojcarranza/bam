@@ -511,6 +511,8 @@ func newInitCmd(r *runtime) *cobra.Command {
 			}
 			path := filepath.Join(cfg.RepoRoot, config.ProjectFileName)
 			known := cfg.Servers()[alias]
+			// Same normalisation as server add, so .bam.yaml never stores http://host/.
+			url = strings.TrimRight(strings.TrimSpace(url), "/")
 			if url == "" {
 				url = known.URL
 			}

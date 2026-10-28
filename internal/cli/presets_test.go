@@ -208,10 +208,11 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, "error: --project is required\n  try: bam init --server work --project PROJ --plan PROJ-PROV\n", h.stderr.String())
 
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
-	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ", "--project", "OPS"))
+	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com/", "--project", "PROJ", "--project", "OPS"))
 	assert.Empty(t, h.connectOpts, "init without --plan makes no network call")
 	data, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	assert.Contains(t, string(data), "projects: [PROJ, OPS]")
+	assert.Contains(t, string(data), `url: "https://bamboo.example.com"`+"\n", "trailing slash dropped")
 
 	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ",
 		"--plan", "PROJ-PROV=lab", "--plan", "PROJ-BUILD", "--force"))

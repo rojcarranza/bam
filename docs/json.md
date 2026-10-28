@@ -34,15 +34,23 @@ A running build carries the server's duration estimate as well:
 
 ## Plan
 
+`plan list --json` and `plan show --json` give each plan an `enabled` boolean, and `plan branches --json` and the branches in `plan show --json` give one to each branch. It is `false` for a plan or branch that Bamboo has disabled; the text output marks those with `(disabled)`. When Bamboo leaves the flag out, `enabled` is `true`.
+
 `plan show --json` includes a `"variables_error"` string field when the plan's variables could not be read (for example, when the Bamboo server does not expose the variables endpoint). The field is omitted entirely when reading the variables succeeds.
 
 ## Run
 
 `run --json` without `--watch`, and `run --dry-run --json`, print one document:
 
-    {"key":"PROJ-BUILD-46","url":"...","plan_key":"PROJ-BUILD","branch":"","revision":"9b30b9a...","revision_from":"PROJ-BUILD-41","variables":{"env":"qa"}}
+    {"key":"PROJ-BUILD-46","url":"...","plan_key":"PROJ-BUILD","branch":"","revision":"9b30b9a...","revision_from":"PROJ-BUILD-41","variables":{"env":"qa"},"warnings":[]}
 
-`key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked.
+`key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked. `warnings` repeats the warnings printed to stderr (an undeclared `--var`, or on a dry run a plan disabled in Bamboo), `[]` when there are none.
+
+## Cancel and rerun
+
+`build cancel --json` prints `{"key":"PROJ-BUILD-46","url":"...","stopped":true}`. When the build had already finished, `stopped` is `false` and `state` holds its final state. With `--dry-run` it stops nothing and prints `{"key":"PROJ-BUILD-46","url":"...","state":"running","stopped":false}`, where `state` is the queued or running state of the build it would stop.
+
+`build rerun --json` without `--watch` prints `{"key":"PROJ-BUILD-45","url":"...","restarted":true}`. With `--watch` it prints the watch events instead. With `--dry-run` it restarts nothing and prints `{"key":"PROJ-BUILD-45","url":"...","state":"failed","restarted":false}`.
 
 ## Plan statistics
 
@@ -72,6 +80,23 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 - `build`: the `bam build show --json` document, without `progress`; `null` for `not_run`.
 - `--watch --json` writes one such document per change, one per line.
 
+## Build investigation
+
+`build investigate --json` prints one document:
+
+    {"build":{...},"likely_cause":"Error: quota exceeded (job TF)","jobs":[{"key":"PROJ-PROV12-TF-8","url":"...",
+     "name":"Terraform","stage":"Apply","short":"TF","errors":[{"line":2,"text":"Error: quota exceeded",
+     "pattern":"error","start":1,"context":["terraform apply","Error: quota exceeded"],"count":1}],"skipped_lines":0,"hidden_errors":0}]}
+
+- `build`: the `bam build show --json` document, without `progress`.
+- `jobs`: the failed jobs in stage order; `[]` when the build did not fail. A job whose log matched no pattern has `"errors":[]`.
+- `likely_cause`: the first error of the first job that has one, `""` when none matched.
+- `line` and `start` are 1-based log line numbers; `context` starts at `start` and holds the error line with `--context` lines either side. `count` is how often the same error text appears in the log.
+- `skipped_lines`: how many lines at the start of a very long log were not read (Bamboo returns only its last part); `0` when the whole log was read. `line` and `start` still count from the start of the whole log.
+- `hidden_errors`: how many more error blocks the job's log has beyond `--max`; `0` when all are shown.
+- `pattern` is one of `error`, `fatal`, `maven`, `gradle`, `go-test`, `unittest`, `pytest`, `npm`, `panic`, `traceback`, `exception`, `bamboo-task`.
+- `changes`: `null` without `--compare`. With it, `{"since":{...},"revisions":[{"name":"app","was":"9f8e7d6...","now":"a1b2c3d..."}],"variables":[...]}`. `since` is the last successful build of the same plan or branch before this one (a build document, `null` when none). `revisions` are by repository name, `variables` by variable name, both sorted by name and listing only what differs; `was` or `now` is `""` for a value present in one build only. Secret values are `********`. `variables` is `null` when the server cannot read build variables back.
+
 ## Events
 
     {"type":"state","time":"...","build_key":"PROJ-BUILD-45","state":"running","progress":{"percent":0.55,"average_ms":180000,"elapsed_ms":99000,"remaining_ms":81000,"source":"bamboo"}}
@@ -80,6 +105,16 @@ Queued and running builds are not counted. `other` counts stopped, not built and
     {"type":"done","time":"...","build_key":"PROJ-BUILD-45","state":"failed","build":{...}}
 
 `state`, `stage` and `job` events carry `progress` while an estimate is available, from Bamboo or from the plan's history, with its `source`. `done` and error events never do: a finished build has a duration, not an estimate.
+
+## Setup checks
+
+`whoami --json` prints one row per configured server, sorted by alias (only the `--server` one when given):
+
+    [{"alias":"work","url":"https://bamboo.example.com","user":"jdoe","full_name":"J Doe","error":""}]
+
+`error` is `""` when the server answered. Otherwise `user` and `full_name` are `""` and `error` holds the message with its hint, for example `no token for server "lab" (https://bamboo.lab.example) (try: bam login lab)`. The rows are printed either way; the exit code is that of the first server that failed.
+
+`doctor --json` checks the selected server and prints `{"checks":[{"name":"config","status":"ok","detail":"..."},...]}` in the order the checks ran: `config`, `server`, `token`, `auth`, then one per capability probed. `status` is `ok`, `error`, `unsupported` or `skipped`; `detail` is the path, server, user or reason shown in the text output, and for an `error` the message with its hint. Checks that depend on a failed one are left out. The exit code is that of the first check that failed.
 
 ## Sets
 
@@ -96,4 +131,6 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 `set status --json` prints the record: `id`, `set`, `origin`, `repo`, `status` (`running`, `successful`, `failed`, `interrupted`, `timed_out`), `started_at`, `finished_at`, `var_names`, `file` (the train file, for a set run from one), and `stages[].runs[]` with `target`, `name`, `plan_key`, `build_key`, `state`, `reruns` and `error`. Where the build could be fetched, `state` is its live state and `build` is the build object.
 
-`set list --json` and `set show --json` print each set's `name`, `timeout_ms`, `defined_in` and `stages[][]` of `{target, vars, matrix, runs}` (`matrix` only on a run that has one, as configured; `runs` the run names it expands to); secret values are masked and `${ENV}` references are shown as written. `set run --dry-run --json` prints `name`, `origin`, `warnings` and `stages[][]` of `{target, name, plan_key, branch, variables}`, with the changed variables only, masked.
+`set history --json` prints an array of these records for this repository, newest first, with the recorded states and no `build` objects.
+
+`set list --json` and `set show --json` print each set's `name`, `timeout_ms`, `defined_in` and `stages[][]` of `{target, plan_key, branch, vars, matrix, runs}` (`plan_key` and `branch` from the preset, `branch` empty for the plan default; `matrix` only on a run that has one, as configured; `runs` the run names it expands to); secret values are masked and `${ENV}` references are shown as written. `set run --dry-run --json` prints `name`, `origin`, `warnings` and `stages[][]` of `{target, name, plan_key, branch, variables}`, with the changed variables only, masked.

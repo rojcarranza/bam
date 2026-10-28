@@ -137,6 +137,7 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 	}
 	if r.Plan.Master != nil {
 		b.Branch = r.Plan.ShortName
+		b.MasterKey = r.Plan.Master.Key
 		b.PlanName = r.Plan.Master.ShortName
 	}
 	b.CustomBuild = strings.Contains(strings.ToLower(b.Reason), "custom build")

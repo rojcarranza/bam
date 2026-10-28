@@ -1,10 +1,15 @@
 package cli
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -119,20 +124,67 @@ func TestBuildRerunRestartsOneBuild(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "watch: bam watch PROJ-PROV-9")
 }
 
+func TestBuildRerunJSON(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateSuccess)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--json"))
+	assert.JSONEq(t, `{"key":"PROJ-PROV-9","url":"`+workOrigin+`/browse/PROJ-PROV-9","restarted":true}`, h.stdout.String())
+}
+
+func TestBuildRerunDryRun(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run"))
+	assert.Contains(t, h.stdout.String(), "would rerun PROJ-PROV-9 (failed)")
+	assert.Contains(t, h.stderr.String(), "dry run: nothing restarted")
+	assert.Empty(t, h.fake.Restarted)
+	h = treeHarness(t, provider.StateFailed)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run", "--json"))
+	assert.JSONEq(t, `{"key":"PROJ-PROV-9","url":"`+workOrigin+`/browse/PROJ-PROV-9","state":"failed","restarted":false}`, h.stdout.String())
+	assert.Empty(t, h.fake.Restarted)
+	h = treeHarness(t, provider.StateSuccess)
+	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run"))
+}
+
+func TestBuildRerunDryRunOnAServerThatCannotRestart(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	h.fake.NoRestart = true
+	assert.Equal(t, 5, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run"))
+	assert.Empty(t, h.stdout.String(), "no \"would rerun\" for a rerun that would fail")
+	assert.Contains(t, h.stderr.String(), "this Bamboo cannot restart a build over REST")
+}
+
 func TestBuildRerunWatch(t *testing.T) {
 	h := treeHarness(t, provider.StateFailed)
 	rerunnable(h, provider.StateSuccess)
 	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--watch"))
-	assert.Contains(t, h.stdout.String(), "✓ Success")
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV-9  ✓ success")
+}
+
+func TestBuildRerunWatchExitsOneOnAFailedRerun(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateFailed)
+	assert.Equal(t, 1, h.run("build", "rerun", "PROJ-PROV-9", "--watch"))
+	assert.Contains(t, h.stdout.String(), "failed: PROJ-PROV-9 "+workOrigin+"/browse/PROJ-PROV-9")
+}
+
+func TestBuildRerunWatchTimeout(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateRunning)
+	assert.Equal(t, 6, h.run("build", "rerun", "PROJ-PROV-9", "--watch", "--timeout", "50ms"))
+	assert.Contains(t, h.stderr.String(), "timed out after 50ms")
+	assert.Contains(t, h.stderr.String(), "bam watch PROJ-PROV-9")
+	assert.Empty(t, h.fake.Stopped)
 }
 
 func TestBuildRerunRefusesARunningOrSuccessfulBuild(t *testing.T) {
 	h := treeHarness(t, provider.StateSuccess)
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 succeeded; nothing to rerun")
+	assert.Contains(t, h.stderr.String(), "try: to run it again with its variables: bam run PROJ-PROV --from PROJ-PROV-9")
 	h = treeHarness(t, provider.StateRunning)
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is running; nothing to rerun")
+	assert.Contains(t, h.stderr.String(), "try: bam watch PROJ-PROV-9")
 	assert.Empty(t, h.fake.Restarted)
 }
 
@@ -142,5 +194,45 @@ func TestBuildRerunRefusesANotBuiltBuild(t *testing.T) {
 	h := treeHarness(t, provider.StateNotBuilt)
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is not built; nothing to rerun")
+	assert.NotContains(t, h.stderr.String(), "bam watch")
 	assert.Empty(t, h.fake.Restarted)
+}
+
+// upgradedBamboo is a Bamboo now on 10.2.0, with a stopped PROJ-BUILD-45 and
+// a running PROJ-BUILD-46, seen by bam's real client through a capabilities
+// cache that learned, on 9.6.2, that it could neither restart nor stop.
+func upgradedBamboo(t *testing.T) *harness {
+	t.Helper()
+	builds := map[string]string{
+		"PROJ-BUILD-45": `{"key":"PROJ-BUILD-45","buildResultKey":"PROJ-BUILD-45","buildNumber":45,"state":"Unknown","lifeCycleState":"Finished","plan":{"key":"PROJ-BUILD"}}`,
+		"PROJ-BUILD-46": `{"key":"PROJ-BUILD-46","buildResultKey":"PROJ-BUILD-46","buildNumber":46,"state":"Unknown","lifeCycleState":"InProgress","plan":{"key":"PROJ-BUILD"}}`,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/rest/api/latest/info" {
+			_, _ = w.Write([]byte(`{"version":"10.2.0"}`))
+			return
+		}
+		if b, ok := builds[strings.TrimPrefix(r.URL.Path, "/rest/api/latest/result/")]; ok {
+			_, _ = w.Write([]byte(b))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	h := realBackendHarness(t, "version: 1\nservers:\n  lab:\n    url: "+srv.URL+"\ndefault_server: lab\n", "version: 1\n")
+	h.kr.m["bam|"+srv.URL] = "tok"
+	require.NoError(t, bamboo.SaveCapabilities(h.env.Paths.Capabilities, srv.URL,
+		bamboo.Capabilities{Version: "9.6.2", CheckedAt: time.Now(), Rerun: "no", Stop: "no"}))
+	return h
+}
+
+func TestDryRunsDoNotTrustAnAnswerFromAnOlderServerVersion(t *testing.T) {
+	h := upgradedBamboo(t)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-BUILD-45", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "would rerun PROJ-BUILD-45 (stopped)")
+
+	h = upgradedBamboo(t)
+	assert.Equal(t, 0, h.run("build", "cancel", "PROJ-BUILD-46", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "would stop PROJ-BUILD-46 (running)")
 }

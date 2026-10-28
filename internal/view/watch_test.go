@@ -50,9 +50,18 @@ func TestRunPlanAndQueued(t *testing.T) {
 	Queued(o, provider.Build{Key: "PROJ-BUILD12-44", URL: url44}, false, "")
 	assert.Equal(t, ""+
 		"Plan     PROJ-BUILD  (branch develop, PROJ-BUILD12)\n"+
-		"Vars     env=staging (flag)  region=eu (preset)  db_password=******** (env)  +1 plan defaults\n"+
+		"Vars     env=staging (flag)  region=eu (preset)  db_password=******** (env)  +1 plan default\n"+
 		"✓ Queued   PROJ-BUILD12-44   "+url44+"\n"+
 		"  watch: bam watch PROJ-BUILD12-44\n", buf.String())
+}
+
+func TestRunPlanCountsSeveralPlanDefaults(t *testing.T) {
+	o, buf := testOut(true)
+	RunPlan(o, app.PlanRef{PlanKey: "PROJ-BUILD", MasterKey: "PROJ-BUILD"}, app.VarSet{Vars: []app.ResolvedVar{
+		{Name: "a", Value: "1", Source: "plan"},
+		{Name: "b", Value: "2", Source: "plan"},
+	}})
+	assert.Contains(t, buf.String(), "Vars     +2 plan defaults\n")
 }
 
 func TestRunPlanNamesTheRevision(t *testing.T) {

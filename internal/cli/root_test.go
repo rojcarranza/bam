@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -16,6 +17,25 @@ func TestVersionPrintsVersion(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("version"))
 	assert.Equal(t, "bam dev\n", h.stdout.String())
+}
+
+// TestVersionFlag: --version and -v are what people type first.
+func TestVersionFlag(t *testing.T) {
+	for _, arg := range []string{"--version", "-v"} {
+		h := newHarness(t)
+		assert.Equal(t, 0, h.run(arg), arg)
+		assert.Equal(t, "bam dev\n", h.stdout.String(), arg)
+	}
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("--version", "--json"))
+	assert.JSONEq(t, `{"version":"dev"}`, h.stdout.String())
+}
+
+// TestVersionJSON: --json is honoured by every command that reads data.
+func TestVersionJSON(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("version", "--json"))
+	assert.JSONEq(t, `{"version":"dev"}`, h.stdout.String())
 }
 
 // TestVersionFallsBackToBuildInfo: go install cannot pass -ldflags, so a
@@ -50,6 +70,193 @@ func TestUnknownSubcommandIsUsageError(t *testing.T) {
 	}
 }
 
+func TestGroupWordsHoldOnHelpAndFlagErrors(t *testing.T) {
+	h := newHarness(t)
+	for _, args := range [][]string{{"set", "rm", "release", "--help"}, {"set", "delete", "release", "--force"}} {
+		assert.Equal(t, 2, h.run(args...), args)
+		assert.Contains(t, h.stderr.String(), "bam set has no \""+args[1]+"\" command", args)
+		assert.NotContains(t, h.stderr.String(), "preset rm", args)
+	}
+	assert.Equal(t, 2, h.run("preset", "edit", "api", "--help"))
+	assert.Contains(t, h.stderr.String(), "presets are edited in YAML")
+	assert.Equal(t, 2, h.run("help", "set", "rm"))
+	assert.Contains(t, h.stderr.String(), "bam set has no \"rm\" command")
+}
+
+func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
+	for args, want := range map[string]string{
+		"biuld":           "try: did you mean bam build? bam --help shows them all",
+		"pln":             "try: did you mean bam plan? bam --help shows them all",
+		"build lsit":      "try: did you mean bam build list? bam build --help shows them all",
+		"server xyzzy":    "try: bam server --help\n",
+		"build history":   "try: did you mean bam build list? bam build --help shows them all",
+		"build stop":      "try: did you mean bam build cancel? bam build --help shows them all",
+		"server remove":   "try: did you mean bam server rm? bam server --help shows them all",
+		"cancel":          "try: did you mean bam build cancel? bam --help shows them all",
+		"history":         "try: did you mean bam build list or bam set history? bam --help shows them all",
+		"target":          "try: did you mean bam preset? bam --help shows them all",
+		"build view":      "try: did you mean bam build show? bam build --help shows them all",
+		"set describe":    "try: did you mean bam set show? bam set --help shows them all",
+		"set rm x":        "error: bam set has no \"rm\" command\n  sets are edited in YAML: under sets: in .bam.yaml, or in a train file\n  try: see bam set run --help\n",
+		"set add":         "error: bam set has no \"add\" command\n",
+		"preset run":      "error: bam preset has no \"run\" command\n  presets run with bam run\n  try: bam run <preset>\n",
+		"preset run api":  "try: bam run api\n",
+		"preset lst":      "try: did you mean bam preset list?",
+		"preset edit api": "error: bam preset has no \"edit\" command\n  presets are edited in YAML, in the file that defines them\n  try: bam preset show api prints the file that defines it\n",
+		"view":            "try: did you mean bam build show, bam plan show, bam preset show or bam set show? bam --help shows them all",
+		"get":             "try: did you mean bam build show, bam plan show, bam preset show or bam set show? bam --help shows them all",
+		"list":            "try: did you mean bam build list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
+		"rerun":           "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
+		"retry":           "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
+		"status":          "try: did you mean bam build show or bam set status? bam --help shows them all",
+		"build status":    "try: did you mean bam build show? bam build --help shows them all",
+		"build restart":   "try: did you mean bam build rerun? bam build --help shows them all",
+		"log":             "try: did you mean bam logs? bam --help shows them all",
+		"del":             "try: bam --help\n",
+		"go":              "error: unknown command \"go\" for \"bam\"\n  try: bam --help\n",
+		"ls":              "try: did you mean bam build list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
+		"preset ls":       "try: did you mean bam preset list? bam preset --help shows them all",
+		"branch":          "try: did you mean bam plan branches? bam --help shows them all",
+		"branches":        "try: did you mean bam plan branches? bam --help shows them all",
+		"plan branch":     "try: did you mean bam plan branches? bam plan --help shows them all",
+		"build stats":     "try: did you mean bam plan stats? bam build --help shows them all",
+		"build compare":   "try: did you mean bam build investigate --compare? bam build --help shows them all",
+		"compare":         "try: did you mean bam build investigate --compare? bam --help shows them all",
+		"build debug":     "try: did you mean bam build investigate? bam build --help shows them all",
+		"build branches":  "try: did you mean bam plan branches? bam build --help shows them all",
+		"plan variables":  "try: did you mean bam plan vars? bam plan --help shows them all",
+		"params":          "try: did you mean bam plan vars? bam --help shows them all",
+		"plan builds":     "try: did you mean bam build list? bam plan --help shows them all",
+		"plan cancel":     "try: did you mean bam build cancel? bam plan --help shows them all",
+		"build open":      "try: did you mean bam open? bam build --help shows them all",
+		"server doctor":   "try: did you mean bam doctor? bam server --help shows them all",
+		"plan URL":        "try: did you mean bam url? bam plan --help shows them all",
+		"plan build":      "try: bam plan --help\n",
+		"auth":            "try: did you mean bam login? bam --help shows them all",
+		"token":           "try: did you mean bam login? bam --help shows them all",
+		"signout":         "try: did you mean bam logout? bam --help shows them all",
+		"wait":            "try: did you mean bam watch? bam --help shows them all",
+		"test":            "try: did you mean bam build investigate? bam --help shows them all",
+		"failures":        "try: did you mean bam build investigate? bam --help shows them all",
+		"why":             "try: did you mean bam build investigate? bam --help shows them all",
+		"tail":            "try: did you mean bam watch? bam --help shows them all",
+		"follow":          "try: did you mean bam watch? bam --help shows them all",
+		"user":            "try: did you mean bam whoami? bam --help shows them all",
+		"me":              "try: did you mean bam whoami? bam --help shows them all",
+		"web":             "try: did you mean bam open? bam --help shows them all",
+		"browse":          "try: did you mean bam open? bam --help shows them all",
+		"rnu":             "try: did you mean bam run? bam --help shows them all",
+		"setup":           "try: did you mean bam init? bam --help shows them all",
+		"config":          "try: did you mean bam init? bam --help shows them all",
+		"check":           "try: did you mean bam doctor? bam --help shows them all",
+		"ping":            "try: did you mean bam doctor? bam --help shows them all",
+		"ver":             "try: did you mean bam version? bam --help shows them all",
+		"completion zhs":  "error: unknown command \"zhs\" for \"bam completion\"\n  try: did you mean bam completion zsh? bam completion --help shows them all\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+	}
+}
+
+func TestUnknownCommandWinsOverItsFlags(t *testing.T) {
+	for args, want := range map[string]string{
+		"rerun PROJ-PLAN-1 --last": "error: unknown command \"rerun\" for \"bam\"\n  try: did you mean bam build rerun or bam set rerun? bam --help shows them all\n",
+		"rerun --help":             "error: unknown command \"rerun\" for \"bam\"\n",
+		"build lsit -n 5":          "try: did you mean bam build list? bam build --help shows them all\n",
+		"build lsit -h":            "try: did you mean bam build list? bam build --help shows them all\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+		assert.Empty(t, h.stdout.String(), args)
+	}
+	for _, args := range []string{"--help", "build --help", "build list --help"} {
+		h := newHarness(t)
+		assert.Equal(t, 0, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stdout.String(), "Usage:", args)
+	}
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("build", "--nope"))
+	assert.Contains(t, h.stderr.String(), "unknown flag: --nope")
+}
+
+func TestHelpUnknownTopicIsUsageError(t *testing.T) {
+	for args, want := range map[string]string{
+		"help foo":       "error: unknown command \"foo\" for \"bam\"\n  try: bam --help\n",
+		"help biuld":     "try: did you mean bam build? bam --help shows them all",
+		"help build lst": "try: did you mean bam build list? bam build --help shows them all",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+		assert.Empty(t, h.stdout.String(), args)
+	}
+	for _, args := range []string{"help", "help build", "help build show PROJ-PLAN-1"} {
+		h := newHarness(t)
+		assert.Equal(t, 0, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stdout.String(), "Usage:", args)
+	}
+}
+
+func TestBadFlagValueSaysWhatItWants(t *testing.T) {
+	for args, want := range map[string]string{
+		"build list PROJ-PLAN --limit abc": "error: --limit wants a whole number, like 10, not \"abc\"\n  try: bam build list --help\n",
+		"watch PROJ-PLAN-1 --timeout 5":    "error: --timeout wants a duration, like 90s, 10m or 1h30m, not \"5\"\n",
+		"build list --state":               "error: flag needs an argument: --state\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+	}
+}
+
+func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
+	for args, want := range map[string]string{
+		"build list PROJ-PLAN --brnach develop": "error: unknown flag: --brnach\n  try: did you mean --branch?\n",
+		"run PROJ-PLAN --dryrun":                "error: unknown flag: --dryrun\n  try: did you mean --dry-run?\n",
+		"watch --sever lab":                     "error: unknown flag: --sever\n  try: did you mean --server?\n",
+		"plan stats PROJ-PLAN --limit 5":        "error: unknown flag: --limit\n  try: did you mean --last?\n",
+		"build list PROJ-PLAN --last 5":         "error: unknown flag: --last\n  try: did you mean --limit?\n",
+		"build list PROJ-PLAN --count 5":        "error: unknown flag: --count\n  try: did you mean --limit?\n",
+		"build list PROJ-PLAN --max 5":          "error: unknown flag: --max\n  try: did you mean --limit?\n",
+		"plan stats PROJ-PLAN --max 5":          "error: unknown flag: --max\n  try: did you mean --last?\n",
+		"build show PROJ-PLAN-1 --count 5":      "error: unknown flag: --count\n  try: bam build show --help\n",
+		"run PROJ-PLAN --zzzzzz":                "error: unknown flag: --zzzzzz\n  try: bam run --help\n",
+		"plan list --project PROJ":              "error: unknown flag: --project\n  try: the project is an argument: bam plan list [PROJ...]\n",
+		"build list --plan PROJ-PLAN":           "error: unknown flag: --plan\n  try: the plan is an argument: bam build list <plan|preset>\n",
+		"logs --build PROJ-PLAN-1":              "error: unknown flag: --build\n  try: the build is an argument: bam logs [<build>|<plan>|<preset>]\n",
+		"run --preset deploy":                   "error: unknown flag: --preset\n  try: the preset is an argument: bam run <plan|preset>\n",
+		"whoami --plan PROJ-PLAN":               "error: unknown flag: --plan\n  try: bam whoami --help\n",
+		"plan --plan PROJ-PLAN":                 "error: unknown flag: --plan\n  try: bam plan --help\n",
+		"build show PROJ-PLAN-1 --compare":      "error: unknown flag: --compare\n  try: --compare is a flag of bam build investigate\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Equal(t, want, h.stderr.String(), args)
+	}
+}
+
+func TestWrongArgCountPointsAtHelp(t *testing.T) {
+	for args, want := range map[string]string{
+		"run":                       "error: missing <plan|preset>\n  try: bam run <plan|preset>; bam run --help shows more\n",
+		"build list":                "error: missing <plan|preset>\n  try: bam build list <plan|preset>; bam build list --help shows more\n",
+		"preset add":                "error: missing <name>\n  try: bam preset add <name> --plan KEY; bam preset add --help shows more\n",
+		"build show a b":            "error: unexpected argument \"b\"\n  try: bam build show [<build>|<plan>|<preset>]; bam build show --help shows more\n",
+		"server add w x y":          "error: unexpected arguments \"x\", \"y\"\n  try: bam server add <alias> --url URL; bam server add --help shows more\n",
+		"whoami x":                  "error: unexpected argument \"x\"\n  try: bam whoami; bam whoami --help shows more\n",
+		"logs PROJ-PLAN 482":        "error: unexpected argument \"482\"\n  try: did you mean bam logs PROJ-PLAN-482?\n",
+		"build show PROJ-PLAN #482": "error: unexpected argument \"#482\"\n  try: did you mean bam build show PROJ-PLAN-482?\n",
+		"plan stats PROJ-PLAN 5":    "error: unexpected argument \"5\"\n  try: bam plan stats",
+		"preset add web PROJ-PLAN":  "error: unexpected argument \"PROJ-PLAN\"\n  try: did you mean bam preset add web --plan PROJ-PLAN?\n",
+		"doctor PROJ-PLAN":          "error: unexpected argument \"PROJ-PLAN\"\n  try: did you mean bam doctor --plan PROJ-PLAN?\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+	}
+}
+
 func TestGroupCommandWithoutArgsPrintsHelp(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("server"))
@@ -74,6 +281,21 @@ func TestDocsRootIncludesCompletion(t *testing.T) {
 	assert.Equal(t, "completion", c.Name())
 }
 
+// A group summary like "Plans: list, show, …" must name exactly its subcommands.
+func TestGroupSummariesListTheirSubcommands(t *testing.T) {
+	for _, c := range DocsRoot().Commands() {
+		_, list, ok := strings.Cut(c.Short, ": ")
+		if !ok || !c.HasSubCommands() || strings.Contains(strings.ReplaceAll(list, ", ", ""), " ") {
+			continue
+		}
+		var subs []string
+		for _, s := range c.Commands() {
+			subs = append(subs, s.Name())
+		}
+		assert.ElementsMatch(t, subs, strings.Split(list, ", "), "bam %s", c.Name())
+	}
+}
+
 func TestExitCodes(t *testing.T) {
 	cases := []struct {
 		err  error
@@ -95,4 +317,11 @@ func TestExitCodes(t *testing.T) {
 	for _, tc := range cases {
 		assert.Equal(t, tc.want, exitCode(tc.err), "%v", tc.err)
 	}
+}
+
+func TestBadColorFlagFailsBeforeTheCommandRuns(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("--color", "bogus", "url", "PROJ"))
+	assert.Empty(t, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), `--color must be auto, always or never, not "bogus"`)
 }

@@ -54,17 +54,33 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 	}
 	if o.Job != "" {
 		n := buildNumber(b)
+		job := strings.ToUpper(o.Job) // Bamboo keys are uppercase; --job int means INT
 		for _, sj := range all {
 			k := sj.job.Key
-			if k == o.Job || k == o.Job+"-"+n || k == b.PlanKey+"-"+o.Job+"-"+n {
+			if k == job || k == job+"-"+n || k == b.PlanKey+"-"+job+"-"+n {
 				return []stagedJob{sj}, nil
 			}
 		}
 		names := make([]string, 0, len(all))
+		keys := make([]string, 0, len(all))
+		byName := ""
 		for _, sj := range all {
-			names = append(names, ShortJobKey(b, sj.job)+" ("+sj.job.Name+")")
+			keys = append(keys, ShortJobKey(b, sj.job))
+			names = append(names, keys[len(keys)-1]+" ("+sj.job.Name+")")
+			if strings.EqualFold(sj.job.Name, o.Job) {
+				byName = keys[len(keys)-1]
+			}
 		}
-		return nil, errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
+		e := errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
+		if byName != "" { // --job Integration: the user typed the job's name, not its key
+			e = e.WithTry("--job takes the job key: --job " + byName)
+		} else if c := errs.Closest(o.Job, keys, 1); len(c) > 0 {
+			e = e.WithTry("did you mean --job " + c[0] + "?")
+		}
+		if parts := strings.FieldsFunc(job, func(r rune) bool { return r == ',' || r == ' ' }); len(parts) > 1 {
+			e = e.WithTry("--job takes one job: --job " + strings.Join(parts, ", then --job ") + "; --failed reads every failed job")
+		}
+		return nil, e
 	}
 	if o.Stage != "" {
 		names := make([]string, 0, len(b.Stages))

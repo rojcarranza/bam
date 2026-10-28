@@ -78,6 +78,18 @@ func TestSetLinesOneLinePerChange(t *testing.T) {
 	}
 }
 
+func TestSetLinesPrintsTheFinishedStateOnce(t *testing.T) {
+	o, buf := testOut(false)
+	l := NewSetLines(o)
+	b := provider.Build{Key: "OPS-DEP-9", State: provider.StateSuccess, Duration: 21 * time.Second}
+	inner := app.Event{Type: app.EventState, Time: setAt, Build: b, State: provider.StateSuccess}
+	e := setEv(app.SetRunEvent, 0, "deploy", b, "")
+	e.Event = &inner
+	l.Event(e)
+	l.Event(setEv(app.SetRunDone, 0, "deploy", b, provider.StateSuccess))
+	require.Equal(t, "2026-09-29T10:15:00Z stage 1 deploy OPS-DEP-9 success 21s\n", buf.String())
+}
+
 func TestSetLinesTriggerFailure(t *testing.T) {
 	o, buf := testOut(false)
 	l := NewSetLines(o)
@@ -119,7 +131,7 @@ func TestSetLiveShowsPendingStagesBeforeTheyStart(t *testing.T) {
 	l.Event(setEv(app.SetStageStart, 0, "", provider.Build{}, ""))
 	out := lastFrame(buf.String())
 	require.Contains(t, out, "stage 2/2")
-	require.Regexp(t, `deploy\s+–\s+pending`, out)
+	require.Regexp(t, `deploy\s+–\s+Pending`, out)
 }
 
 func TestSetNDJSONEndsWithSetDoneAndSkipsProgress(t *testing.T) {
@@ -198,4 +210,16 @@ func TestSetLinesNameTheMatrixRun(t *testing.T) {
 	l := NewSetLines(o)
 	l.Event(app.SetEvent{Type: app.SetRunTriggered, Time: setAt, Target: "deploy", Run: "deploy[env=qa]", Build: provider.Build{Key: "OPS-DEP-1"}})
 	require.Equal(t, "2026-09-29T10:15:00Z stage 1 deploy[env=qa] OPS-DEP-1 triggered\n", buf.String())
+}
+
+func TestSetSummaryLeavesOutRerunWhenUnsupported(t *testing.T) {
+	evs := setEvents(provider.StateFailed)
+	evs[len(evs)-1].NoRerun = true
+	o, buf := testOut(false)
+	l := NewSetLines(o)
+	for _, e := range evs {
+		l.Event(e)
+	}
+	require.Contains(t, buf.String(), "try: bam logs OPS-DEP-9 --failed")
+	require.NotContains(t, buf.String(), "bam set rerun")
 }

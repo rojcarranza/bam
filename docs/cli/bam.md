@@ -21,11 +21,12 @@ bam [flags]
       --no-tui           never open the terminal UI
       --project string   project the UI opens on (all: every project; default: default_project)
       --server string    server alias to use
+  -v, --version          version for bam
 ```
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 * [bam completion](bam_completion.md)	 - Generate the autocompletion script for the specified shell
 * [bam doctor](bam_doctor.md)	 - Check config, credentials and what this Bamboo server supports
 * [bam init](bam_init.md)	 - Write .bam.yaml for this repository, with generated presets
@@ -33,15 +34,15 @@ bam [flags]
 * [bam logout](bam_logout.md)	 - Delete the stored token for a server
 * [bam logs](bam_logs.md)	 - Print job logs; --failed for failed jobs only
 * [bam open](bam_open.md)	 - Open a project, plan, build or job in the browser
-* [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync, migrate
-* [bam project](bam_project.md)	 - Bamboo projects
+* [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
+* [bam project](bam_project.md)	 - Projects: list
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables
-* [bam server](bam_server.md)	 - Manage Bamboo server aliases
+* [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job
 * [bam version](bam_version.md)	 - Print the bam version
-* [bam watch](bam_watch.md)	 - Follow a build until it finishes; exit 1 if it fails
+* [bam watch](bam_watch.md)	 - Follow a build and the builds it triggers; exit 1 if any fails
 * [bam whoami](bam_whoami.md)	 - Show the authenticated user on each configured server
 

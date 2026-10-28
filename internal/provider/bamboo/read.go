@@ -3,10 +3,12 @@ package bamboo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strconv"
 	"sync"
 
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
@@ -15,6 +17,13 @@ const api = "/rest/api/latest"
 func (c *Client) CurrentUser(ctx context.Context) (provider.User, error) {
 	var u userDTO
 	if err := c.getJSON(ctx, api+"/currentUser", nil, &u); err != nil {
+		// Every Bamboo answers currentUser, so a 404 means the URL is not a
+		// Bamboo base URL, most often a missing or extra context path.
+		if errors.Is(err, errs.ErrNotFound) {
+			err = errs.Bamboof("no Bamboo REST API at %s", c.base).
+				WithTry("check the server URL; if Bamboo runs under a context path, include it, for example https://bamboo.example.com/bamboo").
+				Wrap(err)
+		}
 		return provider.User{}, err
 	}
 	return provider.User{Name: u.Name, FullName: u.FullName}, nil
@@ -25,6 +34,9 @@ func (c *Client) ServerInfo(ctx context.Context) (provider.ServerInfo, error) {
 	if err := c.getJSON(ctx, api+"/info", nil, &i); err != nil {
 		return provider.ServerInfo{}, err
 	}
+	c.mu.Lock()
+	c.version = i.Version
+	c.mu.Unlock()
 	return provider.ServerInfo{Version: i.Version}, nil
 }
 
@@ -54,7 +66,8 @@ func (c *Client) ListPlans(ctx context.Context, project string) ([]provider.Plan
 		if name == "" {
 			name = p.Name
 		}
-		plans[i] = provider.Plan{Key: p.Key, Name: name, ProjectKey: project, URL: c.URL(p.Key)}
+		plans[i] = provider.Plan{Key: p.Key, Name: name, ProjectKey: project, URL: c.URL(p.Key),
+			Disabled: p.Enabled != nil && !*p.Enabled}
 	}
 	return plans, c.fillLastBuilds(ctx, plans)
 }
@@ -141,7 +154,8 @@ func (c *Client) GetPlan(ctx context.Context, key string) (provider.Plan, error)
 	if name == "" {
 		name = p.Name
 	}
-	return provider.Plan{Key: p.Key, Name: name, ProjectKey: p.ProjectKey, URL: c.URL(p.Key)}, nil
+	return provider.Plan{Key: p.Key, Name: name, ProjectKey: p.ProjectKey, URL: c.URL(p.Key),
+		Disabled: p.Enabled != nil && !*p.Enabled}, nil
 }
 
 func (c *Client) ListBranches(ctx context.Context, key string) ([]provider.Branch, error) {
@@ -151,7 +165,8 @@ func (c *Client) ListBranches(ctx context.Context, key string) ([]provider.Branc
 	}
 	out := make([]provider.Branch, 0, len(items))
 	for _, b := range items {
-		out = append(out, provider.Branch{Key: b.Key, Name: b.Name, ShortName: b.ShortName, PlanKey: key, URL: c.URL(b.Key)})
+		out = append(out, provider.Branch{Key: b.Key, Name: b.Name, ShortName: b.ShortName, PlanKey: key, URL: c.URL(b.Key),
+			Disabled: b.Enabled != nil && !*b.Enabled})
 	}
 	return out, nil
 }

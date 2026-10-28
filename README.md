@@ -153,7 +153,7 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :project :server :sort :q |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |
-| | `a` | all logs, not only failed; in the set vars prompt, add a variable |
+| | `a` | all logs, not only failed; in the run form or set vars prompt, add a variable |
 | | `f` | follow the jobs on the log screen |
 | | `/` | filter the focused list, or search the log |
 | | `n` `N` | next / previous match, or next failure with no search |
@@ -166,9 +166,10 @@ without a terminal, bare `bam` prints help exactly as before.
 | | `space` | cycle an options field (in the form) |
 | | `f` | use the build's revision (in the form, on the revision row) |
 | | `C` | cancel the selected build (asks first) |
+| | `p` | save the selected build's variables as a preset (asks for a name) |
 | | `U` | resume the set's interrupted run (set screen) |
 | | `F` | rerun the failed runs (set screen) or builds (tree screen) |
-| | `x` | remove a variable row (set vars prompt) |
+| | `x` | remove an added variable row (run form, set vars prompt) |
 | Go | `o` | open the selection's Bamboo URL in the browser |
 | | `y` | copy the selection's Bamboo URL |
 | | `S` | switch server |
@@ -187,6 +188,7 @@ and `bam build cancel` on the command line, stop a build.
 | --- | --- |
 | see my plans | `bam plan list` |
 | see a plan's variables and what the last build used | `bam plan vars provision-lab` |
+| find a plan, branch or variable by part of its name | `bam plan list --match deploy`, `bam plan branches provision-lab feature`, `bam plan vars provision-lab region` |
 | run with the previous build's variables | `bam run provision-lab --from last` |
 | check variables without running | `bam run provision-lab --dry-run` |
 | review and change variables in your editor, then run | `bam run provision-lab --edit` |
@@ -196,19 +198,22 @@ and `bam build cancel` on the command line, stop a build.
 | rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |
 | see recent builds | `bam build list provision-lab` |
 | is this plan flaky? | `bam plan stats provision-lab` |
-| follow a running build | `bam watch --last` |
+| follow a running build and the builds it triggers | `bam watch --last` |
 | see every build a build triggered, and where it failed | `bam build tree --last` |
 | follow a build and all its sub-pipelines until they finish | `bam build tree PROJ-API-142 --watch` |
 | retry the failed parts of a run | `bam build tree --last --rerun-failed` |
 | read only the failed jobs' logs | `bam logs --last --failed` |
 | stop a build | `bam build cancel --last` |
-| open anything in Bamboo | `bam open PROJ-PLAN-123` |
+| open anything in Bamboo | `bam open PROJ-PLAN-123`, or one job: `bam open PROJ-PLAN-123 --job JOB1` |
 | run a release train of presets, stage by stage | `bam set run release` |
 | continue a train after Ctrl-C | `bam set resume` |
 | run a one-off train from its own file | `bam set run -f hotfix.yaml` |
 | retry a failed train's failed runs, then finish it | `bam set rerun --failed` |
+| list a train's past runs | `bam set history release` |
 
 `--revision` takes a full or short SHA and passes it to Bamboo as given; Bamboo applies it to the plan's default repository. A revision Bamboo cannot build ends as "not built", so add `--watch` to see it. If the server ignores the revision, bam stops the build it queued and exits 5. `--revision from` reuses the commit of the `--from` build, together with its variables.
+
+`bam project list`, `bam preset list` and `bam set list` take the same kind of text filter, and every filter ignores case.
 
 Every command has `--help`, and every read command has `--json`. The full reference is in [docs/cli](docs/cli/bam.md).
 
@@ -255,6 +260,8 @@ PROJ-API-142              ✗ failed   12m03s
 │  └─ OPS-SMOKE-51        ✗ failed   1m40s   3 tests failed
 │     └─ stage Smoke      ✗ failed   1m40s   Smoke tests
 └─ PROJ-DOCS-30           ▸ running  45s
+failed: PROJ-API-142 https://bamboo.example.com/browse/PROJ-API-142
+failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51
 next: bam logs OPS-SMOKE-51 --failed
 ```
 
@@ -264,8 +271,8 @@ To watch a running build and its sub-pipelines live:
 bam build tree PROJ-API-142 --watch
 ```
 
-- The argument works as in `bam build show`: a build key, a plan or preset (its latest build, with `--branch`), or `--last`.
-- `--watch` follows the tree until every build has finished, including children that start after their parent ends. On a terminal the tree redraws in place as builds start, run and finish; Ctrl-C stops watching only. To follow a single build without its children, use `bam watch`.
+- The argument works as in `bam build show`: a build key, a link copied from its Bamboo page, a plan or preset (its latest build, with `--branch`), or `--last`.
+- `--watch` follows the tree until every build has finished, including children that start after their parent ends. On a terminal the tree redraws in place as builds start, run and finish; Ctrl-C stops watching only. `bam watch <build>` and `bam run --watch` draw the same live tree; `bam watch --json` follows the single build.
 - `--failed` shows only the branches that lead to a failure; `--depth N` limits the levels; `--json` prints the tree as one document.
 - It exits 0 when every build succeeded and 1 when any did not. Without `--watch`, a tree that is still running exits 0 and suggests `--watch`.
 

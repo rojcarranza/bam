@@ -73,18 +73,30 @@ func TestResolveVarsValidationOrder(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "--var cluster_name=VALUE", e.Try)
 
+	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"Cluster_Name=a"}})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "cluster_name is required by preset provision-lab", e.What)
+	assert.Equal(t, "Cluster_Name is set, but names are case-sensitive", e.Why)
+	assert.Equal(t, "--var cluster_name=a", e.Try)
+
 	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_name=a", "cluster_type=nomad"}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `cluster_type="nomad" is not allowed by preset provision-lab`)
 	assert.Contains(t, err.Error(), "allowed: k8s, dcos")
+	require.ErrorAs(t, err, &e)
+	assert.Empty(t, e.Try)
+
+	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_name=a", "cluster_type=k8"}})
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean --var cluster_type=k8s?", e.Try)
 }
 
 func TestResolveVarsWarnsOnUndeclaredFlag(t *testing.T) {
 	s := newService(t, fakeBamboo())
 	ref, _ := s.ResolvePlan(bg, "PROJ-PROV", "")
-	set, err := s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_nme=x"}})
+	set, err := s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_nme=y", "cluster_nme=x"}})
 	require.NoError(t, err)
-	require.Len(t, set.Warnings, 1)
+	require.Len(t, set.Warnings, 1, "a repeated name warns once")
 	assert.Contains(t, set.Warnings[0], "cluster_nme is not a declared variable of PROJ-PROV")
 	assert.Contains(t, set.Warnings[0], "did you mean cluster_name")
 	assert.Equal(t, "x", set.Changed()["cluster_nme"], "still sent: it may override a global variable")
@@ -386,4 +398,15 @@ func TestValidateEditedWarnsOnceForAnUndeclaredName(t *testing.T) {
 	assert.Contains(t, got.Warnings[0], "clustr_name is not a declared variable of PROJ-PROV")
 	assert.Contains(t, got.Warnings[1], "extra is not a declared variable of PROJ-PROV")
 	assert.Equal(t, "b", got.Changed()["clustr_name"])
+}
+
+func TestResolveVarsMalformedFlagShowsTheForm(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	ref, err := s.ResolvePlan(bg, "PROJ-PROV", "")
+	require.NoError(t, err)
+	_, err = s.ResolveVars(bg, ref, VarOptions{Flags: []string{"cluster_type"}})
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+	assert.Equal(t, "--var cluster_type=VALUE", e.Try)
 }

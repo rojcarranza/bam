@@ -4,13 +4,21 @@ Add new plan variables to a preset and mark removed ones
 
 ### Synopsis
 
-sync compares a preset with its plan's declared variables. New variables are added to the
-preset's variables (or defaults, if the preset uses that older key) with the same values and
-comments as preset add. Variables the plan no longer declares are kept and marked
+sync compares a preset with its plan's declared variables. New variables that preset add
+would write (no plan default, or an empty secret) are added to the preset's variables (or
+defaults, if the preset uses that older key) with the same values and comments. Variables the plan no longer declares are kept and marked
 "not declared on PLAN". Existing values are never changed.
 
 ```
 bam preset sync <name> | --all [flags]
+```
+
+### Examples
+
+```
+  bam preset sync provision --dry-run
+  bam preset sync provision
+  bam preset sync --all
 ```
 
 ### Options
@@ -33,5 +41,5 @@ bam preset sync <name> | --all [flags]
 
 ### SEE ALSO
 
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync, migrate
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
 

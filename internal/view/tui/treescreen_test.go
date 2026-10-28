@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/require"
@@ -312,4 +313,67 @@ func TestTreeScreenShowsProgressUntilTheFirstTree(t *testing.T) {
 
 	m, _ = send(m, loading(m.treeGen-1, 39))
 	require.Contains(t, m.View(), "12/40", "a stale watch's progress is dropped")
+}
+
+func TestTreeScreenDrawsACachedTreeAtOnce(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m = firstTree(t, m)
+	require.Contains(t, m.trees, "PROJ-BUILD-44", "the screen's final tree is kept for the session")
+	m, _ = send(m, mkKey("esc"))
+
+	m, cmd := send(m, mkKey("t"))
+	require.True(t, m.buildTree.have, "no read before the tree is drawn")
+	require.Equal(t, "PROJ-BUILD-44(PROJ-PROV-7)", tuiShape(m.buildTree.tree.Root))
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refreshing…")
+
+	for m.buildTree.refreshing {
+		require.NotNil(t, cmd, "the screen still watches the build")
+		m, cmd = send(m, cmd())
+	}
+	require.NotContains(t, m.View(), "refreshing…")
+
+	running := m.buildTree.tree
+	root := *running.Root
+	root.Build.State = provider.StateQueued
+	running.Root = &root
+	m, _ = send(m, treeEventMsg{Gen: m.treeGen, Event: app.TreeEvent{Type: app.TreeUpdate, Tree: running}})
+	require.NotContains(t, m.trees, "PROJ-BUILD-44", "a tree that runs again, after a rerun, is no longer cached")
+}
+
+func TestATreeSeenInAnEarlierSessionDrawsAtOnce(t *testing.T) {
+	dir := t.TempDir()
+	m, _ := treeTUIModel(t)
+	m.svc.Trees = &app.TreeStore{Dir: dir}
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("esc"))
+
+	// A restart: no session cache, a fresh store reading the same directory.
+	m.trees = nil
+	m.svc.Trees = &app.TreeStore{Dir: dir}
+	m, _ = send(m, mkKey("t"))
+	require.True(t, m.buildTree.have, "the saved tree draws before any read")
+	require.Equal(t, "PROJ-BUILD-44(PROJ-PROV-7)", tuiShape(m.buildTree.tree.Root))
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refreshing…")
+
+	m.trees = nil // the store still holds the saved tree; swapping it would race the watch
+	m, _ = send(m, mkKey("esc"))
+	m.plan.tree = treePreview{}
+	m, cmd := m.loadTreePreview("PROJ-BUILD-44", false)
+	require.True(t, m.plan.tree.have && m.plan.tree.refreshing, "the Tree panel draws it too, marked refreshing")
+	require.NotNil(t, cmd, "and reads it again")
+}
+
+func TestTreeScreenKeepsACachedTreeWhenItsRefreshFails(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("t"))
+
+	m, _ = send(m, treeEventMsg{Gen: m.treeGen, Event: app.TreeEvent{Type: app.TreeError, Err: errs.Bamboof("Bamboo is down")}})
+	require.Equal(t, "PROJ-BUILD-44(PROJ-PROV-7)", tuiShape(m.buildTree.tree.Root), "the cached tree stays")
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refresh failed")
+	require.NotContains(t, m.View(), "refreshing…")
+
+	m, _ = send(m, mkKey("r"))
+	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refreshing…", "r tries again")
 }

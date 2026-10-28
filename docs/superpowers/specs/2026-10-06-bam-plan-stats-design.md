@@ -27,7 +27,7 @@ When a build fails, the first question is whether the plan is flaky or the chang
 ## 3. Command
 
 ```
-bam plan stats <plan|preset> [--last N] [--branch B] [--json]
+bam plan stats <plan|preset> [-n|--last N] [--branch B] [--json]
 ```
 
 - `<plan|preset>` and `--branch` resolve the plan branch exactly as `bam build list` does: a preset brings its branch; `--branch` overrides it.

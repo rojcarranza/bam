@@ -3,7 +3,15 @@
 Show a plan: URL, branches, variables, recent builds
 
 ```
-bam plan show <plan> [flags]
+bam plan show <plan|preset> [flags]
+```
+
+### Examples
+
+```
+  bam plan show PROJ-BUILD
+  bam plan show PROJ-BUILD --branch develop
+  bam plan show provision --json
 ```
 
 ### Options
@@ -25,5 +33,5 @@ bam plan show <plan> [flags]
 
 ### SEE ALSO
 
-* [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
+* [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 

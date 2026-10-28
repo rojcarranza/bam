@@ -62,6 +62,7 @@ type Plan struct {
 	ProjectKey string
 	URL        string
 	LastBuild  *BuildSummary
+	Disabled   bool // Bamboo will not build it until it is enabled again
 }
 
 type Branch struct {
@@ -70,6 +71,7 @@ type Branch struct {
 	ShortName string
 	PlanKey   string // master plan key
 	URL       string
+	Disabled  bool // Bamboo will not build it until it is enabled again
 }
 
 type Variable struct {
@@ -112,6 +114,7 @@ type Build struct {
 	PlanKey       string // plan (or branch plan) the build belongs to
 	PlanName      string // the plan's short name; for a branch build, its master plan's, not the branch's
 	Branch        string // branch short name; empty for the default branch
+	MasterKey     string // for a branch build, the plan its branch belongs to; GetBuild only
 	Number        int
 	State         State
 	Reason        string // plain text, no HTML

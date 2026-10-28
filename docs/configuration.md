@@ -9,7 +9,7 @@ bam reads four layers. Only the last is secret.
 | Presets | `~/bam/presets/*.yaml` and `~/bam/presets.yaml` (`BAM_PRESETS` overrides) | no | your personal presets, usable in every directory |
 | Credentials | OS keychain, an env variable, or `~/.config/bam/credentials.yaml` (0600) | never | tokens only |
 
-bam looks for `.bam.yaml` from the current directory up to the git root (or your home directory outside a repository).
+bam looks for `.bam.yaml` from the current directory up to the git root (or your home directory outside a repository). A file named `.bam.yml`, `bam.yaml` or `bam.yml` there instead is an error that tells you to rename it, rather than being silently ignored.
 
 ## Project file
 
@@ -109,6 +109,8 @@ sets:
 
 A stage is a list of presets. A bare name is short for `{target: name}`; the long form adds `vars`, which override that preset's `defaults` for this set only.
 
+A set with no `timeout` can be written as just its list of stages: `release: [[publish-specs], [provision, deploy]]` is short for `release: {stages: [[publish-specs], [provision, deploy]]}`.
+
 `sets:` is allowed wherever `targets:` is: the project file, the machine file, and a machine `repos` entry. A set defined in a higher layer replaces the lower one whole; stages are never merged.
 
 Rules, checked when the file loads:
@@ -124,6 +126,7 @@ Variable precedence for a run of a set, lowest to highest: plan values, preset `
     bam set run release --dry-run      # every run as it would trigger
     bam set run release                # run the train
     bam set status                     # the newest set run in this repository
+    bam set history release            # past runs of release, newest first
     bam set resume                     # continue after Ctrl-C or a set timeout
 
 When a build fails, the rest of its stage still finishes, no later stage starts, and nothing is cancelled. Interrupting or timing out stops watching only; the builds keep running, and `bam set resume` picks the train up where it stopped. Resume asks again for every `--var` the run was started with, because bam never stores variable values. Records live in `$XDG_STATE_HOME/bam/sets/`; bam keeps the newest 20 per set.
@@ -170,7 +173,7 @@ stages:
     bam set run -f hotfix-2041.yaml --dry-run
     bam set run -f hotfix-2041.yaml
 
-The file holds one set in the shape of an entry under `sets:`, plus an optional `name:`. Its presets come from your configuration, and every check of a configured set applies; a literal secret is refused, as in the project file. Its runs are recorded under its name, so `bam set status`, `bam set resume` and `bam set rerun --failed` work as for any set. Resume and rerun read the file again from where it was run; if it has moved, pass `--file` with its new path. A moved file keeps its run's name even under another file name, unless its own `name:` says otherwise.
+The file holds one set in the shape of an entry under `sets:`, plus an optional `name:`. As under `sets:`, a file can be just its list of stages (`- [publish-specs]` lines, no `stages:` key); it is then named after the file. Its presets come from your configuration, and every check of a configured set applies; a literal secret is refused, as in the project file. Its runs are recorded under its name, so `bam set status`, `bam set resume` and `bam set rerun --failed` work as for any set. Resume and rerun read the file again from where it was run; if it has moved, pass `--file` with its new path. A moved file keeps its run's name even under another file name, unless its own `name:` says otherwise.
 
 ## Child plans (`children`)
 

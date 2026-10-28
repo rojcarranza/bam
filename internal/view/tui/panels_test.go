@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/stretchr/testify/require"
 )
@@ -51,4 +52,57 @@ func TestPlanBuildRowsTruncateToTheBar(t *testing.T) {
 	for _, l := range strings.Split(m.planBuildRows(8, 5), "\n") {
 		require.LessOrEqual(t, lipgloss.Width(l), 8, "a build row never outgrows its panel")
 	}
+}
+
+// TestNarrowKeyLinesDropWholeHints: a key line too wide for the bar loses its
+// last hints, never all of them and never half a word.
+func TestNarrowKeyLinesDropWholeHints(t *testing.T) {
+	m := homeModel()
+	bar := ansi.Strip(m.statusBar(60))
+	require.Contains(t, bar, "enter open", "at 60 columns the bar used to show no keys at all")
+	require.LessOrEqual(t, lipgloss.Width(bar), 60)
+
+	logs := logModel()
+	logs.width = 40
+	lines := strings.Split(ansi.Strip(logs.View()), "\n")
+	foot := lines[len(lines)-1]
+	require.Equal(t, "esc back  / search  G end  f follow", strings.TrimRight(foot, " "),
+		"the log footer used to end in half a hint")
+}
+
+// TestNarrowStatusBarKeepsKeysOverIdentity: when the hints do not fit, the
+// version and user go before any key does.
+func TestNarrowStatusBarKeepsKeysOverIdentity(t *testing.T) {
+	m := homeModel()
+	m.info.Version, m.user.Name = "9.6.2", "jdoe"
+	full := ansi.Strip(m.statusBar(120))
+	require.Contains(t, full, m.user.Name, "a wide bar still shows who is signed in")
+	bar := ansi.Strip(m.statusBar(70))
+	require.LessOrEqual(t, lipgloss.Width(bar), 70)
+	require.True(t, strings.HasPrefix(bar, m.server+" "), bar)
+	require.NotContains(t, bar, m.user.Name)
+	require.Contains(t, bar, "R run")
+}
+
+// TestStatusBarKeepsTwoSpacesBeforeKeys: a long message never runs into the
+// first key hint with a single space, so the two never read as one sentence.
+func TestStatusBarKeepsTwoSpacesBeforeKeys(t *testing.T) {
+	m := homeModel()
+	m.status = ":sort needs a column; columns: key name state age"
+	for w := 40; w <= 120; w++ {
+		bar := ansi.Strip(m.statusBar(w))
+		rest, whole := strings.CutPrefix(bar, m.status)
+		require.True(t, !whole || rest == "" || strings.HasPrefix(rest, "  "), "width %d: %q", w, bar)
+	}
+}
+
+func TestNarrowKeyLinesKeepTheWayOut(t *testing.T) {
+	// The form keeps ^R run too: without it there is no way to start the build.
+	require.Equal(t, "enter edit  ^R run  esc cancel",
+		fitHints("enter edit  a add  x remove  d dry-run  ^R run  esc cancel", 30))
+	require.Equal(t, "enter open  q quit",
+		fitHints("enter open  / filter  s sort  : cmd  R run  ?help  q quit", 20))
+	require.Equal(t, "esc back  / search", fitHints("esc back  / search  G end  f follow", 20))
+	require.Equal(t, "esc cancel", fitHints("enter edit  esc cancel", 12))
+	require.Equal(t, "", fitHints("enter edit  esc cancel", 5))
 }

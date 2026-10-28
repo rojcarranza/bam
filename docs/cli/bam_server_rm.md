@@ -6,6 +6,12 @@ Remove a server alias from the machine config
 bam server rm <alias> [flags]
 ```
 
+### Examples
+
+```
+  bam server rm lab
+```
+
 ### Options
 
 ```
@@ -24,5 +30,5 @@ bam server rm <alias> [flags]
 
 ### SEE ALSO
 
-* [bam server](bam_server.md)	 - Manage Bamboo server aliases
+* [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 

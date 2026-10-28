@@ -25,6 +25,7 @@ bam set [flags]
 ### SEE ALSO
 
 * [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
+* [bam set history](bam_set_history.md)	 - List past set runs of this repository, newest first
 * [bam set list](bam_set_list.md)	 - List release train sets
 * [bam set rerun](bam_set_rerun.md)	 - Retry the failed runs of a set run, then finish the train
 * [bam set resume](bam_set_resume.md)	 - Continue an interrupted or timed-out set run

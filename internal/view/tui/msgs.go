@@ -93,6 +93,7 @@ func connectCmd(ctx context.Context, d Deps, alias string, gen int) tea.Cmd {
 		if err != nil {
 			return errMsg{Err: err, Where: "connect", Stream: streamConnect, Gen: gen}
 		}
+		svc.TreeServer(info.Version)
 		user, err := svc.P.CurrentUser(ctx)
 		if err != nil {
 			return errMsg{Err: err, Where: "connect", Stream: streamConnect, Gen: gen}
@@ -323,6 +324,7 @@ func resolveTargetBuildsCmd(ctx context.Context, svc *app.Service, target app.Ta
 		if err != nil {
 			return errMsg{Err: err, Where: "builds", Stream: streamBuilds, Gen: gen}
 		}
+		app.WithBranch(builds, ref.Branch)
 		return buildsLoadedMsg{Gen: gen, PlanKey: ref.PlanKey, Builds: builds}
 	}
 }
@@ -551,14 +553,15 @@ type treePreviewProgressMsg struct {
 	next     tea.Cmd
 }
 
-// treePreviewCmd reads what build key triggered, one level down. It is read
+// treePreviewCmd reads what build key triggered, one level down, from the
+// scan of another build of its plan unless fresh. It is read
 // once, not watched: the plan screen reads it again on r and when the open
 // build finishes. The read starts when either command of the batch runs,
 // never when it is built, so a command that is dropped reads nothing, and
 // ending ctx ends it; a read cancelled before it runs does not start. Its
 // result comes from the first command and its progress from the second,
 // which keeps only the newest snapshot and ends with the read.
-func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.Cmd {
+func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int, fresh bool) tea.Cmd {
 	progress := make(chan app.TreeProgress, 1)
 	result := make(chan treePreviewMsg, 1)
 	var start sync.Once
@@ -570,7 +573,7 @@ func treePreviewCmd(ctx context.Context, svc *app.Service, key string, gen int) 
 		}
 		go func() {
 			defer close(progress)
-			t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1, OnProgress: func(p app.TreeProgress) {
+			t, err := svc.BuildTree(ctx, key, app.TreeOptions{Depth: 1, Shared: !fresh, OnProgress: func(p app.TreeProgress) {
 				// Calls are serialized, so after the drain there is room.
 				select {
 				case <-progress:

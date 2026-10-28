@@ -27,6 +27,7 @@ type Provider struct {
 	BuildVars    map[string]map[string]string
 	BuildVarsErr error
 	Logs         map[string][]string // by job result key
+	LogSkipped   map[string]int      // by job result key: lines before Logs that a long log's read left out
 	// LogGrowth is a log that grows: the n-th FetchLog of a key sees the n-th
 	// snapshot of the whole log, the last one repeating. It wins over Logs.
 	LogGrowth     map[string][][]string // by job result key
@@ -39,6 +40,8 @@ type Provider struct {
 	StopErrs       []error // returned by StopBuild in order, one per call; after them StopErr applies
 	RestartResult  provider.Build
 	RestartErr     error
+	NoRestart      bool                      // CannotRestart reports it
+	NoStop         bool                      // CannotStop reports it
 	RestartResults map[string]provider.Build // by build key; RestartResult and RestartErr apply when a key is missing
 	RestartErrs    map[string]error
 	GetErrs        map[string][]error             // returned by GetBuild for a key in order, one per call; then the build
@@ -275,11 +278,16 @@ func (f *Provider) FetchLog(_ context.Context, key string, o provider.LogOptions
 	if !ok {
 		return provider.LogChunk{}, notFound("job", key)
 	}
-	if o.Offset > len(lines) {
-		o.Offset = len(lines)
-	}
-	return provider.LogChunk{Lines: lines[o.Offset:], Next: len(lines)}, nil
+	skipped := f.LogSkipped[key]
+	from := min(max(o.Offset-skipped, 0), len(lines))
+	return provider.LogChunk{Lines: lines[from:], Next: skipped + len(lines)}, nil
 }
+
+// CannotRestart reports NoRestart.
+func (f *Provider) CannotRestart(context.Context) bool { return f.NoRestart }
+
+// CannotStop reports NoStop.
+func (f *Provider) CannotStop(context.Context) bool { return f.NoStop }
 
 // LogCalls reports how many times FetchLog was called for key.
 func (f *Provider) LogCalls(key string) int {

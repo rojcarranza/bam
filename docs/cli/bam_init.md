@@ -6,6 +6,13 @@ Write .bam.yaml for this repository, with generated presets
 bam init --server ALIAS --project KEY [--plan KEY[=name]]... [flags]
 ```
 
+### Examples
+
+```
+  bam init --server work --project PROJ
+  bam init --server work --project PROJ --plan PROJ-BUILD --plan PROJ-DEPLOY=deploy-qa
+```
+
 ### Options
 
 ```

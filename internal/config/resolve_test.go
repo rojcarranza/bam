@@ -62,7 +62,7 @@ func TestServerSelectionEnvURL(t *testing.T) {
 	s, err := c.SelectServer("", "")
 	require.NoError(t, err)
 	assert.Equal(t, EnvServerAlias, s.Alias)
-	assert.Equal(t, "https://ci.bamboo.example.com/", s.URL)
+	assert.Equal(t, "https://ci.bamboo.example.com", s.URL, "a trailing slash is dropped")
 	assert.Equal(t, "tok", s.Token)
 
 	s, err = c.SelectServer("work", "")
@@ -80,10 +80,31 @@ func TestServerSelectionSingleAndNone(t *testing.T) {
 	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
 	assert.Contains(t, err.Error(), "only, second")
 
+	assert.Equal(t, "second", alias(t, c, "SECOND", ""), "aliases match in any case")
+	c.Machine.Servers["Second"] = Server{URL: "https://c.example.com"}
+	assert.Equal(t, "Second", alias(t, c, "Second", ""), "an exact match wins")
+	_, err = c.SelectServer("SECOND", "")
+	require.Error(t, err, "two case-insensitive matches pick neither")
+	delete(c.Machine.Servers, "Second")
+
 	_, err = c.SelectServer("missing", "")
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Contains(t, e.Try, "bam server add missing --url")
+	assert.Equal(t, "servers: only, second", e.Why, "a mistyped alias shows the real ones")
+	_, err = c.SelectServer("Missing", "")
+	require.ErrorAs(t, err, &e)
+	assert.Contains(t, e.Try, "bam server add missing --url", "server add only accepts lowercase aliases")
+	_, err = c.SelectServer("my server", "")
+	require.ErrorAs(t, err, &e)
+	assert.Contains(t, e.Try, "bam server add <alias> --url", "never suggest an alias server add rejects")
+	_, err = c.SelectServer("secnod", "")
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean second?", e.Try, "a close alias beats adding a new server")
+
+	_, err = (&Config{Machine: &MachineFile{Version: 1}}).SelectServer("missing", "")
+	require.ErrorAs(t, err, &e)
+	assert.Empty(t, e.Why, "no list when nothing is configured")
 }
 
 func TestServerFieldsMergeWithMachineWinning(t *testing.T) {
@@ -94,6 +115,14 @@ func TestServerFieldsMergeWithMachineWinning(t *testing.T) {
 	assert.Equal(t, "BAM_WORK_TOKEN", s.AuthEnv)
 	assert.Equal(t, []string{"PROJ"}, s.Projects, "project-only field survives the override")
 	assert.Equal(t, []string{"project", "machine"}, s.DefinedIn)
+}
+
+func TestServerURLDropsTrailingSlash(t *testing.T) {
+	c := baseConfig()
+	c.Machine.Servers["work"] = Server{URL: "https://bamboo.example.com/bamboo/"}
+	c.Env.URL = "https://bamboo.lab.example/"
+	assert.Equal(t, "https://bamboo.example.com/bamboo", c.Servers()["work"].URL)
+	assert.Equal(t, "https://bamboo.lab.example", c.Servers()[EnvServerAlias].URL)
 }
 
 func TestMachineAuthEnvWithoutURLIsNotAppliedToProjectURL(t *testing.T) {
@@ -189,11 +218,16 @@ func TestMergedTargetValidation(t *testing.T) {
 	cases := map[string]struct {
 		target Target
 		want   string
+		try    string
 	}{
-		"no plan":                   {Target{Branch: "develop"}, "has no plan"},
-		"default not option":        {Target{Plan: "PROJ-A", Defaults: StringMap{"a": "5"}, Options: StringListMap{"a": {"1", "2"}}}, `"5" is not one of 1, 2`},
-		"masked default not option": {Target{Plan: "PROJ-A", Defaults: StringMap{"db_password": "hunter2"}, Options: StringListMap{"db_password": {"a", "b"}}}, `db_password="********" is not one of a, b`},
-		"unknown server":            {Target{Plan: "PROJ-A", Server: "nope"}, `unknown server "nope"`},
+		"no plan":                   {Target{Branch: "develop"}, "has no plan", ""},
+		"lowercase plan":            {Target{Plan: "proj-a"}, `preset "t": plan "proj-a" is not a plan key`, "plan keys are uppercase: did you mean PROJ-A?"},
+		"build key as plan":         {Target{Plan: "PROJ-A-12"}, `plan "PROJ-A-12" is not a plan key`, "plan: PROJ-PLAN"},
+		"project key as plan":       {Target{Plan: "PROJ"}, `plan "PROJ" is not a plan key`, "plan: PROJ-PLAN"},
+		"default not option":        {Target{Plan: "PROJ-A", Defaults: StringMap{"a": "5"}, Options: StringListMap{"a": {"1", "2"}}}, `"5" is not one of 1, 2`, ""},
+		"masked default not option": {Target{Plan: "PROJ-A", Defaults: StringMap{"db_password": "hunter2"}, Options: StringListMap{"db_password": {"a", "b"}}}, `db_password="********" is not one of a, b`, ""},
+		"unknown server":            {Target{Plan: "PROJ-A", Server: "zzzzzz"}, `unknown server "zzzzzz"`, "bam server add zzzzzz --url URL"},
+		"mistyped server":           {Target{Plan: "PROJ-A", Server: "wrk"}, `unknown server "wrk"`, "did you mean work?"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -203,6 +237,9 @@ func TestMergedTargetValidation(t *testing.T) {
 			require.Error(t, err)
 			assert.Equal(t, errs.KindConfig, errs.KindOf(err))
 			assert.Contains(t, err.Error(), tc.want)
+			var e *errs.Error
+			require.ErrorAs(t, err, &e)
+			assert.Contains(t, e.Try, tc.try)
 		})
 	}
 }
@@ -229,4 +266,20 @@ func TestDefaultProjectOrder(t *testing.T) {
 	c.Machine.Repos = nil
 	c.Project = nil
 	assert.Empty(t, c.DefaultProject(c.Servers()["home"]), "nothing set means all projects")
+}
+
+func TestPresetsUsingServerSkipsProjectPresetsOfTheProjectsOwnAlias(t *testing.T) {
+	c := &Config{
+		Project: &ProjectFile{
+			Servers: map[string]Server{"Home": {URL: "https://bamboo.lab.example"}},
+			Targets: map[string]Target{"lab-smoke": {Plan: "LAB-SMOKE", Server: "home"}},
+		},
+		Machine: &MachineFile{
+			Servers: map[string]Server{"home": {URL: "https://bamboo.example.com"}},
+			Targets: map[string]Target{"deploy": {Plan: "PROJ-DEPLOY", Server: "HOME"}},
+			Repos:   map[string]Repo{"/src/a": {Targets: map[string]Target{"api": {Plan: "PROJ-API", Server: "home"}}}},
+		},
+		Presets: &PresetsFile{Presets: map[string]Target{"docs": {Plan: "PROJ-DOCS", Server: "home"}, "other": {Plan: "PROJ-X"}}},
+	}
+	assert.Equal(t, []string{"api", "deploy", "docs"}, c.PresetsUsingServer("home"))
 }

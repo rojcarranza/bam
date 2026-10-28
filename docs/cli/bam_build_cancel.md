@@ -14,10 +14,19 @@ result with bam build show.
 bam build cancel [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam build cancel PROJ-BUILD-482
+  bam build cancel --last --dry-run
+  bam build cancel deploy-qa --branch develop
+```
+
 ### Options
 
 ```
       --branch string   plan branch when a plan or preset is given
+      --dry-run         show which build would stop, stop nothing
   -h, --help            help for cancel
       --last            the last build bam triggered from this repository
 ```
@@ -34,5 +43,5 @@ bam build cancel [<build>|<plan>|<preset>] [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 

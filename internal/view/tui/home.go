@@ -84,15 +84,15 @@ func (s homeSort) label(v homeView) string {
 }
 
 // parseSort reads a :sort argument: a column of view v, optionally with a
-// leading "-" to reverse it.
+// leading "-" to reverse it, in any case.
 func parseSort(v homeView, arg string) (homeSort, error) {
 	name := strings.TrimPrefix(arg, "-")
 	for i, n := range homeColNames[v] {
-		if n == name {
+		if strings.EqualFold(n, name) {
 			return homeSort{col: homeCol(i), desc: strings.HasPrefix(arg, "-")}, nil
 		}
 	}
-	return homeSort{}, fmt.Errorf("unknown sort column %q; columns: %s", name, strings.Join(homeColNames[v], " "))
+	return homeSort{}, fmt.Errorf("unknown sort column %q; %scolumns: %s", name, didYouMean(":sort ", name, homeColNames[v]), strings.Join(homeColNames[v], " "))
 }
 
 // stateRank orders the state column: what needs attention first, a plan
@@ -258,6 +258,28 @@ func fillWidth(cols []tableCol, width int, flexible string) []tableCol {
 	return cols
 }
 
+// widen grows the column titled title toward want, taking only what the
+// flexible column has beyond keep, so a capped name column shows in full
+// when the row has room.
+func widen(cols []tableCol, title string, want int, flexible string, keep int) {
+	t, f := -1, -1
+	for i, c := range cols {
+		switch c.title {
+		case title:
+			t = i
+		case flexible:
+			f = i
+		}
+	}
+	if t < 0 || f < 0 {
+		return
+	}
+	if give := min(want-cols[t].width, cols[f].width-keep); give > 0 {
+		cols[t].width += give
+		cols[f].width -= give
+	}
+}
+
 // buildCells is STATE, #, AGE and BY for a plan's last build. A live build
 // the UI is watching or just started wins while it has not finished (home
 // spec §4.4).
@@ -286,7 +308,7 @@ func planCells(cols []tableCol, p provider.Plan, live *provider.Build, now time.
 		case "KEY":
 			out[i] = p.Key
 		case "NAME":
-			out[i] = p.Name
+			out[i] = view.MarkDisabled(p.Name, p.Disabled)
 		case "STATE":
 			out[i] = state
 		case "#":
@@ -461,10 +483,11 @@ func (m *Model) sortPresets() {
 
 // presetColumns fits the presets table to width; BRANCH takes what is left.
 func presetColumns(width int, rows []app.TargetInfo) []tableCol {
-	nameW, planW := len("PRESET"), len("PLAN")
+	nameW, planW, branchW := len("PRESET"), len("PLAN"), len("BRANCH")
 	for _, t := range rows {
 		nameW = max(nameW, lipgloss.Width(t.Name))
 		planW = max(planW, lipgloss.Width(t.Plan))
+		branchW = max(branchW, lipgloss.Width(cmp.Or(t.Branch, "default")))
 	}
 	cols := []tableCol{
 		{title: "PRESET", width: min(nameW, 24)},
@@ -474,7 +497,11 @@ func presetColumns(width int, rows []app.TargetInfo) []tableCol {
 		{title: "#", width: 6, right: true},
 		{title: "AGE", width: 5},
 	}
-	return fillWidth(cols, width, "BRANCH")
+	cols = fillWidth(cols, width, "BRANCH")
+	keep := min(branchW, 24)
+	widen(cols, "PRESET", nameW, "BRANCH", keep)
+	widen(cols, "PLAN", planW, "BRANCH", keep)
+	return cols
 }
 
 // presetCells is one presets-table row. The state is the preset's plan's
@@ -682,8 +709,9 @@ func isBranchOf(key, master string) bool {
 	return true
 }
 
-// homeHeader is the line above the table: where, what and how it is sorted.
-func (m Model) homeHeader() string {
+// homeHeader is the line above the table: where, what and how it is sorted,
+// fitted to width columns (0 means no limit).
+func (m Model) homeHeader(width int) string {
 	project := m.project
 	if project == "" {
 		project = "all"
@@ -705,11 +733,11 @@ func (m Model) homeHeader() string {
 	if m.deps.Version != "" {
 		bam += " " + m.deps.Version
 	}
-	parts := []string{bam, m.server, m.info.Version, m.user.Name, "project " + project,
-		count, "sort " + sortLabel}
+	id := []string{bam, m.server, m.info.Version, m.user.Name}
+	parts := []string{"project " + project, count, "sort " + sortLabel}
 	if m.home.view == homeSets || m.home.view == homeProjects {
 		// Sets are not filtered by project.
-		parts = append(parts[:4], count, "sort "+sortLabel)
+		parts = parts[1:]
 	}
 	if query != "" {
 		parts = append(parts, "filter /"+query)
@@ -717,7 +745,22 @@ func (m Model) homeHeader() string {
 	if s := m.homeLoadMarker(); s != "" {
 		parts = append(parts, s)
 	}
-	return " " + strings.Join(parts, " · ")
+	line := func() string { return " " + strings.Join(append(append([]string{}, id...), parts...), " · ") }
+	// When it does not fit, who and where go first (bam, Bamboo version,
+	// user, server), so the count, sort and filter stay on screen.
+	for _, drop := range []int{0, 1, 1, 0} {
+		if width <= 0 || lipgloss.Width(line()) <= width {
+			break
+		}
+		id = append(id[:drop], id[drop+1:]...)
+	}
+	if width > 0 && lipgloss.Width(line()) > width && parts[0] == "project all (none configured)" {
+		parts[0] = "project all"
+	}
+	if width <= 0 {
+		return line()
+	}
+	return cut(line(), width)
 }
 
 // homeLoadMarker is "refreshing…", "stale 3m", "stale" or "": what both
@@ -858,7 +901,7 @@ func titleRule(width int, title, right string) string {
 // rule when the terminal has room, else the one-line header.
 func (m Model) homeChrome() []string {
 	if m.width < 60 || m.height < 20 {
-		return []string{truncate(m.homeHeader(), m.width)}
+		return []string{m.homeHeader(m.width)}
 	}
 	title, right := m.homeTitle()
 	return append(m.homeHeaderBlock(m.width), titleRule(m.width, title, right))
@@ -890,6 +933,9 @@ func (m Model) homeView() string {
 	if m.home.view == homeProjects {
 		lines = m.projectTable(m.width, body)
 	}
+	if hint := m.homeEmptyHint(); hint != "" {
+		lines = append(lines, "", "  "+dimStyle.Render(hint))
+	}
 	if len(lines) > body {
 		lines = lines[:body]
 	}
@@ -903,6 +949,21 @@ func (m Model) homeView() string {
 	}
 	out = append(out, m.statusBar(m.width))
 	return m.overlayView(strings.Join(out, "\n"))
+}
+
+// homeEmptyHint says how to get a first preset or set when the table has
+// none at all, the way bam preset list and bam set list do. It stays quiet
+// while sets load and after a failed load, which the status bar reports.
+func (m Model) homeEmptyHint() string {
+	switch {
+	case m.err != nil:
+		return ""
+	case m.home.view == homePresets && len(m.presets.items) == 0:
+		return "no presets yet: press p on a build in a plan to save one"
+	case m.home.view == homeSets && len(m.sets.items) == 0 && !m.sets.loading:
+		return "no sets yet: add sets: to .bam.yaml, see bam set run --help"
+	}
+	return ""
 }
 
 // countOf is "1 plan", "3 plans": the header's row count.

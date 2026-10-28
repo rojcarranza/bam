@@ -229,8 +229,8 @@ func ValidateEdited(ref PlanRef, base VarSet, flags []string, edits []Edit, gete
 }
 
 // applyInputs lays the flags, then the edits, over base and warns about
-// names the plan does not declare. An edited name already warned about as a
-// flag is not warned about twice.
+// names the plan does not declare, once per name even when it is given
+// several times.
 func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet, error) {
 	set := VarSet{FromBuild: base.FromBuild, DeclaredKnown: base.DeclaredKnown, Declared: base.Declared}
 	set.Warnings = append(set.Warnings, base.Warnings...)
@@ -258,12 +258,12 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 	}
 	warned := map[string]bool{}
 	warnUndeclared := func(name string) {
-		if !set.DeclaredKnown || base.Declared[name] || inTarget(name) {
+		if warned[name] || !set.DeclaredKnown || base.Declared[name] || inTarget(name) {
 			return
 		}
 		warned[name] = true
 		w := fmt.Sprintf("%s is not a declared variable of %s", name, ref.MasterKey)
-		if c := Closest(name, sortedNames(base.Declared), 1); len(c) > 0 {
+		if c := errs.Closest(name, sortedNames(base.Declared), 1); len(c) > 0 {
 			w += "; did you mean " + c[0] + "?"
 		}
 		set.Warnings = append(set.Warnings, w)
@@ -272,16 +272,17 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 	for _, f := range flags {
 		name, val, ok := strings.Cut(f, "=")
 		if !ok || name == "" {
-			return VarSet{}, errs.Usagef("--var takes name=value, not %q", f)
+			if name == "" {
+				name = "NAME"
+			}
+			return VarSet{}, errs.Usagef("--var takes name=value, not %q", f).WithTry("--var " + name + "=VALUE")
 		}
 		warnUndeclared(name)
 		v := get(name)
 		v.Value, v.Source = val, "flag"
 	}
 	for _, e := range edits {
-		if !warned[e.Name] {
-			warnUndeclared(e.Name)
-		}
+		warnUndeclared(e.Name)
 		v := get(e.Name)
 		v.Value, v.Source = e.Value, "edit"
 	}
@@ -317,8 +318,17 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 	if t := ref.Target; t != nil {
 		for _, name := range t.Required {
 			if v, ok := vars[name]; !ok || v.Value == "" {
-				return VarSet{}, errs.Usagef("%s is required by preset %s", name, t.Name).
+				e := errs.Usagef("%s is required by preset %s", name, t.Name).
 					WithTry(fmt.Sprintf("--var %s=VALUE", name))
+				// Variable names are case-sensitive: --var Env=dev does not set env.
+				for _, other := range out.Vars {
+					if other.Name != name && other.Value != "" && strings.EqualFold(other.Name, name) {
+						e = e.WithWhy(fmt.Sprintf("%s is set, but names are case-sensitive", other.Name)).
+							WithTry(fmt.Sprintf("--var %s=%s", name, other.Display()))
+						break
+					}
+				}
+				return VarSet{}, e
 			}
 		}
 		for _, name := range sortedNames(t.Options) {
@@ -327,8 +337,12 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 				continue
 			}
 			if !slices.Contains(t.Options[name], v.Value) {
-				return VarSet{}, errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
+				e := errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
 					WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
+				if c := errs.Closest(v.Value, t.Options[name], 1); len(c) > 0 {
+					e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c[0]))
+				}
+				return VarSet{}, e
 			}
 		}
 	}
@@ -368,7 +382,7 @@ func (s *Service) PlanVars(ctx context.Context, ref PlanRef, from string) (PlanV
 		default:
 			return res, err
 		}
-	} else if errs.KindOf(err) != errs.KindUsage || from != "last" {
+	} else if errs.KindOf(err) != errs.KindUsage || !strings.EqualFold(from, "last") {
 		return res, err
 	}
 

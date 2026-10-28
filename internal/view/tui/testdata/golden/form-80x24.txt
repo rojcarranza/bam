@@ -21,4 +21,4 @@
 ┃                                                                              ┃
 ┃                                                                              ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-lab · 9.6.4 · jdoe           enter edit  tab next  ^R run  d dry-run  esc cancel
+lab · 9.6.4 · jdoe    enter edit  a add  x remove  d dry-run  ^R run  esc cancel

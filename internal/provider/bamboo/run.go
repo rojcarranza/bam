@@ -127,12 +127,36 @@ func (c *Client) dequeue(ctx context.Context, key string) error {
 	return err
 }
 
+// CannotRestart reports whether an earlier RestartBuild learned that this
+// Bamboo refuses restarts. It makes no request.
+func (c *Client) CannotRestart(context.Context) bool {
+	return c.known().CannotRestart(c.now())
+}
+
+// CannotStop reports whether an earlier StopBuild learned that this Bamboo
+// refuses to stop builds. It makes no request.
+func (c *Client) CannotStop(context.Context) bool {
+	return c.known().CannotStop(c.now())
+}
+
+// known is the capabilities with no request: none when this process has
+// already seen the server run another version than they were learned from.
+func (c *Client) known() Capabilities {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.version != "" && c.version != c.caps.Version {
+		return Capabilities{}
+	}
+	return c.caps
+}
+
 // RestartBuild asks Bamboo to run a finished build's failed jobs again, in
 // the same build (PUT queue/{key}). Whether the server can is learned the
 // first time, like stopping a build.
 func (c *Client) RestartBuild(ctx context.Context, key string) (provider.Build, error) {
 	caps := c.fresh(ctx)
-	unsupported := errs.Bamboof("this Bamboo cannot restart a build over REST").Wrap(errs.ErrUnsupported)
+	unsupported := errs.Bamboof("this Bamboo cannot restart a build over REST").
+		WithTry("bam open " + key + ", then rerun it from Bamboo's web UI").Wrap(errs.ErrUnsupported)
 	if caps.Rerun == "no" {
 		return provider.Build{}, unsupported
 	}
@@ -309,8 +333,8 @@ func (c *Client) logDownload(ctx context.Context, jobResultKey string, offset in
 		}
 		all[n] = l
 	}
-	if offset > len(all) {
-		offset = len(all)
-	}
-	return provider.LogChunk{Lines: all[offset:], Next: len(all)}, nil
+	// Keep at most the last logMax lines, as the entries do, so a huge log
+	// reads the same whichever path a server offers.
+	from := min(max(offset, len(all)-logMax), len(all))
+	return provider.LogChunk{Lines: all[from:], Next: len(all)}, nil
 }

@@ -30,15 +30,15 @@ func PlanList(o Out, groups []PlanGroup) error {
 		if i > 0 {
 			fmt.Fprintln(o.W)
 		}
-		fmt.Fprintf(o.W, "%s  %s\n", style.Bold(o.Style, g.Project.Key), g.Project.Name)
+		fmt.Fprintln(o.W, strings.TrimSpace(style.Bold(o.Style, g.Project.Key)+"  "+g.Project.Name))
 		t := Table{Indent: "  ", Headers: []string{"PLAN", "NAME", "LAST", "STATE", "COMPLETED", "REASON"}, Flex: []int{5, 1}}
 		for _, p := range g.Plans {
 			if p.LastBuild == nil {
-				t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), p.Name, "–", style.Dim(o.Style, "– never"), "–", "Never built"})
+				t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), planName(p), "–", style.Dim(o.Style, "– never"), "–", "Never built"})
 				continue
 			}
 			lb := p.LastBuild
-			t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), p.Name, fmt.Sprintf("#%d", lb.Number), o.State(lb.State), o.Time(lb.FinishedAt), lb.Reason})
+			t.Rows = append(t.Rows, []string{o.Key(p.Key, p.URL), planName(p), fmt.Sprintf("#%d", lb.Number), o.State(lb.State), o.Time(lb.FinishedAt), lb.Reason})
 		}
 		if err := t.Render(o); err != nil {
 			return err
@@ -197,16 +197,17 @@ type PlanDetail struct {
 }
 
 func PlanDetailView(o Out, d PlanDetail) error {
-	fmt.Fprintf(o.W, "%s  %s  %s\n", style.Bold(o.Style, o.Key(d.Plan.Key, d.Plan.URL)), d.Plan.Name, d.Plan.URL)
+	fmt.Fprintf(o.W, "%s  %s  %s\n", style.Bold(o.Style, o.Key(d.Plan.Key, d.Plan.URL)), planName(d.Plan), d.Plan.URL)
 	field(o, "Project", d.Plan.ProjectKey)
 	var names []string
 	for _, b := range d.Branches {
-		names = append(names, b.ShortName)
+		names = append(names, branchName(b))
 	}
 	if len(names) == 0 {
 		field(o, "Branches", "none")
 	} else {
-		field(o, "Branches", fmt.Sprintf("%s (%d)", strings.Join(names, ", "), len(names)))
+		// The count leads so it never reads as part of a "(disabled)" marker.
+		field(o, "Branches", fmt.Sprintf("%d: %s", len(names), strings.Join(names, ", ")))
 	}
 	switch {
 	case d.VarsErr != "":
@@ -239,10 +240,23 @@ func PlanDetailView(o Out, d PlanDetail) error {
 func Branches(o Out, bs []provider.Branch) error {
 	t := Table{Headers: []string{"BRANCH", "KEY"}}
 	for _, b := range bs {
-		t.Rows = append(t.Rows, []string{b.ShortName, o.Key(b.Key, b.URL)})
+		t.Rows = append(t.Rows, []string{branchName(b), o.Key(b.Key, b.URL)})
 	}
 	return t.Render(o)
 }
+
+// MarkDisabled adds the marker for a plan or branch that Bamboo will not
+// build until it is enabled.
+func MarkDisabled(name string, disabled bool) string {
+	if disabled {
+		return name + " (disabled)"
+	}
+	return name
+}
+
+func planName(p provider.Plan) string { return MarkDisabled(p.Name, p.Disabled) }
+
+func branchName(b provider.Branch) string { return MarkDisabled(b.ShortName, b.Disabled) }
 
 func Vars(o Out, res app.PlanVarsResult) error {
 	last := "LAST USED"

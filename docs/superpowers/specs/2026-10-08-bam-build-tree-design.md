@@ -136,6 +136,8 @@ PROJ-API-142            ✗ failed     12m03s
 │     └─ stage Smoke    ✗ failed      1m40s   Smoke tests: 3 tests failed
 ├─ PROJ-DOCS-30         ⟳ running     0m45s
 └─ OPS-AUDIT            · not run
+failed: PROJ-API-142 https://bamboo.example.com/browse/PROJ-API-142
+failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51
 next: bam logs OPS-SMOKE-51 --failed
 ```
 
@@ -155,6 +157,7 @@ LAB-NWINT-487                    ✓ success  1h18m
 ```
 
   When its stages are not shown (`--failed` on a tree with no failure under it), such a build follows them as other children do and says `started by stage <stage>`. The tree screen draws the same lines.
+- `failed:` lines: one per build that failed or was stopped, in tree order, with its Bamboo URL so its logs are one click away (`stopped: KEY URL` for a stopped build). A configured child that did not run, a loop line and an earlier run get none.
 - `next:` lines: one `bam logs KEY --failed` per failed build that has a failed job, in tree order.
 - A loop node: `PROJ-API-142   ↺ already shown above`.
 
@@ -172,6 +175,7 @@ LAB-NWINT-487                    ✓ success  1h18m
 - The first tree at once, then every 10 seconds: the index is read again, and `GetBuild` runs only for nodes that have not finished and for new nodes.
 - An update is sent only when a node's state, its stages' states or the set of nodes changed.
 - It ends with `TreeDone` once every build node has finished and one more refresh after the last one finished found no new node: Bamboo queues children when their parent ends.
+- A refresh in which every build node finished more than a minute ago (by Bamboo's finish times) needs no second one: it ends with `TreeDone` at once, so watching an old build does not wait. The minute leaves room for a server clock that runs ahead.
 - A refresh that fails is retried; three in a row end with `TreeError`.
 - Ending the context stops watching; no build is stopped.
 - Text on a TTY redraws the tree in place; on a pipe, one timestamped line per node whose state changed; `--json` writes one tree document per update (NDJSON).

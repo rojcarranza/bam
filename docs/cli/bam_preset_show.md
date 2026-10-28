@@ -6,6 +6,13 @@ Show a run preset with its defaults, options and origin
 bam preset show <name> [flags]
 ```
 
+### Examples
+
+```
+  bam preset show provision
+  bam preset show provision --json
+```
+
 ### Options
 
 ```
@@ -24,5 +31,5 @@ bam preset show <name> [flags]
 
 ### SEE ALSO
 
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, sync, migrate
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
 

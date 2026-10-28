@@ -33,7 +33,8 @@ func pruneFailed(n *app.TreeNode) *app.TreeNode {
 }
 
 // TreeText prints a build tree: a line per build, its stages under it, then
-// its children; then one next: line per failed build with a failed job.
+// its children; then one failed: line per build that did not succeed, with
+// its URL, and one next: line per failed build with a failed job.
 func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	root := t.Root
 	if failedOnly {
@@ -42,7 +43,10 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	showStages := !failedOnly || len(root.Children) > 0 || treeBad(root)
 	tb := Table{Headers: []string{"", "", "", ""}}
 	tb.Rows = append(tb.Rows, treeRow(o, root, "", false))
-	var next []string
+	var failed, next []string
+	if treeBad(root) && !root.NotRun {
+		failed = append(failed, treeFailedLine(root.Build))
+	}
 	if root.Build.State == provider.StateFailed && len(root.Build.FailedJobs()) > 0 {
 		next = append(next, root.Build.Key)
 	}
@@ -52,6 +56,9 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 		tb.Rows = append(tb.Rows, treeRow(o, k, indent+branch, underStage))
 		if k.Superseded {
 			return
+		}
+		if !k.NotRun && !k.Loop && treeBad(k) {
+			failed = append(failed, treeFailedLine(k.Build))
 		}
 		if !k.NotRun && !k.Loop && k.Build.State == provider.StateFailed && len(k.Build.FailedJobs()) > 0 {
 			next = append(next, k.Build.Key)
@@ -83,12 +90,23 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	if err := RenderRows(o, tb); err != nil {
 		return err
 	}
+	for _, l := range failed {
+		if _, err := fmt.Fprintln(o.W, l); err != nil {
+			return err
+		}
+	}
 	for _, k := range next {
 		if _, err := fmt.Fprintf(o.W, "next: bam logs %s --failed\n", k); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// treeFailedLine names a build that did not succeed and where to open it:
+// "failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51".
+func treeFailedLine(b provider.Build) string {
+	return strings.TrimSpace(style.Label(b.State) + ": " + b.Key + " " + b.URL)
 }
 
 // TreeItem is one line under a build in a tree: a stage, with the builds
@@ -160,7 +178,9 @@ func TreeNodeNote(n *app.TreeNode, underStage bool) string {
 	if n.FromLog && n.Stage != "" && !underStage {
 		parts = append(parts, "started by stage "+n.Stage)
 	}
-	if c := len(n.Build.FailedTests); c > 0 {
+	if c := len(n.Build.FailedTests); c == 1 {
+		parts = append(parts, "1 test failed")
+	} else if c > 1 {
 		parts = append(parts, fmt.Sprintf("%d tests failed", c))
 	}
 	return strings.Join(parts, " · ")

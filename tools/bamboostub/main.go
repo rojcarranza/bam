@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,6 +43,8 @@ const api = "/rest/api/latest"
 const (
 	fixturePlan   = "PROJ-BUILD"
 	fixtureBuild  = "PROJ-BUILD12-44"
+	fixtureBranch = "PROJ-BUILD12" // the branch plan fixtureBuild ran on
+	fixtureNum    = "44"
 	fixtureJob    = "PROJ-BUILD12-INT-44"
 	fixtureResult = "PROJ-BUILD-482"
 	fixtureProj   = "PROJ"
@@ -64,7 +67,7 @@ type build struct {
 	planKey string
 	number  int
 	started time.Time
-	stopped bool
+	stopped time.Time // when bam build cancel stopped it; zero while it runs on
 }
 
 func newStub(fixtures string) *stub {
@@ -82,7 +85,7 @@ func newStub(fixtures string) *stub {
 // is Finished/Unknown, which is what Bamboo reports and bam shows as stopped.
 func (s *stub) phase(b *build) (string, string) {
 	switch d := s.now().Sub(b.started); {
-	case b.stopped:
+	case !b.stopped.IsZero():
 		return "Finished", "Unknown"
 	case d < s.queued:
 		return "Queued", "Unknown"
@@ -91,6 +94,20 @@ func (s *stub) phase(b *build) (string, string) {
 	default:
 		return "Finished", "Successful"
 	}
+}
+
+// ended is when a simulated build's clock stopped: when it was cancelled, when
+// it finished, or now while it is still going, so a finished build keeps the
+// duration and completed time it finished with.
+func (s *stub) ended(b *build) time.Time {
+	end := b.started.Add(s.queued + s.running)
+	if !b.stopped.IsZero() && b.stopped.Before(end) {
+		end = b.stopped
+	}
+	if now := s.now(); now.Before(end) {
+		return now
+	}
+	return end
 }
 
 func (s *stub) fixture(w http.ResponseWriter, name string) []byte {
@@ -134,7 +151,7 @@ func stamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z
 // down to the one stage and one job bam needs to draw its panels.
 func (s *stub) liveDetail(key string, b *build) []byte {
 	life, state := s.phase(b)
-	elapsed := int(s.now().Sub(b.started) / time.Millisecond)
+	elapsed := int(s.ended(b).Sub(b.started) / time.Millisecond)
 	doc := map[string]any{
 		"key": key, "buildResultKey": key, "buildNumber": b.number,
 		"state": state, "lifeCycleState": life,
@@ -153,7 +170,7 @@ func (s *stub) liveDetail(key string, b *build) []byte {
 		}}},
 	}
 	if life == "Finished" {
-		doc["buildCompletedTime"] = stamp(s.now())
+		doc["buildCompletedTime"] = stamp(s.ended(b))
 	}
 	out, err := json.Marshal(doc)
 	if err != nil { // the document is built here, so this cannot happen
@@ -193,7 +210,93 @@ func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, s.liveDetail(key, b))
 		return
 	}
-	s.serve(w, "result_detail.json", fixtureBuild, key)
+	if jobKeyRe.MatchString(key) {
+		s.serveJobDetail(w, key)
+		return
+	}
+	s.serveDetail(w, key)
+}
+
+// serveDetail writes the recorded build detail as build key: its number, plan
+// and job keys become the asked-for ones, and only the recorded branch plan
+// keeps its branch, so PROJ-BUILD-482 reads as build #482 of PROJ-BUILD.
+func (s *stub) serveDetail(w http.ResponseWriter, key string) {
+	if text, ok := s.detail(w, key); ok {
+		writeJSON(w, []byte(text))
+	}
+}
+
+// serveJobDetail writes a job result as its build's detail lists it, or 404
+// when the build has no such job.
+func (s *stub) serveJobDetail(w http.ResponseWriter, key string) {
+	i := strings.LastIndex(key, "-")
+	j := strings.LastIndex(key[:i], "-")
+	text, ok := s.detail(w, key[:j]+key[i:])
+	if !ok {
+		return
+	}
+	var doc struct {
+		Stages struct {
+			Stage []struct {
+				Results struct {
+					Result []map[string]any `json:"result"`
+				} `json:"results"`
+			} `json:"stage"`
+		} `json:"stages"`
+	}
+	if err := json.Unmarshal([]byte(text), &doc); err != nil {
+		log.Printf("job detail %s: %v", key, err)
+		http.Error(w, "fixture unreadable", http.StatusInternalServerError)
+		return
+	}
+	for _, st := range doc.Stages.Stage {
+		for _, job := range st.Results.Result {
+			if job["buildResultKey"] == key {
+				job["key"] = key
+				job["buildNumber"], _ = strconv.Atoi(key[i+1:])
+				out, err := json.Marshal(job)
+				if err != nil { // decoded from JSON just above, so this cannot happen
+					log.Printf("job detail %s: %v", key, err)
+				}
+				writeJSON(w, out)
+				return
+			}
+		}
+	}
+	http.Error(w, "no such job result", http.StatusNotFound)
+}
+
+// detail is the recorded build detail as build key, or false after writing
+// the error.
+func (s *stub) detail(w http.ResponseWriter, key string) (string, bool) {
+	body := s.fixture(w, "result_detail.json")
+	if body == nil {
+		return "", false
+	}
+	i := strings.LastIndex(key, "-")
+	plan, num := key[:i], key[i+1:]
+	text := strings.NewReplacer(
+		fixtureBuild, key,
+		fixtureBranch+"-", plan+"-",
+		"-"+fixtureNum+`"`, "-"+num+`"`,
+		`"buildNumber": `+fixtureNum, `"buildNumber": `+num,
+	).Replace(string(body))
+	if plan != fixtureBranch {
+		var doc map[string]any
+		if err := json.Unmarshal([]byte(text), &doc); err != nil {
+			log.Printf("result detail %s: %v", key, err)
+			http.Error(w, "fixture unreadable", http.StatusInternalServerError)
+			return "", false
+		}
+		doc["plan"] = map[string]any{"key": plan, "shortName": "Build and test"}
+		doc["planName"] = "Build and test"
+		out, err := json.Marshal(doc)
+		if err != nil { // decoded from JSON just above, so this cannot happen
+			log.Printf("result detail %s: %v", key, err)
+		}
+		text = string(out)
+	}
+	return text, true
 }
 
 // handleStatus answers the progress endpoint: a running simulated build
@@ -248,7 +351,7 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		b := s.live[key]
 		if b != nil {
-			b.stopped = true
+			b.stopped = s.now()
 		}
 		s.mu.Unlock()
 		if b == nil {

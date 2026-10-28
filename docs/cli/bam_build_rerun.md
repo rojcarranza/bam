@@ -12,13 +12,23 @@ succeeded is refused.
 bam build rerun [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam build rerun PROJ-BUILD-482
+  bam build rerun --last --watch
+  bam build rerun provision --branch feature-x --dry-run
+```
+
 ### Options
 
 ```
-      --branch string   plan branch when a plan or preset is given
-  -h, --help            help for rerun
-      --last            the last build bam triggered from this repository
-      --watch           follow the build until it finishes
+      --branch string      plan branch when a plan or preset is given
+      --dry-run            show which build would rerun, restart nothing
+  -h, --help               help for rerun
+      --last               the last build bam triggered from this repository
+      --timeout duration   with --watch, stop watching after this long (the build keeps running)
+      --watch              follow the build and the builds it triggers until they finish
 ```
 
 ### Options inherited from parent commands
@@ -33,5 +43,5 @@ bam build rerun [<build>|<plan>|<preset>] [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 

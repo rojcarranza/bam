@@ -64,6 +64,23 @@ func TestLatestPicksNewestForRepoAndSet(t *testing.T) {
 	_, ok, err = s.Latest("/c", "", nil)
 	require.NoError(t, err)
 	require.False(t, ok)
+
+	h, err := s.History("/a", "")
+	require.NoError(t, err)
+	require.Equal(t, []string{NewSetID("nightly", at(4)), NewSetID("release", at(2)), NewSetID("release", at(1))}, recordIDs(h))
+	h, _ = s.History("/a", "release")
+	require.Equal(t, []string{NewSetID("release", at(2)), NewSetID("release", at(1))}, recordIDs(h))
+	h, err = s.History("/c", "")
+	require.NoError(t, err)
+	require.Empty(t, h)
+}
+
+func recordIDs(rs []SetRecord) []string {
+	ids := []string{}
+	for _, r := range rs {
+		ids = append(ids, r.ID)
+	}
+	return ids
 }
 
 func TestPruneKeepsNewestOfOneSet(t *testing.T) {

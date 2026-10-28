@@ -6,6 +6,14 @@ Continue an interrupted or timed-out set run
 bam set resume [set|id] [flags]
 ```
 
+### Examples
+
+```
+  bam set resume
+  bam set resume release
+  bam set resume release-20260929T101500Z --var version=1.4.0
+```
+
 ### Options
 
 ```

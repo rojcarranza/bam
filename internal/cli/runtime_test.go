@@ -39,6 +39,7 @@ func TestConnectWithoutTokenIsAuthError(t *testing.T) {
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "bam login work", e.Try)
+	assert.Empty(t, e.Why)
 }
 
 func TestBAMTokenOnlyForBAMURL(t *testing.T) {
@@ -47,12 +48,27 @@ func TestBAMTokenOnlyForBAMURL(t *testing.T) {
 	h.vars["BAM_TOKEN"] = "ci-token"
 	_, _, err := newRuntime(h).connect(context.Background(), "")
 	assert.Equal(t, errs.KindAuth, errs.KindOf(err), "BAM_TOKEN alone never reaches the work alias")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "BAM_TOKEN is set, but it applies only to the server named by BAM_URL", e.Why)
 
 	h.vars["BAM_URL"] = "https://ci.bamboo.example.com"
 	svc, _, err := newRuntime(h).connect(context.Background(), "")
 	require.NoError(t, err)
 	assert.Equal(t, "env", svc.Server.Alias)
 	assert.Equal(t, "ci-token", h.connectOpts[len(h.connectOpts)-1].Token)
+}
+
+func TestBAMURLWithoutTokenSuggestsBAMToken(t *testing.T) {
+	h := newHarness(t)
+	h.kr.m = map[string]string{}
+	h.vars["BAM_URL"] = "https://ci.bamboo.example.com"
+	_, _, err := newRuntime(h).connect(context.Background(), "")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindAuth, e.Kind)
+	assert.Equal(t, "BAM_TOKEN is not set and nothing is stored", e.Why)
+	assert.Equal(t, "export BAM_TOKEN=<personal access token>, or bam login env", e.Try)
 }
 
 func TestConnectForTargetUsesTargetServer(t *testing.T) {
@@ -108,4 +124,22 @@ func TestColorFlagValidated(t *testing.T) {
 	r.flags.color = "sometimes"
 	_, err := r.out()
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+}
+
+func TestBuildArgAcceptsAPageLinkOnItsServer(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o700))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(
+		"version: 1\nservers:\n  home:\n    url: http://bamboo.lab.example:8085\n"), 0o644))
+	h.kr.m["bam|http://bamboo.lab.example:8085"] = "home-tok"
+	svc, key, err := newRuntime(h).resolveBuildArg(context.Background(),
+		[]string{"http://bamboo.lab.example:8085/browse/PROJ-PROV12-8/log"}, false, "")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV12-8", key)
+	assert.Equal(t, "home", svc.Server.Alias, "the link's server, not the default one")
+	assert.Equal(t, "home-tok", h.connectOpts[0].Token)
+
+	_, _, err = newRuntime(h).resolveBuildArg(context.Background(),
+		[]string{"https://bamboo.other.example/browse/PROJ-PROV12-8"}, false, "")
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err), "a link to an unconfigured server")
 }

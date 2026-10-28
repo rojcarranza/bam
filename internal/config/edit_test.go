@@ -72,11 +72,57 @@ func TestSetAndRemoveMachineServer(t *testing.T) {
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 }
 
+func TestRemoveMachineServerDropsReferencesToIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, `version: 1
+default_server: work
+servers:
+  work:
+    url: https://bamboo.example.com
+  home:
+    url: https://bamboo.lab.example
+repos:
+  /src/a:
+    server: work
+    projects: [PROJ]
+  /src/b:
+    server: home
+`)
+	require.NoError(t, RemoveMachineServer(path, "work"))
+	data, _ := os.ReadFile(path)
+	assert.Equal(t, `version: 1
+servers:
+  home:
+    url: https://bamboo.lab.example
+repos:
+  /src/a:
+    projects: [PROJ]
+  /src/b:
+    server: home
+`, string(data))
+}
+
+func TestRemoveMachineServerMatchesReferencesIgnoringCase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "version: 1\ndefault_server: Work\nservers:\n  work:\n    url: https://bamboo.example.com\nrepos:\n  /src/a:\n    server: WORK\n")
+	require.NoError(t, RemoveMachineServer(path, "work"))
+	data, _ := os.ReadFile(path)
+	assert.Equal(t, "version: 1\nservers: {}\nrepos:\n  /src/a: {}\n", string(data))
+}
+
+func TestSetMachineDefaultServer(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "version: 1 # keep\ndefault_server: work\n")
+	require.NoError(t, SetMachineDefaultServer(path, "home"))
+	data, _ := os.ReadFile(path)
+	assert.Equal(t, "version: 1 # keep\ndefault_server: home\n", string(data))
+}
+
 func TestWriteInitFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".bam.yaml")
 	f := InitFile{ServerAlias: "work", ServerURL: "https://bamboo.example.com", Projects: []string{"PROJ", "OPS"}}
-	require.NoError(t, WriteInitFile(path, f, []TargetDraft{{Name: "prov", Plan: "PROJ-PROV"}}, false))
+	require.NoError(t, WriteInitFile(path, f, []TargetDraft{{Name: "prov", Plan: "PROJ-PROV", Full: true}}, false))
 
 	data, _ := os.ReadFile(path)
 	assert.Equal(t, `version: 1

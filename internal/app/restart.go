@@ -54,3 +54,36 @@ func (s *Service) Restart(ctx context.Context, key string) (b provider.Build, re
 		}
 	}
 }
+
+// CannotRestart reports whether the provider is known to refuse restarts, so
+// hints that suggest a rerun would only fail.
+func (s *Service) CannotRestart(ctx context.Context) bool {
+	rc, ok := s.P.(provider.RestartChecker)
+	return ok && rc.CannotRestart(ctx)
+}
+
+// CannotStop reports whether the provider is known to refuse stopping builds.
+func (s *Service) CannotStop(ctx context.Context) bool {
+	sc, ok := s.P.(provider.StopChecker)
+	return ok && sc.CannotStop(ctx)
+}
+
+// RefusesRestart is CannotRestart for a command about to restart: a refusal
+// learned before is held against the server's version first, as the restart
+// itself would, so an upgraded server is not refused on an old answer.
+func (s *Service) RefusesRestart(ctx context.Context) bool {
+	if !s.CannotRestart(ctx) {
+		return false
+	}
+	_, _ = s.P.ServerInfo(ctx)
+	return s.CannotRestart(ctx)
+}
+
+// RefusesStop is RefusesRestart for stopping a build.
+func (s *Service) RefusesStop(ctx context.Context) bool {
+	if !s.CannotStop(ctx) {
+		return false
+	}
+	_, _ = s.P.ServerInfo(ctx)
+	return s.CannotStop(ctx)
+}

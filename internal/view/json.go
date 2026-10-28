@@ -79,6 +79,7 @@ type PlanDoc struct {
 	Name       string        `json:"name"`
 	ProjectKey string        `json:"project_key"`
 	LastBuild  *LastBuildDoc `json:"last_build"`
+	Enabled    bool          `json:"enabled"`
 }
 
 type ProjectDoc struct {
@@ -93,6 +94,7 @@ type BranchDoc struct {
 	Name      string `json:"name"`
 	ShortName string `json:"short_name"`
 	PlanKey   string `json:"plan_key"`
+	Enabled   bool   `json:"enabled"`
 }
 
 type VariableDoc struct {
@@ -124,6 +126,7 @@ type RunDoc struct {
 	Revision     string            `json:"revision"`
 	RevisionFrom string            `json:"revision_from"`
 	Variables    map[string]string `json:"variables"`
+	Warnings     []string          `json:"warnings"`
 }
 
 type EventDoc struct {
@@ -188,7 +191,7 @@ func BuildsJSON(bs []provider.Build) []BuildDoc {
 }
 
 func PlanJSON(p provider.Plan) PlanDoc {
-	d := PlanDoc{Key: p.Key, URL: p.URL, Name: p.Name, ProjectKey: p.ProjectKey}
+	d := PlanDoc{Key: p.Key, URL: p.URL, Name: p.Name, ProjectKey: p.ProjectKey, Enabled: !p.Disabled}
 	if lb := p.LastBuild; lb != nil {
 		d.LastBuild = &LastBuildDoc{Key: lb.Key, Number: lb.Number, State: string(lb.State), FinishedAt: timePtr(lb.FinishedAt), Reason: lb.Reason}
 	}
@@ -200,7 +203,7 @@ func ProjectJSON(p provider.Project) ProjectDoc {
 }
 
 func BranchJSON(b provider.Branch) BranchDoc {
-	return BranchDoc{Key: b.Key, URL: b.URL, Name: b.Name, ShortName: b.ShortName, PlanKey: b.PlanKey}
+	return BranchDoc{Key: b.Key, URL: b.URL, Name: b.Name, ShortName: b.ShortName, PlanKey: b.PlanKey, Enabled: !b.Disabled}
 }
 
 func VarRowsJSON(res app.PlanVarsResult) []VariableDoc {
@@ -235,7 +238,7 @@ func TargetJSON(t app.TargetInfo) TargetDoc {
 }
 
 func RunJSON(b provider.Build, ref app.PlanRef, vs app.VarSet) RunDoc {
-	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, RevisionFrom: ref.RevisionFrom, Variables: map[string]string{}}
+	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, RevisionFrom: ref.RevisionFrom, Variables: map[string]string{}, Warnings: nonNil(vs.Warnings)}
 	changed := vs.Changed()
 	names := make([]string, 0, len(changed))
 	for n := range changed {

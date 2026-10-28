@@ -37,6 +37,7 @@ stages:
 ```
 
 - Top-level keys: `name`, `timeout`, `stages`. Any other key is a config error naming it, as unknown keys in `.bam.yaml` are.
+- A file whose top level is a list is shorthand for `stages:` with that list, as a set under `sets:` may be (run sets design §3.1).
 - `stages` follows the configuration's set schema exactly (run sets design §3.1, matrix design §3.1).
 - The name must match the set name pattern `^[a-z][a-z0-9_-]*$`. Without `name:`, the file name without its extension is used when the set is run; when that does not match, the error says to add `name:`. On resume and rerun, a file without `name:` takes the recorded set's name instead (§5), so renaming the file does not orphan its run.
 - The checks of a configured set apply (run sets design §3.3, matrix design §3.3): presets exist after the targets merge, run names are unique per stage, at most 50 runs per stage, one server, durations parse. Every error is a config error (exit 3) naming the file.

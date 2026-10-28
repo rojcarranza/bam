@@ -43,24 +43,28 @@ func SetDetail(o Out, s app.SetInfo) error {
 			names[j] = r.Target
 		}
 		fmt.Fprintf(o.W, "stage %d  %s\n", i+1, strings.Join(names, ", "))
-		for _, r := range st {
-			if r.MatrixLine == "" {
-				continue
-			}
-			fmt.Fprintf(o.W, "  %s  matrix %s\n", r.Target, r.MatrixLine)
-			for _, n := range r.Runs {
-				fmt.Fprintf(o.W, "    %s\n", n)
-			}
+		lines := make([][3]string, len(st))
+		for j, r := range st {
+			lines[j] = [3]string{r.Target, r.Plan, r.Branch}
 		}
-		t := Table{Indent: "    ", Headers: []string{"", "", ""}}
-		for _, r := range st {
+		heads := runLines(lines)
+		for j, r := range st {
+			fmt.Fprintln(o.W, heads[j])
+			if r.MatrixLine != "" {
+				fmt.Fprintf(o.W, "    matrix %s\n", r.MatrixLine)
+				for _, n := range r.Runs {
+					fmt.Fprintf(o.W, "      %s\n", n)
+				}
+			}
+			// Variables sit under their preset's line, so the name is not repeated per row.
+			t := Table{Indent: "    ", Headers: []string{"", ""}}
 			for _, v := range r.Vars {
-				t.Rows = append(t.Rows, []string{r.Target, v.Name, v.Display()})
+				t.Rows = append(t.Rows, []string{v.Name, v.Display()})
 			}
-		}
-		if len(t.Rows) > 0 {
-			if err := RenderRows(o, t); err != nil {
-				return err
+			if len(t.Rows) > 0 {
+				if err := RenderRows(o, t); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -72,8 +76,13 @@ func SetDryRun(o Out, p app.SetPlan) error {
 	fmt.Fprintln(o.W, style.Bold(o.Style, p.Name))
 	for i, st := range p.Stages {
 		fmt.Fprintf(o.W, "stage %d/%d\n", i+1, len(p.Stages))
-		for _, r := range st {
-			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", app.PlanRunName(r), r.Ref.PlanKey, branchLabel(r.Ref.Branch))
+		lines := make([][3]string, len(st))
+		for j, r := range st {
+			lines[j] = [3]string{app.PlanRunName(r), r.Ref.PlanKey, r.Ref.Branch}
+		}
+		heads := runLines(lines)
+		for j, r := range st {
+			fmt.Fprintln(o.W, heads[j])
 			for _, n := range sortedChanged(r.Vars) {
 				v, _ := r.Vars.Get(n)
 				fmt.Fprintf(o.W, "      %s = %s\n", n, v.Display())
@@ -82,6 +91,21 @@ func SetDryRun(o Out, p app.SetPlan) error {
 	}
 	fmt.Fprintln(o.W, "dry run: nothing triggered")
 	return nil
+}
+
+// runLines formats a stage's {name, plan, branch} lines with the name and plan
+// padded to the stage's widest, so the columns line up as in bam set status.
+func runLines(lines [][3]string) []string {
+	nw, pw := 0, 0
+	for _, l := range lines {
+		nw, pw = max(nw, style.Width(l[0])), max(pw, style.Width(l[1]))
+	}
+	out := make([]string, len(lines))
+	for i, l := range lines {
+		out[i] = "  " + l[0] + strings.Repeat(" ", nw-style.Width(l[0])) + "  " +
+			l[1] + strings.Repeat(" ", pw-style.Width(l[1])) + "  branch " + branchLabel(l[2])
+	}
+	return out
 }
 
 func sortedChanged(vs app.VarSet) []string {
@@ -95,7 +119,8 @@ func sortedChanged(vs app.VarSet) []string {
 }
 
 // SetStatusView is bam set status: the record with each build's live state.
-func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) error {
+// noRerun leaves out the rerun hint on a server known to refuse restarts.
+func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build, noRerun bool) error {
 	fmt.Fprintf(o.W, "%s  %s  %s\n", style.Bold(o.Style, rec.Set), rec.ID, rec.Status)
 	if rec.File != "" {
 		fmt.Fprintf(o.W, "file %s\n", rec.File)
@@ -117,10 +142,34 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) e
 	if rec.Status == app.SetInterrupted || rec.Status == app.SetTimedOut {
 		fmt.Fprintf(o.W, "try: bam set resume %s\n", rec.ID)
 	}
-	if rec.Status == app.SetFailed {
+	if rec.Status == app.SetFailed && !noRerun {
 		fmt.Fprintf(o.W, "try: bam set rerun --failed %s\n", rec.ID)
 	}
 	return nil
+}
+
+// SetHistory is bam set history: one row per recorded set run, newest first.
+// It shows the states bam recorded, so it needs no server.
+func SetHistory(o Out, recs []app.SetRecord) error {
+	t := Table{Headers: []string{"RUN", "STATUS", "STARTED", "DURATION", "BUILDS"}}
+	for _, rec := range recs {
+		dur := ""
+		if rec.FinishedAt != nil {
+			dur = Duration(rec.FinishedAt.Sub(rec.StartedAt))
+		}
+		ok, all := 0, 0
+		for _, st := range rec.Stages {
+			for _, r := range st.Runs {
+				all++
+				if r.State == provider.StateSuccess {
+					ok++
+				}
+			}
+		}
+		t.Rows = append(t.Rows, []string{rec.ID, string(rec.Status), o.Time(rec.StartedAt), dashIfEmpty(dur),
+			fmt.Sprintf("%d/%d %s", ok, all, style.StateGlyph(o.Style, provider.StateSuccess))})
+	}
+	return t.Render(o)
 }
 
 // runGlyph is a run's glyph; a run with no state yet is pending.
@@ -133,7 +182,7 @@ func runGlyph(o Out, s provider.State) string {
 
 func stateTitle(s provider.State) string {
 	if s == "" {
-		return "pending"
+		return "Pending"
 	}
 	return style.Title(s)
 }
@@ -154,10 +203,12 @@ type SetDoc struct {
 }
 
 type SetRunDoc struct {
-	Target string            `json:"target"`
-	Vars   map[string]string `json:"vars"`
-	Matrix any               `json:"matrix,omitempty"`
-	Runs   []string          `json:"runs"`
+	Target  string            `json:"target"`
+	PlanKey string            `json:"plan_key"`
+	Branch  string            `json:"branch"`
+	Vars    map[string]string `json:"vars"`
+	Matrix  any               `json:"matrix,omitempty"`
+	Runs    []string          `json:"runs"`
 }
 
 type SetPlanDoc struct {
@@ -247,7 +298,7 @@ func SetJSON(s app.SetInfo) SetDoc {
 	for _, st := range s.Stages {
 		runs := []SetRunDoc{}
 		for _, r := range st {
-			rd := SetRunDoc{Target: r.Target, Vars: varsDoc(r.Vars), Matrix: r.Matrix, Runs: r.Runs}
+			rd := SetRunDoc{Target: r.Target, PlanKey: r.Plan, Branch: r.Branch, Vars: varsDoc(r.Vars), Matrix: r.Matrix, Runs: r.Runs}
 			if len(rd.Runs) == 0 {
 				rd.Runs = []string{r.Target}
 			}

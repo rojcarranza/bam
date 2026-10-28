@@ -2,8 +2,20 @@
 
 List release train sets
 
+### Synopsis
+
+List release train sets.
+With text, list only the sets whose name or one of whose presets contains it, ignoring case.
+
 ```
-bam set list [flags]
+bam set list [text] [flags]
+```
+
+### Examples
+
+```
+  bam set list
+  bam set list prov
 ```
 
 ### Options

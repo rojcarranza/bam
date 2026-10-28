@@ -1,6 +1,6 @@
 ## bam server list
 
-List server aliases and whether a token is stored
+List server aliases, whether a token is stored, and which one is selected here
 
 ```
 bam server list [flags]
@@ -24,5 +24,5 @@ bam server list [flags]
 
 ### SEE ALSO
 
-* [bam server](bam_server.md)	 - Manage Bamboo server aliases
+* [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 

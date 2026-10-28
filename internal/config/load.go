@@ -3,9 +3,13 @@ package config
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -14,6 +18,10 @@ import (
 
 // ProjectFileName is the committed per-repository config file.
 const ProjectFileName = ".bam.yaml"
+
+// misnamedProjectFiles are names people give the project file by mistake.
+// bam reads none of them, so finding one is an error rather than silence.
+var misnamedProjectFiles = []string{".bam.yml", "bam.yaml", "bam.yml"}
 
 // Env holds the BAM_* environment variables that affect server selection.
 type Env struct {
@@ -53,11 +61,12 @@ type LoadOptions struct {
 
 // Discover finds .bam.yaml by walking up from workDir. The walk stops at the
 // git root inside a repository, else at home. repoRoot is the git root, or
-// workDir outside a repository.
+// workDir outside a repository. A misnamed project file in its place, such
+// as .bam.yml, is a config error.
 func Discover(workDir, home string) (projectPath, repoRoot string, err error) {
 	workDir, err = filepath.Abs(workDir)
 	if err != nil {
-		return "", "", err
+		return "", "", errs.Configf("cannot resolve the working directory").Wrap(err)
 	}
 	gitRoot := findUp(workDir, "", ".git")
 	stop := gitRoot
@@ -71,6 +80,15 @@ func Discover(workDir, home string) (projectPath, repoRoot string, err error) {
 	}
 	if dir := findUp(workDir, stop, ProjectFileName); dir != "" {
 		projectPath = filepath.Join(dir, ProjectFileName)
+		return projectPath, repoRoot, nil
+	}
+	for _, name := range misnamedProjectFiles {
+		if dir := findUp(workDir, stop, name); dir != "" {
+			found := filepath.Join(dir, name)
+			return "", "", errs.Configf("found %s, but bam reads only %s", found, ProjectFileName).
+				WithWhy("bam ignores a project config under any other name").
+				WithTry(fmt.Sprintf("rename it: mv %s %s", found, filepath.Join(dir, ProjectFileName)))
+		}
 	}
 	return projectPath, repoRoot, nil
 }
@@ -103,7 +121,7 @@ func within(path, dir string) bool {
 func Load(o LoadOptions) (*Config, error) {
 	projectPath, root, err := Discover(o.WorkDir, o.Home)
 	if err != nil {
-		return nil, errs.Configf("cannot resolve the working directory").Wrap(err)
+		return nil, err
 	}
 	cfg := &Config{ProjectPath: projectPath, MachinePath: o.MachineFile, PresetsPath: o.PresetsFile, RepoRoot: root, Home: o.Home}
 	cfg.Env = Env{Server: o.Getenv("BAM_SERVER"), URL: o.Getenv("BAM_URL"), Token: o.Getenv("BAM_TOKEN")}
@@ -186,9 +204,105 @@ func decodeStrict(data []byte, path string, out any) error {
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)
 	if err := dec.Decode(out); err != nil {
-		return errs.Configf("invalid %s", path).WithWhy(err.Error()).Wrap(err)
+		e := errs.Configf("invalid %s", path).WithWhy(plainShapes(err.Error())).Wrap(err)
+		if mv := (*multiValueError)(nil); errors.As(err, &mv) {
+			e = e.WithTry(fmt.Sprintf("in a preset, list allowed values under options: {%s: [a, b]} and must-set names under required: [%s]", mv.name, mv.name))
+		} else if p := yamlUnknownField.FindStringSubmatch(err.Error()); p != nil {
+			if t, ok := fieldPlaces[p[3]]; ok {
+				if near := errs.Closest(p[2], yamlFields(t.typ), 1); len(near) == 1 {
+					e = e.WithTry(fmt.Sprintf("did you mean %s?", near[0]))
+				}
+			}
+		}
+		return e
 	}
 	return nil
+}
+
+// yamlTypeError matches yaml.v3's "line N: cannot unmarshal !!tag[ `value`] into T".
+var yamlTypeError = regexp.MustCompile("line (\\d+): cannot unmarshal !!(\\w+)( `[^`]*`)? into (\\S+)")
+
+// yamlUnknownField matches yaml.v3's "line N: field X not found in type T".
+var yamlUnknownField = regexp.MustCompile(`line (\d+): field (\S+) not found in type (\S+)`)
+
+// fieldPlaces names, in plain words, the Go types yaml.v3 puts in its
+// unknown-field errors, and keeps each type to suggest its real fields.
+var fieldPlaces = map[string]struct {
+	where string
+	typ   reflect.Type
+}{
+	"config.MachineFile": {"the machine config", reflect.TypeFor[MachineFile]()},
+	"config.ProjectFile": {"the project config", reflect.TypeFor[ProjectFile]()},
+	"config.PresetsFile": {"the presets file", reflect.TypeFor[PresetsFile]()},
+	"config.Target":      {"a preset", reflect.TypeFor[Target]()},
+	"config.Server":      {"a server", reflect.TypeFor[Server]()},
+	"config.Repo":        {"a repository entry", reflect.TypeFor[Repo]()},
+	"config.Set":         {"a set", reflect.TypeFor[Set]()},
+	"config.SetRun":      {"a stage run", reflect.TypeFor[SetRun]()},
+	"config.setFile":     {"a train file", reflect.TypeFor[setFile]()},
+}
+
+// knownFields refuses mapping keys that are not yaml fields of t, in
+// yaml.v3's own wording so decodeStrict words it and suggests a field.
+// Node.Decode does not inherit the file's KnownFields, so types with their
+// own UnmarshalYAML check here.
+func knownFields(n *yaml.Node, t reflect.Type) error {
+	fields := yamlFields(t)
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if k := n.Content[i]; !slices.Contains(fields, k.Value) {
+			return fmt.Errorf("line %d: field %s not found in type %s", k.Line, k.Value, t)
+		}
+	}
+	return nil
+}
+
+// yamlFields lists the yaml field names of a struct type.
+func yamlFields(t reflect.Type) []string {
+	var out []string
+	for f := range t.Fields() {
+		if name, _, _ := strings.Cut(f.Tag.Get("yaml"), ","); name != "" && name != "-" {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// plainShapes rewrites yaml type and unknown-field errors, which name Go
+// types, into plain words; lines it does not recognise stay as they are.
+func plainShapes(msg string) string {
+	msg = yamlUnknownField.ReplaceAllStringFunc(msg, func(m string) string {
+		p := yamlUnknownField.FindStringSubmatch(m)
+		place, ok := fieldPlaces[p[3]]
+		if !ok {
+			return m
+		}
+		return fmt.Sprintf("line %s: unknown field %q in %s", p[1], p[2], place.where)
+	})
+	found := map[string]string{"seq": "a list", "map": "a mapping"}
+	expected := map[string]string{
+		"config.Target": "a preset (plan: KEY, ...)",
+		"config.Server": "a server (url: URL, ...)",
+		"config.Repo":   "a repository entry (server: ALIAS, ...)",
+		"[]string":      "a list",
+		"string":        "a single value",
+		"int":           "a number",
+		"bool":          "true or false",
+	}
+	return yamlTypeError.ReplaceAllStringFunc(msg, func(m string) string {
+		p := yamlTypeError.FindStringSubmatch(m)
+		want, ok := expected[p[4]]
+		if strings.HasPrefix(p[4], "map[") {
+			want, ok = "a mapping", true
+		}
+		if !ok {
+			return m
+		}
+		got, ok := found[p[2]]
+		if !ok {
+			got = "a single value"
+		}
+		return "line " + p[1] + ": expected " + want + ", found " + got + p[3]
+	})
 }
 
 func checkVersion(v int, path string) error {

@@ -1,6 +1,7 @@
 package view
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +47,12 @@ func TestPlanListGolden(t *testing.T) {
 	}}
 	require.NoError(t, PlanList(o, groups))
 	golden(t, "plan_list", buf.String())
+}
+
+func TestPlanListWithoutProjectNameHasNoTrailingSpace(t *testing.T) {
+	o, buf := testOut(true)
+	require.NoError(t, PlanList(o, []PlanGroup{{Project: provider.Project{Key: "PROJ"}}}))
+	assert.True(t, strings.HasPrefix(buf.String(), "PROJ\n"), buf.String())
 }
 
 func TestBuildDetailGolden(t *testing.T) {

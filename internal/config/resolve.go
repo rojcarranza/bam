@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -33,7 +34,7 @@ func (c *Config) Servers() map[string]ResolvedServer {
 			r := out[alias]
 			r.Alias = alias
 			if s.URL != "" {
-				r.URL = s.URL
+				r.URL = strings.TrimRight(s.URL, "/")
 			}
 			// auth_env is applied only from the machine layer, and only
 			// when that same machine entry also sets url. A project-layer
@@ -63,7 +64,7 @@ func (c *Config) Servers() map[string]ResolvedServer {
 	}
 	add("machine", c.Machine.Servers)
 	if c.Env.URL != "" {
-		out[EnvServerAlias] = ResolvedServer{Alias: EnvServerAlias, URL: c.Env.URL, Token: c.Env.Token, DefinedIn: []string{"env"}}
+		out[EnvServerAlias] = ResolvedServer{Alias: EnvServerAlias, URL: strings.TrimRight(c.Env.URL, "/"), Token: c.Env.Token, DefinedIn: []string{"env"}}
 	}
 	return out
 }
@@ -72,6 +73,20 @@ func (c *Config) Servers() map[string]ResolvedServer {
 func (c *Config) RepoEntry() (Repo, bool) {
 	_, r, ok := c.repoEntry()
 	return r, ok
+}
+
+// OtherRepoTargets returns, by repos key as written, the target names that
+// machine repos entries for other repositories define. Those targets do not
+// apply here.
+func (c *Config) OtherRepoTargets() map[string][]string {
+	here, _, _ := c.repoEntry()
+	out := map[string][]string{}
+	for _, key := range sortedKeys(c.Machine.Repos) {
+		if key != here && len(c.Machine.Repos[key].Targets) > 0 {
+			out[key] = sortedKeys(c.Machine.Repos[key].Targets)
+		}
+	}
+	return out
 }
 
 // repoEntry also returns the repos key as written, e.g. "~/src/repo".
@@ -91,15 +106,71 @@ func (c *Config) expand(path string) string {
 	return filepath.Clean(path)
 }
 
+// UnknownServer is the error for an alias no layer defines with a url. It
+// lists the aliases that do, so a mistyped --server is easy to spot.
+func (c *Config) UnknownServer(alias string) *errs.Error {
+	e := errs.Configf("no server alias %q", alias)
+	var names []string
+	for n, s := range c.Servers() {
+		if s.URL != "" {
+			names = append(names, n)
+		}
+	}
+	if len(names) > 0 {
+		slices.Sort(names)
+		e = e.WithWhy("servers: " + strings.Join(names, ", "))
+	}
+	return e.WithTry(nearServerTry(alias, names))
+}
+
+// nearServerTry suggests the alias closest to a mistyped one, or failing
+// that the bam server add command for it.
+func nearServerTry(alias string, names []string) string {
+	if near := errs.Closest(alias, names, 1); len(near) > 0 {
+		return "did you mean " + near[0] + "?"
+	}
+	return serverAddTry(alias)
+}
+
+// serverAddTry suggests the bam server add command for alias, lowercased
+// because server add only accepts aliases matching ^[a-z][a-z0-9_-]*$.
+func serverAddTry(alias string) string {
+	if a := strings.ToLower(alias); ValidTargetName(a) {
+		alias = a
+	} else {
+		alias = "<alias>"
+	}
+	return fmt.Sprintf("bam server add %s --url URL", alias)
+}
+
+// Alias returns the configured spelling of a server alias typed in any
+// case. Aliases are lowercase, so LAB means lab; an exact match still wins
+// in a hand-written config, and an ambiguous or unknown name is returned as is.
+func (c *Config) Alias(name string) string {
+	servers := c.Servers()
+	if _, ok := servers[name]; ok {
+		return name
+	}
+	var hits []string
+	for n := range servers {
+		if strings.EqualFold(n, name) {
+			hits = append(hits, n)
+		}
+	}
+	if len(hits) == 1 {
+		return hits[0]
+	}
+	return name
+}
+
 // SelectServer applies spec §3.5: flag, BAM_SERVER, BAM_URL, target server,
 // machine repos entry, project default, machine default, the only server.
 func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error) {
 	servers := c.Servers()
 	pick := func(alias string) (ResolvedServer, error) {
-		s, ok := servers[alias]
+		s, ok := servers[c.Alias(alias)]
 		if !ok || s.URL == "" {
-			return ResolvedServer{}, errs.Configf("no server alias %q", alias).
-				WithTry(fmt.Sprintf("bam server add %s --url URL", alias))
+			return ResolvedServer{}, c.UnknownServer(alias)
 		}
 		return s, nil
 	}
@@ -134,7 +205,7 @@ func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error)
 	}
 	return ResolvedServer{}, errs.Configf("no server selected").
 		WithWhy("configured aliases: " + strings.Join(aliases, ", ")).
-		WithTry("pass --server ALIAS, or set default_server in .bam.yaml")
+		WithTry("pass --server ALIAS, or run bam server default ALIAS")
 }
 
 // ProjectKeys returns the projects that scope navigation for server s.
@@ -210,6 +281,30 @@ func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 	return out, nil
 }
 
+// PresetsUsingServer names the presets, in every config file and repos
+// entry, whose server: is the machine server alias, sorted.
+func (c *Config) PresetsUsingServer(alias string) []string {
+	set := map[string]bool{}
+	add := func(targets map[string]Target) {
+		for name, t := range targets {
+			if strings.EqualFold(t.Server, alias) {
+				set[name] = true
+			}
+		}
+	}
+	if c.Project != nil && !slices.ContainsFunc(slices.Collect(maps.Keys(c.Project.Servers)), func(s string) bool { return strings.EqualFold(s, alias) }) {
+		add(c.Project.Targets)
+	}
+	add(c.Machine.Targets)
+	for _, r := range c.Machine.Repos {
+		add(r.Targets)
+	}
+	for _, s := range c.presetsSources() {
+		add(s.Presets)
+	}
+	return slices.Sorted(maps.Keys(set))
+}
+
 // Target returns one merged target.
 func (c *Config) Target(name string) (ResolvedTarget, bool, error) {
 	all, err := c.Targets()
@@ -269,10 +364,19 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 			WithWhy("defined in " + where).
 			WithTry(fmt.Sprintf("add plan: PROJ-PLAN under targets.%s", t.Name))
 	}
+	if !childPlanKeyRe.MatchString(t.Plan) {
+		try := fmt.Sprintf("set plan: PROJ-PLAN under targets.%s", t.Name)
+		if up := strings.ToUpper(t.Plan); childPlanKeyRe.MatchString(up) {
+			try = "plan keys are uppercase: did you mean " + up + "?"
+		}
+		return errs.Configf("preset %q: plan %q is not a plan key", t.Name, t.Plan).
+			WithWhy("defined in " + where).
+			WithTry(try)
+	}
 	if t.Server != "" {
 		if _, ok := servers[t.Server]; !ok {
 			return errs.Configf("preset %q uses unknown server %q", t.Name, t.Server).
-				WithTry(fmt.Sprintf("bam server add %s --url URL", t.Server))
+				WithTry(nearServerTry(t.Server, slices.Sorted(maps.Keys(servers))))
 		}
 	}
 	for _, name := range sortedKeys(t.Options) {

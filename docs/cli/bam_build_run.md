@@ -6,6 +6,15 @@ Trigger a plan or preset with variables
 bam build run <plan|preset> [flags]
 ```
 
+### Examples
+
+```
+  bam run deploy-qa --watch
+  bam run PROJ-BUILD --branch develop --var cluster_type=k8s
+  bam run deploy-qa --from last --dry-run
+  bam run PROJ-BUILD --from 482 --revision from
+```
+
 ### Options
 
 ```
@@ -17,7 +26,7 @@ bam build run <plan|preset> [flags]
       --revision string    commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository
       --timeout duration   stop watching after this long (the build keeps running)
       --var stringArray    variable name=value (repeatable)
-      --watch              follow the build until it finishes
+      --watch              follow the build and the builds it triggers until they finish
 ```
 
 ### Options inherited from parent commands
@@ -32,5 +41,5 @@ bam build run <plan|preset> [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 

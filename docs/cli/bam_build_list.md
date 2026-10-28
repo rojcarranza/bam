@@ -3,7 +3,15 @@
 List recent builds of a plan
 
 ```
-bam build list <plan> [flags]
+bam build list <plan|preset> [flags]
+```
+
+### Examples
+
+```
+  bam build list PROJ-BUILD
+  bam build list deploy-qa --branch develop
+  bam build list PROJ-BUILD --state failed -n 5
 ```
 
 ### Options
@@ -11,7 +19,7 @@ bam build list <plan> [flags]
 ```
       --branch string   plan branch
   -h, --help            help for list
-      --limit int       number of builds (default 10)
+  -n, --limit int       number of builds (default 10)
       --state string    only builds in this state, e.g. failed
 ```
 
@@ -27,5 +35,5 @@ bam build list <plan> [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 

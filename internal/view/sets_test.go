@@ -15,8 +15,8 @@ import (
 func setInfo() app.SetInfo {
 	return app.SetInfo{Name: "release", Timeout: 2 * time.Hour, DefinedIn: []string{"/src/app/.bam.yaml"},
 		Stages: [][]app.SetRunInfo{
-			{{Target: "publish-specs"}},
-			{{Target: "provision"}, {Target: "deploy", Vars: []app.TargetVar{
+			{{Target: "publish-specs", Plan: "PROJ-SPEC"}},
+			{{Target: "provision", Plan: "OPS-PROV", Branch: "release-1"}, {Target: "deploy", Plan: "OPS-DEP", Vars: []app.TargetVar{
 				{Name: "deploy_token", Value: "${DEPLOY_TOKEN}", EnvRef: "DEPLOY_TOKEN", Secret: true},
 				{Name: "env", Value: "qa"},
 				{Name: "ssh_password", Value: "hunter2", Secret: true}}}},
@@ -34,9 +34,9 @@ func TestSetDetailMasksSecrets(t *testing.T) {
 	require.NoError(t, SetDetail(o, setInfo()))
 	out := buf.String()
 	require.Contains(t, out, "stage 1  publish-specs\n")
-	require.Contains(t, out, "stage 2  provision, deploy\n")
-	require.Contains(t, out, "deploy  deploy_token  ${DEPLOY_TOKEN} (unset)")
-	require.Contains(t, out, "deploy  env           qa")
+	require.Contains(t, out, "stage 2  provision, deploy\n  provision  OPS-PROV  branch release-1\n  deploy     OPS-DEP   branch default\n")
+	require.Contains(t, out, "  deploy     OPS-DEP   branch default\n    deploy_token  ${DEPLOY_TOKEN} (unset)\n")
+	require.Contains(t, out, "    env           qa\n")
 	require.Contains(t, out, "********")
 	require.NotContains(t, out, "hunter2")
 	require.Contains(t, out, "2h0m0s")
@@ -46,9 +46,9 @@ func TestSetJSONFieldNames(t *testing.T) {
 	data, err := json.Marshal(SetJSON(setInfo()))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"name":"release","timeout_ms":7200000,"defined_in":["/src/app/.bam.yaml"],
-	  "stages":[[{"target":"publish-specs","vars":{},"runs":["publish-specs"]}],
-	            [{"target":"provision","vars":{},"runs":["provision"]},
-	             {"target":"deploy","vars":{"deploy_token":"${DEPLOY_TOKEN}","env":"qa","ssh_password":"********"},"runs":["deploy"]}]]}`, string(data))
+	  "stages":[[{"target":"publish-specs","plan_key":"PROJ-SPEC","branch":"","vars":{},"runs":["publish-specs"]}],
+	            [{"target":"provision","plan_key":"OPS-PROV","branch":"release-1","vars":{},"runs":["provision"]},
+	             {"target":"deploy","plan_key":"OPS-DEP","branch":"","vars":{"deploy_token":"${DEPLOY_TOKEN}","env":"qa","ssh_password":"********"},"runs":["deploy"]}]]}`, string(data))
 }
 
 func TestSetEventJSONFieldNames(t *testing.T) {
@@ -86,12 +86,12 @@ func TestSetStatusView(t *testing.T) {
 		}}
 	builds := map[string]provider.Build{"OPS-PROV-40": {Key: "OPS-PROV-40", State: provider.StateRunning}}
 	o, buf := testOut(false)
-	require.NoError(t, SetStatusView(o, rec, builds))
+	require.NoError(t, SetStatusView(o, rec, builds, false))
 	out := buf.String()
 	require.Contains(t, out, "release  release-20260929T101500Z  interrupted\n")
 	require.Contains(t, out, "stage 2/2")
 	require.Regexp(t, `provision\s+OPS-PROV-40\s+Running`, out)
-	require.Regexp(t, `deploy\s+–\s+pending\s+queue full`, out)
+	require.Regexp(t, `deploy\s+–\s+Pending\s+queue full`, out)
 	require.Contains(t, out, "try: bam set resume release-20260929T101500Z")
 
 	data, err := json.Marshal(SetRecordJSON(rec, builds))
@@ -140,9 +140,12 @@ func TestSetStatusViewShowsReruns(t *testing.T) {
 		Stages: []app.StageRecord{{Runs: []app.RunRecord{
 			{Target: "deploy", PlanKey: "OPS-DEP", BuildKey: "OPS-DEP-9", State: provider.StateFailed, Reruns: 2}}}}}
 	o, buf := testOut(false)
-	require.NoError(t, SetStatusView(o, rec, nil))
+	require.NoError(t, SetStatusView(o, rec, nil, false))
 	require.Regexp(t, `deploy\s+OPS-DEP-9\s+Failed \(rerun 2\)`, buf.String())
 	require.Contains(t, buf.String(), "try: bam set rerun --failed release-20260929T101500Z\n")
+	o, buf = testOut(false)
+	require.NoError(t, SetStatusView(o, rec, nil, true))
+	require.NotContains(t, buf.String(), "bam set rerun", "the server refuses restarts")
 	data, err := json.Marshal(SetRecordJSON(rec, nil))
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"reruns":2`)
@@ -166,9 +169,9 @@ func TestSetDetailShowsMatricesAndRuns(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, SetDetail(o, matrixInfo()))
 	out := buf.String()
-	require.Contains(t, out, "deploy  matrix env=[qa prod] region=[eu]")
-	require.Contains(t, out, "smoke  matrix 1 variable set")
-	require.Contains(t, out, "    deploy[env=qa,region=eu]\n")
+	require.Contains(t, out, "    matrix env=[qa prod] region=[eu]\n")
+	require.Contains(t, out, "    matrix 1 variable set\n")
+	require.Contains(t, out, "      deploy[env=qa,region=eu]\n")
 }
 
 func TestSetJSONCarriesMatrixAndRuns(t *testing.T) {
@@ -189,9 +192,27 @@ func TestSetRecordAndEventJSONCarryNames(t *testing.T) {
 	require.Contains(t, string(data), `"name":"deploy[env=qa]"`)
 	require.Contains(t, string(data), `"name":"smoke"`, "an old record's run is named after its preset")
 	o, buf := testOut(false)
-	require.NoError(t, SetStatusView(o, rec, nil))
+	require.NoError(t, SetStatusView(o, rec, nil, false))
 	require.Regexp(t, `deploy\[env=qa\]\s+OPS-DEP-1`, buf.String())
 
 	ev, _ := json.Marshal(SetEventJSON(app.SetEvent{Type: app.SetRunDone, Time: setAt, Target: "deploy", Run: "deploy[env=qa]"}))
 	require.Contains(t, string(ev), `"run":"deploy[env=qa]"`)
+}
+
+func TestSetHistoryShowsEachRecordedRun(t *testing.T) {
+	start := time.Date(2026, 9, 29, 10, 15, 0, 0, time.UTC)
+	end := start.Add(12*time.Minute + 3*time.Second)
+	recs := []app.SetRecord{
+		{ID: "release-20260929T101500Z", Set: "release", Status: app.SetFailed, StartedAt: start, FinishedAt: &end,
+			Stages: []app.StageRecord{
+				{Runs: []app.RunRecord{{Target: "publish-specs", State: provider.StateSuccess}}},
+				{Runs: []app.RunRecord{{Target: "provision", State: provider.StateFailed}, {Target: "deploy"}}},
+			}},
+		{ID: "release-20260928T090000Z", Set: "release", Status: app.SetRunning, StartedAt: start.Add(-25 * time.Hour)},
+	}
+	o, buf := testOut(false)
+	require.NoError(t, SetHistory(o, recs))
+	require.Equal(t, "RUN                       STATUS   STARTED               DURATION  BUILDS\n"+
+		"release-20260929T101500Z  failed   2026-09-29T10:15:00Z  12m03s    1/3 ✓\n"+
+		"release-20260928T090000Z  running  2026-09-28T09:15:00Z  –         0/0 ✓\n", buf.String())
 }

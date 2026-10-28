@@ -3,11 +3,13 @@ package tui
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -175,6 +177,19 @@ func TestQuitWhileATrainRunsAsks(t *testing.T) {
 	require.True(t, stopped, "yes ends the train's watching")
 	require.NotNil(t, cmd)
 	require.Empty(t, m.svc.P.(*fake.Provider).Stopped, "no build is stopped")
+}
+
+// The quit prompt is longer than the modal is wide; it wraps instead of
+// losing the part that says the builds keep running.
+func TestALongConfirmPromptWraps(t *testing.T) {
+	m := trainModel(t)
+	m.train = trainState{set: "release", ch: make(chan app.SetEvent), board: app.NewSetBoard(app.SetPlan{}), cancel: func() {}, gen: 1}
+	m, _ = send(m, mkKey("q"))
+	body := m.confirmBody(40)
+	for _, l := range strings.Split(body, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 40, l)
+	}
+	require.Contains(t, strings.Join(strings.Fields(body), " "), strings.Join(strings.Fields(m.confirm.Prompt), " "))
 }
 
 func TestSwitchServerWhileATrainRunsAsks(t *testing.T) {

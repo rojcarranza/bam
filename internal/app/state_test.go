@@ -31,10 +31,3 @@ func TestStateStoreRoundTrip(t *testing.T) {
 	_, ok, _ = s.Last("/other")
 	assert.True(t, ok)
 }
-
-func TestClosest(t *testing.T) {
-	names := []string{"develop", "feat/foo", "feat/bar", "release"}
-	assert.Equal(t, []string{"develop"}, Closest("devlop", names, 3))
-	assert.Equal(t, []string{"feat/foo", "feat/bar"}, Closest("feat", names, 3))
-	assert.Empty(t, Closest("zzzzzz", names, 3))
-}

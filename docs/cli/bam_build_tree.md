@@ -16,6 +16,15 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.
 bam build tree [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam build tree PROJ-BUILD-482
+  bam build tree --last --watch
+  bam build tree provision --failed --depth 2
+  bam build tree PROJ-BUILD-482 --rerun-failed --yes
+```
+
 ### Options
 
 ```
@@ -42,5 +51,5 @@ bam build tree [<build>|<plan>|<preset>] [flags]
 
 ### SEE ALSO
 
-* [bam build](bam_build.md)	 - Builds: list, show, run, watch, logs, cancel
+* [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 

@@ -77,6 +77,25 @@ func TestTreeTextLoopAndNext(t *testing.T) {
 	require.NotContains(t, out, "next: bam logs PROJ-API-142", "PROJ-API-142 has no failed job")
 }
 
+func TestTreeTextListsEachBuildThatDidNotSucceed(t *testing.T) {
+	loop := tnode("PROJ-API-142", provider.StateFailed, 0)
+	loop.Loop = true
+	stopped := tnode("OPS-SMOKE-51", provider.StateStopped, time.Minute, loop)
+	earlier := tnode("OPS-DEPLOY-87", provider.StateFailed, time.Minute)
+	earlier.Superseded = true
+	root := tnode("PROJ-API-142", provider.StateSuccess, time.Minute, stopped, earlier, &app.TreeNode{PlanKey: "OPS-AUDIT", NotRun: true})
+	o, buf := testOut(false)
+	require.NoError(t, TreeText(o, app.Tree{Root: root, State: app.TreeState(root)}, false))
+	var listed []string
+	for _, l := range strings.Split(buf.String(), "\n") {
+		if strings.Contains(l, ": ") && !strings.Contains(l, "│") && !strings.Contains(l, "─") {
+			listed = append(listed, l)
+		}
+	}
+	require.Equal(t, []string{"stopped: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51"}, listed,
+		"no line for a successful root, a loop, an earlier run or a child that did not run")
+}
+
 func TestTreeJSON(t *testing.T) {
 	data, err := json.Marshal(TreeJSON(sampleTree(), false))
 	require.NoError(t, err)
@@ -177,4 +196,9 @@ func TestTreeProgressText(t *testing.T) {
 	} {
 		require.Equal(t, tc.want, TreeProgressText(tc.p))
 	}
+}
+
+func TestTreeNodeNoteCountsOneFailedTest(t *testing.T) {
+	n := &app.TreeNode{Build: provider.Build{FailedTests: []string{"a"}}}
+	require.Equal(t, "1 test failed", TreeNodeNote(n, false))
 }

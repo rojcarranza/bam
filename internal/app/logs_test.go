@@ -47,7 +47,7 @@ func TestLogsFailedOnly(t *testing.T) {
 
 func TestLogsTailAndJobSelection(t *testing.T) {
 	s := newService(t, logsProvider())
-	for _, job := range []string{"INT", "PROJ-BUILD12-INT", "PROJ-BUILD12-INT-44"} {
+	for _, job := range []string{"INT", "int", "PROJ-BUILD12-INT", "proj-build12-int-44"} {
 		logs, err := s.Logs(bg, failedBuild(), LogsOptions{Job: job, Tail: 1})
 		require.NoError(t, err, job)
 		require.Len(t, logs, 1, job)
@@ -57,6 +57,16 @@ func TestLogsTailAndJobSelection(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	assert.Contains(t, err.Error(), "JOB1 (Checkout), UNIT (Unit), INT (Integration)")
+	assert.Empty(t, tryOf(t, err), "nothing is close to NOPE")
+	_, err = s.Logs(bg, failedBuild(), LogsOptions{Job: "UNTI"})
+	require.Error(t, err)
+	assert.Equal(t, "did you mean --job UNIT?", tryOf(t, err))
+	_, err = s.Logs(bg, failedBuild(), LogsOptions{Job: "integration"})
+	require.Error(t, err)
+	assert.Equal(t, "--job takes the job key: --job INT", tryOf(t, err), "a job name points at its key")
+	_, err = s.Logs(bg, failedBuild(), LogsOptions{Job: "unit,int"})
+	require.Error(t, err)
+	assert.Equal(t, "--job takes one job: --job UNIT, then --job INT; --failed reads every failed job", tryOf(t, err))
 }
 
 func TestLogsAllJobs(t *testing.T) {
@@ -385,4 +395,11 @@ func TestFollowLogsEndsWithTheContext(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Empty(t, s.Clock.(*fakeClock).Waits(), "a cancelled follow does not wait another tick")
 	assert.Empty(t, p.Stopped, "ending a follow never stops the build")
+}
+
+func tryOf(t *testing.T, err error) string {
+	t.Helper()
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	return e.Try
 }

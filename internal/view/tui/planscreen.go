@@ -24,11 +24,10 @@ type planScreen struct {
 
 	restGen int // bumped by every Builds cursor move
 
-	// stack holds the plan screens Enter on a Tree row came from; cache and
-	// trees hold finished builds and their trees by key.
+	// stack holds the plan screens Enter on a Tree row came from; cache
+	// holds finished builds by key.
 	stack []planFrame
 	cache map[string]provider.Build
-	trees map[string]app.Tree
 
 	tree       treePreview
 	treeCursor int
@@ -111,6 +110,9 @@ type treePreview struct {
 	loading  bool
 	progress app.TreeProgress // how far the read got, while loading
 	err      error
+	// refreshing: tree is shown while it is read again; failed: that read
+	// failed, so the tree shown may be out of date.
+	refreshing, failed bool
 }
 
 // openPlan shows the plan screen on key, listing buildsPlan's builds (the
@@ -127,6 +129,14 @@ func (m Model) openPlan(key, buildsPlan string, want *provider.Build, f focus) (
 	m.stopTreePreview()
 	m.focus = f
 	m.builds.setQuery("")
+	// A branch plan's result list does not name its branch; the build it
+	// was opened on may, so remember that for this and later loads.
+	if want != nil && want.Branch != "" && want.PlanKey == buildsPlan && buildsPlan != key {
+		if m.branchNames == nil {
+			m.branchNames = map[string]string{}
+		}
+		m.branchNames[buildsPlan] = want.Branch
+	}
 	cmds := []tea.Cmd{m.loadBuilds(buildsPlan, true)}
 	if want != nil {
 		var show tea.Cmd
@@ -331,17 +341,24 @@ func (m Model) cacheBuild(b provider.Build) Model {
 func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
 	m.stopTreePreview()
 	m.plan.treeCursor = 0
-	if t, ok := m.plan.trees[key]; ok && !fresh {
+	if t, ok := m.trees[key]; ok && !fresh {
 		m.plan.tree = treePreview{key: key, tree: t, have: true}
 		return m, nil
 	}
-	m.plan.tree = treePreview{key: key, loading: true}
+	if old := m.plan.tree; old.key == key && old.have && old.err == nil && old.tree.Root != nil {
+		// Keep the tree on screen while it is read again (#82).
+		m.plan.tree = treePreview{key: key, tree: old.tree, have: true, refreshing: true}
+	} else if t, ok := m.savedTree(key); ok && !fresh {
+		m.plan.tree = treePreview{key: key, tree: t, have: true, refreshing: true}
+	} else {
+		m.plan.tree = treePreview{key: key, loading: true}
+	}
 	if m.svc == nil {
 		return m, nil
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.treePreviewCancel = cancel
-	return m, treePreviewCmd(ctx, m.svc, key, m.treePreviewGen)
+	return m, treePreviewCmd(ctx, m.svc, key, m.treePreviewGen, fresh)
 }
 
 // stopTreePreview moves the Tree panel on: a read in flight is cancelled,
@@ -363,16 +380,41 @@ func (m Model) treePreviewLoaded(msg treePreviewMsg) (Model, tea.Cmd) {
 	if msg.Gen != m.treePreviewGen || m.plan.key == "" || msg.Key != m.plan.tree.key {
 		return m, nil
 	}
+	if msg.Err != nil && m.plan.tree.refreshing {
+		m.plan.tree.refreshing, m.plan.tree.failed = false, true
+		return m, nil
+	}
 	m.plan.tree = treePreview{key: msg.Key, tree: msg.Tree, have: true, err: msg.Err}
 	m.clampTreePreview()
-	if msg.Err == nil && msg.Tree.Root != nil &&
-		app.TreeFinished(msg.Tree.Root.Build.State) && msg.Tree.State != provider.StateRunning {
-		if m.plan.trees == nil {
-			m.plan.trees = map[string]app.Tree{}
-		}
-		m.plan.trees[msg.Key] = msg.Tree
+	if msg.Err == nil {
+		m.keepTree(msg.Key, msg.Tree)
 	}
 	return m, nil
+}
+
+// savedTree is the tree saved on disk for key by an earlier session (#82).
+// It may be out of date, so it is drawn marked refreshing and read again.
+func (m Model) savedTree(key string) (app.Tree, bool) {
+	if m.svc == nil {
+		return app.Tree{}, false
+	}
+	return m.svc.CachedTree(key)
+}
+
+// keepTree caches t for the session, and on disk, when it is final, and
+// otherwise drops any cached tree for key: a rerun makes a cached tree stale.
+func (m *Model) keepTree(key string, t app.Tree) {
+	if m.svc != nil {
+		m.svc.KeepTree(key, t)
+	}
+	if !app.TreeFinal(t) {
+		delete(m.trees, key)
+		return
+	}
+	if m.trees == nil {
+		m.trees = map[string]app.Tree{}
+	}
+	m.trees[key] = t
 }
 
 // treePreviewProgressed shows how far the Tree panel's read has got, if it
@@ -437,11 +479,17 @@ func planLeftWidth(total int) int {
 }
 
 // nameLine is the plan's full name, bold, or its key when the name is not
-// known; the line the plan screen, the run form and the log screen share.
+// known, marked when Bamboo has the plan disabled; the line the plan screen,
+// the run form and the log screen share.
 func (m Model) nameLine(width int, planKey string) string {
 	name := m.planNameOf(planKey)
 	if name == "" {
 		name = planKey
+	}
+	for _, p := range m.plans.items {
+		if p.Key == planKey {
+			name = view.MarkDisabled(name, p.Disabled)
+		}
 	}
 	return " " + titleStyle.Render(cut(name, width-1))
 }
@@ -501,8 +549,9 @@ func (m Model) planHeader(width int) []string {
 	return append(lines, titleRule(width, title, marker))
 }
 
-// planBuildRows is the Builds panel: glyph, number, branch, age, who. Who
-// goes first, then branch, when the panel is narrow.
+// planBuildRows is the Builds panel: glyph, number, branch, age, who, in
+// aligned columns. Columns are dropped for every row at once when the panel
+// is narrow, who first, then branch (§3.3), so no row shows a blank cell.
 func (m Model) planBuildRows(width, height int) string {
 	rows := m.builds.rows()
 	if len(rows) == 0 {
@@ -513,9 +562,31 @@ func (m Model) planBuildRows(width, height int) string {
 	}
 	start, end := m.builds.window(height)
 	inner := width - 4
+	type cells struct{ branch, age, by string }
+	cs := make([]cells, len(rows))
+	// Widths come from every row, not the window, so columns stay put while
+	// the list scrolls.
+	headW, branchW, ageW, byW := 0, 0, 0, 0
+	for i, bd := range rows {
+		c := cells{branchOrDefault(bd), ageShort(m.now().Sub(bd.FinishedAt)), shortBy(bd.Reason)}
+		if bd.FinishedAt.IsZero() {
+			c.age = "–"
+		}
+		if bd.Key == m.plan.older {
+			c.by = "(older)"
+		}
+		cs[i] = c
+		headW = max(headW, lipgloss.Width(fmt.Sprintf("x #%-4d", bd.Number)))
+		branchW, ageW, byW = max(branchW, lipgloss.Width(c.branch)), max(ageW, lipgloss.Width(c.age)), max(byW, lipgloss.Width(c.by))
+	}
+	showBy := headW+2+branchW+2+ageW+2+byW <= inner
+	// A long branch is cut to the room left rather than hiding every branch.
+	room := inner - headW - 2 - ageW - 2
+	showBranch := branchW <= room || room >= len("default")
+	branchW = min(branchW, room)
 	var b strings.Builder
 	for i := start; i < end; i++ {
-		bd := rows[i]
+		bd, c := rows[i], cs[i]
 		focused := m.focus == focusBuilds
 		b.WriteString(m.cursorFor(focused, m.builds.cursor == i))
 		// A dim row is drawn plain and dimmed once: a coloured glyph inside
@@ -525,23 +596,15 @@ func (m Model) planBuildRows(width, height int) string {
 		if !older {
 			glyph = stateStyle(bd.State).Render(glyph)
 		}
-		head := glyph + fmt.Sprintf(" #%-4d", bd.Number)
-		branch, age, by := branchOrDefault(bd), ageShort(m.now().Sub(bd.FinishedAt)), shortBy(bd.Reason)
-		if bd.FinishedAt.IsZero() {
-			age = "–"
+		line := padTo(glyph+fmt.Sprintf(" #%-4d", bd.Number), headW)
+		if showBranch {
+			line += "  " + padTo(cut(c.branch, branchW), branchW)
 		}
-		if older {
-			by = "(older)"
+		line += "  " + padTo(c.age, ageW)
+		if showBy {
+			line += "  " + c.by
 		}
-		// Who goes first, then branch, when the panel is narrow (§3.3).
-		line := head + "  " + branch + "  " + age + "  " + by
-		if lipgloss.Width(line) > inner {
-			line = head + "  " + branch + "  " + age
-		}
-		if lipgloss.Width(line) > inner {
-			line = head + "  " + age
-		}
-		line = truncate(line, inner)
+		line = truncate(strings.TrimRight(line, " "), inner)
 		if older {
 			line = dimStyle.Render(line)
 		}
@@ -551,6 +614,11 @@ func (m Model) planBuildRows(width, height int) string {
 		b.WriteString(line + "\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
+}
+
+// padTo pads s with spaces to w terminal columns.
+func padTo(s string, w int) string {
+	return s + strings.Repeat(" ", max(w-lipgloss.Width(s), 0))
 }
 
 // treeBody is the Tree panel: one row per child of the open build.
@@ -637,7 +705,14 @@ func (m Model) treeTitle() string {
 	if m.detail == nil {
 		return "Tree"
 	}
-	return fmt.Sprintf("Tree · what #%d triggered", m.detail.Number)
+	t := fmt.Sprintf("Tree · what #%d triggered", m.detail.Number)
+	switch {
+	case m.plan.tree.refreshing:
+		t += " · refreshing…"
+	case m.plan.tree.failed:
+		t += " · refresh failed"
+	}
+	return t
 }
 
 func (m Model) stagesPanel(width, height int) string {

@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -18,15 +22,34 @@ import (
 
 var aliasRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
+// lowerAlias returns alias lowercased when that makes it valid, so a hint
+// for Lab names lab; otherwise it returns alias as typed.
+func lowerAlias(alias string) string {
+	if a := strings.ToLower(alias); aliasRe.MatchString(a) && a != config.EnvServerAlias {
+		return a
+	}
+	return alias
+}
+
 func init() { commandSets = append(commandSets, addSetup) }
 
 func addSetup(root *cobra.Command, r *runtime) {
-	server := &cobra.Command{Use: "server", Short: "Manage Bamboo server aliases", GroupID: groupSetup}
-	server.AddCommand(newServerAddCmd(r), newServerListCmd(r), newServerRmCmd(r))
+	server := &cobra.Command{Use: "server", Short: "Server aliases: add, list, rm, default", GroupID: groupSetup}
+	server.AddCommand(newServerAddCmd(r), newServerListCmd(r), newServerRmCmd(r), newServerDefaultCmd(r))
 	for _, c := range []*cobra.Command{server, newLoginCmd(r), newLogoutCmd(r), newWhoamiCmd(r)} {
 		c.GroupID = groupSetup
 		root.AddCommand(c)
 	}
+}
+
+// schemeTry points a URL typed without a scheme (bamboo.example.com) at the
+// same command with https:// in front.
+func schemeTry(err error, url string, try func(url string) string) error {
+	var e *errs.Error
+	if !strings.Contains(url, "://") && errors.As(err, &e) {
+		e.Try = try("https://" + url)
+	}
+	return err
 }
 
 // tokenPageURL is where a Bamboo user creates a personal access token.
@@ -41,18 +64,38 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <alias> --url URL",
 		Short: "Add a server alias to the machine config, then log in",
-		Args:  cobra.ExactArgs(1),
+		Example: "  bam server add work --url https://bamboo.example.com\n" +
+			"  bam server add lab --url https://bamboo.lab.example --project LAB --project OPS\n" +
+			"  bam server add work --url https://bamboo.example.com --force",
+		Args: func(cmd *cobra.Command, args []string) error {
+			// git remote add muscle memory: show the exact command with --url.
+			if len(args) == 2 && url == "" && strings.Contains(args[1], "://") {
+				return errs.Usagef("the server URL goes in --url").
+					WithTry("bam server add " + lowerAlias(args[0]) + " --url " + args[1])
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			alias := args[0]
 			if !aliasRe.MatchString(alias) || alias == config.EnvServerAlias {
-				return errs.Usagef("invalid server alias %q", alias).
+				e := errs.Usagef("invalid server alias %q", alias).
 					WithWhy("aliases are lowercase letters, digits, - and _; \"env\" is reserved for BAM_URL")
+				if a := lowerAlias(alias); a != alias {
+					e = e.WithTry("bam server add " + a + " --url " + cmp.Or(url, "URL"))
+				}
+				return e
+			}
+			if err := checkProjectKeys(projects); err != nil {
+				return err
 			}
 			if url == "" {
 				return errs.Usagef("--url is required").WithTry("bam server add " + alias + " --url https://bamboo.example.com")
 			}
-			if _, err := credential.Origin(url); err != nil {
-				return err
+			// A trailing slash would list http://host/ beside http://host.
+			url = strings.TrimRight(strings.TrimSpace(url), "/")
+			origin, err := credential.Origin(url)
+			if err != nil {
+				return schemeTry(err, url, func(u string) string { return "bam server add " + alias + " --url " + u })
 			}
 			cfg, err := r.config()
 			if err != nil {
@@ -60,6 +103,12 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 			}
 			if _, exists := cfg.Machine.Servers[alias]; exists && !force {
 				return errs.Usagef("server %q already exists in %s", alias, r.env.Paths.MachineConfig).WithTry("pass --force to replace it")
+			}
+			servers := cfg.Servers()
+			for _, n := range slices.Sorted(maps.Keys(servers)) {
+				if o, err := credential.Origin(servers[n].URL); err == nil && o == origin && n != alias {
+					fmt.Fprintf(r.env.Stderr, "note: server %s already points to %s; both aliases share one token\n", n, origin)
+				}
 			}
 			if err := config.SetMachineServer(r.env.Paths.MachineConfig, alias, config.Server{URL: url, Projects: projects}); err != nil {
 				return err
@@ -79,11 +128,32 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 	return cmd
 }
 
+// checkProjectKeys rejects --project values that are not project keys, so
+// they never reach a config file as YAML that does not parse or scopes
+// navigation to nothing.
+func checkProjectKeys(projects []string) error {
+	for _, p := range projects {
+		if app.IsProjectKey(p) {
+			continue
+		}
+		try := "project keys are uppercase letters and digits, like PROJ"
+		switch up := strings.ToUpper(p); {
+		case app.IsProjectKey(up):
+			try = "keys are uppercase: did you mean " + up + "?"
+		case app.IsPlanKey(up):
+			try = fmt.Sprintf("%s is a plan key; its project is %s", up, strings.SplitN(up, "-", 2)[0])
+		}
+		return errs.Usagef("--project %q is not a project key", p).WithTry(try)
+	}
+	return nil
+}
+
 func newServerListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List server aliases and whether a token is stored",
-		Args:  cobra.NoArgs,
+		Use:        "list",
+		SuggestFor: []string{"ls"},
+		Short:      "List server aliases, whether a token is stored, and which one is selected here",
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
 			if err != nil {
@@ -100,7 +170,10 @@ func newServerListCmd(r *runtime) *cobra.Command {
 				URL       string   `json:"url"`
 				DefinedIn []string `json:"defined_in"`
 				Token     bool     `json:"token"`
+				Selected  bool     `json:"selected"`
 			}
+			// No selection (several servers, no default) marks none.
+			sel, _ := cfg.SelectServer(r.flags.server, "")
 			var rows []row
 			for _, n := range names {
 				s := servers[n]
@@ -108,7 +181,7 @@ func newServerListCmd(r *runtime) *cobra.Command {
 				if o, err := credential.Origin(s.URL); err == nil && !has {
 					has = r.store().Has(o, s.AuthEnv)
 				}
-				rows = append(rows, row{Alias: n, URL: s.URL, DefinedIn: s.DefinedIn, Token: has})
+				rows = append(rows, row{Alias: n, URL: s.URL, DefinedIn: s.DefinedIn, Token: has, Selected: n == sel.Alias})
 			}
 			if r.flags.json {
 				if rows == nil {
@@ -124,9 +197,9 @@ func newServerListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			t := view.Table{Headers: []string{"ALIAS", "URL", "DEFINED IN", "TOKEN"}}
+			t := view.Table{Headers: []string{"ALIAS", "URL", "DEFINED IN", "TOKEN", "SELECTED"}}
 			for _, x := range rows {
-				t.Rows = append(t.Rows, []string{x.Alias, x.URL, strings.Join(x.DefinedIn, ", "), yesNo(x.Token)})
+				t.Rows = append(t.Rows, []string{x.Alias, x.URL, strings.Join(x.DefinedIn, ", "), yesNo(x.Token), yesNo(x.Selected)})
 			}
 			return t.Render(o)
 		}),
@@ -142,15 +215,23 @@ func yesNo(b bool) string {
 
 func newServerRmCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "rm <alias>",
-		Short: "Remove a server alias from the machine config",
-		Args:  cobra.ExactArgs(1),
+		Use:               "rm <alias>",
+		Short:             "Remove a server alias from the machine config",
+		Example:           "  bam server rm lab",
+		SuggestFor:        []string{"remove", "delete"},
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: r.completeServers(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
 				return err
 			}
-			alias := args[0]
+			alias := cfg.Alias(args[0])
+			if alias == config.EnvServerAlias {
+				return errs.Usagef("server %q is defined by BAM_URL", alias).
+					WithWhy("it is not in any config file, so there is nothing to remove").
+					WithTry("unset BAM_URL BAM_TOKEN")
+			}
 			if _, inMachine := cfg.Machine.Servers[alias]; !inMachine {
 				if cfg.Project != nil {
 					if _, inProject := cfg.Project.Servers[alias]; inProject {
@@ -159,11 +240,88 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 							WithTry("edit " + cfg.ProjectPath)
 					}
 				}
+				if len(cfg.Servers()) == 0 {
+					// RemoveMachineServer's hint, bam server list, would only say there are none.
+					return errs.Usagef("unknown server %q", alias).WithWhy("no servers are configured, so there is nothing to remove")
+				}
+				if near := nearMachineServer(cfg, alias); near != "" {
+					return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry("did you mean bam server rm " + near + "?")
+				}
+			}
+			if names := cfg.PresetsUsingServer(alias); len(names) > 0 {
+				return errs.Usagef("server %q is used by preset %s", alias, strings.Join(names, ", ")).
+					WithWhy("removing it would leave those presets naming an unknown server").
+					WithTry("point them at another server, or remove them with bam preset rm")
 			}
 			if err := config.RemoveMachineServer(r.env.Paths.MachineConfig, alias); err != nil {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "removed server %s from %s\n", alias, r.env.Paths.MachineConfig)
+			if strings.EqualFold(cfg.Machine.DefaultServer, alias) {
+				fmt.Fprintln(r.env.Stdout, "cleared the machine default_server, which named it")
+				if len(cfg.Machine.Servers) > 2 {
+					fmt.Fprintln(r.env.Stdout, "next: bam server default <alias>")
+				}
+			}
+			return nil
+		}),
+	}
+}
+
+func newServerDefaultCmd(r *runtime) *cobra.Command {
+	return &cobra.Command{
+		Use:               "default [alias]",
+		Short:             "Show or set the machine-wide default server alias",
+		Example:           "  bam server default\n  bam server default work",
+		SuggestFor:        []string{"use"},
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: r.completeServers(true),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			cfg, err := r.config()
+			if err != nil {
+				return err
+			}
+			if len(args) == 0 {
+				cur := cfg.Machine.DefaultServer
+				if r.flags.json {
+					return view.WriteJSON(r.env.Stdout, map[string]string{"default_server": cur})
+				}
+				if cur == "" {
+					fmt.Fprintln(r.env.Stderr, "no machine default server set\n  try: bam server default <alias>")
+					return nil
+				}
+				fmt.Fprintln(r.env.Stdout, cur)
+				return nil
+			}
+			alias := cfg.Alias(args[0])
+			if alias == config.EnvServerAlias {
+				return errs.Usagef("server %q is defined by BAM_URL", alias).
+					WithWhy("the machine default must be a server in the machine config").
+					WithTry("bam server add <alias> --url URL, then bam server default <alias>")
+			}
+			// A machine default naming a repo's alias would break every other repo.
+			if _, ok := cfg.Machine.Servers[alias]; !ok {
+				if len(cfg.Servers()) == 0 {
+					// The machine config may not exist yet, and bam server list would only say there are none.
+					return errs.Usagef("unknown server %q", alias).WithWhy("no servers are configured").WithTry("bam server add " + alias + " --url URL")
+				}
+				if cfg.Project != nil {
+					if _, inProject := cfg.Project.Servers[alias]; inProject {
+						return errs.Usagef("server %q is defined in %s", alias, cfg.ProjectPath).
+							WithWhy("the machine default must be a machine server, or every other repo would break").
+							WithTry("set default_server: " + alias + " in " + cfg.ProjectPath)
+					}
+				}
+				try := "bam server list"
+				if near := nearMachineServer(cfg, alias); near != "" {
+					try = "did you mean bam server default " + near + "?"
+				}
+				return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry(try)
+			}
+			if err := config.SetMachineDefaultServer(r.env.Paths.MachineConfig, alias); err != nil {
+				return err
+			}
+			fmt.Fprintf(r.env.Stdout, "default server is now %s in %s\n", alias, r.env.Paths.MachineConfig)
 			return nil
 		}),
 	}
@@ -172,15 +330,55 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 func newLoginCmd(r *runtime) *cobra.Command {
 	var withToken bool
 	cmd := &cobra.Command{
-		Use:   "login <alias>",
-		Short: "Store a verified personal access token for a server",
-		Args:  cobra.ExactArgs(1),
+		Use:        "login <alias>",
+		Short:      "Store a verified personal access token for a server",
+		SuggestFor: []string{"auth", "token", "signin"},
+		Long:       "Store a verified personal access token for a server. The alias defaults to --server.",
+		Example: "  bam login work\n" +
+			"  bam login --server work\n" +
+			"  printf '%s' \"$TOKEN\" | bam login work --with-token",
+		Args:              r.aliasArg,
+		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			return login(cmd, r, args[0], withToken)
+			return login(cmd, r, r.alias(args), withToken)
 		}),
 	}
 	cmd.Flags().BoolVar(&withToken, "with-token", false, "read the token from stdin instead of prompting")
 	return cmd
+}
+
+// aliasArg lets login and logout take their alias from --server instead.
+func (r *runtime) aliasArg(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 && r.flags.server != "" {
+		return nil
+	}
+	if len(args) == 0 {
+		// Name the configured aliases so the user need not run bam server list first.
+		if cfg, err := r.config(); err == nil && len(cfg.Servers()) > 0 {
+			aliases := slices.Sorted(maps.Keys(cfg.Servers()))
+			try := cmd.CommandPath() + " " + aliases[0]
+			if len(aliases) > 1 {
+				try = cmd.CommandPath() + " <alias>; configured: " + strings.Join(aliases, ", ")
+			}
+			return errs.Usagef("missing <alias>").WithTry(try)
+		}
+	}
+	return cobra.ExactArgs(1)(cmd, args)
+}
+
+func (r *runtime) alias(args []string) string {
+	if len(args) == 0 {
+		return r.flags.server
+	}
+	return args[0]
+}
+
+// nearMachineServer is the machine server alias closest to a mistyped one, or "".
+func nearMachineServer(cfg *config.Config, alias string) string {
+	if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Machine.Servers)), 1); len(near) > 0 {
+		return near[0]
+	}
+	return ""
 }
 
 func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
@@ -188,9 +386,14 @@ func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
 	if err != nil {
 		return err
 	}
+	alias = cfg.Alias(alias)
 	s, ok := cfg.Servers()[alias]
 	if !ok || s.URL == "" {
-		return errs.Configf("no server alias %q", alias).WithTry(fmt.Sprintf("bam server add %s --url URL", alias))
+		e := cfg.UnknownServer(alias)
+		if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 && near[0] != alias {
+			e.Try = "did you mean bam login " + near[0] + "?"
+		}
+		return e
 	}
 	origin, err := credential.Origin(s.URL)
 	if err != nil {
@@ -249,18 +452,29 @@ func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
 
 func newLogoutCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "logout <alias>",
-		Short: "Delete the stored token for a server",
-		Args:  cobra.ExactArgs(1),
+		Use:               "logout <alias>",
+		Short:             "Delete the stored token for a server",
+		Example:           "  bam logout work",
+		SuggestFor:        []string{"signout"},
+		Long:              "Delete the stored token for a server. The alias defaults to --server.",
+		Args:              r.aliasArg,
+		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
 				return err
 			}
-			alias := args[0]
+			alias := cfg.Alias(r.alias(args))
 			s, ok := cfg.Servers()[alias]
 			if !ok {
-				return errs.Configf("no server alias %q", alias).WithTry("bam server list")
+				// UnknownServer's hint, bam server add, is no way to log out.
+				e := cfg.UnknownServer(alias).WithTry("")
+				if e.Why == "" {
+					e = e.WithWhy("no servers are configured, so there is nothing to log out of")
+				} else if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 {
+					e.Try = "did you mean bam logout " + near[0] + "?"
+				}
+				return e
 			}
 			origin, err := credential.Origin(s.URL)
 			if err != nil {
@@ -278,6 +492,9 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 			if s.AuthEnv != "" {
 				fmt.Fprintf(r.env.Stderr, "note: a token in $%s is not affected\n", s.AuthEnv)
 			}
+			if s.Token != "" {
+				fmt.Fprintln(r.env.Stderr, "note: a token in $BAM_TOKEN is not affected; unset it to log out")
+			}
 			return nil
 		}),
 	}
@@ -285,9 +502,10 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 
 func newWhoamiCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "whoami",
-		Short: "Show the authenticated user on each configured server",
-		Args:  cobra.NoArgs,
+		Use:        "whoami",
+		SuggestFor: []string{"user", "me"},
+		Short:      "Show the authenticated user on each configured server",
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
 			if err != nil {
@@ -297,7 +515,7 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 			var names []string
 			if r.flags.server != "" {
 				if _, ok := servers[r.flags.server]; !ok {
-					return errs.Configf("no server alias %q", r.flags.server).WithTry("bam server list")
+					return cfg.UnknownServer(r.flags.server)
 				}
 				names = []string{r.flags.server}
 			} else {
@@ -313,7 +531,7 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 				FullName string `json:"full_name"`
 				Error    string `json:"error"`
 			}
-			var rows []row
+			rows := []row{}
 			var first error
 			for _, n := range names {
 				s := servers[n]
@@ -339,6 +557,8 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 				if err := view.WriteJSON(r.env.Stdout, rows); err != nil {
 					return err
 				}
+			} else if len(rows) == 0 {
+				fmt.Fprintln(r.env.Stderr, "no servers configured\n  try: bam server add <alias> --url URL")
 			} else {
 				o, err := r.out()
 				if err != nil {

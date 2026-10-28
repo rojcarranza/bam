@@ -47,6 +47,7 @@ type Client struct {
 	mu             sync.Mutex
 	caps           Capabilities
 	versionChecked bool
+	version        string // the Bamboo version ServerInfo last returned
 }
 
 // New returns a Client for the server at o.BaseURL.

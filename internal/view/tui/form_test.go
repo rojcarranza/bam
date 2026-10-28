@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -164,6 +168,8 @@ func TestROpensTheFormForAPreset(t *testing.T) {
 	require.Equal(t, screenForm, m.screen)
 	require.True(t, m.form.loading)
 	require.NotNil(t, cmd)
+	v := m.View()
+	require.Contains(t, v, "PROJ-PROV · branch develop · preset smoke", "the header names what is loading")
 
 	msg, ok := cmd().(formLoadedMsg)
 	require.True(t, ok, "got %T", cmd())
@@ -177,8 +183,9 @@ func TestROnAPlanOpensAFormWithNoTargetRules(t *testing.T) {
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-BUILD"}}})
 	m.focus = focusPlans
 
-	_, cmd := send(m, mkKey("R"))
+	m, cmd := send(m, mkKey("R"))
 	require.NotNil(t, cmd)
+	require.Contains(t, m.View(), "PROJ-BUILD", "the header names the plan while it loads")
 	msg, ok := cmd().(formLoadedMsg)
 	require.True(t, ok, "got %T", cmd())
 	require.Equal(t, "PROJ-BUILD", msg.Ref.PlanKey)
@@ -1150,6 +1157,8 @@ func TestTheKeyLineOffersFOnlyOnTheRevisionRowWithAHint(t *testing.T) {
 	require.NotContains(t, m.keyLine(), "f use")
 	m.form.cursor = len(m.form.fields)
 	require.Contains(t, m.keyLine(), "f use #41's revision")
+	m, _ = send(m, mkKey("f"))
+	require.NotContains(t, m.keyLine(), "f use", "the commit is already taken")
 	m = formModel()
 	m.form.cursor = len(m.form.fields)
 	require.NotContains(t, m.keyLine(), "f use")
@@ -1220,7 +1229,7 @@ func TestFormLoadedCarriesTheHintAndReopeningClearsIt(t *testing.T) {
 }
 
 // At 80 columns the status bar must still fit the key line with the f hint;
-// a line too long for the bar is dropped whole, hiding the hint it offers.
+// a line too long for the bar loses its last hints, such as ^R run.
 func TestTheFHintFitsTheStatusBarAt80Columns(t *testing.T) {
 	m := hintedForm()
 	m.form.cursor = len(m.form.fields)
@@ -1240,4 +1249,151 @@ func TestOpenFormCmdWithAFailedRevisionReadHasNoHint(t *testing.T) {
 	require.True(t, ok, "%#v", msg)
 	require.Equal(t, "PROJ-PROV-41", loaded.FromBuild)
 	require.Equal(t, "", loaded.FromRevision)
+}
+
+// typeIn sends each rune of s as a key.
+func typeIn(m Model, s string) Model {
+	for _, r := range s {
+		m, _ = send(m, mkKey(string(r)))
+	}
+	return m
+}
+
+// TestAAddsAnUndeclaredVariableThatIsSent: the form's --var for a name the
+// plan does not declare. It warns, as bam run does, and is sent on ctrl-R.
+func TestAAddsAnUndeclaredVariableThatIsSent(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	require.True(t, m.form.naming)
+	m = typeIn(m, "global_flag")
+	require.Contains(t, m.View(), "global_flag")
+	m, _ = send(m, mkKey("enter"))
+	require.False(t, m.form.naming)
+	require.True(t, m.form.editing, "the value is typed next")
+	require.Equal(t, 3, m.form.cursor, "the row goes after the declared ones")
+
+	m = typeIn(m, "on")
+	m, _ = send(m, mkKey("enter"))
+	added := m.form.fields[3]
+	require.Equal(t, "global_flag", added.Name)
+	require.Equal(t, "on", added.Value)
+	require.True(t, added.Added)
+	require.Contains(t, m.View(), "not declared")
+	require.Contains(t, m.dryRunBody(76), "global_flag=on")
+
+	// Tab and a dry run keep it.
+	m, _ = send(m, mkKey("tab"))
+	m, _ = send(m, mkKey("d"))
+	m, _ = send(m, mkKey("esc"))
+	require.Len(t, m.form.fields, 4)
+
+	m.revalidate()
+	require.True(t, m.canRun(), "an undeclared name warns, it does not block")
+	_, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.NotNil(t, cmd)
+	cmd()
+	f := m.svc.P.(*fake.Provider)
+	require.Equal(t, map[string]string{"cluster_name": "beta", "global_flag": "on"}, f.Triggered[0].Variables)
+}
+
+// TestAddingADeclaredNameEditsThatVariable instead of adding a duplicate.
+func TestAddingADeclaredNameEditsThatVariable(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "cluster_name")
+	m, _ = send(m, mkKey("enter"))
+	require.Len(t, m.form.fields, 3)
+	require.Equal(t, 0, m.form.cursor)
+	require.True(t, m.form.editing)
+
+	// An options field is moved to, not opened as free text.
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "cluster_type")
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, 1, m.form.cursor)
+	require.False(t, m.form.editing)
+}
+
+// TestAnAddedSecretNameIsMaskedEverywhere.
+func TestAnAddedSecretNameIsMaskedEverywhere(t *testing.T) {
+	const sentinel = "correct-horse-battery-staple"
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "db_password")
+	m, _ = send(m, mkKey("enter"))
+	m = typeIn(m, sentinel)
+	require.NotContains(t, m.View(), sentinel)
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.form.fields[3].Secret)
+	require.NotContains(t, m.View(), sentinel)
+	require.Contains(t, m.dryRunBody(76), "db_password="+app.MaskedDisplay)
+	require.NotContains(t, m.dryRunBody(76), sentinel)
+}
+
+// TestXRemovesOnlyAnAddedRow: a declared variable cannot be removed.
+func TestXRemovesOnlyAnAddedRow(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("x"))
+	require.Len(t, m.form.fields, 3, "a declared row stays")
+
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "extra")
+	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, mkKey("esc"))
+	require.Len(t, m.form.fields, 4)
+	m, _ = send(m, mkKey("x"))
+	require.Len(t, m.form.fields, 3)
+	require.True(t, m.form.onRevision(), "the cursor falls to the next row")
+}
+
+// TestAnEmptyOrBadNameAddsNothing.
+func TestAnEmptyOrBadNameAddsNothing(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, mkKey("a"))
+	m, _ = send(m, mkKey("enter"))
+	require.False(t, m.form.editing)
+	require.Len(t, m.form.fields, 3)
+
+	m, _ = send(m, mkKey("a"))
+	m = typeIn(m, "a=b")
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.form.naming, "the name stays open to fix")
+	require.Error(t, m.form.err)
+	require.Len(t, m.form.fields, 3)
+
+	m, _ = send(m, mkKey("esc"))
+	require.False(t, m.form.editing)
+	require.Len(t, m.form.fields, 3)
+	require.NoError(t, m.form.err, "the name it was about is gone")
+	require.NotContains(t, m.View(), "is not a variable name")
+}
+
+// TestAFailedFormLoadStopsSayingLoading: when the plan or its variables
+// cannot be read, the form must not keep promising them.
+func TestAFailedFormLoadStopsSayingLoading(t *testing.T) {
+	m := formModel()
+	m.form = formState{loading: true}
+	require.Contains(t, m.View(), "loading the plan's variables")
+
+	m, _ = send(m, errMsg{Err: errBoom, Where: "run", Stream: streamRun, Gen: m.formGen})
+	v := m.View()
+	require.NotContains(t, v, "loading the plan's variables")
+	require.Contains(t, v, "could not load the plan's variables")
+	require.NotContains(t, v, "^R run", "no key but esc works on a form that never loaded")
+
+	m, _ = send(m, mkKey("enter"))
+	require.False(t, m.form.editing, "a failed form still has nothing to edit")
+}
+
+// TestALongFormErrorWraps: a Bamboo refusal is often wider than the form, and
+// its reason is at the end.
+func TestALongFormErrorWraps(t *testing.T) {
+	m := formModel()
+	m.form.err = fmt.Errorf("Bamboo refused the trigger for PROJ-API: the plan is disabled by an administrator")
+	body := m.formBody(40, 40)
+	for _, l := range strings.Split(body, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 40, l)
+	}
+	require.Contains(t, strings.Join(strings.Fields(ansi.Strip(body)), " "), "disabled by an administrator")
 }

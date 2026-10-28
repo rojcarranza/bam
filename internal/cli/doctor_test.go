@@ -98,3 +98,31 @@ func TestDoctorInvalidServerURL(t *testing.T) {
 	// Should not contain ✓ server
 	assert.NotContains(t, out, "✓ server")
 }
+
+func TestDoctorListsOnlyConfigFilesThatExist(t *testing.T) {
+	h := newHarness(t)
+	h.probe = okProbe()
+	assert.Equal(t, 0, h.run("doctor"))
+	assert.NotContains(t, h.stdout.String(), "config.yaml", "the machine file does not exist")
+
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("doctor"))
+	assert.Regexp(t, `✓ config\s+no config file; settings come from the environment`, h.stdout.String())
+}
+
+func TestDoctorChecksThePlanKeyBeforeConnecting(t *testing.T) {
+	for flag, try := range map[string]string{
+		"PROJ-BUILD-482": "try: its plan, PROJ-BUILD",
+		"PROJ":           "try: bam plan list PROJ to see its plans",
+		"proj-build":     "try: keys are uppercase: did you mean PROJ-BUILD?",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run("doctor", "--plan", flag), flag)
+		assert.Empty(t, h.stdout.String(), flag)
+		assert.Contains(t, h.stderr.String(), `"`+flag+`" is not a plan key`, flag)
+		assert.Contains(t, h.stderr.String(), try, flag)
+	}
+}

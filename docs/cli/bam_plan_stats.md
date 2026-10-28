@@ -3,7 +3,15 @@
 Success rate, durations and failing jobs over a plan's last builds
 
 ```
-bam plan stats <plan> [flags]
+bam plan stats <plan|preset> [flags]
+```
+
+### Examples
+
+```
+  bam plan stats PROJ-BUILD
+  bam plan stats PROJ-BUILD -n 50
+  bam plan stats provision --branch develop
 ```
 
 ### Options
@@ -11,7 +19,7 @@ bam plan stats <plan> [flags]
 ```
       --branch string   plan branch to read
   -h, --help            help for stats
-      --last int        how many of the newest builds to read (1 to 100) (default 20)
+  -n, --last int        how many of the newest builds to read (1 to 100) (default 20)
 ```
 
 ### Options inherited from parent commands
@@ -26,5 +34,5 @@ bam plan stats <plan> [flags]
 
 ### SEE ALSO
 
-* [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
+* [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 

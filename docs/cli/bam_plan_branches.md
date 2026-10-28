@@ -2,8 +2,20 @@
 
 List a plan's branches
 
+### Synopsis
+
+List a plan's branches. With text, list only the branches whose name or key
+contains it, ignoring case.
+
 ```
-bam plan branches <plan> [flags]
+bam plan branches <plan|preset> [text] [flags]
+```
+
+### Examples
+
+```
+  bam plan branches PROJ-BUILD
+  bam plan branches PROJ-BUILD feature
 ```
 
 ### Options
@@ -24,5 +36,5 @@ bam plan branches <plan> [flags]
 
 ### SEE ALSO
 
-* [bam plan](bam_plan.md)	 - Plans: list, show, variables, branches, stats
+* [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 

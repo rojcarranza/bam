@@ -6,6 +6,14 @@ Add a server alias to the machine config, then log in
 bam server add <alias> --url URL [flags]
 ```
 
+### Examples
+
+```
+  bam server add work --url https://bamboo.example.com
+  bam server add lab --url https://bamboo.lab.example --project LAB --project OPS
+  bam server add work --url https://bamboo.example.com --force
+```
+
 ### Options
 
 ```
@@ -27,5 +35,5 @@ bam server add <alias> --url URL [flags]
 
 ### SEE ALSO
 
-* [bam server](bam_server.md)	 - Manage Bamboo server aliases
+* [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 

@@ -32,7 +32,7 @@ func (s *Service) Run(ctx context.Context, ref PlanRef, vs VarSet) (provider.Bui
 		if ref.Revision != "" && b.Key != "" && errors.Is(err, errs.ErrUnsupported) {
 			return b, s.stopIgnoredRevision(ctx, b.Key)
 		}
-		return provider.Build{}, err
+		return provider.Build{}, s.explainDisabled(ctx, ref.PlanKey, err)
 	}
 	rec := LastRecord{BuildKey: b.Key, Origin: s.Origin, PlanKey: ref.PlanKey, TriggeredAt: s.Clock.Now()}
 	if ref.Target != nil {
@@ -41,6 +41,29 @@ func (s *Service) Run(ctx context.Context, ref PlanRef, vs VarSet) (provider.Bui
 	// The build is already running; failing to remember it only loses --last.
 	_ = s.State.SetLast(s.Cfg.RepoRoot, rec)
 	return b, nil
+}
+
+// explainDisabled names the cause when Bamboo refused to start a plan that
+// is disabled, so the error does not depend on how Bamboo words its refusal.
+func (s *Service) explainDisabled(ctx context.Context, key string, err error) error {
+	var e *errs.Error
+	if !errors.As(err, &e) || e.Kind != errs.KindBamboo || errors.Is(err, errs.ErrNotFound) {
+		return err
+	}
+	if p, perr := s.P.GetPlan(ctx, key); perr == nil && p.Disabled {
+		e.Why, e.Try = key+" is disabled in Bamboo", "enable it in Bamboo: "+p.URL
+	}
+	return err
+}
+
+// DisabledWarning returns a warning when Bamboo would refuse to start key
+// because it is disabled, so a dry run says so before the real run fails;
+// otherwise "". A failed lookup is not a warning: the dry run still holds.
+func (s *Service) DisabledWarning(ctx context.Context, key string) string {
+	if p, err := s.P.GetPlan(ctx, key); err == nil && p.Disabled {
+		return key + " is disabled in Bamboo, so a real run would be refused; enable it in Bamboo: " + p.URL
+	}
+	return ""
 }
 
 // stopIgnoredRevision stops a build that runs the newest commit instead of

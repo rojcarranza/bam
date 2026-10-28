@@ -1,6 +1,6 @@
 ## bam project
 
-Bamboo projects
+Projects: list
 
 ```
 bam project [flags]

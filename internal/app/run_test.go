@@ -48,6 +48,43 @@ func TestRunErrorRecordsNothing(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestRunExplainsADisabledPlan(t *testing.T) {
+	p := fakeBamboo()
+	p.Plans["PROJ"][0].Disabled = true
+	p.Plans["PROJ"][0].URL = "https://bamboo.example.com/browse/PROJ-BUILD"
+	p.TriggerErr = errs.Bamboof("could not start build of PROJ-BUILD").WithWhy("HTTP 400")
+	s := newService(t, p)
+	ref, _ := s.ResolvePlan(bg, "PROJ-BUILD", "")
+	_, err := s.Run(bg, ref, VarSet{})
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "could not start build of PROJ-BUILD", e.What)
+	assert.Equal(t, "PROJ-BUILD is disabled in Bamboo", e.Why)
+	assert.Equal(t, "enable it in Bamboo: https://bamboo.example.com/browse/PROJ-BUILD", e.Try)
+}
+
+func TestDisabledWarning(t *testing.T) {
+	p := fakeBamboo()
+	s := newService(t, p)
+	assert.Empty(t, s.DisabledWarning(bg, "PROJ-BUILD"))
+	assert.Empty(t, s.DisabledWarning(bg, "PROJ-NOPE"), "a failed lookup is not a warning")
+	p.Plans["PROJ"][0].Disabled = true
+	p.Plans["PROJ"][0].URL = "https://bamboo.example.com/browse/PROJ-BUILD"
+	assert.Equal(t, "PROJ-BUILD is disabled in Bamboo, so a real run would be refused; enable it in Bamboo: https://bamboo.example.com/browse/PROJ-BUILD",
+		s.DisabledWarning(bg, "PROJ-BUILD"))
+}
+
+func TestRunKeepsBambooReasonForAnEnabledPlan(t *testing.T) {
+	p := fakeBamboo()
+	p.TriggerErr = errs.Bamboof("could not start build of PROJ-BUILD").WithWhy("HTTP 400")
+	s := newService(t, p)
+	ref, _ := s.ResolvePlan(bg, "PROJ-BUILD", "")
+	_, err := s.Run(bg, ref, VarSet{})
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "HTTP 400", e.Why)
+}
+
 func build(state provider.State, stageState, jobState provider.State) provider.Build {
 	return provider.Build{Key: "PROJ-P-1", State: state, Stages: []provider.Stage{
 		{Name: "Build", State: stageState, Jobs: []provider.Job{{Key: "PROJ-P-JOB1-1", Name: "Compile", State: jobState}}},

@@ -49,6 +49,32 @@ func TestDiscoverWithoutGitStopsAtHome(t *testing.T) {
 	assert.Equal(t, filepath.Join(home, ".bam.yaml"), path)
 }
 
+func TestDiscoverRejectsAMisnamedProjectFile(t *testing.T) {
+	for _, name := range []string{".bam.yml", "bam.yaml", "bam.yml"} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			repo := filepath.Join(home, "repo")
+			sub := filepath.Join(repo, "a")
+			require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o755))
+			require.NoError(t, os.MkdirAll(sub, 0o755))
+			writeFile(t, filepath.Join(repo, name), "version: 1\n")
+
+			_, _, err := Discover(sub, home)
+			var e *errs.Error
+			require.ErrorAs(t, err, &e)
+			assert.Equal(t, errs.KindConfig, e.Kind)
+			assert.Equal(t, "found "+filepath.Join(repo, name)+", but bam reads only .bam.yaml", e.What)
+			assert.Equal(t, "rename it: mv "+filepath.Join(repo, name)+" "+filepath.Join(repo, ".bam.yaml"), e.Try)
+
+			// The real file wins; the stray one is then left alone.
+			writeFile(t, filepath.Join(repo, ".bam.yaml"), "version: 1\n")
+			path, _, err := Discover(sub, home)
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(repo, ".bam.yaml"), path)
+		})
+	}
+}
+
 func TestLoadParsesBothLayers(t *testing.T) {
 	home := t.TempDir()
 	repo := filepath.Join(home, "repo")
@@ -122,6 +148,16 @@ func TestLoadRejectsUnknownKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "servrs")
 }
 
+func TestLoadRejectsBadMachineColor(t *testing.T) {
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "m.yaml")
+	writeFile(t, machine, "version: 1\ncolor: bogus\n")
+	_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, Getenv: noEnv})
+	require.Error(t, err)
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+	assert.Contains(t, err.Error(), machine+`: color must be auto, always or never, not "bogus"`)
+}
+
 func TestLoadMachineEditor(t *testing.T) {
 	dir := t.TempDir()
 	machine := filepath.Join(dir, "m.yaml")
@@ -149,4 +185,12 @@ repos:
 	assert.Equal(t, "OPS", cfg.Project.DefaultProject)
 	assert.Equal(t, "PROJ", cfg.Machine.Servers["work"].DefaultProject)
 	assert.Equal(t, "LAB", cfg.Machine.Repos[dir].DefaultProject)
+}
+
+func TestLoadAcceptsMachineColorInAnyCase(t *testing.T) {
+	dir := t.TempDir()
+	machine := filepath.Join(dir, "m.yaml")
+	writeFile(t, machine, "version: 1\ncolor: Always\n")
+	_, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: machine, Getenv: noEnv})
+	require.NoError(t, err)
 }

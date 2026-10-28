@@ -22,11 +22,13 @@ import (
 // anyKeyRe matches project, plan, branch plan, build and job result keys.
 var anyKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$`)
 
+var jobKeyRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
+
 func init() { commandSets = append(commandSets, addRunLoop) }
 
 func addRunLoop(root *cobra.Command, r *runtime) {
-	build := subgroup(root, "build", "Builds: list, show, run, watch, logs, cancel", groupRun)
-	build.AddCommand(newRunCmd(r), newWatchCmd(r), newLogsCmd(r), newCancelCmd(r))
+	build := subgroup(root, "build", "Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel", groupRun)
+	build.AddCommand(newRunCmd(r), newWatchCmd(r), newLogsCmd(r), newInvestigateCmd(r), newCancelCmd(r))
 	for _, c := range []*cobra.Command{newRunCmd(r), newWatchCmd(r), newLogsCmd(r)} {
 		c.GroupID = groupShortcut
 		root.AddCommand(c)
@@ -47,8 +49,13 @@ func newRunCmd(r *runtime) *cobra.Command {
 	var watch, dryRun, edit bool
 	var timeout time.Duration
 	cmd := &cobra.Command{
-		Use:               "run <plan|preset>",
-		Short:             "Trigger a plan or preset with variables",
+		Use:        "run <plan|preset>",
+		Short:      "Trigger a plan or preset with variables",
+		SuggestFor: []string{"trigger", "start"},
+		Example: "  bam run deploy-qa --watch\n" +
+			"  bam run PROJ-BUILD --branch develop --var cluster_type=k8s\n" +
+			"  bam run deploy-qa --from last --dry-run\n" +
+			"  bam run PROJ-BUILD --from 482 --revision from",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -61,21 +68,32 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if cmd.Flags().Changed("revision") && revision == "" {
 				return errs.Usagef("--revision needs a value")
 			}
+			if strings.EqualFold(revision, revisionFromBuild) {
+				revision = revisionFromBuild
+			}
 			if revision == revisionFromBuild && from == "" {
 				return errs.Usagef("--revision from needs --from").WithTry("bam run " + args[0] + " --from last --revision from")
 			}
 			ctx := cmd.Context()
-			svc, _, err := r.connectFor(ctx, args[0])
+			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, args[0], branch)
+			ref, err := svc.ResolvePlan(ctx, arg, branch)
 			if err != nil {
 				return err
 			}
 			ref.Revision = revision
 			// Resolved once: --from last must name the same build for the
 			// variables and for the commit.
+			if key, ok := pageKey(from); ok {
+				// The link names its server; reading another server's build of the same key would be wrong.
+				if o, err := credential.Origin(from); err != nil || o != svc.Origin {
+					return errs.Usagef("--from %s is on another server than %s", key, ref.PlanKey).
+						WithTry("pass a build of " + svc.Origin)
+				}
+				from = key
+			}
 			if from != "" {
 				if from, err = svc.ResolveFrom(ctx, ref, from); err != nil {
 					return err
@@ -99,6 +117,11 @@ func newRunCmd(r *runtime) *cobra.Command {
 				}
 			} else if vs, err = svc.ResolveVars(ctx, ref, app.VarOptions{From: from, Flags: vars}); err != nil {
 				return err
+			}
+			if dryRun {
+				if w := svc.DisabledWarning(ctx, ref.PlanKey); w != "" {
+					vs.Warnings = append(vs.Warnings, w)
+				}
 			}
 			view.PrintWarnings(r.env.Stderr, vs.Warnings)
 			if vs.FromBuild != "" {
@@ -138,10 +161,11 @@ func newRunCmd(r *runtime) *cobra.Command {
 				view.Queued(o, b, false, ref.RevisionShort())
 				return nil
 			}
-			if !r.flags.json {
-				view.Queued(o, b, true, ref.RevisionShort())
+			if r.flags.json {
+				return r.watchLoop(ctx, svc, b.Key, limit, "")
 			}
-			return r.watchLoop(ctx, svc, b.Key, limit, ref.RevisionShort())
+			view.Queued(o, b, true, ref.RevisionShort())
+			return r.treeLoop(ctx, svc, b.Key, app.TreeOptions{}, false, limit, "bam watch "+b.Key, ref.RevisionShort())
 		}),
 	}
 	f := cmd.Flags()
@@ -149,11 +173,12 @@ func newRunCmd(r *runtime) *cobra.Command {
 	f.StringVar(&from, "from", "", "reuse variables of a build: number, key or last")
 	f.StringVar(&branch, "branch", "", "plan branch to run")
 	f.StringVar(&revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
-	f.BoolVar(&watch, "watch", false, "follow the build until it finishes")
+	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	f.DurationVar(&timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
 	f.BoolVar(&dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
 	f.BoolVar(&edit, "edit", false, "review and change the variables in $EDITOR before running")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeVar)
+	_ = cmd.RegisterFlagCompletionFunc("revision", r.completeRevision)
 	return cmd
 }
 
@@ -223,17 +248,40 @@ func (r *runtime) watchLoop(ctx context.Context, svc *app.Service, key string, l
 	}
 }
 
+// followBuild watches key as bam watch does: the build tree in text mode,
+// NDJSON events with --json. A preset argument's timeout applies unless
+// --timeout is given.
+func (r *runtime) followBuild(cmd *cobra.Command, args []string, svc *app.Service, key string, timeout time.Duration) error {
+	limit := timeout
+	if len(args) == 1 && !cmd.Flags().Changed("timeout") && config.ValidTargetName(args[0]) {
+		if t, ok, _ := r.cfg.Target(args[0]); ok {
+			limit = time.Duration(t.Timeout)
+		}
+	}
+	if r.flags.json {
+		return r.watchLoop(cmd.Context(), svc, key, limit, "")
+	}
+	return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key, "")
+}
+
 func newWatchCmd(r *runtime) *cobra.Command {
 	var last bool
 	var branch string
 	var timeout time.Duration
 	cmd := &cobra.Command{
-		Use:   "watch [<build>|<plan>|<preset>]",
-		Short: "Follow a build until it finishes; exit 1 if it fails",
-		Long: `Follow a build until it finishes; exit 1 if it fails.
+		Use:        "watch [<build>|<plan>|<preset>]",
+		SuggestFor: []string{"wait", "tail", "follow"},
+		Short:      "Follow a build and the builds it triggers; exit 1 if any fails",
+		Long: `Follow a build and the builds it triggers; exit 1 if any fails.
 
-This follows one build. To follow a build and every build it triggered, use
-"bam build tree <build> --watch".`,
+bam draws the build tree, as "bam build tree <build> --watch" does, until
+every build in it has finished, then lists each build that did not succeed.
+Interrupting or timing out never stops a build. --json follows the one
+build and writes its events as NDJSON.`,
+		Example: "  bam watch PROJ-BUILD-482\n" +
+			"  bam watch --last\n" +
+			"  bam watch deploy-qa --branch develop\n" +
+			"  bam watch PROJ-BUILD-482 --timeout 30m",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -241,13 +289,7 @@ This follows one build. To follow a build and every build it triggered, use
 			if err != nil {
 				return err
 			}
-			limit := timeout
-			if len(args) == 1 && !cmd.Flags().Changed("timeout") && config.ValidTargetName(args[0]) {
-				if t, ok, _ := r.cfg.Target(args[0]); ok {
-					limit = time.Duration(t.Timeout)
-				}
-			}
-			return r.watchLoop(cmd.Context(), svc, key, limit, "")
+			return r.followBuild(cmd, args, svc, key, timeout)
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
@@ -269,12 +311,33 @@ func newLogsCmd(r *runtime) *cobra.Command {
 	var branch, job string
 	var tail int
 	cmd := &cobra.Command{
-		Use:               "logs [<build>|<plan>|<preset>]",
-		Short:             "Print job logs; --failed for failed jobs only",
+		Use:   "logs [<build>|<plan>|<preset>]",
+		Short: "Print job logs; --failed for failed jobs only",
+		Example: "  bam logs PROJ-BUILD-482 --failed\n" +
+			"  bam logs --last --failed -n 50\n" +
+			"  bam logs PROJ-BUILD-482 --job JOB1 --follow\n" +
+			"  bam logs PROJ-BUILD-JOB1-482",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if tail < 0 {
+				return errs.Usagef("--tail takes 0 or more, not %d", tail).WithTry("--tail 0 prints the whole log")
+			}
 			ctx := cmd.Context()
+			// A job result key copied from Bamboo's job page names the build and the job.
+			if len(args) == 1 && job == "" {
+				k, link := args[0], ""
+				if pk, ok := pageKey(k); ok {
+					k = pk
+					link, _ = credential.Origin(args[0])
+				}
+				if build, _, ok := app.SplitJobResult(k); ok {
+					job, args = k, []string{build}
+					if link != "" {
+						args[0] = link + "/browse/" + build
+					}
+				}
+			}
 			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
 			if err != nil {
 				return err
@@ -282,6 +345,18 @@ func newLogsCmd(r *runtime) *cobra.Command {
 			b, err := svc.Build(ctx, key)
 			if err != nil {
 				return err
+			}
+			// A plan, preset or --last picks the build; name it so the log is not anonymous.
+			named := false
+			if len(args) == 1 {
+				k := args[0]
+				if pk, ok := pageKey(k); ok {
+					k = pk
+				}
+				named = app.IsBuildKey(k)
+			}
+			if !r.flags.json && !named {
+				r.note(fmt.Sprintf("%s (%s)", key, b.State), "")
 			}
 			if follow {
 				return r.followLogs(ctx, svc, b, job, tail)
@@ -293,6 +368,10 @@ func newLogsCmd(r *runtime) *cobra.Command {
 			if failed && len(logs) == 0 {
 				if r.flags.json {
 					return view.WriteJSON(r.env.Stdout, []jobLogDoc{})
+				}
+				if !b.State.Finished() {
+					r.note(fmt.Sprintf("no failed jobs in %s yet; it is %s", key, b.State), "bam watch "+key)
+					return nil
 				}
 				r.note("no failed jobs in "+key, "")
 				return nil
@@ -324,7 +403,73 @@ func newLogsCmd(r *runtime) *cobra.Command {
 	f.BoolVar(&failed, "failed", false, "only failed jobs")
 	f.StringVar(&job, "job", "", "one job: JOB1, PROJ-PLAN-JOB1 or its result key")
 	f.BoolVar(&follow, "follow", false, "keep printing new lines until the job finishes")
-	f.IntVar(&tail, "tail", 0, "last N lines per job")
+	f.IntVarP(&tail, "tail", "n", 0, "last N lines per job; 0 prints the whole log")
+	return cmd
+}
+
+func newInvestigateCmd(r *runtime) *cobra.Command {
+	var last bool
+	var branch string
+	var compare bool
+	var opts app.InvestigateOptions
+	cmd := &cobra.Command{
+		Use:               "investigate [<build>|<plan>|<preset>]",
+		Short:             "Find the error lines of a failed build and its likely cause",
+		Example:           "  bam build investigate PROJ-BUILD-482\n  bam build investigate --last --compare\n  bam build investigate provision --context 0 --max 0",
+		SuggestFor:        []string{"test", "tests", "failures", "errors", "diagnose", "debug", "why", "compare"},
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: r.completeTargets,
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if opts.Context < 0 {
+				return errs.Usagef("--context takes 0 or more, not %d", opts.Context).WithTry("--context 0 shows only the error lines")
+			}
+			if opts.Max < 0 {
+				return errs.Usagef("--max takes 0 or more, not %d", opts.Max).WithTry("--max 0 shows all error blocks")
+			}
+			ctx := cmd.Context()
+			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
+			if err != nil {
+				return err
+			}
+			b, err := svc.Build(ctx, key)
+			if err != nil {
+				return err
+			}
+			if b.State != provider.StateFailed && !r.flags.json {
+				if b.State.Finished() {
+					r.note(fmt.Sprintf("%s did not fail (%s), nothing to investigate", key, b.State), "")
+					return nil
+				}
+				r.note(fmt.Sprintf("%s has not finished (%s)", key, b.State), "bam watch "+key)
+				return nil
+			}
+			inv, err := svc.Investigate(ctx, b, opts)
+			if err != nil {
+				return err
+			}
+			if compare && b.State == provider.StateFailed {
+				c, err := svc.CompareLastSuccess(ctx, b)
+				if err != nil {
+					return err
+				}
+				inv.Changes = &c
+			}
+			if r.flags.json {
+				return view.WriteJSON(r.env.Stdout, view.InvestigationJSON(inv))
+			}
+			o, err := r.out()
+			if err != nil {
+				return err
+			}
+			return view.Investigation(o, inv)
+		}),
+	}
+	f := cmd.Flags()
+	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	f.IntVar(&opts.Context, "context", 3, "lines of context around each error")
+	f.IntVar(&opts.Max, "max", 5, "error blocks per job; 0 for all")
+	f.BoolVar(&compare, "compare", false, "show revisions and variables changed since the last successful build")
 	return cmd
 }
 
@@ -357,15 +502,19 @@ func (r *runtime) followLogs(ctx context.Context, svc *app.Service, b provider.B
 }
 
 func newCancelCmd(r *runtime) *cobra.Command {
-	var last bool
+	var last, dryRun bool
 	var branch string
 	cmd := &cobra.Command{
-		Use:   "cancel [<build>|<plan>|<preset>]",
-		Short: "Stop a queued or running build",
+		Use:        "cancel [<build>|<plan>|<preset>]",
+		Short:      "Stop a queued or running build",
+		SuggestFor: []string{"stop", "kill", "abort"},
 		Long: "Stop a queued or running build.\n\n" +
 			"Bamboo stops a build by removing its unfinished jobs from the queue, so a\n" +
 			"stage that has not started yet can still be queued afterwards. Check the\n" +
 			"result with bam build show.",
+		Example: "  bam build cancel PROJ-BUILD-482\n" +
+			"  bam build cancel --last --dry-run\n" +
+			"  bam build cancel deploy-qa --branch develop",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -373,7 +522,18 @@ func newCancelCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			b, done, err := svc.Cancel(cmd.Context(), key)
+			var b provider.Build
+			var done bool
+			if dryRun {
+				b, err = svc.Build(cmd.Context(), key)
+				done = b.State.Finished()
+				if err == nil && !done && svc.RefusesStop(cmd.Context()) {
+					err = errs.Bamboof("this Bamboo cannot stop a build over REST").
+						WithTry("bam open " + key + ", then stop it from Bamboo's web UI")
+				}
+			} else {
+				b, done, err = svc.Cancel(cmd.Context(), key)
+			}
 			if err != nil {
 				return err
 			}
@@ -384,72 +544,127 @@ func newCancelCmd(r *runtime) *cobra.Command {
 				r.note(fmt.Sprintf("%s already finished (%s)", key, b.State), "")
 				return nil
 			}
+			if dryRun {
+				if r.flags.json {
+					return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "state": string(b.State), "stopped": false})
+				}
+				fmt.Fprintf(r.env.Stdout, "would stop %s (%s)\n", key, strings.ReplaceAll(string(b.State), "_", " "))
+				r.note("dry run: nothing stopped", "")
+				return nil
+			}
 			if r.flags.json {
 				return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "stopped": true})
 			}
-			fmt.Fprintf(r.env.Stdout, "stopping %s\n", key)
+			fmt.Fprintf(r.env.Stdout, "stopping %s\n  watch: bam watch %s\n", key, key)
 			return nil
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show which build would stop, stop nothing")
 	return cmd
 }
 
-// urlFor builds a Bamboo browse URL without any network call.
-func (r *runtime) urlFor(args []string, last bool) (string, error) {
-	cfg, err := r.config()
+// urlFor builds a Bamboo browse URL, with no network call unless a preset
+// names a branch; job, when set, turns a build key into that job's result key.
+func (r *runtime) urlFor(ctx context.Context, args []string, last bool, job string) (string, error) {
+	base, key, err := r.browseKey(ctx, args, last)
 	if err != nil {
 		return "", err
 	}
-	var key, targetServer string
+	if job != "" {
+		if !jobKeyRe.MatchString(job) {
+			return "", errs.Usagef("--job takes a short job key such as JOB1, not %q", job)
+		}
+		job = strings.ToUpper(job)
+		switch {
+		case app.IsBuildKey(key):
+			i := strings.LastIndex(key, "-")
+			key = key[:i] + "-" + job + key[i:]
+		case app.IsPlanKey(key):
+			key += "-" + job
+		default:
+			return "", errs.Usagef("--job needs a plan or build, not %s", key).WithTry("a build key such as PROJ-PLAN-12")
+		}
+	}
+	return base + "/browse/" + key, nil
+}
+
+// browseKey returns the server URL and the key that urlFor browses.
+func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (string, string, error) {
+	if err := lastOrArg(args, last); err != nil {
+		return "", "", err
+	}
+	cfg, err := r.config()
+	if err != nil {
+		return "", "", err
+	}
+	var key, targetServer, branch string
 	switch {
 	case last:
 		rec, ok, err := (&app.StateStore{Path: r.env.Paths.State}).Last(cfg.RepoRoot)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		if !ok {
-			return "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
+			return "", "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
 		}
 		for _, s := range cfg.Servers() {
 			if o, err := credential.Origin(s.URL); err == nil && o == rec.Origin {
-				return strings.TrimRight(s.URL, "/") + "/browse/" + rec.BuildKey, nil
+				return strings.TrimRight(s.URL, "/"), rec.BuildKey, nil
 			}
 		}
-		return rec.Origin + "/browse/" + rec.BuildKey, nil
+		return rec.Origin, rec.BuildKey, nil
 	case len(args) == 0:
-		return "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a preset, or --last")
+		return "", "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a preset, or --last")
 	case config.ValidTargetName(args[0]):
 		t, ok, err := cfg.Target(args[0])
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		if !ok {
-			return "", errs.Usagef("unknown preset %q", args[0]).WithTry("bam preset list")
+			return "", "", app.UnknownTarget(cfg, args[0])
 		}
-		key, targetServer = t.Plan, t.Server
+		key, targetServer, branch = t.Plan, t.Server, t.Branch
 	case anyKeyRe.MatchString(args[0]):
 		key = args[0]
+		if app.IsBuildKey(key) {
+			var err error
+			if key, err = app.CanonicalBuildKey(key); err != nil {
+				return "", "", err
+			}
+		}
 	default:
-		return "", errs.Usagef("%q is not a Bamboo key or a preset", args[0])
+		return "", "", errs.Usagef("%q is not a Bamboo key or a preset", args[0])
 	}
 	server, err := cfg.SelectServer(r.flags.server, targetServer)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return strings.TrimRight(server.URL, "/") + "/browse/" + key, nil
+	if branch != "" {
+		svc, _, err := r.connectServer(server)
+		if err != nil {
+			return "", "", err
+		}
+		if key, err = svc.ResolveBranch(ctx, key, branch); err != nil {
+			return "", "", err
+		}
+	}
+	return strings.TrimRight(server.URL, "/"), key, nil
 }
 
 func newOpenCmd(r *runtime) *cobra.Command {
 	var last bool
+	var job string
 	cmd := &cobra.Command{
 		Use:               "open [<key>|<preset>]",
+		SuggestFor:        []string{"web", "browse"},
 		Short:             "Open a project, plan, build or job in the browser",
+		Example:           "  bam open PROJ-BUILD\n  bam open PROJ-BUILD-482 --job JOB1\n  bam open --last\n  bam open provision",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			url, err := r.urlFor(args, last)
+			url, err := r.urlFor(cmd.Context(), args, last, job)
 			if err != nil {
 				return err
 			}
@@ -463,18 +678,21 @@ func newOpenCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
 }
 
 func newURLCmd(r *runtime) *cobra.Command {
 	var last bool
+	var job string
 	cmd := &cobra.Command{
 		Use:               "url [<key>|<preset>]",
 		Short:             "Print the Bamboo URL of a project, plan, build or job",
+		Example:           "  bam url PROJ\n  bam url PROJ-BUILD-482\n  bam url --last --job JOB1\n  bam url provision --json",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			url, err := r.urlFor(args, last)
+			url, err := r.urlFor(cmd.Context(), args, last, job)
 			if err != nil {
 				return err
 			}
@@ -486,11 +704,13 @@ func newURLCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
 }
 
-// completeVar completes --var names from the target and values from its options.
-func (r *runtime) completeVar(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+// completeVar completes --var names from the target and values from its
+// options, or, for a plan key, the names of the plan's Bamboo variables.
+func (r *runtime) completeVar(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	none := cobra.ShellCompDirectiveNoFileComp
 	if len(args) == 0 {
 		return nil, none
@@ -500,25 +720,52 @@ func (r *runtime) completeVar(_ *cobra.Command, args []string, toComplete string
 		return nil, none
 	}
 	t, ok, err := cfg.Target(args[0])
-	if err != nil || !ok {
+	if err == nil && ok {
+		return targetVars(toComplete, t)
+	}
+	if !app.IsPlanKey(args[0]) || strings.Contains(toComplete, "=") {
 		return nil, none
 	}
+	svc, key, err := r.resolvePlanArg(cmd.Context(), args[0])
+	if err != nil {
+		return nil, none
+	}
+	vars, _ := svc.P.ListVariables(cmd.Context(), key)
+	var out []string
+	for _, v := range vars {
+		out = append(out, v.Name+"=")
+	}
+	sort.Strings(out)
+	return out, none | cobra.ShellCompDirectiveNoSpace
+}
+
+// targetVars offers name= for every variable the presets declare, or the
+// declared options once toComplete has a name=.
+func targetVars(toComplete string, targets ...config.ResolvedTarget) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	seen := map[string]bool{}
 	if name, _, hasEq := strings.Cut(toComplete, "="); hasEq {
 		var out []string
-		for _, v := range t.Options[name] {
-			out = append(out, name+"="+v)
+		for _, t := range targets {
+			for _, v := range t.Options[name] {
+				if !seen[v] {
+					seen[v] = true
+					out = append(out, name+"="+v)
+				}
+			}
 		}
 		return out, none
 	}
-	seen := map[string]bool{}
-	for n := range t.Defaults {
-		seen[n] = true
-	}
-	for n := range t.Options {
-		seen[n] = true
-	}
-	for _, n := range t.Required {
-		seen[n] = true
+	for _, t := range targets {
+		for n := range t.Defaults {
+			seen[n] = true
+		}
+		for n := range t.Options {
+			seen[n] = true
+		}
+		for _, n := range t.Required {
+			seen[n] = true
+		}
 	}
 	var out []string
 	for n := range seen {

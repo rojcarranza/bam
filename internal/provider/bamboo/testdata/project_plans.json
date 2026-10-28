@@ -1,4 +1,4 @@
 {"key": "PROJ", "name": "Example Project", "plans": {"size": 2, "start-index": 0, "max-result": 25, "plan": [
   {"key": "PROJ-BUILD", "name": "Example Project - Build and test", "shortName": "Build and test", "shortKey": "BUILD", "enabled": true},
-  {"key": "PROJ-OLD", "name": "Example Project - Legacy", "shortName": "Legacy", "shortKey": "OLD", "enabled": true}
+  {"key": "PROJ-OLD", "name": "Example Project - Legacy", "shortName": "Legacy", "shortKey": "OLD", "enabled": false}
 ]}}

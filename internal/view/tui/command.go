@@ -61,8 +61,9 @@ func commandNames() []string {
 	return out
 }
 
-// findCommand matches a name exactly, else by a unique prefix.
+// findCommand matches a name exactly, else by a unique prefix, in any case.
 func findCommand(name string) (command, error) {
+	name = strings.ToLower(name)
 	var hits []command
 	for _, c := range commands() {
 		if c.name == name || (c.alias != "" && c.alias == name) {
@@ -76,13 +77,21 @@ func findCommand(name string) (command, error) {
 	case 1:
 		return hits[0], nil
 	case 0:
-		return command{}, fmt.Errorf("unknown command %q; commands: %s", name, strings.Join(commandNames(), " "))
+		return command{}, fmt.Errorf("unknown command %q; %scommands: %s", name, didYouMean(":", name, commandNames()), strings.Join(commandNames(), " "))
 	}
 	var names []string
 	for _, c := range hits {
 		names = append(names, c.name)
 	}
 	return command{}, fmt.Errorf("ambiguous command %q: %s", name, strings.Join(names, ", "))
+}
+
+// didYouMean is the typo hint for a : bar error, "" when nothing is close.
+func didYouMean(prefix, input string, candidates []string) string {
+	if c := errs.Closest(input, candidates, 1); len(c) > 0 {
+		return "did you mean " + prefix + c[0] + "? "
+	}
+	return ""
 }
 
 // startCommand opens the : prompt on Home or the panels.
@@ -112,6 +121,9 @@ func (m Model) runCommandLine(line string) (tea.Model, tea.Cmd) {
 		switch {
 		case c.arg != "" && arg == "" && !c.optional:
 			err = fmt.Errorf(":%s needs a %s", c.name, c.arg)
+			if choices := m.argChoices(c); len(choices) > 0 {
+				err = fmt.Errorf("%w; %ss: %s", err, c.arg, strings.Join(choices, " "))
+			}
 		case c.arg == "" && arg != "":
 			err = fmt.Errorf(":%s takes no argument", c.name)
 		default:
@@ -140,13 +152,17 @@ func (m Model) commandProject(arg string) (tea.Model, tea.Cmd, error) {
 		next, cmd := m.setProject("")
 		return next, cmd, nil
 	}
+	// Project keys are uppercase in Bamboo; a known key typed in another case means that key.
+	if i := slices.IndexFunc(m.projectChoices(), func(k string) bool { return strings.EqualFold(k, arg) }); i >= 0 {
+		arg = m.projectChoices()[i]
+	}
 	// Only a configured project list is a validation list. projectChoices
 	// falls back to the projects seen in the loaded plans when none is
 	// configured, and that is completion's job, not a reason to reject a
 	// project the user knows about but the UI has not happened to load yet.
 	if m.svc != nil {
 		if known := m.svc.ProjectKeys(); len(known) > 0 && !slices.Contains(known, arg) {
-			return m, nil, fmt.Errorf("project %q is not listed; projects: %s", arg, strings.Join(known, " "))
+			return m, nil, fmt.Errorf("project %q is not listed; %sprojects: %s", arg, didYouMean(":project ", arg, known), strings.Join(known, " "))
 		}
 	}
 	next, cmd := m.setProject(arg)
@@ -158,8 +174,11 @@ func (m Model) commandServer(arg string) (tea.Model, tea.Cmd, error) {
 	for _, s := range m.deps.Servers {
 		aliases = append(aliases, s.Alias)
 	}
+	if i := slices.IndexFunc(aliases, func(a string) bool { return strings.EqualFold(a, arg) }); i >= 0 && !slices.Contains(aliases, arg) {
+		arg = aliases[i]
+	}
 	if !slices.Contains(aliases, arg) {
-		return m, nil, fmt.Errorf("no server %q; servers: %s", arg, strings.Join(aliases, " "))
+		return m, nil, fmt.Errorf("no server %q; %sservers: %s", arg, didYouMean(":server ", arg, aliases), strings.Join(aliases, " "))
 	}
 	if arg == m.server {
 		return m, nil, nil
@@ -221,17 +240,10 @@ func (m Model) complete(line string) []string {
 	if err != nil {
 		return nil
 	}
-	var values []string
-	switch c.arg {
-	case "project":
-		values = append(m.projectChoices(), "all")
-	case "server":
-		for _, s := range m.deps.Servers {
-			values = append(values, s.Alias)
-		}
-	case "column":
+	values := m.argChoices(c)
+	if c.arg == "column" {
 		for _, n := range homeColNames[m.home.view] {
-			values = append(values, n, "-"+n)
+			values = append(values, "-"+n)
 		}
 	}
 	var out []string
@@ -241,6 +253,23 @@ func (m Model) complete(line string) []string {
 		}
 	}
 	return out
+}
+
+// argChoices is the values a command's argument takes, for completion and
+// for the hint when the argument is left out.
+func (m Model) argChoices(c command) []string {
+	var values []string
+	switch c.arg {
+	case "project":
+		values = append(m.projectChoices(), "all")
+	case "server":
+		for _, s := range m.deps.Servers {
+			values = append(values, s.Alias)
+		}
+	case "column":
+		values = append(values, homeColNames[m.home.view]...)
+	}
+	return values
 }
 
 // completeInput is tab in the prompt: take the only candidate, or the

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/errs"
 )
 
 // TargetVar is one default of a target, safe to display.
@@ -64,7 +63,7 @@ func DescribeTarget(cfg *config.Config, getenv func(string) string, name string)
 		return TargetInfo{}, err
 	}
 	if !ok {
-		return TargetInfo{}, errs.Usagef("unknown preset %q", name).WithTry("bam preset list")
+		return TargetInfo{}, UnknownTarget(cfg, name)
 	}
 	return describe(t, getenv), nil
 }

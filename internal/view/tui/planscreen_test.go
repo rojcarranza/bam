@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/require"
@@ -222,7 +223,7 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed}
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: full.Key, Tree: done})
 	require.Contains(t, m.plan.cache, "PROJ-BUILD-44")
-	require.Contains(t, m.plan.trees, "PROJ-BUILD-44")
+	require.Contains(t, m.trees, "PROJ-BUILD-44")
 
 	m, cmd := send(m, mkKey("j"))
 	m, _ = send(m, cmd())
@@ -233,6 +234,24 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 	require.False(t, m.plan.stagesLoading)
 	require.True(t, m.plan.tree.have, "the cached tree shows at once")
 	require.Nil(t, cmd, "a cached finished build and tree are not read again")
+}
+
+// #82: a finished tree outlives the plan screen, so going Home and back
+// draws it at once; only a server switch forgets it.
+func TestAFinishedTreeOutlivesThePlanScreen(t *testing.T) {
+	m := planOnBuilds(t)
+	full := sampleBuild()
+	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed}
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: full.Key, Tree: done})
+
+	m.closePlan()
+	m.plan.key = "PROJ-BUILD"
+	m, cmd := m.loadTreePreview(full.Key, false)
+	require.True(t, m.plan.tree.have, "the tree seen before draws at once")
+	require.Nil(t, cmd, "and is not read again")
+
+	next, _ := m.switchServer("lab")
+	require.Empty(t, next.(Model).trees, "nothing keyed to one origin is shown under another")
 }
 
 func TestAFailedStagesReadClearsStagesLoading(t *testing.T) {
@@ -358,7 +377,7 @@ func TestRefreshOnTreeReadsItAgain(t *testing.T) {
 	m, cmd := send(m, mkKey("r"))
 	require.NotNil(t, cmd)
 	require.Greater(t, m.treePreviewGen, gen)
-	require.True(t, m.plan.tree.loading)
+	require.True(t, m.plan.tree.refreshing, "the tree shown is read again")
 }
 
 func TestTreeRowURLIsTheChildBuilds(t *testing.T) {
@@ -375,11 +394,11 @@ func TestOnlyAFinalTreeIsCached(t *testing.T) {
 		b.State = s
 		return app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b}, State: provider.StateSuccess}
 	}
-	delete(m.plan.trees, key)
+	delete(m.trees, key)
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: key, Tree: root(provider.StateQueued)})
-	require.NotContains(t, m.plan.trees, key, "a tree whose root is not final is never cached")
+	require.NotContains(t, m.trees, key, "a tree whose root is not final is never cached")
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: key, Tree: root(provider.StateFailed)})
-	require.Contains(t, m.plan.trees, key)
+	require.Contains(t, m.trees, key)
 }
 
 func TestAWatchErrorClearsStagesLoading(t *testing.T) {
@@ -855,7 +874,7 @@ func planWithCursors(t *testing.T) Model {
 	m := planWithTree(t)
 	full := sampleBuild()
 	m.plan.cache = map[string]provider.Build{full.Key: full}
-	m.plan.trees = map[string]app.Tree{full.Key: twoChildTree()}
+	m.trees = map[string]app.Tree{full.Key: twoChildTree()}
 	m.plan.tree.tree = twoChildTree()
 	m.treeCursor, m.plan.treeCursor = 2, 1
 	return m
@@ -922,6 +941,7 @@ func noMsg() tea.Msg { return nil }
 func TestTreePanelShowsProgressWhileReading(t *testing.T) {
 	m := planWithTree(t)
 	m.focus = focusTree
+	m.plan.tree = treePreview{} // no tree drawn yet, so the read shows its progress
 	m, _ = send(m, mkKey("r"))
 	require.True(t, m.plan.tree.loading)
 	m, cmd := send(m, treePreviewProgressMsg{Gen: m.treePreviewGen, Key: m.plan.tree.key,
@@ -946,7 +966,7 @@ func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	var result *treePreviewMsg
 	var prog *treePreviewProgressMsg
-	for _, msg := range runBatch(treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7)) {
+	for _, msg := range runBatch(treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false)) {
 		switch v := msg.(type) {
 		case treePreviewMsg:
 			result = &v
@@ -966,7 +986,7 @@ func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
 // Bamboo, or it races whatever the screen does next (#93).
 func TestTreePreviewCmdReadsNothingUntilItRuns(t *testing.T) {
 	m, f := treeTUIModel(t)
-	cmd := treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7)
+	cmd := treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false)
 	require.Zero(t, f.ListCalls("PROJ-PROV"), "built, not run")
 	require.Zero(t, f.GetCalls("PROJ-BUILD-44"), "built, not run")
 	batch, ok := cmd().(tea.BatchMsg)
@@ -1093,4 +1113,47 @@ func TestConfirmedQuitCancelsTheTreeRead(t *testing.T) {
 	m, cmd := send(m, mkKey("y"))
 	require.NotNil(t, cmd)
 	requireReadEnded(t, m, result, progress)
+}
+
+// #82: r on the Tree panel keeps the tree on screen while it is read again,
+// and keeps it, marked, when that read fails.
+func TestTreePanelKeepsItsTreeWhenARefreshFails(t *testing.T) {
+	m := planWithTree(t)
+	m.focus = focusTree
+	m, cmd := send(m, mkKey("r"))
+	require.NotNil(t, cmd)
+	require.Contains(t, m.View(), "triggered · refreshing…")
+	require.Len(t, m.treePreviewRows(), 1, "the tree stays while it is read")
+
+	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: m.detail.Key, Err: errs.Bamboof("Bamboo is down")})
+	require.Len(t, m.treePreviewRows(), 1, "the tree stays after a failed read")
+	require.Contains(t, m.View(), "triggered · refresh failed")
+	require.NotContains(t, m.View(), "triggered · refreshing…")
+	require.NotContains(t, m.View(), "could not read the tree")
+
+	m, _ = send(m, mkKey("r"))
+	require.Contains(t, m.View(), "triggered · refreshing…", "r tries again")
+}
+
+// TestBuildsColumnsDropForEveryRow: a who that does not fit hides the who
+// column on every row, not one row's cell, and a long branch is cut so the
+// age column still lines up.
+func TestBuildsColumnsDropForEveryRow(t *testing.T) {
+	m := planGolden(80, 24)
+	at := goldenNow.Add(-time.Hour)
+	m.builds.setItems([]provider.Build{
+		{Key: "PROJ-BUILD-3", Number: 3, State: provider.StateSuccess, FinishedAt: at, Reason: "Manual run by J Doe"},
+		{Key: "PROJ-BUILD-2", Number: 2, State: provider.StateFailed, FinishedAt: at, Reason: "Changes by a1b2c3d"},
+	})
+	rows := strings.Split(strings.TrimRight(m.planBuildRows(31, 5), " "), "\n")
+	require.Equal(t, "▸ ✓ #3     default  1h", strings.TrimRight(rows[0], " "))
+	require.Equal(t, "  ✗ #2     default  1h", rows[1])
+
+	m.builds.setItems([]provider.Build{
+		{Key: "PROJ-BUILD-3", Number: 3, State: provider.StateSuccess, FinishedAt: at, Branch: "feature/a-very-long-branch"},
+		{Key: "PROJ-BUILD-2", Number: 2, State: provider.StateFailed, FinishedAt: at, Branch: "main"},
+	})
+	rows = strings.Split(strings.TrimRight(m.planBuildRows(30, 5), " "), "\n")
+	require.Equal(t, "▸ ✓ #3     feature/a-ve…  1h", strings.TrimRight(rows[0], " "))
+	require.Equal(t, "  ✗ #2     main           1h", rows[1])
 }

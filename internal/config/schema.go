@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"reflect"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -88,12 +89,28 @@ func (m *StringMap) UnmarshalYAML(n *yaml.Node) error {
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		k, v := n.Content[i], n.Content[i+1]
 		if v.Kind != yaml.ScalarNode {
-			return fmt.Errorf("line %d: value of %q must be a single value", v.Line, k.Value)
+			return &multiValueError{line: v.Line, name: k.Value, list: v.Kind == yaml.SequenceNode}
 		}
 		out[k.Value] = v.Value
 	}
 	*m = out
 	return nil
+}
+
+// multiValueError is a variable given a list or mapping instead of one
+// value, usually allowed values or a required flag written in place.
+type multiValueError struct {
+	line int
+	name string
+	list bool
+}
+
+func (e *multiValueError) Error() string {
+	found := "a mapping"
+	if e.list {
+		found = "a list"
+	}
+	return fmt.Sprintf("line %d: variable %q takes a single value, like %s: VALUE; found %s", e.line, e.name, e.name, found)
 }
 
 // StringListMap decodes a mapping of name to a list of scalars.
@@ -127,7 +144,7 @@ type Duration time.Duration
 
 func (d *Duration) UnmarshalYAML(n *yaml.Node) error {
 	v, err := time.ParseDuration(n.Value)
-	if err != nil {
+	if err != nil || v < 0 {
 		return fmt.Errorf("line %d: %q is not a duration like 45m or 1h30m", n.Line, n.Value)
 	}
 	*d = Duration(v)
@@ -141,6 +158,22 @@ func (d Duration) MarshalYAML() (any, error) { return time.Duration(d).String(),
 type Set struct {
 	Stages  []Stage  `yaml:"stages"`
 	Timeout Duration `yaml:"timeout,omitempty"`
+}
+
+// UnmarshalYAML accepts a bare list of stages as shorthand for {stages: ...}.
+func (s *Set) UnmarshalYAML(n *yaml.Node) error {
+	switch n.Kind {
+	case yaml.SequenceNode:
+		return n.Decode(&s.Stages)
+	case yaml.MappingNode:
+		// Decode does not inherit the file's KnownFields; see Stage.
+		if err := knownFields(n, reflect.TypeFor[Set]()); err != nil {
+			return err
+		}
+		type plain Set
+		return n.Decode((*plain)(s))
+	}
+	return fmt.Errorf("line %d: expected a set (stages: [[preset], ...]), found a single value", n.Line)
 }
 
 // Stage is one step of a set. A bare name is shorthand for {target: name}.
@@ -158,10 +191,8 @@ func (s *Stage) UnmarshalYAML(n *yaml.Node) error {
 		case yaml.MappingNode:
 			// Decode does not inherit the file's KnownFields, so a typo such
 			// as env: instead of vars: is caught here.
-			for i := 0; i+1 < len(item.Content); i += 2 {
-				if k := item.Content[i]; k.Value != "target" && k.Value != "vars" && k.Value != "matrix" {
-					return fmt.Errorf("line %d: unknown field %q in a stage run", k.Line, k.Value)
-				}
+			if err := knownFields(item, reflect.TypeFor[SetRun]()); err != nil {
+				return err
 			}
 			var r SetRun
 			if err := item.Decode(&r); err != nil {

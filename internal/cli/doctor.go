@@ -3,8 +3,10 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -27,11 +29,20 @@ type check struct {
 func newDoctorCmd(r *runtime) *cobra.Command {
 	var planKey string
 	cmd := &cobra.Command{
-		Use:     "doctor",
-		Short:   "Check config, credentials and what this Bamboo server supports",
-		GroupID: groupSetup,
-		Args:    cobra.NoArgs,
+		Use:        "doctor",
+		Short:      "Check config, credentials and what this Bamboo server supports",
+		GroupID:    groupSetup,
+		SuggestFor: []string{"check", "health", "ping"},
+		Example: "  bam doctor\n" +
+			"  bam doctor --server lab\n" +
+			"  bam doctor --plan PROJ-BUILD",
+		Args: cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
+			if planKey != "" {
+				if err := app.CheckPlanKey(planKey); err != nil {
+					return err
+				}
+			}
 			var checks []check
 			var first error
 			add := func(name, status, detail string, err error) {
@@ -55,11 +66,20 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 					fail("config", err)
 					return
 				}
-				files := []string{r.env.Paths.MachineConfig}
+				var files []string
 				if cfg.ProjectPath != "" {
-					files = append([]string{cfg.ProjectPath}, files...)
+					files = append(files, cfg.ProjectPath)
 				}
-				add("config", "ok", strings.Join(files, ", "), nil)
+				for _, f := range []string{cfg.MachinePath, cfg.PresetsPath} {
+					if _, err := os.Stat(f); f != "" && err == nil {
+						files = append(files, f)
+					}
+				}
+				detail := strings.Join(files, ", ")
+				if detail == "" {
+					detail = "no config file; settings come from the environment"
+				}
+				add("config", "ok", detail, nil)
 
 				server, err := cfg.SelectServer(r.flags.server, "")
 				if err != nil {
@@ -76,7 +96,7 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 				add("server", "ok", fmt.Sprintf("%s (%s)", server.Alias, server.URL), nil)
 				source := "BAM_TOKEN"
 				if server.Token == "" {
-					_, src, err := r.store().Lookup(server.Alias, origin, server.AuthEnv)
+					_, src, err := r.lookupToken(server, origin)
 					if err != nil {
 						fail("token", err)
 						return
@@ -148,6 +168,7 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().StringVar(&planKey, "plan", "", "plan to probe (default: first plan of the first configured project)")
+	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }
 

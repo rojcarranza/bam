@@ -57,6 +57,26 @@ func truncate(s string, w int) string {
 	return lipgloss.NewStyle().MaxWidth(w).Render(s)
 }
 
+// fitHints drops whole hints from the end of a key line until it fits in w,
+// so a narrow bar keeps its first keys instead of none or half a word. The
+// way out (esc …, q quit) and a form's submit (^R …) go last: without them a
+// narrow screen hides how to leave it or finish it.
+func fitHints(line string, w int) string {
+	hints := strings.Split(line, "  ")
+	for len(hints) > 0 && lipgloss.Width(strings.Join(hints, "  ")) > w {
+		drop := len(hints) - 1
+		for drop > 0 && mustKeep(hints[drop]) {
+			drop--
+		}
+		hints = append(hints[:drop], hints[drop+1:]...)
+	}
+	return strings.Join(hints, "  ")
+}
+
+func mustKeep(hint string) bool {
+	return strings.HasPrefix(hint, "esc ") || strings.HasPrefix(hint, "^R ") || hint == "q quit"
+}
+
 // cursorFor marks the selected row, and marks it differently when its panel
 // does not have focus, so there is never more than one live cursor.
 func (m Model) cursorFor(focused, selected bool) string {
@@ -88,20 +108,27 @@ func branchOrDefault(b provider.Build) string {
 // screen, because the keys do.
 func (m Model) keyLine() string {
 	if m.screen == screenForm {
+		if m.form.loading {
+			// Only esc and q work until the variables arrive.
+			return "esc cancel"
+		}
 		// The f hint replaces "tab next" and "d dry-run" rather than adding
-		// to them: a key line longer than the bar's free space is dropped
-		// whole, and at 80 columns the longer line would not fit.
-		if m.form.onRevision() && m.form.fromRevision != "" && !m.form.loading {
+		// to them: a key line longer than the bar's free space loses its
+		// last hints, and at 80 columns the longer line would lose esc cancel.
+		// Once f has taken the commit, pressing it again does nothing.
+		if m.form.onRevision() && m.form.fromRevision != "" && !m.form.revisionReused() {
 			return "f use " + app.BuildLabel(m.form.fromBuild) + "'s revision  enter edit  ^R run  esc cancel"
 		}
-		return "enter edit  tab next  ^R run  d dry-run  esc cancel"
+		// tab next stays in ? help: with a add and x remove the line
+		// would not fit an 80-column bar.
+		return "enter edit  a add  x remove  d dry-run  ^R run  esc cancel"
 	}
 	if m.screen == screenSetVars {
 		return "enter edit  a add  x remove  d dry-run  ^R " + strings.ToLower(m.setVars.action.verb()) + "  esc cancel"
 	}
 	if m.screen == screenSet {
 		// o and y work here too but stay in ? help: with them the longest
-		// line does not fit an 80-column bar, which drops the line whole.
+		// line does not fit an 80-column bar, which drops its last hints.
 		parts := []string{"enter build"}
 		run, resume, rerun := m.setActions()
 		if run {
@@ -156,9 +183,16 @@ func (m Model) statusBar(width int) string {
 	case m.status != "":
 		left = m.status
 	}
-	right := m.keyLine()
+	keys := m.keyLine()
+	right := fitHints(keys, width-lipgloss.Width(left)-2)
+	if m.err == nil && m.status == "" && right != keys {
+		// Keys beat identity: the home header already names the server,
+		// version and user, so a narrow bar keeps just the server.
+		left = m.server
+		right = fitHints(keys, width-lipgloss.Width(left)-2)
+	}
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
+	if right == "" || gap < 2 {
 		return truncate(left, width)
 	}
 	return left + strings.Repeat(" ", gap) + statusStyle.Render(right)

@@ -86,6 +86,8 @@ func TestListPlansWithLastBuild(t *testing.T) {
 	assert.Equal(t, provider.StateSuccess, plans[0].LastBuild.State)
 	assert.Equal(t, "Manual run by J Doe", plans[0].LastBuild.Reason)
 	assert.Nil(t, plans[1].LastBuild, "never built")
+	assert.False(t, plans[0].Disabled)
+	assert.True(t, plans[1].Disabled, "enabled: false in Bamboo's answer")
 
 	for _, r := range rec.all() {
 		if r.URL.Path == "/rest/api/latest/project/PROJ" {
@@ -115,6 +117,7 @@ func TestGetPlanAndBranches(t *testing.T) {
 	require.Len(t, bs, 2)
 	assert.Equal(t, provider.Branch{Key: "PROJ-BUILD12", Name: "Example Project - Build and test - develop", ShortName: "develop",
 		PlanKey: "PROJ-BUILD", URL: c.URL("PROJ-BUILD12")}, bs[0])
+	assert.True(t, bs[1].Disabled, "enabled: false in Bamboo's answer")
 }
 
 func TestGetPlanNotFound(t *testing.T) {
@@ -152,6 +155,7 @@ func TestGetBuildMapsEverything(t *testing.T) {
 	assert.Equal(t, c.URL("PROJ-BUILD12-44"), b.URL)
 	assert.Equal(t, "PROJ-BUILD12", b.PlanKey)
 	assert.Equal(t, "develop", b.Branch)
+	assert.Equal(t, "PROJ-BUILD", b.MasterKey)
 	assert.Equal(t, "Build and test", b.PlanName, "a branch build is named after its master plan, not the branch")
 	assert.Equal(t, 44, b.Number)
 	assert.Equal(t, provider.StateFailed, b.State)
@@ -221,4 +225,15 @@ func TestGetBuildReadsTheParentFromMetadata(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-API-142", b.Parent)
 	assert.Contains(t, strings.Split(rec.all()[0].URL.Query().Get("expand"), ","), "metadata")
+}
+
+func TestCurrentUserNotFoundPointsAtTheURL(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{})
+	_, err := c.CurrentUser(ctx)
+	require.ErrorIs(t, err, errs.ErrNotFound)
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindBamboo, e.Kind)
+	assert.Equal(t, "no Bamboo REST API at "+strings.TrimSuffix(c.URL(""), "/browse/"), e.What)
+	assert.Contains(t, e.Try, "context path")
 }

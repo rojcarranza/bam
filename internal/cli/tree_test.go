@@ -52,6 +52,7 @@ func TestBuildTreeDepthIsCheckedFirst(t *testing.T) {
 	h := treeHarness(t, provider.StateSuccess)
 	assert.Equal(t, 2, h.run("build", "tree", "PROJ-BUILD-482", "--depth", "0"))
 	assert.Contains(t, h.stderr.String(), "--depth takes 1 or more")
+	assert.Contains(t, h.stderr.String(), "leave out --depth to show every level")
 	assert.Empty(t, h.connectOpts, "no connection is made")
 }
 
@@ -75,6 +76,19 @@ func TestBuildTreeWatchInterrupted(t *testing.T) {
 	assert.Equal(t, 130, h.runCtx(ctx, "build", "tree", "PROJ-BUILD-482", "--watch"))
 	assert.Contains(t, h.stderr.String(), "still running: bam build tree PROJ-BUILD-482 --watch")
 	assert.Empty(t, h.fake.Stopped)
+}
+
+// stuckClock never ticks, so a watch never reaches its next refresh.
+type stuckClock struct{ instantClock }
+
+func (*stuckClock) After(time.Duration) <-chan time.Time { return nil }
+
+func TestWatchTimeoutAfterTheTreeFinishedSaysSo(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	h.env.Clock = &stuckClock{instantClock{now: fixedNow}}
+	assert.Equal(t, 6, h.run("watch", "PROJ-BUILD-482", "--timeout", "50ms"))
+	assert.Contains(t, h.stderr.String(), "every build in PROJ-BUILD-482's tree finished, but bam had not yet confirmed that no more start")
+	assert.NotContains(t, h.stderr.String(), "still running")
 }
 
 const clearLine = "\r\x1b[K"
@@ -132,4 +146,17 @@ func TestBuildTreeShowsNoProgressWithDebug(t *testing.T) {
 	h.tty = true
 	require.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--debug"))
 	assert.NotContains(t, h.stderr.String(), "\x1b[K")
+}
+
+func TestWatchFollowsTheChildBuilds(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	assert.Equal(t, 1, h.run("watch", "PROJ-BUILD-482"), "a failed child fails the watch though the parent succeeded")
+	assert.Contains(t, h.stdout.String(), "└─ PROJ-PROV-9")
+	assert.Contains(t, h.stdout.String(), "failed: PROJ-PROV-9 "+workOrigin+"/browse/PROJ-PROV-9")
+
+	h = treeHarness(t, provider.StateRunning)
+	assert.Equal(t, 6, h.run("watch", "PROJ-BUILD-482", "--timeout", "50ms"))
+	assert.Contains(t, h.stderr.String(), "timed out after 50ms")
+	assert.Contains(t, h.stderr.String(), "bam watch PROJ-BUILD-482")
+	assert.Empty(t, h.fake.Stopped)
 }

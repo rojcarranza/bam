@@ -70,11 +70,31 @@ sets:
 	require.Len(t, s.DefinedIn, 2)
 }
 
+func TestSetUnknownPresetWithNoPresets(t *testing.T) {
+	cfg, err := loadYAML(t, "version: 1\nsets: {rel: {stages: [[deploy]]}}\n", "")
+	if err == nil {
+		_, err = cfg.Sets()
+	}
+	require.Error(t, err)
+	require.Contains(t, errWhyTry(err), "bam preset add deploy --plan PROJ-PLAN creates it")
+}
+
+func TestSetPlanKeyWithNoPresets(t *testing.T) {
+	cfg, err := loadYAML(t, "version: 1\nsets: {rel: {stages: [[PROJ-BUILD]]}}\n", "")
+	if err == nil {
+		_, err = cfg.Sets()
+	}
+	require.Error(t, err)
+	require.Contains(t, errWhyTry(err), "bam preset add build --plan PROJ-BUILD creates one")
+}
+
 func TestSetConfigErrors(t *testing.T) {
 	base := "version: 1\nservers: {work: {url: https://bamboo.example.com}, lab: {url: https://bamboo.lab.example}}\n" +
 		"targets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B, server: work}\n  c: {plan: PROJ-C, server: lab}\n"
 	for name, tc := range map[string]struct{ sets, want string }{
-		"unknown preset":   {"sets: {rel: {stages: [[nope]]}}", `unknown preset "nope"`},
+		"unknown preset":   {"sets: {rel: {stages: [[nope]]}}", `presets here: a, b, c`},
+		"plan key":         {"sets: {rel: {stages: [[PROJ-BUILD]]}}", "a set lists presets, not plans; bam preset add build --plan PROJ-BUILD creates one"},
+		"close preset":     {"sets: {rel: {stages: [[a, bb]]}}", "did you mean b?"},
 		"no stages":        {"sets: {rel: {stages: []}}", "has no stages"},
 		"empty stage":      {"sets: {rel: {stages: [[a], []]}}", "stage 2 has no runs"},
 		"duplicate":        {"sets: {rel: {stages: [[a, a]]}}", `run "a" twice in stage 1`},
@@ -82,11 +102,14 @@ func TestSetConfigErrors(t *testing.T) {
 		"too many runs":    {"sets: {rel: {stages: [[{target: a, matrix: {x: [1,2,3,4,5,6,7,8], y: [1,2,3,4,5,6,7,8]}}]]}}", "stage 1 expands to 64 runs; the limit is 50"},
 		"matrix secret":    {"sets: {rel: {stages: [[{target: a, matrix: [{db_password: hunter2}]}]]}}", "holds a literal secret"},
 
-		"servers":        {"sets: {rel: {stages: [[b], [c]]}}", `servers "work" and "lab"`},
-		"bad name":       {"sets: {Rel: {stages: [[a]]}}", `invalid set name "Rel"`},
-		"bad timeout":    {"sets: {rel: {timeout: soon, stages: [[a]]}}", "not a duration"},
-		"unknown field":  {"sets: {rel: {stages: [[{target: a, env: x}]]}}", `unknown field "env"`},
-		"literal secret": {"sets: {rel: {stages: [[{target: a, vars: {db_password: hunter2}}]]}}", "holds a literal secret"},
+		"servers":          {"sets: {rel: {stages: [[b], [c]]}}", `servers "work" and "lab"`},
+		"bad name":         {"sets: {Rel: {stages: [[a]]}}", `invalid set name "Rel"`},
+		"bad timeout":      {"sets: {rel: {timeout: soon, stages: [[a]]}}", "not a duration"},
+		"negative timeout": {"sets: {rel: {timeout: -5m, stages: [[a]]}}", `"-5m" is not a duration like 45m`},
+		"unknown field":    {"sets: {rel: {stages: [[{target: a, env: x}]]}}", `unknown field "env"`},
+		"literal secret":   {"sets: {rel: {stages: [[{target: a, vars: {db_password: hunter2}}]]}}", "holds a literal secret"},
+		"scalar set":       {"sets: {rel: a}", "line 7: expected a set (stages: [[preset], ...]), found a single value"},
+		"set field typo":   {"sets: {rel: {stage: [[a]]}}", `line 7: unknown field "stage" in a set`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg, err := loadYAML(t, base+tc.sets+"\n", "")
@@ -95,9 +118,19 @@ func TestSetConfigErrors(t *testing.T) {
 			}
 			require.Error(t, err)
 			require.Equal(t, errs.KindConfig, errs.KindOf(err))
-			require.Contains(t, err.Error(), tc.want)
+			require.Contains(t, err.Error()+" "+errWhyTry(err), tc.want)
 		})
 	}
+}
+
+func TestSetAsABareListOfStages(t *testing.T) {
+	cfg, err := loadYAML(t, "version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B}\n"+
+		"sets: {rel: [[a], [b, {target: a, vars: {env: qa}}]]}\n", "")
+	require.NoError(t, err)
+	s, ok, err := cfg.Set("rel")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, []Stage{{{Target: "a"}}, {{Target: "b"}, {Target: "a", Vars: StringMap{"env": "qa"}}}}, s.Stages)
 }
 
 func TestSetVarsAcceptEnvReferences(t *testing.T) {
@@ -152,5 +185,50 @@ func TestSetLiteralSecretErrorIsDeterministic(t *testing.T) {
 		_, err := loadYAML(t, src, "")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "vars.a_password holds a literal secret")
+	}
+}
+
+func TestWrongShapeNamesTheExpectedShape(t *testing.T) {
+	for yml, want := range map[string]string{
+		"version: 1\ntargets: {d: PROJ-D}\n":      "line 2: expected a preset (plan: KEY, ...), found a single value `PROJ-D`",
+		"version: 1\nprojects: PROJ\n":            "line 2: expected a list, found a single value `PROJ`",
+		"version: 1\nservers: {work: [x]}\n":      "line 2: expected a server (url: URL, ...), found a list",
+		"version: 1\ntargets: {d: {plan: [x]}}\n": "line 2: expected a single value, found a list",
+		"version: 1\ntargets: {d: {plann: X}}\n":  `line 2: unknown field "plann" in a preset`,
+		"version: 1\nservrs: {}\n":                `line 2: unknown field "servrs" in the project config`,
+	} {
+		_, err := loadYAML(t, yml, "")
+		require.Error(t, err)
+		require.Contains(t, errWhyTry(err), want, yml)
+		require.NotContains(t, errWhyTry(err), "config.", yml)
+	}
+}
+
+func TestUnknownFieldSuggestsTheClosest(t *testing.T) {
+	for yml, want := range map[string]string{
+		"version: 1\ntargets: {d: {plan: X, defauts: {a: b}}}\n": "did you mean defaults?",
+		"version: 1\nservrs: {}\n":                               "did you mean servers?",
+		"version: 1\nservers: {w: {ur: http://x}}\n":             "did you mean url?",
+		"version: 1\nsets: {rel: {stage: [[a]]}}\n":              "did you mean stages?",
+		"version: 1\nsets: {rel: [[{targt: a}]]}\n":              "did you mean target?",
+	} {
+		_, err := loadYAML(t, yml, "")
+		require.Error(t, err)
+		require.Contains(t, errWhyTry(err), want, yml)
+	}
+	_, err := loadYAML(t, "version: 1\nzzzzzz: 1\n", "")
+	require.Error(t, err)
+	require.NotContains(t, errWhyTry(err), "did you mean", "no hint when nothing is close")
+}
+
+func TestVariableWithSeveralValuesPointsAtOptions(t *testing.T) {
+	for yml, want := range map[string]string{
+		"version: 1\ntargets:\n  d:\n    plan: PROJ-D\n    variables:\n      env:\n        required: true\n": `line 7: variable "env" takes a single value, like env: VALUE; found a mapping`,
+		"version: 1\ntargets: {d: {plan: PROJ-D, defaults: {env: [dev, prod]}}}\n":                           `line 2: variable "env" takes a single value, like env: VALUE; found a list`,
+	} {
+		_, err := loadYAML(t, yml, "")
+		require.Error(t, err)
+		require.Contains(t, errWhyTry(err), want, yml)
+		require.Contains(t, errWhyTry(err), "options: {env: [a, b]} and must-set names under required: [env]", yml)
 	}
 }

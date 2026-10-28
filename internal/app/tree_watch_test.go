@@ -286,3 +286,29 @@ func TestWatchTreeGivesUpOnAParentThatCannotBeRead(t *testing.T) {
 	require.Equal(t, treeTries, p.GetCalls("OPS-DEPLOY-88"))
 	require.Contains(t, strings.Join(last.Tree.Warnings, "\n"), "OPS-DEPLOY-88: its parent could not be read")
 }
+
+func TestWatchTreeOfLongFinishedBuildsEndsAtOnce(t *testing.T) {
+	p := treeFake()
+	ended := func(b provider.Build, ago time.Duration) provider.Build {
+		b.FinishedAt = newClock().Now().Add(-ago)
+		return b
+	}
+	p.History = map[string][]provider.Build{
+		"PROJ-API":   {ended(tb("PROJ-API-142", "Manual run by jdoe", provider.StateSuccess, 0), 2*time.Hour)},
+		"OPS-DEPLOY": {ended(tb("OPS-DEPLOY-88", childOf("PROJ-API-142"), provider.StateSuccess, 5), time.Hour)},
+	}
+	svc := treeService(t, p)
+	clock := newClock()
+	svc.Clock = clock
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	require.Len(t, evs, 2)
+	require.Equal(t, TreeDone, evs[1].Type)
+	require.Empty(t, clock.Waits(), "no settle poll for builds that ended an hour ago")
+
+	// A build that ended within the minute still gets its settle poll.
+	p.History["OPS-DEPLOY"] = []provider.Build{ended(tb("OPS-DEPLOY-88", childOf("PROJ-API-142"), provider.StateSuccess, 5), 30*time.Second)}
+	svc.Clock = newClock()
+	evs = collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
+	require.Equal(t, []time.Duration{treePoll}, svc.Clock.(*fakeClock).Waits())
+}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -155,12 +156,15 @@ func TestBOpensTheBranchPickerForThePlanScreensPlan(t *testing.T) {
 
 	m, _ = send(m, branchesLoadedMsg{Gen: m.pickerGen, MasterKey: "PROJ-PROV", Branches: []provider.Branch{
 		{Key: "PROJ-PROV12", ShortName: "develop", PlanKey: "PROJ-PROV"},
+		{Key: "PROJ-PROV13", ShortName: "old", Name: "Provision - old", PlanKey: "PROJ-PROV", Disabled: true},
 	}})
 	rows := m.picker.rows()
 	require.Equal(t, "default branch", rows[0].Label)
 	require.Equal(t, "PROJ-PROV", rows[0].Value)
 	require.Equal(t, "develop", rows[1].Label)
 	require.Equal(t, "PROJ-PROV12", rows[1].Value)
+	// Bamboo will not build a disabled branch, so the picker says so.
+	require.Equal(t, "Provision - old (disabled)", rows[2].Detail)
 }
 
 func TestChoosingABranchLoadsThatBranchPlansBuilds(t *testing.T) {
@@ -176,7 +180,14 @@ func TestChoosingABranchLoadsThatBranchPlansBuilds(t *testing.T) {
 	require.Equal(t, overlayNone, m.overlay)
 	require.Equal(t, "PROJ-PROV12", m.buildsPlan)
 	require.NotNil(t, cmd)
-	require.Equal(t, "PROJ-PROV12", cmd().(buildsLoadedMsg).PlanKey)
+	loaded := cmd().(buildsLoadedMsg)
+	require.Equal(t, "PROJ-PROV12", loaded.PlanKey)
+	// The branch plan's result list does not name its branch; the picker did.
+	m, _ = send(m, loaded)
+	require.NotEmpty(t, m.builds.items)
+	for _, b := range m.builds.items {
+		require.Equal(t, "develop", b.Branch)
+	}
 }
 
 // TestBranchSwitchCancelsTheWatch: the watched build belongs to the old
@@ -205,12 +216,28 @@ func TestBWithNoPlanSelectedDoesNothing(t *testing.T) {
 }
 
 func TestHelpOverlayShowsEveryRowOfTheKeyMap(t *testing.T) {
-	m := goldenModel(120, 40)
+	m := goldenModel(120, 50)
 	m, _ = send(m, mkKey("?"))
 	require.Equal(t, overlayHelp, m.overlay)
 	v := m.View()
 	for _, row := range keys.helpRows() {
 		require.Contains(t, v, row.Keys, "help is missing %q", row.Keys)
+	}
+}
+
+// TestHelpWrapsLongDescriptions: the help box is narrower than the longest
+// description, so a row wraps under its own column instead of losing its end.
+func TestHelpWrapsLongDescriptions(t *testing.T) {
+	const width = 60
+	body := ansi.Strip(goldenModel(120, 40).helpBody(width, 0))
+	var descs []string
+	for _, line := range strings.Split(body, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(line), width, "line %q is wider than the box", line)
+		descs = append(descs, strings.TrimSpace(line[23:]))
+	}
+	text := strings.Join(descs, " ")
+	for _, row := range keys.helpRows() {
+		require.Contains(t, text, row.Desc)
 	}
 }
 
@@ -226,6 +253,18 @@ func TestErrorOverlayShowsWhyAndTry(t *testing.T) {
 	require.Contains(t, v, "no token for")
 	require.Contains(t, v, "keychain has no entry")
 	require.Contains(t, v, "bam login")
+}
+
+// TestALongErrorWhatWraps: a plain error has no Why, so its whole message is
+// the What, and a network error is longer than the box is wide.
+func TestALongErrorWhatWraps(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.err = fmt.Errorf("Get \"https://bamboo.example.com/rest/api/latest/result/PROJ-API\": dial tcp: connection refused")
+	body := m.errorBody(40)
+	for _, l := range strings.Split(body, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 40, l)
+	}
+	require.Contains(t, strings.Join(strings.Fields(ansi.Strip(body)), " "), "connection refused")
 }
 
 // TestAuthErrorNamesBamLoginEvenWithoutATry: the UI cannot exit 4, so it must
@@ -275,15 +314,34 @@ func TestHelpScrollsToItsLastRow(t *testing.T) {
 	m, _ = send(m, mkKey("?"))
 	require.NotContains(t, m.View(), "q ctrl-c", "the table does not fit, so it starts at the top")
 
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 40; i++ {
 		m, _ = send(m, mkKey("j"))
 	}
 	require.Contains(t, m.View(), "q ctrl-c", "j must reach the last row")
 }
 
+// TestHelpJumpsAndSaysWhereItIs: G and g reach the ends of a table taller
+// than the box, and the title names the rows on show, so the keys below the
+// fold do not look missing.
+func TestHelpJumpsAndSaysWhereItIs(t *testing.T) {
+	m := goldenModel(80, 24)
+	m, _ = send(m, mkKey("?"))
+	require.Contains(t, m.View(), "Keys · 1-19 of ")
+	require.Contains(t, m.View(), "j k g G scroll")
+
+	m, _ = send(m, mkKey("G"))
+	require.Contains(t, m.View(), "q ctrl-c", "G must reach the last row")
+	total := m.help.vp.TotalLineCount()
+	require.Contains(t, m.View(), fmt.Sprintf("-%d of %d", total, total))
+
+	m, _ = send(m, mkKey("g"))
+	require.Contains(t, m.View(), "Keys · 1-19 of ")
+	require.Equal(t, overlayHelp, m.overlay, "g and G scroll; they do not close help")
+}
+
 // TestHelpFitsWholeOnATallTerminal.
 func TestHelpFitsWholeOnATallTerminal(t *testing.T) {
-	m := goldenModel(120, 44)
+	m := goldenModel(120, 50)
 	m, _ = send(m, mkKey("?"))
 	v := m.View()
 	for _, row := range keys.helpRows() {
@@ -314,5 +372,21 @@ func TestEOpensTheErrorInTheRunForm(t *testing.T) {
 		m, _ = send(m, mkKey("e"))
 		require.Equal(t, overlayError, m.overlay, "fields=%d", len(fields))
 		require.Contains(t, m.View(), "no license")
+	}
+}
+
+// TestOpeningABranchBuildKeepsItsBranchName: a preset's build names its
+// branch, but the branch plan's result list does not, so the plan screen
+// must remember the name from the build it was opened on.
+func TestOpeningABranchBuildKeepsItsBranchName(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	b := provider.Build{Key: "PROJ-PROV12-1", PlanKey: "PROJ-PROV12", Number: 1, Branch: "develop"}
+	m, cmd := m.enterPlan("PROJ-PROV", "PROJ-PROV12", &b, focusStages)
+	require.NotNil(t, cmd)
+	m, _ = send(m, m.loadBuilds("PROJ-PROV12", true)().(buildsLoadedMsg))
+	require.NotEmpty(t, m.builds.items)
+	for _, got := range m.builds.items {
+		require.Equal(t, "develop", got.Branch)
 	}
 }

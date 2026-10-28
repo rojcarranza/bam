@@ -123,6 +123,36 @@ func TestPresetAddRefusesANameInAnotherPresetsFile(t *testing.T) {
 	assert.Regexp(t, `other\s+PROJ-PROV`, h.stdout.String())
 }
 
+func TestPresetRm(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("preset", "add", "build", "--plan", "PROJ-BUILD", "--file", "mine"))
+	personal := filepath.Join(h.home, "bam", "presets", "mine.yaml")
+
+	assert.Equal(t, 0, h.run("preset", "rm", "build"), h.stderr.String())
+	shared := filepath.Join(h.root, ".bam.yaml")
+	assert.Equal(t, "removed preset build from "+shared+"\nremoved preset build from "+personal+"\n", h.stdout.String())
+	project, _ := os.ReadFile(shared)
+	assert.NotContains(t, string(project), "build:")
+	assert.Contains(t, string(project), "provision-lab:", "other presets stay")
+	assert.Equal(t, 2, h.run("preset", "show", "build"))
+	assert.Equal(t, 2, h.run("preset", "rm", "build"), "already gone")
+	assert.Equal(t, 2, h.run("preset", "remove", "x"))
+	assert.Contains(t, h.stderr.String(), "bam preset rm")
+
+	// A preset a set still names is kept.
+	s := setHarness(t, provider.StateSuccess)
+	assert.Equal(t, 2, s.run("preset", "rm", "provision-lab"))
+	assert.Contains(t, s.stderr.String(), `preset "provision-lab" is used by set "release"`)
+	assert.Equal(t, 0, s.run("preset", "show", "provision-lab"))
+}
+
+func TestPresetRmWithNoPresets(t *testing.T) {
+	h := newHarness(t)
+	h.env.WorkDir = t.TempDir()
+	assert.Equal(t, 2, h.run("preset", "rm", "x"))
+	assert.Equal(t, "error: unknown preset \"x\"\n  no presets are configured, so there is nothing to remove\n", h.stderr.String())
+}
+
 func TestPresetAddMachineFlagIsGone(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("preset", "add", "mine", "--plan", "PROJ-BUILD", "--machine"))
@@ -168,16 +198,66 @@ func TestTargetAddNeedsPlan(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "add", "x"))
 }
 
+func TestPresetAddChecksThePlanKeyBeforeConnecting(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "proj-build"))
+	assert.Equal(t, "error: \"proj-build\" is not a plan key\n  try: keys are uppercase: did you mean PROJ-BUILD?\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "PROJ-BUILD-482"))
+	assert.Equal(t, "error: \"PROJ-BUILD-482\" is not a plan key\n  try: its plan, PROJ-BUILD\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "PROJ"))
+	assert.Equal(t, "error: \"PROJ\" is not a plan key\n  try: bam plan list PROJ to see its plans\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("preset", "add", "Deploy", "--plan", "PROJ-BUILD"))
+	assert.Contains(t, h.stderr.String(), "did you mean deploy?")
+	assert.Empty(t, h.connectOpts, "bad input is reported before any server is picked")
+}
+
+func TestInitWithoutServerSuggestsTheSelectedOne(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte("version: 1\nservers:\n  lab:\n    url: https://bamboo.lab.example\n"), 0o644))
+	assert.Equal(t, 2, h.run("init", "--project", "LAB"))
+	assert.Equal(t, "error: --server ALIAS is required\n  try: bam init --server lab --project LAB\n", h.stderr.String())
+
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	h.vars["BAM_URL"] = workOrigin
+	assert.Equal(t, 2, h.run("init", "--project", "PROJ"))
+	assert.Equal(t, "error: --server ALIAS is required\n  try: bam init --server work --url "+workOrigin+" --project PROJ\n", h.stderr.String())
+}
+
+func TestInitRefusesTheBAMURLAlias(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+	assert.Equal(t, 2, h.run("init", "--server", "env", "--project", "PROJ"))
+	assert.Equal(t, "error: server alias \"env\" is reserved\n  env is the server defined by BAM_URL; .bam.yaml needs a named server\n"+
+		"  try: bam init --server work --url "+workOrigin+" --project PROJ\n", h.stderr.String())
+	assert.NoFileExists(t, filepath.Join(h.root, ".bam.yaml"))
+	assert.Equal(t, 2, h.run("init", "--server", "env", "--plan", "PROJ-BUILD"))
+	assert.Empty(t, h.connectOpts, "refused before connecting")
+}
+
 func TestInit(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--project", "PROJ"), ".bam.yaml exists")
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--force"), "--project is required")
+	assert.Equal(t, 2, h.run("init", "--plan", "PROJ-PROV=lab", "--plan", "OPS-DEPLOY"))
+	assert.Equal(t, "error: --server ALIAS is required\n  try: bam init --server work --project PROJ --project OPS --plan PROJ-PROV=lab --plan OPS-DEPLOY\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("init", "--server", "work", "--plan", "PROJ-PROV", "--force"))
+	assert.Equal(t, "error: --project is required\n  try: bam init --server work --project PROJ --plan PROJ-PROV\n", h.stderr.String())
+
+	assert.Equal(t, 3, h.run("init", "--server", "wrk", "--project", "PROJ", "--force"))
+	assert.Equal(t, "error: no URL for server alias \"wrk\"\n  try: did you mean bam init --server work --project PROJ? Or pass --url to add wrk\n", h.stderr.String())
+	assert.Equal(t, 3, h.run("init", "--server", "lab", "--project", "PROJ", "--force"))
+	assert.Equal(t, "error: no URL for server alias \"lab\"\n  try: pass --url, or bam server add lab --url URL\n", h.stderr.String())
 
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
-	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ", "--project", "OPS"))
+	assert.Equal(t, 3, h.run("init", "--server", "work", "--url", "bamboo.example.com", "--project", "PROJ"))
+	assert.Equal(t, "error: invalid server URL \"bamboo.example.com\"\n  try: bam init --server work --url https://bamboo.example.com --project PROJ\n", h.stderr.String())
+	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com/", "--project", "PROJ", "--project", "OPS"))
 	assert.Empty(t, h.connectOpts, "init without --plan makes no network call")
 	data, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	assert.Contains(t, string(data), "projects: [PROJ, OPS]")
+	assert.Contains(t, string(data), `url: "https://bamboo.example.com"`+"\n", "trailing slash dropped")
 
 	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ",
 		"--plan", "PROJ-PROV=lab", "--plan", "PROJ-BUILD", "--force"))
@@ -185,6 +265,21 @@ func TestInit(t *testing.T) {
 	assert.Contains(t, string(data), "  lab:\n    plan: PROJ-PROV\n")
 	assert.Contains(t, string(data), "  build:\n    plan: PROJ-BUILD\n")
 	assert.NotEmpty(t, h.connectOpts)
+}
+
+func TestInitChecksPlansBeforeConnecting(t *testing.T) {
+	h := newHarness(t)
+	base := []string{"init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ", "--force"}
+	assert.Equal(t, 2, h.run(append(base, "--plan", "proj-build")...))
+	assert.Equal(t, "error: \"proj-build\" is not a plan key\n  try: keys are uppercase: did you mean PROJ-BUILD?\n", h.stderr.String())
+	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD=Lab")...))
+	assert.Contains(t, h.stderr.String(), "invalid preset name \"Lab\"", "an explicit name is not derived")
+	assert.Contains(t, h.stderr.String(), "did you mean lab?")
+	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD=web deploy")...))
+	assert.Contains(t, h.stderr.String(), "try: did you mean web-deploy?")
+	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-2X")...))
+	assert.Equal(t, "error: cannot derive a preset name from PROJ-2X\n  try: --plan PROJ-2X=NAME\n", h.stderr.String())
+	assert.Empty(t, h.connectOpts, "bad --plan input is reported before connecting")
 }
 
 func TestInitWithDifferentURLDropsMachineAuthEnv(t *testing.T) {
@@ -224,6 +319,18 @@ func TestTargetSyncAddsThenUpToDate(t *testing.T) {
 	assert.NotContains(t, h.stderr.String(), "review before commit")
 	again, _ := os.ReadFile(path)
 	assert.Equal(t, data, again)
+}
+
+func TestPresetSyncKeepsALeanPresetLean(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(h.home, "bam", "presets", "proj.yaml")
+	assert.Equal(t, 0, h.run("preset", "add", "lean", "--plan", "PROJ-PROV"))
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, 0, h.run("preset", "sync", "lean"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "up to date\n")
+	after, _ := os.ReadFile(path)
+	assert.Equal(t, string(before), string(after))
 }
 
 func TestTargetSyncMarksAndUnmarksStale(t *testing.T) {
@@ -370,4 +477,153 @@ presets:
 	s := string(data)
 	assert.True(t, strings.HasPrefix(s, "# PROJ presets\npresets:\n  lab-dir:\n    plan: PROJ-PROV # provisioning\n"), s)
 	assert.Contains(t, s, "      cluster_type: dcos # the old one\n      cluster_name: \"\"")
+}
+
+func TestPresetListFiltersByText(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("preset", "list", "BUILD"), h.stderr.String())
+	assert.Regexp(t, `build\s+PROJ-BUILD`, h.stdout.String())
+	assert.NotContains(t, h.stdout.String(), "provision-lab")
+
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("preset", "list", "zzz"))
+	assert.Empty(t, h.stdout.String())
+	assert.Contains(t, h.stderr.String(), `no presets match "zzz"`)
+
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("--json", "preset", "list", "zzz"))
+	assert.Equal(t, "[]\n", h.stdout.String())
+}
+
+func TestRunPresetScopedToAnotherRepo(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+	h.vars["BAM_TOKEN"] = "tok"
+
+	assert.Equal(t, 2, h.run("run", "prov-mine"))
+	assert.Contains(t, h.stderr.String(), "defined only for /somewhere/else (repos entry in "+h.env.Paths.MachineConfig+")")
+	assert.Contains(t, h.stderr.String(), "bam preset migrate")
+
+	h.stderr.Reset()
+	assert.Equal(t, 2, h.run("run", "nope"))
+	assert.Contains(t, h.stderr.String(), "no presets apply here; other repositories define some")
+	assert.NotContains(t, h.stderr.String(), "no presets are configured")
+}
+
+func TestPresetCommandsNameTheRepoThatDefinesIt(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+
+	for _, args := range [][]string{{"preset", "show", "prov-mine"}, {"preset", "sync", "prov-mine"}, {"open", "prov-mine"}} {
+		h.stderr.Reset()
+		assert.Equal(t, 2, h.run(args...), args)
+		assert.Contains(t, h.stderr.String(), "defined only for /somewhere/else", args)
+	}
+}
+
+func TestPresetListMentionsOtherRepos(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+      prov-two:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+
+	assert.Equal(t, 0, h.run("preset", "list"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "no presets apply here; 2 are defined for other repositories: /somewhere/else (prov-mine, prov-two)\n")
+	assert.Contains(t, h.stderr.String(), "try: run bam from that repository, or bam preset migrate to use them anywhere")
+	assert.NotContains(t, h.stderr.String(), "no presets configured")
+
+	h.stderr.Reset()
+	assert.Equal(t, 0, h.run("preset", "sync", "--all"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "no presets apply here; 2 are defined for other repositories")
+	assert.NotContains(t, h.stderr.String(), "no presets configured")
+}
+
+func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
+	h := newHarness(t)
+	b := &h.fake.History["PROJ-PROV12"][0]
+	b.Branch, b.MasterKey = "develop", "PROJ-PROV"
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", "PROJ-PROV12-8", "--print"), h.stderr.String())
+	out := h.stdout.String()
+	assert.Contains(t, out, "    plan: PROJ-PROV\n")
+	assert.Contains(t, out, `    branch: "develop"`)
+	assert.Contains(t, out, `cluster_type: "dcos"  # from PROJ-PROV12-8`)
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", workOrigin+"/browse/PROJ-PROV12-8", "--print"), h.stderr.String())
+	assert.Equal(t, out, h.stdout.String(), "a build page link works like its key")
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
+}
+
+func TestPresetAddPlanAcceptsAPageLink(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
+	out := h.stdout.String()
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--plan", workOrigin+"/browse/PROJ-PROV", "--print"), h.stderr.String())
+	assert.Equal(t, out, h.stdout.String(), "a plan page link works like its key")
+	assert.Equal(t, 3, h.run("preset", "add", "x", "--plan", "https://bamboo.other.example/browse/PROJ-PROV", "--print"))
+	assert.Contains(t, h.stderr.String(), "bam server add <alias> --url https://bamboo.other.example")
+	h.stderr.Reset()
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "https://bamboo.other.example/browse/PROJ-PROV",
+		"--from", workOrigin+"/browse/PROJ-PROV-8", "--print"), "links to two servers")
+	assert.Contains(t, h.stderr.String(), "--plan is on https://bamboo.other.example")
+}
+
+func TestPresetAddMistypedKeysAndNamesGetHints(t *testing.T) {
+	h := newHarness(t)
+	for args, want := range map[string]string{
+		"x --plan proj-prov":     "try: keys are uppercase: did you mean PROJ-PROV?",
+		"x --from proj-prov12-8": "try: keys are uppercase: did you mean --from PROJ-PROV12-8?",
+		"x --from PROJ-PROV":     "try: bam preset add x --plan PROJ-PROV; --from takes a build",
+		"Prov --plan PROJ-PROV":  "try: did you mean prov?",
+	} {
+		h.stderr.Reset()
+		assert.Equal(t, 2, h.run(append([]string{"preset", "add"}, strings.Fields(args)...)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+	}
+}
+
+func TestPresetAddFullKeepsPlanDefaultsAndScaffolding(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
+	lean := h.stdout.String()
+	assert.NotContains(t, lean, "# plan default")
+	assert.NotContains(t, lean, "# watch: true")
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--full", "--print"), h.stderr.String())
+	full := h.stdout.String()
+	assert.Contains(t, full, "# plan default")
+	assert.Contains(t, full, "# branch: develop")
+	assert.Contains(t, full, "# watch: true")
+}
+
+func TestPresetAddWithNothingCopiedSkipsTheReviewHint(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("preset", "add", "b2", "--plan", "PROJ-BUILD"))
+	assert.Contains(t, h.stdout.String(), "added preset b2 to ")
+	assert.NotContains(t, h.stderr.String(), "review before commit", "a preset with no variables copied nothing from Bamboo")
 }

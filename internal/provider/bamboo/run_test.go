@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -330,6 +331,9 @@ func TestRestartBuildUnsupported(t *testing.T) {
 	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Contains(t, err.Error(), "cannot restart a build over REST")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "bam open PROJ-BUILD-45, then rerun it from Bamboo's web UI", e.Try)
 	assert.Equal(t, "no", (*saved)[len(*saved)-1].Rerun)
 }
 
@@ -339,6 +343,30 @@ func TestRestartBuildKnownUnsupportedSendsNothing(t *testing.T) {
 	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Empty(t, rec.all())
+}
+
+func TestCannotRestartAndStopAskNothing(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{})
+	c.caps = Capabilities{Rerun: "no", Stop: "no", Version: "9.6.2", CheckedAt: c.now()}
+	assert.True(t, c.CannotRestart(ctx))
+	assert.True(t, c.CannotStop(ctx))
+	assert.Empty(t, rec.all(), "not even the server version check")
+
+	c.caps.CheckedAt = c.now().Add(-8 * 24 * time.Hour)
+	assert.False(t, c.CannotRestart(ctx), "an answer older than a week is not trusted")
+	assert.False(t, c.CannotStop(ctx))
+}
+
+func TestCannotRestartAndStopForgetAnotherVersionsAnswer(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/info": {body: `{"version":"10.2.0"}`}})
+	c.caps = Capabilities{Rerun: "no", Stop: "no", Version: "9.6.2", CheckedAt: c.now()}
+	c.versionChecked = true
+	_, err := c.ServerInfo(ctx)
+	require.NoError(t, err)
+	before := len(rec.all())
+	assert.False(t, c.CannotRestart(ctx), "learned from 9.6.2, the server now runs 10.2.0")
+	assert.False(t, c.CannotStop(ctx))
+	assert.Len(t, rec.all(), before, "no request")
 }
 
 func TestRestartBuildRefusedNamesTheBuild(t *testing.T) {

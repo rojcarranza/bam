@@ -37,10 +37,11 @@ func TestPlanStatsCommand(t *testing.T) {
 }
 
 func TestPlanStatsLastRange(t *testing.T) {
-	for _, n := range []string{"0", "101"} {
+	for n, try := range map[string]string{"0": "-n 1", "101": "-n 100"} {
 		h := statsHarness(t)
 		require.Equal(t, 2, h.run("plan", "stats", "build", "--last", n))
 		require.Contains(t, h.stderr.String(), "--last takes 1 to 100, not "+n)
+		require.Contains(t, h.stderr.String(), "try: bam plan stats build "+try)
 		require.Empty(t, h.connectOpts, "no network before the check")
 	}
 }

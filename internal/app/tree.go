@@ -48,6 +48,7 @@ func ParentOf(reason string) (string, bool) {
 type TreeOptions struct {
 	Depth      int                // levels of builds below the root; 0 means all
 	OnProgress func(TreeProgress) // BuildTree reports how far it got; calls are serialized and end before it returns
+	Shared     bool               // start from the scan of another recent tree of the root's plan, and lend this one on
 	track      *treeTracker       // set by BuildTree and WatchTree
 }
 
@@ -81,6 +82,7 @@ type Tree struct {
 	Root     *TreeNode
 	State    provider.State // TreeState of the root
 	Warnings []string       // sorted; never change the result
+	Depth    int            // the TreeOptions.Depth it was read with; 0 means all
 }
 
 // TreeFinished reports whether a build in a tree has its final result.
@@ -145,6 +147,17 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	tr := o.track
 	var warnings []string
+	var known *TreeNode
+	if prev == nil && o.Shared {
+		var release func()
+		if prev, release, err = s.awaitScan(ctx, root); err != nil {
+			return Tree{}, nil, err
+		}
+		defer release()
+		if t, ok := s.CachedTree(key); ok && prev == nil && len(t.Warnings) == 0 && (t.Depth == 0 || (o.Depth > 0 && t.Depth >= o.Depth)) {
+			known = t.Root
+		}
+	}
 	scan := prev
 	limit := treeRefresh
 	if scan == nil {
@@ -158,7 +171,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	got, failed := s.treeRead(ctx, tr, scan.plans, limit)
 	var depths map[string]int
-	if prev == nil {
+	if prev == nil && known == nil {
 		depths = s.treeDeepen(ctx, tr, got, root)
 	}
 	if err := ctx.Err(); err != nil {
@@ -176,20 +189,28 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	warnings = append(warnings, readWarnings...)
 	if prev == nil {
 		scan = scan.first(got, depths)
+		if known != nil {
+			scan.knew(known)
+		}
 	} else {
 		scan = scan.merged(got)
 	}
 	warnings = append(warnings, s.treeParents(ctx, tr, scan)...)
-	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}}
+	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}, Depth: o.Depth}
 	treeGrow(t.Root, scan.index(), configured, o.Depth, 0, map[string]bool{root.Key: true})
 	warnings = append(warnings, s.treeDetails(ctx, tr, t.Root, done)...)
 	warnings = append(warnings, s.treeLogLinks(ctx, tr, t.Root, scan, configured, o.Depth, done)...)
-	warnings = append(warnings, windowWarnings(scan.windows, root)...)
+	if scan.covered != root.Key {
+		warnings = append(warnings, windowWarnings(scan.windows, root)...)
+	}
 	if err := ctx.Err(); err != nil {
 		return Tree{}, nil, err
 	}
 	sort.Strings(warnings)
 	t.Warnings, t.State = warnings, TreeState(t.Root)
+	if o.Shared {
+		s.keepScan(root.PlanKey, scan)
+	}
 	return t, scan, nil
 }
 
@@ -313,6 +334,23 @@ type treeScan struct {
 	parents  map[string]string   // build key to parent key; "" for none or given up
 	misses   map[string]int      // failed parent reads in a row, by build key
 	logLinks map[string][]string // build keys a finished job's log links to, by job key
+	covered  string              // root whose saved tree supplied its older children, so its windows warn of nothing
+}
+
+// knew lays the builds of root's saved final tree under the scan's, so its
+// children older than a window are found without reading deeper: an older
+// build's deep read happens once (#82).
+func (sc *treeScan) knew(root *TreeNode) {
+	root.Walk(func(n *TreeNode, depth int) {
+		if depth == 0 || n.NotRun || n.Loop || slices.ContainsFunc(sc.builds[n.PlanKey], func(b provider.Build) bool { return b.Key == n.Build.Key }) {
+			return
+		}
+		sc.builds[n.PlanKey] = append(sc.builds[n.PlanKey], n.Build)
+	})
+	for _, bs := range sc.builds {
+		sort.Slice(bs, func(i, j int) bool { return bs[i].Number > bs[j].Number })
+	}
+	sc.covered = root.Build.Key
 }
 
 // first is the scan of a first search: its builds and their windows.
@@ -330,7 +368,7 @@ func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int
 // again replaces its older copy, a new build is added, and a plan that
 // could not be read keeps what was found before.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks}
+	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks, covered: sc.covered}
 	for plan, bs := range sc.builds {
 		out.builds[plan] = bs
 	}
@@ -584,9 +622,13 @@ func windowWarnings(windows map[string]planWindow, root provider.Build) []string
 
 // treePoll is the time between two refreshes of a watched tree; treeTries
 // is how many failed refreshes in a row end the watch.
+// treeQuiet is how long ago the last build of a finished tree must have
+// ended for one refresh to settle it: Bamboo queued any children long since.
+// It is well past treePoll so a skewed server clock cannot cut a watch short.
 const (
 	treePoll  = 10 * time.Second
 	treeTries = 3
+	treeQuiet = time.Minute
 )
 
 // TreeEventType names a step of a watched tree.
@@ -610,7 +652,8 @@ type TreeEvent struct {
 
 // WatchTree refreshes the tree of key every treePoll and emits it when it
 // changed. It ends once every build has finished and one more refresh
-// found nothing new, since Bamboo queues children when their parent ends.
+// found nothing new, since Bamboo queues children when their parent ends;
+// a tree whose builds all ended over treeQuiet ago ends at the first.
 // Until the first tree, it sends TreeLoading events saying how far the
 // search got; o.OnProgress is not called. Ending ctx stops watching; no
 // build is stopped.
@@ -674,7 +717,7 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 				}
 				if t.State == provider.StateRunning || scan.unresolved() {
 					settled = ""
-				} else if settled == sig {
+				} else if settled == sig || endedBefore(t, s.Clock.Now().Add(-treeQuiet)) {
 					send(TreeEvent{Type: TreeDone, Tree: t})
 					return
 				} else {
@@ -689,6 +732,18 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 		}
 	}()
 	return ch
+}
+
+// endedBefore reports whether every build in t has a finish time before
+// cutoff; a build with none (not known) counts as not.
+func endedBefore(t Tree, cutoff time.Time) bool {
+	ok := true
+	t.Root.Walk(func(n *TreeNode, _ int) {
+		if !n.NotRun && !n.Loop && (n.Build.FinishedAt.IsZero() || !n.Build.FinishedAt.Before(cutoff)) {
+			ok = false
+		}
+	})
+	return ok
 }
 
 // treeSignature is what a watcher compares between refreshes: every node,

@@ -39,7 +39,7 @@ func TestBuildJSONGolden(t *testing.T) {
 func TestPlanJSONNeverBuilt(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, WriteNDJSON(&buf, PlanJSON(provider.Plan{Key: "PROJ-OLD", URL: "https://bamboo.example.com/browse/PROJ-OLD", Name: "Legacy", ProjectKey: "PROJ"})))
-	assert.Equal(t, `{"key":"PROJ-OLD","url":"https://bamboo.example.com/browse/PROJ-OLD","name":"Legacy","project_key":"PROJ","last_build":null}`+"\n", buf.String())
+	assert.Equal(t, `{"key":"PROJ-OLD","url":"https://bamboo.example.com/browse/PROJ-OLD","name":"Legacy","project_key":"PROJ","last_build":null,"enabled":true}`+"\n", buf.String())
 }
 
 func TestRunJSONMasksSecrets(t *testing.T) {
@@ -53,7 +53,7 @@ func TestRunJSONMasksSecrets(t *testing.T) {
 	var buf bytes.Buffer
 	require.NoError(t, WriteNDJSON(&buf, doc))
 	assert.NotContains(t, buf.String(), "hunter2")
-	assert.Equal(t, `{"key":"PROJ-BUILD-45","url":"https://bamboo.example.com/browse/PROJ-BUILD-45","plan_key":"PROJ-BUILD12","branch":"develop","revision":"","revision_from":"","variables":{"db_password":"********","env":"staging"}}`+"\n", buf.String())
+	assert.Equal(t, `{"key":"PROJ-BUILD-45","url":"https://bamboo.example.com/browse/PROJ-BUILD-45","plan_key":"PROJ-BUILD12","branch":"develop","revision":"","revision_from":"","variables":{"db_password":"********","env":"staging"},"warnings":[]}`+"\n", buf.String())
 }
 
 func TestRunJSONCarriesTheRevision(t *testing.T) {

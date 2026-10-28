@@ -70,7 +70,7 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 			return SetPlan{}, err
 		}
 		if !ok {
-			return SetPlan{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+			return SetPlan{}, UnknownSet(s.Cfg, name)
 		}
 	}
 	p := SetPlan{Name: name, Origin: s.Origin, Timeout: time.Duration(set.Timeout), VarNames: varNames(o.Vars), File: o.File}
@@ -193,6 +193,9 @@ type SetEvent struct {
 	State  provider.State // run_done, stage_done, set_done
 	Rerun  int            // run_triggered of a restart: the run's reruns; 0 otherwise
 	Err    error
+	// NoRerun is set on the set_done of a failed set when the server is known
+	// to refuse restarts, so bam set rerun --failed would fail.
+	NoRerun bool
 }
 
 // SetLockOptions are how a set run takes its lock.
@@ -341,7 +344,7 @@ func (r *setRun) run(parent context.Context, from int) {
 			return
 		case !ok:
 			r.finish(SetFailed)
-			r.send(ctx, SetEvent{Type: SetDone, Stage: i, State: provider.StateFailed})
+			r.send(ctx, SetEvent{Type: SetDone, Stage: i, State: provider.StateFailed, NoRerun: r.s.CannotRestart(ctx)})
 			return
 		}
 	}
@@ -505,6 +508,26 @@ func (r *setRun) watchRun(ctx context.Context, i, j int, run SetRunPlan, key str
 	}
 }
 
+// NotResumable says why a finished set run cannot be resumed, or nil when it
+// can. noRerun leaves out the set rerun hint for a server that refuses restarts.
+func NotResumable(rec SetRecord, noRerun bool) error {
+	switch rec.Status {
+	case SetFailed:
+		try := "bam set rerun --failed " + rec.ID
+		if noRerun {
+			try = "bam set status " + rec.ID
+		}
+		return errs.Usagef("set run %s failed; resume continues interrupted runs", rec.ID).WithTry(try)
+	case SetSuccessful:
+		again := "bam set run " + rec.Set
+		if rec.File != "" {
+			again = "bam set run -f " + rec.File
+		}
+		return errs.Usagef("set run %s succeeded; nothing to resume", rec.ID).WithTry(again)
+	}
+	return nil
+}
+
 // ResumeSet continues an interrupted or timed-out set run under its own id:
 // it watches the runs that triggered and triggers the ones that did not.
 func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error) {
@@ -512,12 +535,8 @@ func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock S
 	if err != nil {
 		return nil, err
 	}
-	switch rec.Status {
-	case SetFailed:
-		return nil, errs.Usagef("set run %s failed; resume continues interrupted runs", id).
-			WithTry("bam set rerun --failed " + id)
-	case SetSuccessful:
-		return nil, errs.Usagef("set run %s succeeded; nothing to resume", id)
+	if err := NotResumable(rec, s.CannotRestart(ctx)); err != nil {
+		return nil, err
 	}
 	p, l, err := s.continueSet(ctx, rec, o, lock, "resume")
 	if err != nil {
@@ -710,6 +729,8 @@ type SetInfo struct {
 // display.
 type SetRunInfo struct {
 	Target     string
+	Plan       string // the preset's plan key
+	Branch     string // the preset's branch; empty for the plan's default
 	Vars       []TargetVar
 	Matrix     any      // the configured matrix for JSON: map of value lists, or list of variable maps; nil without one
 	MatrixLine string   // the matrix on one line, for text; empty without one
@@ -722,9 +743,13 @@ func DescribeSets(cfg *config.Config, getenv func(string) string) ([]SetInfo, er
 	if err != nil {
 		return nil, err
 	}
+	targets, err := cfg.Targets()
+	if err != nil {
+		return nil, err
+	}
 	out := make([]SetInfo, 0, len(all))
 	for _, name := range sortedNames(all) {
-		out = append(out, describeSet(all[name], getenv))
+		out = append(out, describeSet(all[name], targets, getenv))
 	}
 	return out, nil
 }
@@ -736,17 +761,40 @@ func DescribeSet(cfg *config.Config, getenv func(string) string, name string) (S
 		return SetInfo{}, err
 	}
 	if !ok {
-		return SetInfo{}, errs.Usagef("unknown set %q", name).WithTry("bam set list")
+		return SetInfo{}, UnknownSet(cfg, name)
 	}
-	return describeSet(s, getenv), nil
+	targets, err := cfg.Targets()
+	if err != nil {
+		return SetInfo{}, err
+	}
+	return describeSet(s, targets, getenv), nil
 }
 
-func describeSet(s config.ResolvedSet, getenv func(string) string) SetInfo {
+// UnknownSet is the usage error for a set name no layer defines, with a
+// "did you mean" hint when one set is close.
+func UnknownSet(cfg *config.Config, name string) *errs.Error {
+	e := errs.Usagef("unknown set %q", name).WithTry("bam set list")
+	all, err := cfg.Sets()
+	if err != nil {
+		return e
+	}
+	if len(all) == 0 {
+		return e.WithWhy("no sets are configured").WithTry("add sets: to .bam.yaml; see bam set run --help")
+	}
+	names := sortedNames(all)
+	if c := errs.Closest(name, names, 1); len(c) > 0 {
+		e = e.WithTry("did you mean " + c[0] + "? bam set list shows them all")
+	}
+	return e.WithWhy("sets: " + strings.Join(names, ", "))
+}
+
+func describeSet(s config.ResolvedSet, targets map[string]config.ResolvedTarget, getenv func(string) string) SetInfo {
 	info := SetInfo{Name: s.Name, Timeout: time.Duration(s.Timeout), DefinedIn: s.DefinedIn}
 	for _, st := range s.Stages {
 		runs := make([]SetRunInfo, 0, len(st))
 		for _, r := range st {
-			info := SetRunInfo{Target: r.Target, Vars: targetVars(r.Vars, getenv)}
+			t := targets[r.Target]
+			info := SetRunInfo{Target: r.Target, Plan: t.Plan, Branch: t.Branch, Vars: targetVars(r.Vars, getenv)}
 			if r.Matrix != nil {
 				m := maskedMatrix(r.Matrix)
 				info.MatrixLine = matrixLine(m)

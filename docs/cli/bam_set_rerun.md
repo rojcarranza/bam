@@ -14,6 +14,14 @@ alone, and no build is ever stopped.
 bam set rerun [set|id] --failed [flags]
 ```
 
+### Examples
+
+```
+  bam set rerun --failed
+  bam set rerun release --failed
+  bam set rerun release-20260929T101500Z --failed --var version=1.4.0
+```
+
 ### Options
 
 ```

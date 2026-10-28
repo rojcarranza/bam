@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"slices"
@@ -11,7 +12,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/view"
 )
 
 // inputMode says what the text input is collecting, if anything.
@@ -22,6 +25,7 @@ const (
 	inputFilter
 	inputSearch
 	inputCommand
+	inputPreset
 )
 
 // screen is what fills the terminal. The log screen takes the whole width.
@@ -101,6 +105,9 @@ type Model struct {
 
 	project    string // the project filter; empty means every project
 	buildsPlan string // the plan (or branch plan) the Builds panel holds
+	// branchNames maps branch plan keys to their short names, learned from
+	// the branch picker: a branch plan's result list does not name its branch.
+	branchNames map[string]string
 
 	detail     *provider.Build
 	progress   provider.Progress // the server's estimate for detail, if any
@@ -120,6 +127,8 @@ type Model struct {
 	logs     logState
 	input    textinput.Model
 	inputFor inputMode
+	// presetBuild is the build the preset-name prompt will save.
+	presetBuild string
 
 	// One generation per asynchronous stream. Bumping a stream's generation
 	// abandons every request already in flight on it, so a slow response for
@@ -142,6 +151,10 @@ type Model struct {
 	treeCh      <-chan app.TreeEvent
 
 	treePreviewCancel context.CancelFunc // the Tree panel's read in flight
+
+	// trees holds finished trees by root key for the session, so leaving the
+	// plan screen does not read them again; a server switch clears it.
+	trees map[string]app.Tree
 
 	// revisionRun is the build the form last triggered with a revision, so a
 	// not-built result can say which revision Bamboo could not build.
@@ -355,6 +368,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.builds.loading = false
 		m.plan.buildsStale = false
 		m.buildsPlan = msg.PlanKey
+		app.WithBranch(msg.Builds, m.branchNames[msg.PlanKey])
 		m.builds.setItems(msg.Builds)
 		if m.plan.key != "" {
 			return m.planBuildsLoaded()
@@ -393,8 +407,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The first row is the master plan itself, so one list both sets and
 		// clears the branch.
 		items := []pickerItem{{Label: "default branch", Value: msg.MasterKey}}
+		if m.branchNames == nil {
+			m.branchNames = map[string]string{}
+		}
 		for _, br := range msg.Branches {
-			items = append(items, pickerItem{Label: br.ShortName, Value: br.Key, Detail: br.Name})
+			items = append(items, pickerItem{Label: br.ShortName, Value: br.Key, Detail: view.MarkDisabled(br.Name, br.Disabled)})
+			m.branchNames[br.Key] = br.ShortName
 		}
 		m.picker.setItems(items)
 		m.picker.cursor = indexOf(items, m.buildsPlan)
@@ -402,6 +420,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case copiedMsg:
 		m.status = "copied to clipboard (osc 52)"
 		return m, nil
+	case presetSavedMsg:
+		m.status = "added preset " + msg.Name + " to " + msg.Path
+		if m.deps.Targets == nil {
+			return m, nil
+		}
+		m.presetsGen++
+		return m, loadPresetsCmd(m.deps, m.presetsGen)
 	case logEventMsg:
 		if msg.Gen != m.followGen {
 			return m, nil
@@ -569,6 +594,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Stream == streamProjects {
 			m.projects.loading = false
 		}
+		if msg.Stream == streamSets {
+			m.sets.loading = false
+		}
+		if msg.Stream == streamRun && m.form.loading {
+			// loading stays true: with no fields, keys must stay locked.
+			m.form.err = msg.Err
+		}
 		// plansErr tracks whether the error now showing came from the plans
 		// stream, so a later successful plans load knows whether it is the
 		// one that gets to clear it (finding 5).
@@ -689,6 +721,8 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openSelectionLogs()
 	case key.Matches(msg, keys.AllLogs):
 		return m.openLogs("", true)
+	case key.Matches(msg, keys.SavePreset):
+		return m.startSavePreset()
 	case key.Matches(msg, keys.Tree):
 		if b, ok := m.currentBuild(); ok {
 			return m.openTree(b.Key)
@@ -752,6 +786,10 @@ func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if mode == inputSearch {
 			m.logs.search(q)
 			return m, nil
+		}
+		if mode == inputPreset {
+			m.input.SetValue("")
+			return m.savePreset(strings.TrimSpace(q))
 		}
 		m.applyFilter(q)
 		// The filter may move the Builds cursor; Stages follows it as it
@@ -841,6 +879,12 @@ func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.back()
 		case key.Matches(msg, keys.Quit):
 			return m.quit()
+		case key.Matches(msg, keys.Top):
+			m.help.vp.GotoTop()
+			return m, nil
+		case key.Matches(msg, keys.Bottom):
+			m.help.vp.GotoBottom()
+			return m, nil
 		}
 		var cmd tea.Cmd
 		m.help.vp, cmd = m.help.vp.Update(msg)
@@ -1017,6 +1061,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	// The plan, its builds and its cache are the old server's, also when
 	// the plan screen is not the one on top.
 	m.closePlan()
+	m.trees = nil
 	if m.screen == screenPlan {
 		m.screen = screenHome
 		m.focus = m.homeFocus()
@@ -1334,7 +1379,9 @@ func (m Model) openStageLogs(stage string) (tea.Model, tea.Cmd) {
 	}
 	m.screen = screenLogs
 	m.stopFollow() // reopening replaces the log state; its follow ends first
-	m.logs = logState{}
+	// The header names the build from the start, so a slow or failed load
+	// still says whose logs these are.
+	m.logs = logState{title: b.Key, stage: stage}
 	m.logsGen++
 	return m, stageLogsCmd(m.baseCtx(), m.svc, b, stage, m.logsGen)
 }
@@ -1350,7 +1397,7 @@ func (m Model) openLogs(jobKey string, all bool) (tea.Model, tea.Cmd) {
 	// Reopening replaces the log state, so an active follow has to end first
 	// or its chunks land in the view that replaced it.
 	m.stopFollow()
-	m.logs = logState{all: all}
+	m.logs = logState{title: cmp.Or(jobKey, b.Key), all: all}
 	m.logsGen++
 	// ListBuilds returns builds without their stage and job tree, so a row
 	// straight from the Builds panel has no job to take a log from. Expand it
@@ -1437,6 +1484,44 @@ func (m Model) copySelection() (tea.Model, tea.Cmd) {
 	}
 }
 
+// presetSavedMsg says a build's variables were written as a preset.
+type presetSavedMsg struct{ Name, Path string }
+
+// startSavePreset asks for the name to save the plan screen's selected build
+// under, as bam preset add NAME --from BUILD.
+func (m Model) startSavePreset() (tea.Model, tea.Cmd) {
+	if m.screen != screenPlan || m.svc == nil || m.deps.SavePreset == nil {
+		return m, nil
+	}
+	b, ok := m.currentBuild()
+	if !ok {
+		return m, nil
+	}
+	m.presetBuild = b.Key
+	m.inputFor = inputPreset
+	m.input.SetValue("")
+	m.input.Prompt = "save " + b.Key + " as preset: "
+	m.input.Focus()
+	return m, textinput.Blink
+}
+
+// savePreset writes the build asked about in startSavePreset. An empty name
+// saves nothing, as esc does.
+func (m Model) savePreset(name string) (tea.Model, tea.Cmd) {
+	if name == "" || m.svc == nil {
+		return m, nil
+	}
+	save, ctx, svc, build := m.deps.SavePreset, m.baseCtx(), m.svc, m.presetBuild
+	m.status = "saving preset " + name + "…"
+	return m, func() tea.Msg {
+		path, err := save(ctx, svc, name, build)
+		if err != nil {
+			return errMsg{Err: err, Where: "preset"}
+		}
+		return presetSavedMsg{Name: name, Path: path}
+	}
+}
+
 // toggleFollow starts or stops streaming the open logs. Following polls the
 // build's logs only; it never touches the build.
 func (m Model) toggleFollow() (tea.Model, tea.Cmd) {
@@ -1512,9 +1597,27 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.form.editing {
 		switch msg.Type {
 		case tea.KeyEsc:
+			naming := m.form.naming
 			m.form.cancelEdit()
+			if naming {
+				m.revalidate()
+			}
 			return m, nil
 		case tea.KeyEnter:
+			if m.form.naming {
+				name := strings.TrimSpace(m.form.input.Value())
+				if strings.ContainsAny(name, "= \t") {
+					m.form.err = errs.Usagef("%q is not a variable name", name).WithWhy("a name cannot hold = or spaces")
+					return m, nil
+				}
+				ok := m.form.acceptName()
+				m.revalidate()
+				if ok {
+					m.form.startEditing()
+					return m, textinput.Blink
+				}
+				return m, nil
+			}
 			m.form.acceptEdit()
 			m.revalidate()
 			return m, nil
@@ -1539,6 +1642,14 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, keys.ExpandErr):
 		return m.expandErr()
+	case key.Matches(msg, keys.AllLogs): // a: add a variable the plan may not declare
+		m.form.startNaming()
+		return m, textinput.Blink
+	case key.Matches(msg, keys.RemoveRow):
+		if m.form.removeAdded() {
+			m.revalidate()
+		}
+		return m, nil
 	case key.Matches(msg, keys.Follow):
 		// f is "follow" on the log screen; in the form, on the Revision row,
 		// it takes the commit of the build the form was prefilled from.
@@ -1668,7 +1779,11 @@ func (m Model) openForm() (tea.Model, tea.Cmd) {
 	m.formFrom = m.screen
 	m.screen = screenForm
 	m.formGen++
-	m.form = formState{loading: true}
+	// Name the plan while it loads, so the header is never blank.
+	m.form = formState{loading: true, ref: app.PlanRef{PlanKey: planKey}}
+	if target != nil {
+		m.form.target, m.form.ref = target.Name, app.PlanRef{PlanKey: target.Plan, Branch: target.Branch}
+	}
 	return m, openFormCmd(m.baseCtx(), m.svc, planKey, target, from, m.formGen)
 }
 
@@ -1715,7 +1830,7 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		// closing it stops its watch and drops its loads still in flight.
 		m.closePlan()
 		m.screen = screenTree
-		return m.watchTree() // watching paused while the logs were open
+		return m.watchTree(false) // watching paused while the logs were open
 	case m.screen == screenLogs:
 		m.stopFollow()
 		m.logsGen++ // abandon a load still in flight
@@ -1769,7 +1884,7 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		m.fromTree = false
 		m.closePlan()
 		m.screen = screenTree
-		return m.watchTree() // watching paused while the build was open
+		return m.watchTree(false) // watching paused while the build was open
 	case m.screen == screenTree:
 		return m.closeTree()
 	case m.screen == screenSet:

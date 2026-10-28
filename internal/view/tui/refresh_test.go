@@ -184,11 +184,11 @@ func TestInitStartsTheLoopOnHome(t *testing.T) {
 func TestTheHeaderSaysRefreshingAndStale(t *testing.T) {
 	m := tickModel()
 	m, _ = send(m, homeTickMsg{Gen: m.home.tickGen})
-	require.Contains(t, m.homeHeader(), "refreshing…")
+	require.Contains(t, m.homeHeader(0), "refreshing…")
 
 	m, _ = send(m, errMsg{Err: errors.New("down"), Stream: streamPlans, Gen: m.plansGen})
 	m.now = func() time.Time { return homeNow.Add(3 * time.Minute) }
-	require.Contains(t, m.homeHeader(), "stale 3m")
+	require.Contains(t, m.homeHeader(0), "stale 3m")
 }
 
 func TestAWatchedBuildShowsAsRunningOnItsRow(t *testing.T) {

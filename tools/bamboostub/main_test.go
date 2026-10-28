@@ -99,6 +99,14 @@ func TestTriggeredBuildRunsToSuccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, provider.StateSuccess, got.State)
 	assert.False(t, got.FinishedAt.IsZero())
+
+	// A finished build keeps its duration: watching it an hour later must
+	// not show it an hour longer.
+	advance(s, time.Hour)
+	later, err := c.GetBuild(ctx, b.Key)
+	require.NoError(t, err)
+	assert.Equal(t, got.FinishedAt, later.FinishedAt)
+	assert.Equal(t, got.Duration, later.Duration)
 }
 
 // TestTriggerWithARevisionReportsCustomRevisionBuild: bam.Client.Trigger
@@ -116,7 +124,7 @@ func TestTriggerWithARevisionReportsCustomRevisionBuild(t *testing.T) {
 }
 
 func TestCancelledBuildReportsStopped(t *testing.T) {
-	_, c := testStub(t)
+	s, c := testStub(t)
 	ctx := context.Background()
 
 	b, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
@@ -126,6 +134,11 @@ func TestCancelledBuildReportsStopped(t *testing.T) {
 	got, err := c.GetBuild(ctx, b.Key)
 	require.NoError(t, err)
 	assert.Equal(t, provider.StateStopped, got.State)
+
+	advance(s, time.Hour)
+	later, err := c.GetBuild(ctx, b.Key)
+	require.NoError(t, err)
+	assert.Equal(t, got.Duration, later.Duration)
 }
 
 func TestLogsComeFromTheFixture(t *testing.T) {
@@ -177,4 +190,41 @@ func TestFailedTestsComePerJobLikeBamboo12(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"app.ApiTest.parses_config", "app.ApiTest.talks_to_bamboo"}, b.FailedTests)
 	assert.Equal(t, "jobs", c.Capabilities().FailedTestsFrom)
+}
+
+// TestBuildDetailIsTheBuildAskedFor keeps a retargeted build from reading as
+// the recorded one: its number, plan and job keys follow the key asked for.
+func TestBuildDetailIsTheBuildAskedFor(t *testing.T) {
+	_, c := testStub(t)
+	ctx := context.Background()
+
+	b, err := c.GetBuild(ctx, "OPS-BUILD-481")
+	require.NoError(t, err)
+	assert.Equal(t, 481, b.Number)
+	assert.Equal(t, "OPS-BUILD", b.PlanKey)
+	assert.Empty(t, b.Branch, "only the recorded branch plan is a branch")
+	require.NotEmpty(t, b.Stages)
+	assert.Equal(t, "OPS-BUILD-JOB1-481", b.Stages[0].Jobs[0].Key)
+
+	b, err = c.GetBuild(ctx, "PROJ-BUILD12-7")
+	require.NoError(t, err)
+	assert.Equal(t, 7, b.Number)
+	assert.Equal(t, "develop", b.Branch)
+	assert.Equal(t, "PROJ-BUILD12-INT-7", b.Stages[1].Jobs[1].Key)
+}
+
+// TestJobDetailIsTheJobAskedFor: a job result key is not a build of a plan
+// named after its first three parts.
+func TestJobDetailIsTheJobAskedFor(t *testing.T) {
+	_, c := testStub(t)
+	b, err := c.GetBuild(context.Background(), "PROJ-BUILD12-INT-44")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BUILD12-INT-44", b.Key)
+	assert.Equal(t, "PROJ-BUILD12-INT", b.PlanKey)
+	assert.Equal(t, 44, b.Number)
+	assert.Equal(t, provider.StateFailed, b.State, "the recorded INT job failed")
+	assert.Empty(t, b.Stages)
+
+	_, err = c.GetBuild(context.Background(), "PROJ-BUILD12-NOPE-44")
+	require.Error(t, err)
 }

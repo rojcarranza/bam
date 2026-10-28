@@ -33,6 +33,16 @@ type runtime struct {
 	env   Env
 	flags globalFlags
 	cfg   *config.Config
+	trees *app.TreeStore
+}
+
+// treeStore is one for the process, so every server's Service in the
+// terminal UI shares what it has read. With no directory it keeps none.
+func (r *runtime) treeStore() *app.TreeStore {
+	if r.trees == nil && r.env.Paths.Trees != "" {
+		r.trees = &app.TreeStore{Dir: r.env.Paths.Trees}
+	}
+	return r.trees
 }
 
 // resultError reports a watched build that did not succeed. It maps to exit
@@ -80,6 +90,25 @@ func (r *runtime) store() *credential.Store {
 	return &credential.Store{Keyring: r.env.Keyring, FilePath: r.env.Paths.Credentials, Getenv: r.env.Getenv}
 }
 
+// lookupToken finds the stored token for server, and says why BAM_TOKEN did
+// not count when it is set: it applies only to the BAM_URL server.
+func (r *runtime) lookupToken(server config.ResolvedServer, origin string) (string, credential.Source, error) {
+	token, src, err := r.store().Lookup(server.Alias, origin, server.AuthEnv)
+	var e *errs.Error
+	if err != nil && server.Alias == config.EnvServerAlias && errors.As(err, &e) && e.Kind == errs.KindAuth {
+		// BAM_URL with no BAM_TOKEN: the env var is the expected way to give its token.
+		e.Why = "BAM_TOKEN is not set and nothing is stored"
+		e.Try = "export BAM_TOKEN=<personal access token>, or bam login " + config.EnvServerAlias
+	} else if err != nil && r.env.Getenv("BAM_TOKEN") != "" && errors.As(err, &e) && e.Kind == errs.KindAuth {
+		why := "BAM_TOKEN is set, but it applies only to the server named by BAM_URL"
+		if e.Why != "" {
+			why = e.Why + "; " + why
+		}
+		e.Why = why
+	}
+	return token, src, err
+}
+
 func (r *runtime) logger() *slog.Logger {
 	if !r.flags.debug {
 		return slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -107,7 +136,7 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 	}
 	token := server.Token
 	if token == "" {
-		token, _, err = r.store().Lookup(server.Alias, origin, server.AuthEnv)
+		token, _, err = r.lookupToken(server, origin)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -126,7 +155,7 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 		return nil, nil, err
 	}
 	svc := &app.Service{P: backend, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
-		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Getenv: r.env.Getenv}
+		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv}
 	return svc, backend, nil
 }
 

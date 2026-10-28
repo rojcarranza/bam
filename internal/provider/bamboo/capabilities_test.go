@@ -75,3 +75,11 @@ func TestAnOldCachedFailedTestsNoIsForgotten(t *testing.T) {
 	assert.Equal(t, "", caps.FailedTestsFrom)
 	assert.Equal(t, "entries", caps.Log, "the rest of the cache is kept")
 }
+
+func TestCachedCannotRestartIgnoresStaleAnswers(t *testing.T) {
+	now := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
+	no := Capabilities{Rerun: "no", CheckedAt: now.Add(-time.Hour)}
+	assert.True(t, no.CannotRestart(now))
+	assert.False(t, no.CannotRestart(now.Add(8*24*time.Hour)), "older than a week")
+	assert.False(t, Capabilities{Rerun: "yes", CheckedAt: now}.CannotRestart(now))
+}

@@ -66,6 +66,8 @@ type SetRun struct {
 }
 ```
 
+`Set.UnmarshalYAML` also accepts a bare list of stages as shorthand for `{stages: [...]}`, so `release: [[a], [b]]` needs no `stages:` key when there is no `timeout`. Unknown keys in the mapping form stay config errors.
+
 `ProjectFile`, `MachineFile` and `Repo` each gain `Sets map[string]Set \`yaml:"sets,omitempty"\``.
 
 ### 3.2 Layering
@@ -276,7 +278,7 @@ A new `bam set` noun, laid out like `bam target`:
 | Command | Does | `--json` |
 | --- | --- | --- |
 | `bam set list` | Sets, stage count, where each is defined | array |
-| `bam set show <set>` | Stages and their presets, with each run's set `vars` (secrets masked) | object |
+| `bam set show <set>` | Stages and their presets, each with its plan key and branch and the run's set `vars` (secrets masked) | object |
 | `bam set run <set> [--var k=v]... [--dry-run] [--force]` | `PlanSet`, then `RunSet` | NDJSON |
 | `bam set status [set\|id]` | The record with each build's live state | object |
 | `bam set resume [set\|id] [--var k=v]... [--force]` | `ResumeSet`; with no argument, this repository's newest resumable record | NDJSON |
@@ -386,7 +388,7 @@ Each of these is later work with its own spec:
 
 - `bam set rerun --failed`: done, see [`2026-10-05-bam-set-rerun-failed-design.md`](2026-10-05-bam-set-rerun-failed-design.md).
 - Matrix expansion: done, see [`2026-10-05-bam-set-matrix-design.md`](2026-10-05-bam-set-matrix-design.md). Batch files: done as train files, see [`2026-10-06-bam-set-files-design.md`](2026-10-06-bam-set-files-design.md).
-- Plan statistics and set-level history views.
+- Plan statistics: done, see [`2026-10-06-bam-plan-stats-design.md`](2026-10-06-bam-plan-stats-design.md). Set-level history: done, see [`2026-10-28-bam-set-history-design.md`](2026-10-28-bam-set-history-design.md).
 - The terminal UI run-sets panel: done, see [`2026-10-06-bam-tui-sets-design.md`](2026-10-06-bam-tui-sets-design.md).
 - An ad hoc command-line form of a set.
 - Runs on more than one Bamboo server in one set.

@@ -1,6 +1,6 @@
 ## bam plan
 
-Plans: list, show, variables, branches, stats
+Plans: list, show, vars, branches, stats
 
 ```
 bam plan [flags]

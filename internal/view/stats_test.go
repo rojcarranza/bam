@@ -45,10 +45,32 @@ func TestPlanStatsViewBranchAndEmptyParts(t *testing.T) {
 	require.Regexp(t, `Failing jobs\s+none`, out)
 }
 
+func TestPlanStatsViewOneSuccessfulBuild(t *testing.T) {
+	s := fullStats()
+	s.Durations = &app.DurationStats{Median: 131 * time.Second, P90: 131 * time.Second, Max: 131 * time.Second, MaxBuild: 482, Of: 1}
+	o, buf := testOut(false)
+	require.NoError(t, PlanStatsView(o, s))
+	require.Contains(t, buf.String(), "Duration  2m11s (#482)   of 1 successful\n")
+}
+
+func TestPlanStatsViewOneBuildHeader(t *testing.T) {
+	s := fullStats()
+	s.Builds, s.First, s.Last, s.To = 1, 482, 482, statsFrom
+	o, buf := testOut(false)
+	require.NoError(t, PlanStatsView(o, s))
+	require.Contains(t, buf.String(), "PROJ-DEPLOY  last build (#482)\n")
+}
+
 func TestPlanStatsNoFinishedBuilds(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, PlanStatsView(o, app.PlanStats{PlanKey: "PROJ-DEPLOY", Builds: 20, Other: map[provider.State]int{}}))
 	require.Equal(t, "no finished builds of PROJ-DEPLOY in the last 20\n", buf.String())
+
+	for builds, want := range map[int]string{0: "PROJ-DEPLOY has no builds\n", 1: "the last build of PROJ-DEPLOY has not finished\n"} {
+		o, buf := testOut(false)
+		require.NoError(t, PlanStatsView(o, app.PlanStats{PlanKey: "PROJ-DEPLOY", Builds: builds, Other: map[provider.State]int{}}))
+		require.Equal(t, want, buf.String())
+	}
 
 	data, err := json.Marshal(PlanStatsJSON(app.PlanStats{PlanKey: "PROJ-DEPLOY", Other: map[provider.State]int{}}))
 	require.NoError(t, err)

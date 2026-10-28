@@ -3,6 +3,7 @@
  "buildReason": "Custom build by <a href=\"https://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
  "planName": "develop", "plan": {"key": "PROJ-BUILD12", "shortName": "develop", "master": {"key": "PROJ-BUILD", "shortName": "Build and test"}},
  "labels": {"size": 1, "label": [{"name": "nightly"}]},
+ "vcsRevisionKey": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
  "vcsRevisions": {"size": 1, "vcsRevision": [{"repositoryName": "app", "vcsRevisionKey": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"}]},
  "stages": {"size": 3, "stage": [
    {"name": "Checkout", "state": "Successful", "lifeCycleState": "Finished", "results": {"size": 1, "result": [

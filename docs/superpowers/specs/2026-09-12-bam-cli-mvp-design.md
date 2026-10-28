@@ -37,7 +37,8 @@ Setup
 Presets
   bam preset list
   bam preset show <name>
-  bam preset add <name> --plan KEY [--from N|last] [--branch B] [--shared] [--print] [--force]
+  bam preset add <name> (--plan KEY [--from N|last] | --from BUILD-KEY) [--full] [--branch B] [--shared] [--print] [--force]
+  bam preset rm <name>
   bam preset migrate [--dry-run]
 
 Browse
@@ -46,7 +47,7 @@ Browse
   bam plan show <plan>
   bam plan vars <plan> [--from N|last]
   bam plan branches <plan>
-  bam build list <plan> [--branch B] [--limit N] [--state STATE]
+  bam build list <plan> [--branch B] [-n|--limit N] [--state STATE]
   bam build show <build>
 
 Run loop                                              shortcut
@@ -54,12 +55,12 @@ Run loop                                              shortcut
         [--branch B] [--watch] [--timeout D] [--dry-run]
   bam build watch <build> [--timeout D]                 bam watch
   bam build logs <build> [--failed] [--job KEY]         bam logs
-        [--follow] [--tail N]
+        [--follow] [-n|--tail N]
   bam build cancel <build>
 
 Links
-  bam open <key|target|--last>
-  bam url  <key|target|--last>
+  bam open <key|target|--last> [--job JOB]
+  bam url  <key|target|--last> [--job JOB]
 
 Global flags
   --server ALIAS   --json   --color auto|always|never   --debug
@@ -270,14 +271,17 @@ Output rules:
 
 - Values are written as quoted strings.
 - Each value has a trailing comment with its origin: `# plan default`, or `# no plan default; last used "beta" in PROJ-PROV-97`.
+- An explicit `--from` fills the values from that build instead: a value that differs from the plan default is commented `# from PROJ-PROV-97`, and variables the build used that the plan does not declare are added, commented `# from PROJ-PROV-97; not declared by the plan`. When the server cannot read a build's variables, an explicit `--from` is a Bamboo error rather than an empty preset. Without `--from`, the last build only fills comments. A full build key in `--from` implies `--plan` (a branch build's master plan) and, unless `--branch` is given, the build's branch; a `--plan` that is not the build's plan is a usage error. The preset is lean by default: a declared variable whose value (from the plan, or from `--from`) equals the plan default is left out, since plan values already have the lowest precedence; a secret the plan stores (Bamboo returns `********`) counts as equal, so it is left out too; empty secrets, other empty variables and undeclared variables stay. `--full` keeps them all. `bam ui`'s save-as-preset writes the lean form; `bam init --plan` works on the full list; `preset sync` adds new names by the same lean rule.
 - A value Bamboo returns masked (`********`), or a name matching the masked-name pattern, is written as `"${NAME_IN_UPPER_SNAKE}"` with a comment naming the environment variable to set.
-- `branch`, `options`, `required` and `watch` are written commented out. `required` is pre-filled, commented, with the names that have no plan default.
+- `required` is written commented out, pre-filled with the names that have no plan default. With `--full` (and in `bam init --plan`), `branch` (when not given), `options` and `watch` are written commented out too.
 - The file is edited through the `yaml.v3` Node API so existing comments and key order survive.
 - After writing, stderr prints `review before commit: values copied from Bamboo`.
 
 `preset migrate [--dry-run]` moves the machine file's targets (top-level and every `repos.<root>.targets`) into the presets file, renaming `defaults` to `variables` and keeping comments; a name already in the presets file or presets directory, defined more than once in the machine file, or using YAML anchors is left and reported; an invalid presets file stops it before any write; emptied `targets` maps and `repos` entries are removed; `.bam.yaml` is never touched.
 
 `preset add` writes under `presets:` to `<presets directory>/<project>.yaml` (§3.4), the plan key's project part lowercased, creating the directory and file when needed; `--file NAME` writes `<presets directory>/NAME.yaml` instead (a trailing `.yaml`/`.yml` is kept; a path, `..`, a leading dot or `--shared` with it is a usage error). A name already in another presets file is a usage error even with `--force`. `--shared` writes to the discovered project file under `targets:`; with no project file it fails and suggests `bam init`. `--print` writes the YAML to stdout and touches no file. An existing target name fails unless `--force`.
+
+`preset rm <name>` deletes the preset from every file that defines it (`.bam.yaml`, the machine file, presets files), keeping comments, and prints each file. A preset a set still names is a usage error that names the set.
 
 `init` writes `.bam.yaml` at the repository root with `version`, the server alias and URL (from `--url`, or copied from the machine file's alias), `default_server`, `projects`, and one generated target per `--plan`. A target name defaults to the lowercased plan part of the key (`PROJ-PROV` → `prov`); `=name` overrides it. An existing `.bam.yaml` fails unless `--force`. `init` without `--plan` makes no network call.
 
@@ -309,8 +313,9 @@ Lookup order for a server:
 - `bam logout <alias>` - deletes the stored token for that alias's origin from the keychain and the file.
 - `bam whoami` - one line per configured server: alias, origin, user name or the error class. Exits 0 when every server answers, else with the code of the first failure. `--server` limits it to one server.
 - `bam server add` - writes the alias to the machine file; on a TTY, continues into `login`.
-- `bam server list` - alias, URL, which layer defines it, and whether a token is present. No network call.
-- `bam server rm` - removes the alias from the machine file only. An alias defined by the project file cannot be removed this way; the error says where it is defined.
+- `bam server list` - alias, URL, which layer defines it, whether a token is present, and which alias a command run here would select (the server selection order in §3.5). No network call.
+- `bam server rm` - removes the alias from the machine file only, together with a machine `default_server` or `repos.<root>.server` that names it, so the servers left keep working. Clearing the default is reported, with a `bam server default` hint when two or more machine servers remain. An alias defined by the project file cannot be removed this way; the error says where it is defined. An alias a preset still names (`server:` in any config or presets file, or a `repos` entry) is refused with exit 2 and the presets listed, since dropping their `server:` would quietly point them at another Bamboo.
+- `bam server default [alias]` - sets the machine `default_server` to an alias defined in the machine file. A project file's alias is refused, since a machine-wide default naming it would fail in every other repository. With no alias it prints the current machine default (`--json`: `{"default_server": "..."}`, empty when unset).
 
 Every network command resolves the credential before its first request. A missing or rejected credential is an authentication error (exit 4) naming the alias and the command that fixes it.
 
@@ -364,34 +369,27 @@ PROJ-PLAN-1842   ✓ success   develop    18m ago   4m11s     Changes by a1b2c3d
 PROJ-PLAN7-12    ✗ failed    feat/foo   1h ago    3m40s     Manual run by jdoe
 ```
 
-`bam run build --branch develop --var env=staging --watch` (the block below the header redraws in place):
+`bam run build --branch develop --var env=staging --watch` (the tree below the header redraws in place, as `bam build tree --watch` does):
 
 ```
 Plan     PROJ-BUILD  (branch develop, PROJ-BUILD12)
 Vars     env=staging (flag)  region=eu (preset)
 ✓ Queued   PROJ-BUILD12-44   https://bamboo.example.com/browse/PROJ-BUILD12-44
-▸ Running  agent linux-3     2m03s
-
-  ✓ Checkout        12s
-  ✓ Build           1m20s
-  ▸ Test            31s
-      ✓ Unit        28s
-      ▸ Integration 31s
-  – Package
+PROJ-BUILD12-44       ✓ success  3m40s
+├─ stage Build        ✓ success  1m20s
+└─ OPS-DEPLOY-88      ✗ failed   1m40s
+   └─ stage Deploy    ✗ failed   1m40s   Apply
+failed: OPS-DEPLOY-88 https://bamboo.example.com/browse/OPS-DEPLOY-88
+next: bam logs OPS-DEPLOY-88 --failed
 ```
 
-On completion:
-
-```
-✗ Failed   PROJ-BUILD12-44  3m40s   Test › Integration
-  next: bam logs PROJ-BUILD12-44 --failed
-        bam open PROJ-BUILD12-44
-```
+It exits 1 when any build in the tree did not succeed, though the triggered build passed. When Bamboo did not build the chosen `--revision`, a `Bamboo could not build revision <rev>` line follows.
 
 `build run` without `--watch` prints the queued line with key and URL and a `watch: bam watch <key>` hint.
 
 ### 5.4 Watch behaviour
 
+- `bam watch` without `--json` draws the build's tree, as `bam build tree --watch` does (build-tree design §6.3), until every build in it has finished, and exits 1 when any did not succeed. `bam run --watch` does the same for the build it triggered. `bam watch --json` and `bam run --watch --json` follow the one build as below.
 - On a TTY the live block redraws with ANSI cursor movement; no TUI library is used in v0.1.
 - On a pipe, each state change prints one line: `2026-09-12T14:03:20Z PROJ-BUILD12-44 running agent=linux-3`.
 - Watching a build that has already finished prints its final summary and exits with its result code.
@@ -404,7 +402,7 @@ On completion:
 - `bam logs <build>` prints the logs of every job in the build; `--job` selects one; `--failed` selects the failed jobs.
 - With more than one job, each log is preceded by a header: `==> PROJ-BUILD12-INT-44  Integration (failed) <==`.
 - On a TTY, output goes through a pager: `BAM_PAGER`, then the machine file's `pager`, then `PAGER`, then `less -FRX`. On Windows with none set, no pager. On a pipe, raw text.
-- `--tail N` prints the last N lines per job.
+- `--tail N` (`-n N`) prints the last N lines per job.
 - `--follow` polls from the stored offset until the job finishes.
 - `--failed` on a build with no failed jobs prints `no failed jobs in <key>` on stderr and exits 0.
 
@@ -468,8 +466,8 @@ Idempotent cases exit 0: cancelling a build that has already finished prints its
 Core objects:
 
 ```
-Plan    { key, url, name, project_key, last_build: { key, number, state, finished_at, reason } | null }
-Branch  { key, url, name, short_name, plan_key }
+Plan    { key, url, name, project_key, last_build: { key, number, state, finished_at, reason } | null, enabled }
+Branch  { key, url, name, short_name, plan_key, enabled }
 Variable{ name, value, masked, source, last_used }
 Target  { name, plan_key, server, branch, defaults, options, required, watch, timeout_ms, defined_in[] }
 Build   { key, url, plan_key, plan_name, branch, number, state, reason, custom_build, labels[],

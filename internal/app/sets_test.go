@@ -106,6 +106,11 @@ func TestPlanSetUnknownSet(t *testing.T) {
 	require.Equal(t, errs.KindUsage, errs.KindOf(err))
 }
 
+func TestUnknownSetWithNoSetsSaysHowToAddOne(t *testing.T) {
+	err := UnknownSet(&config.Config{Machine: &config.MachineFile{Version: 1}}, "nope")
+	require.Equal(t, "no sets are configured add sets: to .bam.yaml; see bam set run --help", errTry(err))
+}
+
 func errTry(err error) string {
 	var e *errs.Error
 	if errors.As(err, &e) {
@@ -198,6 +203,18 @@ func TestRunSetFailedStageStopsTheTrainAndCancelsNothing(t *testing.T) {
 	require.Equal(t, provider.StateFailed, evs[len(evs)-1].State)
 	rec, _ := svc.Sets.Load(id)
 	require.Equal(t, SetFailed, rec.Status)
+}
+
+func TestRunSetFailedNotesKnownRestartRefusal(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateFailed})
+	svc := setService(t, fp)
+	_, evs := runSet(t, svc)
+	require.False(t, evs[len(evs)-1].NoRerun, "a provider without RestartChecker may restart")
+	svc = setService(t, fp)
+	svc.P = noRestart{fp}
+	_, evs = runSet(t, svc)
+	require.Equal(t, SetDone, evs[len(evs)-1].Type)
+	require.True(t, evs[len(evs)-1].NoRerun)
 }
 
 func TestRunSetParallelStageWaitsForEveryRun(t *testing.T) {
@@ -450,6 +467,11 @@ func TestResumeRefusals(t *testing.T) {
 			require.Empty(t, fp.Triggered)
 		})
 	}
+}
+
+func TestResumeFailedWithoutRestartsPointsAtStatus(t *testing.T) {
+	err := NotResumable(SetRecord{ID: "release-1", Status: SetFailed}, true)
+	require.Contains(t, errTry(err), "bam set status release-1")
 }
 
 func TestResumeWhileRunningIsRefusedByTheLock(t *testing.T) {

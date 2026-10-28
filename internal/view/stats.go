@@ -15,7 +15,14 @@ import (
 // PlanStatsView is bam plan stats.
 func PlanStatsView(o Out, s app.PlanStats) error {
 	if s.Passed+s.Failed+otherCount(s) == 0 {
-		fmt.Fprintf(o.W, "no finished builds of %s in the last %d\n", s.PlanKey, s.Builds)
+		switch s.Builds {
+		case 0:
+			fmt.Fprintf(o.W, "%s has no builds\n", s.PlanKey)
+		case 1:
+			fmt.Fprintf(o.W, "the last build of %s has not finished\n", s.PlanKey)
+		default:
+			fmt.Fprintf(o.W, "no finished builds of %s in the last %d\n", s.PlanKey, s.Builds)
+		}
 		return nil
 	}
 	head := s.PlanKey
@@ -26,7 +33,11 @@ func PlanStatsView(o Out, s app.PlanStats) error {
 		}
 		head = fmt.Sprintf("%s  branch %s (%s)", master, s.Branch, s.PlanKey)
 	}
-	fmt.Fprintf(o.W, "%s  last %d builds (#%d–#%d, %s)\n", style.Bold(o.Style, head), s.Builds, s.First, s.Last, span(s.To.Sub(s.From)))
+	if s.Builds == 1 {
+		fmt.Fprintf(o.W, "%s  last build (#%d)\n", style.Bold(o.Style, head), s.Last)
+	} else {
+		fmt.Fprintf(o.W, "%s  last %d builds (#%d–#%d, %s)\n", style.Bold(o.Style, head), s.Builds, s.First, s.Last, span(s.To.Sub(s.From)))
+	}
 
 	ok, bad := style.StateGlyph(o.Style, provider.StateSuccess), style.StateGlyph(o.Style, provider.StateFailed)
 	counts := fmt.Sprintf("%d %s  %d %s", s.Passed, ok, s.Failed, bad)
@@ -43,7 +54,10 @@ func PlanStatsView(o Out, s app.PlanStats) error {
 	}
 	fmt.Fprintln(o.W, line)
 
-	if d := s.Durations; d != nil {
+	if d := s.Durations; d != nil && d.Of == 1 {
+		// median, p90 and max of one build are the same number
+		fmt.Fprintf(o.W, "%-9s %s (#%d)   of 1 successful\n", "Duration", Duration(d.Max), d.MaxBuild)
+	} else if d != nil {
 		fmt.Fprintf(o.W, "%-9s median %s  p90 %s  max %s (#%d)   of %d successful\n", "Duration",
 			Duration(d.Median), Duration(d.P90), Duration(d.Max), d.MaxBuild, d.Of)
 	} else {

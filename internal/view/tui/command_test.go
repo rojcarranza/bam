@@ -54,6 +54,10 @@ func TestPresetsAndPlansCommands(t *testing.T) {
 func TestAUniquePrefixIsAccepted(t *testing.T) {
 	m, _ := runCmdLine(homeModel(), "pre")
 	require.Equal(t, homePresets, m.home.view)
+	m, _ = runCmdLine(homeModel(), "Presets")
+	require.Equal(t, homePresets, m.home.view, "command names match in any case")
+	m, _ = runCmdLine(homeModel(), "PROJ")
+	require.Equal(t, homeProjects, m.home.view, "aliases match in any case")
 }
 
 func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
@@ -63,16 +67,25 @@ func TestAnAmbiguousOrUnknownCommandIsAStatusError(t *testing.T) {
 
 	m, _ = runCmdLine(homeModel(), "frobnicate")
 	require.EqualError(t, m.err, `unknown command "frobnicate"; commands: plans presets sets projects project server sort tree quit`)
+	m, _ = runCmdLine(homeModel(), "plnas")
+	require.EqualError(t, m.err, `unknown command "plnas"; did you mean :plans? commands: plans presets sets projects project server sort tree quit`)
 	require.Equal(t, inputNone, m.inputFor)
 }
 
 func TestSortCommand(t *testing.T) {
 	m, _ := runCmdLine(homeModel(), "sort -age")
 	require.Equal(t, homeSort{col: colAge, desc: true}, m.home.sort)
+	m, _ = runCmdLine(m, "sort -Name")
+	require.NoError(t, m.err)
+	require.Equal(t, homeSort{col: colName, desc: true}, m.home.sort, "columns match in any case")
 	m, _ = runCmdLine(m, "sort bogus")
 	require.EqualError(t, m.err, `unknown sort column "bogus"; columns: key name state age`)
+	m, _ = runCmdLine(m, "sort stat")
+	require.EqualError(t, m.err, `unknown sort column "stat"; did you mean :sort state? columns: key name state age`)
 	m, _ = runCmdLine(homeModel(), "sort")
-	require.EqualError(t, m.err, ":sort needs a column")
+	require.EqualError(t, m.err, ":sort needs a column; columns: key name state age")
+	m, _ = runCmdLine(homeModel(), "project")
+	require.EqualError(t, m.err, ":project needs a project; projects: OPS PROJ all")
 }
 
 func TestProjectCommand(t *testing.T) {
@@ -81,14 +94,21 @@ func TestProjectCommand(t *testing.T) {
 	require.NotNil(t, cmd)
 	m, _ = runCmdLine(m, "project all")
 	require.Equal(t, "", m.project)
+	m, _ = runCmdLine(homeModel(), "project ops")
+	require.Equal(t, "OPS", m.project, "a known key matches in any case")
 
 	// finding 4: rejecting an unknown project only makes sense once projects
 	// are actually configured; projectChoices falls back to the loaded
 	// plans' projects otherwise, and those are not a validation list.
 	configured := homeModel()
 	configured.svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
-	m, _ = runCmdLine(configured, "project NOPE")
-	require.EqualError(t, m.err, `project "NOPE" is not listed; projects: OPS PROJ`)
+	m, _ = runCmdLine(configured, "project LAB")
+	require.EqualError(t, m.err, `project "LAB" is not listed; projects: OPS PROJ`)
+	m, _ = runCmdLine(configured, "project proj")
+	require.NoError(t, m.err)
+	require.Equal(t, "PROJ", m.project, "a configured key matches in any case")
+	m, _ = runCmdLine(configured, "project PRJ")
+	require.EqualError(t, m.err, `project "PRJ" is not listed; did you mean :project PROJ? projects: OPS PROJ`)
 }
 
 // TestProjectCommandAcceptsAnyKeyWhenNothingIsConfigured covers finding 4:
@@ -106,8 +126,14 @@ func TestServerCommand(t *testing.T) {
 	m.deps.Servers = append(m.deps.Servers, Server{Alias: "work", URL: "https://bamboo.example.com"})
 	m, _ = runCmdLine(m, "server work")
 	require.Equal(t, "work", m.server)
+	m, _ = runCmdLine(m, "server LAB")
+	require.Equal(t, "lab", m.server, "aliases match in any case")
 	m, _ = runCmdLine(m, "server nope")
 	require.EqualError(t, m.err, `no server "nope"; servers: lab work`)
+	m, _ = runCmdLine(m, "server wrk")
+	require.EqualError(t, m.err, `no server "wrk"; did you mean :server work? servers: lab work`)
+	m, _ = runCmdLine(m, "server")
+	require.EqualError(t, m.err, ":server needs a server; servers: lab work")
 }
 
 func TestQuitCommand(t *testing.T) {
@@ -144,7 +170,7 @@ func TestTabOnAnAliasCompletesItsCommand(t *testing.T) {
 }
 
 func TestHelpListsTheCommands(t *testing.T) {
-	m := goldenModel(120, 50) // tall enough for the whole help overlay
+	m := goldenModel(120, 56) // tall enough for the whole help overlay
 	m, _ = send(m, mkKey("?"))
 	v := m.View()
 	for _, r := range commandHelpRows() {

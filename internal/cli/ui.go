@@ -35,6 +35,10 @@ func newUICmd(r *runtime) *cobra.Command {
 func addProjectFlag(cmd *cobra.Command, r *runtime) {
 	cmd.Flags().StringVar(&r.flags.project, "project", "",
 		"project the UI opens on (all: every project; default: default_project)")
+	_ = cmd.RegisterFlagCompletionFunc("project", func(c *cobra.Command, _ []string, s string) ([]string, cobra.ShellCompDirective) {
+		keys, d := r.completeProjects(c, nil, s)
+		return append(keys, "all"), d
+	})
 }
 
 // tuiAllowed says whether bare bam may open the UI. A pipe, a dumb terminal,
@@ -64,8 +68,7 @@ func (r *runtime) openUI(ctx context.Context) error {
 		Connect: func(_ context.Context, alias string) (*app.Service, error) {
 			s, ok := servers[alias]
 			if !ok || s.URL == "" {
-				return nil, errs.Configf("no server alias %q", alias).
-					WithTry("bam server add " + alias + " --url URL")
+				return nil, cfg.UnknownServer(alias)
 			}
 			svc, _, err := r.connectServer(s)
 			return svc, err
@@ -87,6 +90,19 @@ func (r *runtime) openUI(ctx context.Context) error {
 				return nil, err
 			}
 			return app.DescribeSets(fresh, r.env.Getenv)
+		},
+		// SavePreset writes what preset add --from BUILD writes, reading the
+		// files fresh so a preset added since start-up still counts as taken.
+		SavePreset: func(ctx context.Context, svc *app.Service, name, build string) (string, error) {
+			d, err := svc.GenerateTarget(ctx, app.GenerateOptions{Name: name, From: build})
+			if err != nil {
+				return "", err
+			}
+			fresh, err := r.loadConfig()
+			if err != nil {
+				return "", err
+			}
+			return r.writePreset(fresh, d, "", false)
 		},
 		Open:      r.env.OpenBrowser,
 		Getenv:    r.env.Getenv,

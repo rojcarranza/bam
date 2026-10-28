@@ -168,6 +168,9 @@ func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
 		"build list PROJ-PLAN --brnach develop": "error: unknown flag: --brnach\n  try: did you mean --branch?\n",
 		"run PROJ-PLAN --dryrun":                "error: unknown flag: --dryrun\n  try: did you mean --dry-run?\n",
 		"watch --sever lab":                     "error: unknown flag: --sever\n  try: did you mean --server?\n",
+		"plan stats PROJ-PLAN --limit 5":        "error: unknown flag: --limit\n  try: did you mean --last?\n",
+		"build list PROJ-PLAN --last 5":         "error: unknown flag: --last\n  try: did you mean --limit?\n",
+		"build list PROJ-PLAN --count 5":        "error: unknown flag: --count\n  try: did you mean --limit?\n",
 		"run PROJ-PLAN --zzzzzz":                "error: unknown flag: --zzzzzz\n  try: bam run --help\n",
 	} {
 		h := newHarness(t)

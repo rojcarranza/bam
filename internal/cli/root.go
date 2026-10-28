@@ -54,8 +54,14 @@ func Execute(ctx context.Context, args []string, env Env) int {
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
 		e := errs.Usagef("%s", flagValueMessage(err))
 		if name, ok := strings.CutPrefix(err.Error(), "unknown flag: --"); ok {
-			if near := app.Closest(name, flagNames(c), 1); len(near) > 0 {
+			names := flagNames(c)
+			if near := app.Closest(name, names, 1); len(near) > 0 {
 				return e.WithTry("did you mean --" + near[0] + "?")
+			}
+			for _, syn := range flagSynonyms[name] {
+				if slices.Contains(names, syn) {
+					return e.WithTry("did you mean --" + syn + "?")
+				}
 			}
 		}
 		return e.WithTry(c.CommandPath() + " --help")
@@ -288,6 +294,14 @@ func flagValueMessage(err error) string {
 }
 
 // flagNames lists the visible long flags cmd accepts, its own and inherited.
+// flagSynonyms maps a flag name bam does not have to the ones that mean the
+// same thing: plan stats counts builds with --last, build list with --limit.
+var flagSynonyms = map[string][]string{
+	"limit": {"last"},
+	"last":  {"limit"},
+	"count": {"limit", "last"},
+}
+
 func flagNames(cmd *cobra.Command) []string {
 	var names []string
 	add := func(f *pflag.Flag) {

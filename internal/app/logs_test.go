@@ -47,7 +47,7 @@ func TestLogsFailedOnly(t *testing.T) {
 
 func TestLogsTailAndJobSelection(t *testing.T) {
 	s := newService(t, logsProvider())
-	for _, job := range []string{"INT", "PROJ-BUILD12-INT", "PROJ-BUILD12-INT-44"} {
+	for _, job := range []string{"INT", "int", "PROJ-BUILD12-INT", "proj-build12-int-44"} {
 		logs, err := s.Logs(bg, failedBuild(), LogsOptions{Job: job, Tail: 1})
 		require.NoError(t, err, job)
 		require.Len(t, logs, 1, job)

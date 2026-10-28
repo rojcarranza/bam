@@ -54,9 +54,10 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 	}
 	if o.Job != "" {
 		n := buildNumber(b)
+		job := strings.ToUpper(o.Job) // Bamboo keys are uppercase; --job int means INT
 		for _, sj := range all {
 			k := sj.job.Key
-			if k == o.Job || k == o.Job+"-"+n || k == b.PlanKey+"-"+o.Job+"-"+n {
+			if k == job || k == job+"-"+n || k == b.PlanKey+"-"+job+"-"+n {
 				return []stagedJob{sj}, nil
 			}
 		}

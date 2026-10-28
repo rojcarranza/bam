@@ -342,3 +342,13 @@ func TestSetStatusOfAnUnknownSetSuggestsTheClosest(t *testing.T) {
 	require.Equal(t, 2, h.run("set", "status", "release"))
 	require.Contains(t, h.stderr.String(), `no set runs in this repository for "release"`)
 }
+
+func TestSetRunVarCompletesThePresetVariables(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	h.run("__complete", "set", "run", "release", "--var", "")
+	require.Equal(t, "cluster_name=\ncluster_type=\n:6\n", h.stdout.String())
+	h.run("__complete", "set", "run", "release", "--var", "cluster_type=")
+	require.Equal(t, "cluster_type=k8s\ncluster_type=dcos\n:4\n", h.stdout.String())
+	h.run("__complete", "set", "run", "nope", "--var", "")
+	require.Equal(t, ":4\n", h.stdout.String())
+}

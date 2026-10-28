@@ -189,6 +189,7 @@ stopped. Interrupting stops watching only; continue with bam set resume.`,
 	f.StringVarP(&file, "file", "f", "", "run the set defined in this train file instead of a configured set")
 	f.BoolVar(&dryRun, "dry-run", false, "resolve and check every run, trigger nothing")
 	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
+	_ = cmd.RegisterFlagCompletionFunc("var", r.completeSetVar)
 	return cmd
 }
 
@@ -524,4 +525,29 @@ func (r *runtime) completeSets(ids bool) func(*cobra.Command, []string, string) 
 		}
 		return out, cobra.ShellCompDirectiveNoFileComp
 	}
+}
+
+// completeSetVar offers the variables of every preset the named set runs.
+func (r *runtime) completeSetVar(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	if len(args) == 0 {
+		return nil, none
+	}
+	cfg, err := r.config()
+	if err != nil {
+		return nil, none
+	}
+	s, ok, err := cfg.Set(args[0])
+	if err != nil || !ok {
+		return nil, none
+	}
+	var targets []config.ResolvedTarget
+	for _, stage := range s.Stages {
+		for _, run := range stage {
+			if t, ok, err := cfg.Target(run.Target); err == nil && ok {
+				targets = append(targets, t)
+			}
+		}
+	}
+	return targetVars(toComplete, targets...)
 }

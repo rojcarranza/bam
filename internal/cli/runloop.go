@@ -638,22 +638,36 @@ func (r *runtime) completeVar(_ *cobra.Command, args []string, toComplete string
 	if err != nil || !ok {
 		return nil, none
 	}
+	return targetVars(toComplete, t)
+}
+
+// targetVars offers name= for every variable the presets declare, or the
+// declared options once toComplete has a name=.
+func targetVars(toComplete string, targets ...config.ResolvedTarget) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	seen := map[string]bool{}
 	if name, _, hasEq := strings.Cut(toComplete, "="); hasEq {
 		var out []string
-		for _, v := range t.Options[name] {
-			out = append(out, name+"="+v)
+		for _, t := range targets {
+			for _, v := range t.Options[name] {
+				if !seen[v] {
+					seen[v] = true
+					out = append(out, name+"="+v)
+				}
+			}
 		}
 		return out, none
 	}
-	seen := map[string]bool{}
-	for n := range t.Defaults {
-		seen[n] = true
-	}
-	for n := range t.Options {
-		seen[n] = true
-	}
-	for _, n := range t.Required {
-		seen[n] = true
+	for _, t := range targets {
+		for n := range t.Defaults {
+			seen[n] = true
+		}
+		for n := range t.Options {
+			seen[n] = true
+		}
+		for _, n := range t.Required {
+			seen[n] = true
+		}
 	}
 	var out []string
 	for n := range seen {

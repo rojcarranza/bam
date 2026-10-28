@@ -116,7 +116,9 @@ func setColumns(width int, rows []setItem) []tableCol {
 		{title: "LAST RUN"},
 		{title: "AGE", width: 5},
 	}
-	return fillWidth(cols, width, "LAST RUN")
+	cols = fillWidth(cols, width, "LAST RUN")
+	widen(cols, "SET", nameW, "LAST RUN", 13) // 13 cells: "✗ interrupted", the widest status
+	return cols
 }
 
 func (m Model) setTable(width, height int) []string {

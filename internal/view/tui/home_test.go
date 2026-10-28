@@ -546,3 +546,28 @@ func TestTheCompactHeaderShortensNoneConfiguredBeforeCutting(t *testing.T) {
 	narrow := m.homeHeader(50)
 	require.Equal(t, " project all · 4 plans · sort key↑", narrow)
 }
+
+// TestLongNamesTakeTheRoomTheRowHas: a name past the 24-column cap shows in
+// full when the flexible column beside it has room to spare, and is still
+// capped when it does not.
+func TestLongNamesTakeTheRoomTheRowHas(t *testing.T) {
+	long := "deploy-qa-environment-longer" // 28
+	presets := []app.TargetInfo{{Name: long, Plan: "PROJ-BUILD"}}
+	widths := func(cols []tableCol) map[string]int {
+		w := map[string]int{}
+		for _, c := range cols {
+			w[c.title] = c.width
+		}
+		return w
+	}
+	w := widths(presetColumns(80, presets))
+	require.Equal(t, 28, w["PRESET"])
+	require.GreaterOrEqual(t, w["BRANCH"], len("default"))
+	require.Equal(t, 24, widths(presetColumns(60, presets))["PRESET"])
+
+	sets := []setItem{{Info: app.SetInfo{Name: "release-train-with-a-long-name"}}} // 30
+	w = widths(setColumns(80, sets))
+	require.Equal(t, 30, w["SET"])
+	require.GreaterOrEqual(t, w["LAST RUN"], 13)
+	require.Equal(t, 24, widths(setColumns(50, sets))["SET"])
+}

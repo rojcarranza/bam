@@ -258,6 +258,28 @@ func fillWidth(cols []tableCol, width int, flexible string) []tableCol {
 	return cols
 }
 
+// widen grows the column titled title toward want, taking only what the
+// flexible column has beyond keep, so a capped name column shows in full
+// when the row has room.
+func widen(cols []tableCol, title string, want int, flexible string, keep int) {
+	t, f := -1, -1
+	for i, c := range cols {
+		switch c.title {
+		case title:
+			t = i
+		case flexible:
+			f = i
+		}
+	}
+	if t < 0 || f < 0 {
+		return
+	}
+	if give := min(want-cols[t].width, cols[f].width-keep); give > 0 {
+		cols[t].width += give
+		cols[f].width -= give
+	}
+}
+
 // buildCells is STATE, #, AGE and BY for a plan's last build. A live build
 // the UI is watching or just started wins while it has not finished (home
 // spec §4.4).
@@ -461,10 +483,11 @@ func (m *Model) sortPresets() {
 
 // presetColumns fits the presets table to width; BRANCH takes what is left.
 func presetColumns(width int, rows []app.TargetInfo) []tableCol {
-	nameW, planW := len("PRESET"), len("PLAN")
+	nameW, planW, branchW := len("PRESET"), len("PLAN"), len("BRANCH")
 	for _, t := range rows {
 		nameW = max(nameW, lipgloss.Width(t.Name))
 		planW = max(planW, lipgloss.Width(t.Plan))
+		branchW = max(branchW, lipgloss.Width(cmp.Or(t.Branch, "default")))
 	}
 	cols := []tableCol{
 		{title: "PRESET", width: min(nameW, 24)},
@@ -474,7 +497,11 @@ func presetColumns(width int, rows []app.TargetInfo) []tableCol {
 		{title: "#", width: 6, right: true},
 		{title: "AGE", width: 5},
 	}
-	return fillWidth(cols, width, "BRANCH")
+	cols = fillWidth(cols, width, "BRANCH")
+	keep := min(branchW, 24)
+	widen(cols, "PRESET", nameW, "BRANCH", keep)
+	widen(cols, "PLAN", planW, "BRANCH", keep)
+	return cols
 }
 
 // presetCells is one presets-table row. The state is the preset's plan's

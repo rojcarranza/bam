@@ -71,6 +71,9 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 		if c := errs.Closest(o.Job, keys, 1); len(c) > 0 {
 			e = e.WithTry("did you mean --job " + c[0] + "?")
 		}
+		if parts := strings.FieldsFunc(job, func(r rune) bool { return r == ',' || r == ' ' }); len(parts) > 1 {
+			e = e.WithTry("--job takes one job: --job " + strings.Join(parts, ", then --job ") + "; --failed reads every failed job")
+		}
 		return nil, e
 	}
 	if o.Stage != "" {

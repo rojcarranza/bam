@@ -61,6 +61,9 @@ func TestLogsTailAndJobSelection(t *testing.T) {
 	_, err = s.Logs(bg, failedBuild(), LogsOptions{Job: "UNTI"})
 	require.Error(t, err)
 	assert.Equal(t, "did you mean --job UNIT?", tryOf(t, err))
+	_, err = s.Logs(bg, failedBuild(), LogsOptions{Job: "unit,int"})
+	require.Error(t, err)
+	assert.Equal(t, "--job takes one job: --job UNIT, then --job INT; --failed reads every failed job", tryOf(t, err))
 }
 
 func TestLogsAllJobs(t *testing.T) {

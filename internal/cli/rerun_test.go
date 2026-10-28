@@ -167,9 +167,11 @@ func TestBuildRerunRefusesARunningOrSuccessfulBuild(t *testing.T) {
 	h := treeHarness(t, provider.StateSuccess)
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 succeeded; nothing to rerun")
+	assert.Contains(t, h.stderr.String(), "try: to run it again with its variables: bam run PROJ-PROV --from PROJ-PROV-9")
 	h = treeHarness(t, provider.StateRunning)
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is running; nothing to rerun")
+	assert.Contains(t, h.stderr.String(), "try: bam watch PROJ-PROV-9")
 	assert.Empty(t, h.fake.Restarted)
 }
 
@@ -179,5 +181,6 @@ func TestBuildRerunRefusesANotBuiltBuild(t *testing.T) {
 	h := treeHarness(t, provider.StateNotBuilt)
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9"))
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is not built; nothing to rerun")
+	assert.NotContains(t, h.stderr.String(), "bam watch")
 	assert.Empty(t, h.fake.Restarted)
 }

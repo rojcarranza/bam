@@ -38,9 +38,14 @@ succeeded is refused.`,
 			switch b.State {
 			case provider.StateFailed, provider.StateStopped:
 			case provider.StateSuccess:
-				return errs.Usagef("%s succeeded; nothing to rerun", key)
+				return errs.Usagef("%s succeeded; nothing to rerun", key).
+					WithTry("to run it again with its variables: bam run " + b.PlanKey + " --from " + key)
 			default:
-				return errs.Usagef("%s is %s; nothing to rerun", key, strings.ReplaceAll(string(b.State), "_", " "))
+				e := errs.Usagef("%s is %s; nothing to rerun", key, strings.ReplaceAll(string(b.State), "_", " "))
+				if !b.State.Finished() {
+					e = e.WithTry("bam watch " + key)
+				}
+				return e
 			}
 			if dryRun {
 				if r.flags.json {

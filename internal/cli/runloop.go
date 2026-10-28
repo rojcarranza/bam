@@ -82,6 +82,14 @@ func newRunCmd(r *runtime) *cobra.Command {
 			ref.Revision = revision
 			// Resolved once: --from last must name the same build for the
 			// variables and for the commit.
+			if key, ok := pageKey(from); ok {
+				// The link names its server; reading another server's build of the same key would be wrong.
+				if o, err := credential.Origin(from); err != nil || o != svc.Origin {
+					return errs.Usagef("--from %s is on another server than %s", key, ref.PlanKey).
+						WithTry("pass a build of " + svc.Origin)
+				}
+				from = key
+			}
 			if from != "" {
 				if from, err = svc.ResolveFrom(ctx, ref, from); err != nil {
 					return err

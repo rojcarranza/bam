@@ -537,6 +537,8 @@ func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
 	assert.Contains(t, out, "    plan: PROJ-PROV\n")
 	assert.Contains(t, out, `    branch: "develop"`)
 	assert.Contains(t, out, `cluster_type: "dcos"  # from PROJ-PROV12-8`)
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", workOrigin+"/browse/PROJ-PROV12-8", "--print"), h.stderr.String())
+	assert.Equal(t, out, h.stdout.String(), "a build page link works like its key")
 	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
 }
 

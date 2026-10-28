@@ -186,6 +186,10 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"  bam run deploy-qa --dry-run",
 		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			link := ""
+			if key, ok := pageKey(from); ok {
+				link, from = from, key
+			}
 			if plan == "" && !app.IsBuildKey(from) {
 				try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0])
 				switch up := strings.ToUpper(from); {
@@ -209,7 +213,13 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			if err := app.CheckGenerate(o); err != nil {
 				return err
 			}
-			svc, _, err := r.connect(cmd.Context(), "")
+			var svc *app.Service
+			var err error
+			if link != "" {
+				svc, err = r.connectPage(link, from)
+			} else {
+				svc, _, err = r.connect(cmd.Context(), "")
+			}
 			if err != nil {
 				return err
 			}

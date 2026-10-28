@@ -49,6 +49,17 @@ func TestRunWithoutWatch(t *testing.T) {
 	assert.Equal(t, workOrigin+"/browse/PROJ-PROV12-9\n", h.stdout.String())
 }
 
+func TestRunFromAPageLink(t *testing.T) {
+	h := newHarness(t)
+	h.fake.TriggerResult = queuedBuild("PROJ-PROV12-9")
+	assert.Equal(t, 0, h.run("run", "provision-lab", "--var", "cluster_name=a", "--from", workOrigin+"/browse/PROJ-PROV12-8"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "variables from PROJ-PROV12-8")
+
+	assert.Equal(t, 2, h.run("run", "provision-lab", "--var", "cluster_name=a", "--from", "https://bamboo.lab.example/browse/PROJ-PROV12-8"))
+	assert.Contains(t, h.stderr.String(), "--from PROJ-PROV12-8 is on another server than PROJ-PROV12")
+	assert.Len(t, h.fake.Triggered, 1, "a link to another server never triggers")
+}
+
 func TestRunJSONWithoutWatch(t *testing.T) {
 	h := newHarness(t)
 	h.fake.TriggerResult = queuedBuild("PROJ-BUILD-483")

@@ -51,7 +51,22 @@ func Execute(ctx context.Context, args []string, env Env) int {
 	root.SetIn(env.Stdin)
 	root.SetOut(env.Stdout)
 	root.SetErr(env.Stderr)
+	// "bam rerun --help" lands on the root with "rerun" as an argument, and
+	// cobra would print root help: report the unknown command instead.
+	var helpErr error
+	help := root.HelpFunc()
+	root.SetHelpFunc(func(c *cobra.Command, args []string) {
+		if a := c.Flags().Args(); c.HasSubCommands() && len(a) > 0 {
+			helpErr = unknownCommand(c, a)
+			return
+		}
+		help(c, args)
+	})
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		// "bam rerun X --last": the unknown command matters more than the flag.
+		if a := c.Flags().Args(); c.HasSubCommands() && len(a) > 0 {
+			return unknownCommand(c, a)
+		}
 		e := errs.Usagef("%s", flagValueMessage(err))
 		if name, ok := strings.CutPrefix(err.Error(), "unknown flag: --"); ok {
 			names := flagNames(c)
@@ -77,6 +92,9 @@ func Execute(ctx context.Context, args []string, env Env) int {
 		return e.WithTry(c.CommandPath() + " --help")
 	})
 	cmd, err := root.ExecuteContextC(ctx)
+	if err == nil {
+		err = helpErr
+	}
 	var res *resultError
 	var silent silentError
 	var typed *errs.Error

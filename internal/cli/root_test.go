@@ -146,6 +146,28 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	}
 }
 
+func TestUnknownCommandWinsOverItsFlags(t *testing.T) {
+	for args, want := range map[string]string{
+		"rerun PROJ-PLAN-1 --last": "error: unknown command \"rerun\" for \"bam\"\n  try: did you mean bam build rerun or bam set rerun? bam --help shows them all\n",
+		"rerun --help":             "error: unknown command \"rerun\" for \"bam\"\n",
+		"build lsit -n 5":          "try: did you mean bam build list? bam build --help shows them all\n",
+		"build lsit -h":            "try: did you mean bam build list? bam build --help shows them all\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stderr.String(), want, args)
+		assert.Empty(t, h.stdout.String(), args)
+	}
+	for _, args := range []string{"--help", "build --help", "build list --help"} {
+		h := newHarness(t)
+		assert.Equal(t, 0, h.run(strings.Fields(args)...), args)
+		assert.Contains(t, h.stdout.String(), "Usage:", args)
+	}
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("build", "--nope"))
+	assert.Contains(t, h.stderr.String(), "unknown flag: --nope")
+}
+
 func TestHelpUnknownTopicIsUsageError(t *testing.T) {
 	for args, want := range map[string]string{
 		"help foo":       "error: unknown command \"foo\" for \"bam\"\n  try: bam --help\n",

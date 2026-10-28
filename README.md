@@ -188,6 +188,7 @@ and `bam build cancel` on the command line, stop a build.
 | --- | --- |
 | see my plans | `bam plan list` |
 | see a plan's variables and what the last build used | `bam plan vars provision-lab` |
+| find a plan, branch or variable by part of its name | `bam plan list --match deploy`, `bam plan branches provision-lab feature`, `bam plan vars provision-lab region` |
 | run with the previous build's variables | `bam run provision-lab --from last` |
 | check variables without running | `bam run provision-lab --dry-run` |
 | review and change variables in your editor, then run | `bam run provision-lab --edit` |
@@ -210,6 +211,8 @@ and `bam build cancel` on the command line, stop a build.
 | retry a failed train's failed runs, then finish it | `bam set rerun --failed` |
 
 `--revision` takes a full or short SHA and passes it to Bamboo as given; Bamboo applies it to the plan's default repository. A revision Bamboo cannot build ends as "not built", so add `--watch` to see it. If the server ignores the revision, bam stops the build it queued and exits 5. `--revision from` reuses the commit of the `--from` build, together with its variables.
+
+`bam project list`, `bam preset list` and `bam set list` take the same kind of text filter, and every filter ignores case.
 
 Every command has `--help`, and every read command has `--json`. The full reference is in [docs/cli](docs/cli/bam.md).
 

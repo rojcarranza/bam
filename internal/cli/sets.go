@@ -42,9 +42,10 @@ func (r *runtime) setStore() *app.SetStore {
 
 func newSetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List release train sets",
-		Args:  cobra.NoArgs,
+		Use:        "list",
+		SuggestFor: []string{"ls"},
+		Short:      "List release train sets",
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
 			if err != nil {

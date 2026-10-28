@@ -202,9 +202,10 @@ func (r *runtime) completeFrom(cmd *cobra.Command, args []string, _ string) ([]s
 func newProjectListCmd(r *runtime) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List configured projects (--all: every project on the server)",
-		Args:  cobra.NoArgs,
+		Use:        "list",
+		SuggestFor: []string{"ls"},
+		Short:      "List configured projects (--all: every project on the server)",
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
@@ -257,6 +258,7 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 func newPlanListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "list [PROJ...]",
+		SuggestFor:        []string{"ls"},
 		Short:             "List plans of the configured projects, grouped by project",
 		ValidArgsFunction: r.completeProjects,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -530,7 +532,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "list <plan>",
 		Short:             "List recent builds of a plan",
-		SuggestFor:        []string{"history", "builds"},
+		SuggestFor:        []string{"history", "builds", "ls"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

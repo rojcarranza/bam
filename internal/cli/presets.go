@@ -62,9 +62,10 @@ func defaultTargetName(planKey string) string {
 
 func newTargetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List run presets from your presets files, .bam.yaml and the machine config",
-		Args:  cobra.NoArgs,
+		Use:        "list",
+		SuggestFor: []string{"ls"},
+		Short:      "List run presets from your presets files, .bam.yaml and the machine config",
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
 			if err != nil {

@@ -105,9 +105,10 @@ func checkProjectKeys(projects []string) error {
 
 func newServerListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
-		Short: "List server aliases, whether a token is stored, and which one is selected here",
-		Args:  cobra.NoArgs,
+		Use:        "list",
+		SuggestFor: []string{"ls"},
+		Short:      "List server aliases, whether a token is stored, and which one is selected here",
+		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
 			if err != nil {

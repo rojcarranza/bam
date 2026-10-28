@@ -503,6 +503,9 @@ func newInitCmd(r *runtime) *cobra.Command {
 	f.StringVar(&url, "url", "", "server URL (default: the URL of --server in the machine config)")
 	f.StringSliceVar(&projects, "project", nil, "project key (repeatable; the first is the default)")
 	f.StringArrayVar(&plans, "plan", nil, "plan to generate a preset from, KEY or KEY=name (repeatable)")
+	_ = cmd.RegisterFlagCompletionFunc("project", func(c *cobra.Command, _ []string, s string) ([]string, cobra.ShellCompDirective) {
+		return r.completeProjects(c, projects, s)
+	})
 	f.BoolVar(&force, "force", false, "overwrite an existing .bam.yaml")
 	return cmd
 }

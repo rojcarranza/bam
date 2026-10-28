@@ -35,6 +35,10 @@ func newUICmd(r *runtime) *cobra.Command {
 func addProjectFlag(cmd *cobra.Command, r *runtime) {
 	cmd.Flags().StringVar(&r.flags.project, "project", "",
 		"project the UI opens on (all: every project; default: default_project)")
+	_ = cmd.RegisterFlagCompletionFunc("project", func(c *cobra.Command, _ []string, s string) ([]string, cobra.ShellCompDirective) {
+		keys, d := r.completeProjects(c, nil, s)
+		return append(keys, "all"), d
+	})
 }
 
 // tuiAllowed says whether bare bam may open the UI. A pipe, a dumb terminal,

@@ -156,3 +156,13 @@ func TestPlanShowListsARunningBuild(t *testing.T) {
 	assert.Equal(t, 0, h.run("plan", "show", "provision-lab"))
 	assert.Contains(t, h.stdout.String(), "PROJ-PROV12-8")
 }
+
+func TestProjectFlagCompletesProjectKeys(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Projects = append(h.fake.Projects, provider.Project{Key: "OPS"})
+	h.run("__complete", "ui", "--project", "")
+	assert.Contains(t, h.stdout.String(), "PROJ\nOPS\nall\n")
+	h.run("__complete", "init", "--server", "work", "--project", "PROJ", "--project", "")
+	assert.NotContains(t, h.stdout.String(), "PROJ\n", "keys already given are not offered again")
+	assert.Contains(t, h.stdout.String(), "OPS\n")
+}

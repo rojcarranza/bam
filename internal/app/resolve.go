@@ -279,6 +279,9 @@ func (s *Service) ResolveFrom(ctx context.Context, ref PlanRef, from string) (st
 		if up := strings.ToUpper(from); IsBuildKey(up) {
 			e = e.WithTry("keys are uppercase: did you mean " + up + "?")
 		}
+		if k := strings.TrimRight(strings.ReplaceAll(from, "#", ""), "-"); k != from && IsBuildKey(k) {
+			e = e.WithTry("did you mean " + k + "?")
+		}
 		if n := strings.TrimPrefix(from, "#"); digitsRe.MatchString(n) {
 			e = e.WithTry("drop Bamboo's '#': --from " + n)
 		}

@@ -189,6 +189,11 @@ func TestResolveFrom(t *testing.T) {
 	_, err = s.ResolveFrom(bg, ref, "#5")
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "drop Bamboo's '#': --from 5", e.Try)
+	for _, from := range []string{"PROJ-PROV-#5", "PROJ-PROV-5-"} {
+		_, err = s.ResolveFrom(bg, ref, from)
+		require.ErrorAs(t, err, &e)
+		assert.Equal(t, "did you mean PROJ-PROV-5?", e.Try, from)
+	}
 }
 
 func TestBuildForgetsExpiredLastBuild(t *testing.T) {

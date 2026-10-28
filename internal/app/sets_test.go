@@ -205,6 +205,18 @@ func TestRunSetFailedStageStopsTheTrainAndCancelsNothing(t *testing.T) {
 	require.Equal(t, SetFailed, rec.Status)
 }
 
+func TestRunSetFailedNotesKnownRestartRefusal(t *testing.T) {
+	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateFailed})
+	svc := setService(t, fp)
+	_, evs := runSet(t, svc)
+	require.False(t, evs[len(evs)-1].NoRerun, "a provider without RestartChecker may restart")
+	svc = setService(t, fp)
+	svc.P = noRestart{fp}
+	_, evs = runSet(t, svc)
+	require.Equal(t, SetDone, evs[len(evs)-1].Type)
+	require.True(t, evs[len(evs)-1].NoRerun)
+}
+
 func TestRunSetParallelStageWaitsForEveryRun(t *testing.T) {
 	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateFailed, "PROJ-PROV12": provider.StateSuccess})
 	svc := setService(t, fp)

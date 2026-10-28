@@ -54,3 +54,10 @@ func (s *Service) Restart(ctx context.Context, key string) (b provider.Build, re
 		}
 	}
 }
+
+// CannotRestart reports whether the provider is known to refuse restarts, so
+// hints that suggest a rerun would only fail.
+func (s *Service) CannotRestart(ctx context.Context) bool {
+	rc, ok := s.P.(provider.RestartChecker)
+	return ok && rc.CannotRestart(ctx)
+}

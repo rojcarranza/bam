@@ -211,3 +211,15 @@ func TestSetLinesNameTheMatrixRun(t *testing.T) {
 	l.Event(app.SetEvent{Type: app.SetRunTriggered, Time: setAt, Target: "deploy", Run: "deploy[env=qa]", Build: provider.Build{Key: "OPS-DEP-1"}})
 	require.Equal(t, "2026-09-29T10:15:00Z stage 1 deploy[env=qa] OPS-DEP-1 triggered\n", buf.String())
 }
+
+func TestSetSummaryLeavesOutRerunWhenUnsupported(t *testing.T) {
+	evs := setEvents(provider.StateFailed)
+	evs[len(evs)-1].NoRerun = true
+	o, buf := testOut(false)
+	l := NewSetLines(o)
+	for _, e := range evs {
+		l.Event(e)
+	}
+	require.Contains(t, buf.String(), "try: bam logs OPS-DEP-9 --failed")
+	require.NotContains(t, buf.String(), "bam set rerun")
+}

@@ -193,6 +193,9 @@ type SetEvent struct {
 	State  provider.State // run_done, stage_done, set_done
 	Rerun  int            // run_triggered of a restart: the run's reruns; 0 otherwise
 	Err    error
+	// NoRerun is set on the set_done of a failed set when the server is known
+	// to refuse restarts, so bam set rerun --failed would fail.
+	NoRerun bool
 }
 
 // SetLockOptions are how a set run takes its lock.
@@ -341,7 +344,7 @@ func (r *setRun) run(parent context.Context, from int) {
 			return
 		case !ok:
 			r.finish(SetFailed)
-			r.send(ctx, SetEvent{Type: SetDone, Stage: i, State: provider.StateFailed})
+			r.send(ctx, SetEvent{Type: SetDone, Stage: i, State: provider.StateFailed, NoRerun: r.s.CannotRestart(ctx)})
 			return
 		}
 	}

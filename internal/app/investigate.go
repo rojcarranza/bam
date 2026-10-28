@@ -49,9 +49,7 @@ func (s *Service) Investigate(ctx context.Context, b provider.Build, o Investiga
 			inv.Children = m[b.PlanKey]
 		}
 	}
-	if rc, ok := s.P.(provider.RestartChecker); ok {
-		inv.NoRerun = rc.CannotRestart(ctx)
-	}
+	inv.NoRerun = s.CannotRestart(ctx)
 	for _, l := range logs {
 		je := JobErrors{Job: l.Job, Stage: l.Stage, Short: ShortJobKey(b, l.Job), Errors: ErrorBlocks(l.Lines, o.Context)}
 		if o.Max > 0 && len(je.Errors) > o.Max {

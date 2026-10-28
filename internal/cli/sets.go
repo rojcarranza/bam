@@ -220,7 +220,7 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return view.SetStatusView(o, rec, builds)
+			return view.SetStatusView(o, rec, builds, svc.CannotRestart(cmd.Context()))
 		}),
 	}
 }

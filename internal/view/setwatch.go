@@ -33,7 +33,9 @@ func summary(o Out, b *app.SetBoard) {
 	}
 	if final.Stage >= len(b.Stages()) {
 		fmt.Fprintln(o.W, style.Colored(o.Style, provider.StateFailed, "set failed"))
-		fmt.Fprintf(o.W, "  try: bam set rerun --failed %s\n", b.ID())
+		if !final.NoRerun {
+			fmt.Fprintf(o.W, "  try: bam set rerun --failed %s\n", b.ID())
+		}
 		return
 	}
 	st := b.Stages()[final.Stage]
@@ -53,7 +55,9 @@ func summary(o Out, b *app.SetBoard) {
 			fmt.Fprintf(o.W, "  try: bam logs %s --failed\n", r.Build.Key)
 		}
 	}
-	fmt.Fprintf(o.W, "  try: bam set rerun --failed %s\n", b.ID())
+	if !final.NoRerun {
+		fmt.Fprintf(o.W, "  try: bam set rerun --failed %s\n", b.ID())
+	}
 }
 
 func errWhat(err error) string {

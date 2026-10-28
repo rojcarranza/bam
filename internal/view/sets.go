@@ -119,7 +119,8 @@ func sortedChanged(vs app.VarSet) []string {
 }
 
 // SetStatusView is bam set status: the record with each build's live state.
-func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) error {
+// noRerun leaves out the rerun hint on a server known to refuse restarts.
+func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build, noRerun bool) error {
 	fmt.Fprintf(o.W, "%s  %s  %s\n", style.Bold(o.Style, rec.Set), rec.ID, rec.Status)
 	if rec.File != "" {
 		fmt.Fprintf(o.W, "file %s\n", rec.File)
@@ -141,7 +142,7 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build) e
 	if rec.Status == app.SetInterrupted || rec.Status == app.SetTimedOut {
 		fmt.Fprintf(o.W, "try: bam set resume %s\n", rec.ID)
 	}
-	if rec.Status == app.SetFailed {
+	if rec.Status == app.SetFailed && !noRerun {
 		fmt.Fprintf(o.W, "try: bam set rerun --failed %s\n", rec.ID)
 	}
 	return nil

@@ -86,7 +86,7 @@ func TestSetStatusView(t *testing.T) {
 		}}
 	builds := map[string]provider.Build{"OPS-PROV-40": {Key: "OPS-PROV-40", State: provider.StateRunning}}
 	o, buf := testOut(false)
-	require.NoError(t, SetStatusView(o, rec, builds))
+	require.NoError(t, SetStatusView(o, rec, builds, false))
 	out := buf.String()
 	require.Contains(t, out, "release  release-20260929T101500Z  interrupted\n")
 	require.Contains(t, out, "stage 2/2")
@@ -140,9 +140,12 @@ func TestSetStatusViewShowsReruns(t *testing.T) {
 		Stages: []app.StageRecord{{Runs: []app.RunRecord{
 			{Target: "deploy", PlanKey: "OPS-DEP", BuildKey: "OPS-DEP-9", State: provider.StateFailed, Reruns: 2}}}}}
 	o, buf := testOut(false)
-	require.NoError(t, SetStatusView(o, rec, nil))
+	require.NoError(t, SetStatusView(o, rec, nil, false))
 	require.Regexp(t, `deploy\s+OPS-DEP-9\s+Failed \(rerun 2\)`, buf.String())
 	require.Contains(t, buf.String(), "try: bam set rerun --failed release-20260929T101500Z\n")
+	o, buf = testOut(false)
+	require.NoError(t, SetStatusView(o, rec, nil, true))
+	require.NotContains(t, buf.String(), "bam set rerun", "the server refuses restarts")
 	data, err := json.Marshal(SetRecordJSON(rec, nil))
 	require.NoError(t, err)
 	require.Contains(t, string(data), `"reruns":2`)
@@ -189,7 +192,7 @@ func TestSetRecordAndEventJSONCarryNames(t *testing.T) {
 	require.Contains(t, string(data), `"name":"deploy[env=qa]"`)
 	require.Contains(t, string(data), `"name":"smoke"`, "an old record's run is named after its preset")
 	o, buf := testOut(false)
-	require.NoError(t, SetStatusView(o, rec, nil))
+	require.NoError(t, SetStatusView(o, rec, nil, false))
 	require.Regexp(t, `deploy\[env=qa\]\s+OPS-DEP-1`, buf.String())
 
 	ev, _ := json.Marshal(SetEventJSON(app.SetEvent{Type: app.SetRunDone, Time: setAt, Target: "deploy", Run: "deploy[env=qa]"}))

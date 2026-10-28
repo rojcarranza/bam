@@ -169,6 +169,8 @@ func requireSubcommand(cmd *cobra.Command) {
 	if !cmd.HasSubCommands() || cmd.Run != nil || cmd.RunE != nil {
 		return
 	}
+	// Cobra's completion command sets NoArgs, which would turn "completion zhs" into "unexpected argument".
+	cmd.Args = cobra.ArbitraryArgs
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) == 0 {
 			return cmd.Help()

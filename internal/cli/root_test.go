@@ -72,21 +72,22 @@ func TestUnknownSubcommandIsUsageError(t *testing.T) {
 
 func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	for args, want := range map[string]string{
-		"biuld":         "try: did you mean bam build? bam --help shows them all",
-		"pln":           "try: did you mean bam plan? bam --help shows them all",
-		"build lsit":    "try: did you mean bam build list? bam build --help shows them all",
-		"server xyzzy":  "try: bam server --help\n",
-		"build history": "try: did you mean bam build list? bam build --help shows them all",
-		"build stop":    "try: did you mean bam build cancel? bam build --help shows them all",
-		"server remove": "try: did you mean bam server rm? bam server --help shows them all",
-		"cancel":        "try: did you mean bam build cancel? bam --help shows them all",
-		"history":       "try: did you mean bam build list? bam --help shows them all",
-		"target":        "try: did you mean bam preset? bam --help shows them all",
-		"build view":    "try: did you mean bam build show? bam build --help shows them all",
-		"set describe":  "try: did you mean bam set show? bam set --help shows them all",
-		"view":          "try: bam --help\n",
-		"list":          "try: bam --help\n",
-		"rerun":         "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
+		"biuld":          "try: did you mean bam build? bam --help shows them all",
+		"pln":            "try: did you mean bam plan? bam --help shows them all",
+		"build lsit":     "try: did you mean bam build list? bam build --help shows them all",
+		"server xyzzy":   "try: bam server --help\n",
+		"build history":  "try: did you mean bam build list? bam build --help shows them all",
+		"build stop":     "try: did you mean bam build cancel? bam build --help shows them all",
+		"server remove":  "try: did you mean bam server rm? bam server --help shows them all",
+		"cancel":         "try: did you mean bam build cancel? bam --help shows them all",
+		"history":        "try: did you mean bam build list? bam --help shows them all",
+		"target":         "try: did you mean bam preset? bam --help shows them all",
+		"build view":     "try: did you mean bam build show? bam build --help shows them all",
+		"set describe":   "try: did you mean bam set show? bam set --help shows them all",
+		"view":           "try: bam --help\n",
+		"list":           "try: bam --help\n",
+		"rerun":          "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
+		"completion zhs": "error: unknown command \"zhs\" for \"bam completion\"\n  try: did you mean bam completion zsh? bam completion --help shows them all\n",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

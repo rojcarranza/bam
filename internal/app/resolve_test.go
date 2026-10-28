@@ -204,7 +204,7 @@ func TestUnknownTargetWithNoPresetsSaysHowToAddOne(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, errs.KindUsage, e.Kind)
 	assert.Equal(t, "no presets are configured", e.Why)
-	assert.Equal(t, "keys are uppercase: did you mean DEPLOY-QA? bam preset add deploy-qa --plan KEY creates a preset by that name", e.Try)
+	assert.Equal(t, "keys are uppercase: did you mean DEPLOY-QA? or, to make a preset by that name: bam preset add deploy-qa --plan KEY", e.Try)
 }
 
 func TestUnknownTargetThatIsALowercaseKeySuggestsTheKey(t *testing.T) {
@@ -212,7 +212,7 @@ func TestUnknownTargetThatIsALowercaseKeySuggestsTheKey(t *testing.T) {
 	var e *errs.Error
 	require.ErrorAs(t, UnknownTarget(cfg, "proj-build"), &e)
 	assert.Equal(t, errs.KindUsage, e.Kind)
-	assert.Equal(t, "keys are uppercase: did you mean PROJ-BUILD? bam preset add proj-build --plan KEY creates a preset by that name", e.Try)
+	assert.Equal(t, "keys are uppercase: did you mean PROJ-BUILD? or, to make a preset by that name: bam preset add proj-build --plan KEY", e.Try)
 	require.ErrorAs(t, UnknownTarget(cfg, "proj-build-482"), &e)
 	assert.Equal(t, "keys are uppercase: did you mean PROJ-BUILD-482?", e.Try, "a build key is no preset name to add")
 	require.ErrorAs(t, UnknownTarget(cfg, "deploy"), &e)

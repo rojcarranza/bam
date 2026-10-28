@@ -467,7 +467,7 @@ Core objects:
 
 ```
 Plan    { key, url, name, project_key, last_build: { key, number, state, finished_at, reason } | null }
-Branch  { key, url, name, short_name, plan_key }
+Branch  { key, url, name, short_name, plan_key, enabled }
 Variable{ name, value, masked, source, last_used }
 Target  { name, plan_key, server, branch, defaults, options, required, watch, timeout_ms, defined_in[] }
 Build   { key, url, plan_key, plan_name, branch, number, state, reason, custom_build, labels[],

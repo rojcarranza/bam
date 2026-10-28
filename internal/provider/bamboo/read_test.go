@@ -115,6 +115,7 @@ func TestGetPlanAndBranches(t *testing.T) {
 	require.Len(t, bs, 2)
 	assert.Equal(t, provider.Branch{Key: "PROJ-BUILD12", Name: "Example Project - Build and test - develop", ShortName: "develop",
 		PlanKey: "PROJ-BUILD", URL: c.URL("PROJ-BUILD12")}, bs[0])
+	assert.True(t, bs[1].Disabled, "enabled: false in Bamboo's answer")
 }
 
 func TestGetPlanNotFound(t *testing.T) {

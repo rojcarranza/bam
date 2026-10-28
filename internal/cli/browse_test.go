@@ -118,6 +118,20 @@ func TestPlanBranches(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "no branches on PROJ-BUILD")
 }
 
+func TestPlanBranchesMarksDisabled(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Branches["PROJ-PROV"] = append(h.fake.Branches["PROJ-PROV"],
+		provider.Branch{Key: "PROJ-PROV7", Name: "Provision lab - feat/old", ShortName: "feat/old", PlanKey: "PROJ-PROV", Disabled: true})
+	assert.Equal(t, 0, h.run("plan", "branches", "PROJ-PROV"))
+	assert.Regexp(t, `develop\s+PROJ-PROV12`, h.stdout.String())
+	assert.Regexp(t, `feat/old \(disabled\)\s+PROJ-PROV7`, h.stdout.String())
+	assert.Equal(t, 0, h.run("plan", "branches", "PROJ-PROV", "--json"))
+	assert.Regexp(t, `"short_name": "develop",\s+"plan_key": "PROJ-PROV",\s+"enabled": true`, h.stdout.String())
+	assert.Regexp(t, `"short_name": "feat/old",\s+"plan_key": "PROJ-PROV",\s+"enabled": false`, h.stdout.String())
+	assert.Equal(t, 0, h.run("plan", "show", "PROJ-PROV"))
+	assert.Contains(t, h.stdout.String(), "develop, feat/old (disabled) (2)")
+}
+
 func TestBuildList(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("build", "list", "PROJ-BUILD"))

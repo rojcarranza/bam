@@ -29,6 +29,7 @@ type branchDTO struct {
 	Key       string `json:"key"`
 	Name      string `json:"name"`
 	ShortName string `json:"shortName"`
+	Enabled   *bool  `json:"enabled"`
 }
 
 type resultPlanDTO struct {

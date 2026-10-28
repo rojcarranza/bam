@@ -70,6 +70,7 @@ type Branch struct {
 	ShortName string
 	PlanKey   string // master plan key
 	URL       string
+	Disabled  bool // Bamboo will not build it until it is enabled again
 }
 
 type Variable struct {

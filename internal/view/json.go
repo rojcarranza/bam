@@ -93,6 +93,7 @@ type BranchDoc struct {
 	Name      string `json:"name"`
 	ShortName string `json:"short_name"`
 	PlanKey   string `json:"plan_key"`
+	Enabled   bool   `json:"enabled"`
 }
 
 type VariableDoc struct {
@@ -200,7 +201,7 @@ func ProjectJSON(p provider.Project) ProjectDoc {
 }
 
 func BranchJSON(b provider.Branch) BranchDoc {
-	return BranchDoc{Key: b.Key, URL: b.URL, Name: b.Name, ShortName: b.ShortName, PlanKey: b.PlanKey}
+	return BranchDoc{Key: b.Key, URL: b.URL, Name: b.Name, ShortName: b.ShortName, PlanKey: b.PlanKey, Enabled: !b.Disabled}
 }
 
 func VarRowsJSON(res app.PlanVarsResult) []VariableDoc {

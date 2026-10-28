@@ -160,7 +160,8 @@ func (c *Client) ListBranches(ctx context.Context, key string) ([]provider.Branc
 	}
 	out := make([]provider.Branch, 0, len(items))
 	for _, b := range items {
-		out = append(out, provider.Branch{Key: b.Key, Name: b.Name, ShortName: b.ShortName, PlanKey: key, URL: c.URL(b.Key)})
+		out = append(out, provider.Branch{Key: b.Key, Name: b.Name, ShortName: b.ShortName, PlanKey: key, URL: c.URL(b.Key),
+			Disabled: b.Enabled != nil && !*b.Enabled})
 	}
 	return out, nil
 }

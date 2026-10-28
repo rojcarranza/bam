@@ -201,7 +201,7 @@ func PlanDetailView(o Out, d PlanDetail) error {
 	field(o, "Project", d.Plan.ProjectKey)
 	var names []string
 	for _, b := range d.Branches {
-		names = append(names, b.ShortName)
+		names = append(names, branchName(b))
 	}
 	if len(names) == 0 {
 		field(o, "Branches", "none")
@@ -239,9 +239,17 @@ func PlanDetailView(o Out, d PlanDetail) error {
 func Branches(o Out, bs []provider.Branch) error {
 	t := Table{Headers: []string{"BRANCH", "KEY"}}
 	for _, b := range bs {
-		t.Rows = append(t.Rows, []string{b.ShortName, o.Key(b.Key, b.URL)})
+		t.Rows = append(t.Rows, []string{branchName(b), o.Key(b.Key, b.URL)})
 	}
 	return t.Render(o)
+}
+
+// branchName marks a branch that Bamboo will not build until it is enabled.
+func branchName(b provider.Branch) string {
+	if b.Disabled {
+		return b.ShortName + " (disabled)"
+	}
+	return b.ShortName
 }
 
 func Vars(o Out, res app.PlanVarsResult) error {

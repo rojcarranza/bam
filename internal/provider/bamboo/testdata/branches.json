@@ -1,4 +1,4 @@
 {"branches": {"size": 2, "start-index": 0, "max-result": 100, "branch": [
   {"key": "PROJ-BUILD12", "name": "Example Project - Build and test - develop", "shortName": "develop", "shortKey": "BUILD12", "enabled": true},
-  {"key": "PROJ-BUILD7", "name": "Example Project - Build and test - feat/foo", "shortName": "feat/foo", "shortKey": "BUILD7", "enabled": true}
+  {"key": "PROJ-BUILD7", "name": "Example Project - Build and test - feat/foo", "shortName": "feat/foo", "shortKey": "BUILD7", "enabled": false}
 ]}}

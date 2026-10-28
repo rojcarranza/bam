@@ -59,6 +59,18 @@ func TestBAMTokenOnlyForBAMURL(t *testing.T) {
 	assert.Equal(t, "ci-token", h.connectOpts[len(h.connectOpts)-1].Token)
 }
 
+func TestBAMURLWithoutTokenSuggestsBAMToken(t *testing.T) {
+	h := newHarness(t)
+	h.kr.m = map[string]string{}
+	h.vars["BAM_URL"] = "https://ci.bamboo.example.com"
+	_, _, err := newRuntime(h).connect(context.Background(), "")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindAuth, e.Kind)
+	assert.Equal(t, "BAM_TOKEN is not set and nothing is stored", e.Why)
+	assert.Equal(t, "export BAM_TOKEN=<personal access token>, or bam login env", e.Try)
+}
+
 func TestConnectForTargetUsesTargetServer(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o700))

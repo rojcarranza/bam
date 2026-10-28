@@ -95,7 +95,11 @@ func (r *runtime) store() *credential.Store {
 func (r *runtime) lookupToken(server config.ResolvedServer, origin string) (string, credential.Source, error) {
 	token, src, err := r.store().Lookup(server.Alias, origin, server.AuthEnv)
 	var e *errs.Error
-	if err != nil && r.env.Getenv("BAM_TOKEN") != "" && errors.As(err, &e) && e.Kind == errs.KindAuth {
+	if err != nil && server.Alias == config.EnvServerAlias && errors.As(err, &e) && e.Kind == errs.KindAuth {
+		// BAM_URL with no BAM_TOKEN: the env var is the expected way to give its token.
+		e.Why = "BAM_TOKEN is not set and nothing is stored"
+		e.Try = "export BAM_TOKEN=<personal access token>, or bam login " + config.EnvServerAlias
+	} else if err != nil && r.env.Getenv("BAM_TOKEN") != "" && errors.As(err, &e) && e.Kind == errs.KindAuth {
 		why := "BAM_TOKEN is set, but it applies only to the server named by BAM_URL"
 		if e.Why != "" {
 			why = e.Why + "; " + why

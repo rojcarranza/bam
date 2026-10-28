@@ -105,6 +105,9 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"branch":          "try: did you mean bam plan branches? bam --help shows them all",
 		"branches":        "try: did you mean bam plan branches? bam --help shows them all",
 		"plan branch":     "try: did you mean bam plan branches? bam plan --help shows them all",
+		"auth":            "try: did you mean bam login? bam --help shows them all",
+		"token":           "try: did you mean bam login? bam --help shows them all",
+		"signout":         "try: did you mean bam logout? bam --help shows them all",
 		"rnu":             "try: did you mean bam run? bam --help shows them all",
 		"completion zhs":  "error: unknown command \"zhs\" for \"bam completion\"\n  try: did you mean bam completion zsh? bam completion --help shows them all\n",
 	} {

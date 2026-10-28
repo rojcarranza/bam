@@ -263,6 +263,7 @@ func newLoginCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "login <alias>",
 		Short:             "Store a verified personal access token for a server",
+		SuggestFor:        []string{"auth", "token", "signin"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -341,6 +342,7 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "logout <alias>",
 		Short:             "Delete the stored token for a server",
+		SuggestFor:        []string{"signout"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

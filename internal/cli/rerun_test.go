@@ -119,6 +119,13 @@ func TestBuildRerunRestartsOneBuild(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "watch: bam watch PROJ-PROV-9")
 }
 
+func TestBuildRerunJSON(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	rerunnable(h, provider.StateSuccess)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-PROV-9", "--json"))
+	assert.JSONEq(t, `{"key":"PROJ-PROV-9","url":"`+workOrigin+`/browse/PROJ-PROV-9","restarted":true}`, h.stdout.String())
+}
+
 func TestBuildRerunWatch(t *testing.T) {
 	h := treeHarness(t, provider.StateFailed)
 	rerunnable(h, provider.StateSuccess)

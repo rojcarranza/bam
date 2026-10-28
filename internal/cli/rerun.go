@@ -7,6 +7,7 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +50,9 @@ succeeded is refused.`,
 				return errs.Usagef("%s is running or has succeeded; nothing to rerun", key)
 			}
 			if !watch {
+				if r.flags.json {
+					return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "restarted": true})
+				}
 				fmt.Fprintf(r.env.Stdout, "restarted %s\n  watch: bam watch %s\n", key, key)
 				return nil
 			}

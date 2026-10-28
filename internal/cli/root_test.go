@@ -93,6 +93,8 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"view":            "try: bam --help\n",
 		"list":            "try: bam --help\n",
 		"rerun":           "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
+		"retry":           "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
+		"build restart":   "try: did you mean bam build rerun? bam build --help shows them all",
 		"log":             "try: did you mean bam logs? bam --help shows them all",
 		"del":             "try: bam --help\n",
 		"ls":              "try: bam --help\n",

@@ -21,6 +21,7 @@ func newBuildRerunCmd(r *runtime) *cobra.Command {
 does: same build key, same variables and commit. A build that is running or
 succeeded is refused.`,
 		Args:              cobra.MaximumNArgs(1),
+		SuggestFor:        []string{"retry", "restart"},
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()

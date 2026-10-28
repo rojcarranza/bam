@@ -245,6 +245,7 @@ When that stage succeeds, the later stages run. Runs that succeeded are left
 alone, and no build is ever stopped.`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(true),
+		SuggestFor:        []string{"retry", "restart"},
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			// Checked before any config or network: --failed is what keeps a
 			// future bare rerun (every run again) from changing meaning.

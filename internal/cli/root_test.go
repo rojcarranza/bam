@@ -163,6 +163,19 @@ func TestBadFlagValueSaysWhatItWants(t *testing.T) {
 	}
 }
 
+func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
+	for args, want := range map[string]string{
+		"build list PROJ-PLAN --brnach develop": "error: unknown flag: --brnach\n  try: did you mean --branch?\n",
+		"run PROJ-PLAN --dryrun":                "error: unknown flag: --dryrun\n  try: did you mean --dry-run?\n",
+		"watch --sever lab":                     "error: unknown flag: --sever\n  try: did you mean --server?\n",
+		"run PROJ-PLAN --zzzzzz":                "error: unknown flag: --zzzzzz\n  try: bam run --help\n",
+	} {
+		h := newHarness(t)
+		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)
+		assert.Equal(t, want, h.stderr.String(), args)
+	}
+}
+
 func TestWrongArgCountPointsAtHelp(t *testing.T) {
 	for args, want := range map[string]string{
 		"run":              "error: missing <plan|preset>\n  try: bam run <plan|preset>; bam run --help shows more\n",

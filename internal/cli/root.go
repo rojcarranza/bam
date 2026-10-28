@@ -52,7 +52,13 @@ func Execute(ctx context.Context, args []string, env Env) int {
 	root.SetOut(env.Stdout)
 	root.SetErr(env.Stderr)
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
-		return errs.Usagef("%s", flagValueMessage(err)).WithTry(c.CommandPath() + " --help")
+		e := errs.Usagef("%s", flagValueMessage(err))
+		if name, ok := strings.CutPrefix(err.Error(), "unknown flag: --"); ok {
+			if near := app.Closest(name, flagNames(c), 1); len(near) > 0 {
+				return e.WithTry("did you mean --" + near[0] + "?")
+			}
+		}
+		return e.WithTry(c.CommandPath() + " --help")
 	})
 	cmd, err := root.ExecuteContextC(ctx)
 	var res *resultError
@@ -279,6 +285,19 @@ func flagValueMessage(err error) string {
 		return err.Error()
 	}
 	return fmt.Sprintf("--%s wants %s, not %q", iv.GetFlag().Name, want, iv.GetValue())
+}
+
+// flagNames lists the visible long flags cmd accepts, its own and inherited.
+func flagNames(cmd *cobra.Command) []string {
+	var names []string
+	add := func(f *pflag.Flag) {
+		if !f.Hidden {
+			names = append(names, f.Name)
+		}
+	}
+	cmd.LocalFlags().VisitAll(add)
+	cmd.InheritedFlags().VisitAll(add)
+	return names
 }
 
 // argCountError turns cobra's "accepts 1 arg(s), received 0" into a usage

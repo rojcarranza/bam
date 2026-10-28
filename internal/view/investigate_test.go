@@ -90,6 +90,14 @@ func TestInvestigationChildTreeHint(t *testing.T) {
 	require.Contains(t, buf.String(), "try: bam build tree PROJ-API-142\ntry: bam build rerun PROJ-API-142\n")
 }
 
+func TestInvestigationLeavesOutRerunWhenUnsupported(t *testing.T) {
+	o, buf := testOut(false)
+	b := provider.Build{Key: "PROJ-API-142", State: provider.StateFailed}
+	require.NoError(t, Investigation(o, app.Investigation{Build: b, NoRerun: true}))
+	require.NotContains(t, buf.String(), "bam build rerun")
+	require.Contains(t, buf.String(), "try: bam open PROJ-API-142\n")
+}
+
 func TestInvestigationOverlappingBlocksPrintEachLineOnce(t *testing.T) {
 	o, buf := testOut(false)
 	ctx := []string{"start", "Error: timeout", "Failing task since return code of [terraform] was 1"}

@@ -29,6 +29,7 @@ type Investigation struct {
 	LikelyCause string      // empty when no log matched a pattern
 	Changes     *Comparison // set by the caller for --compare; nil otherwise
 	Children    []string    // child plans configured for the build's plan; a tree may show more failures
+	NoRerun     bool        // the server is known to refuse restarts, so bam build rerun would fail
 }
 
 // Investigate reads the failed jobs' logs of b and finds their error lines.
@@ -47,6 +48,9 @@ func (s *Service) Investigate(ctx context.Context, b provider.Build, o Investiga
 		if m, err := s.Cfg.Children(); err == nil {
 			inv.Children = m[b.PlanKey]
 		}
+	}
+	if rc, ok := s.P.(provider.RestartChecker); ok {
+		inv.NoRerun = rc.CannotRestart(ctx)
 	}
 	for _, l := range logs {
 		je := JobErrors{Job: l.Job, Stage: l.Stage, Short: ShortJobKey(b, l.Job), Errors: ErrorBlocks(l.Lines, o.Context)}

@@ -127,6 +127,10 @@ func (c *Client) dequeue(ctx context.Context, key string) error {
 	return err
 }
 
+// CannotRestart reports whether an earlier RestartBuild learned that this
+// Bamboo refuses restarts.
+func (c *Client) CannotRestart(ctx context.Context) bool { return c.fresh(ctx).Rerun == "no" }
+
 // RestartBuild asks Bamboo to run a finished build's failed jobs again, in
 // the same build (PUT queue/{key}). Whether the server can is learned the
 // first time, like stopping a build.

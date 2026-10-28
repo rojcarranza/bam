@@ -1,9 +1,11 @@
 package app
 
 import (
+	"context"
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/fake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,6 +30,21 @@ func TestInvestigate(t *testing.T) {
 	assert.Equal(t, 1, inv.Jobs[1].Hidden, "the bamboo-task line is past --max")
 	assert.Zero(t, inv.Jobs[0].Hidden)
 	assert.Equal(t, "Error: BucketAlreadyExists (job INT)", inv.LikelyCause)
+}
+
+type noRestart struct{ *fake.Provider }
+
+func (noRestart) CannotRestart(context.Context) bool { return true }
+
+func TestInvestigateNotesKnownRestartRefusal(t *testing.T) {
+	inv, err := newService(t, logsProvider()).Investigate(bg, failedBuild(), InvestigateOptions{})
+	require.NoError(t, err)
+	assert.False(t, inv.NoRerun, "a provider without RestartChecker may restart")
+	s := newService(t, logsProvider())
+	s.P = noRestart{s.P.(*fake.Provider)}
+	inv, err = s.Investigate(bg, failedBuild(), InvestigateOptions{})
+	require.NoError(t, err)
+	assert.True(t, inv.NoRerun)
 }
 
 func TestInvestigateSkipsBuildsThatDidNotFail(t *testing.T) {

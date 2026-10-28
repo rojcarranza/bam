@@ -86,7 +86,10 @@ func Investigation(o Out, inv app.Investigation) error {
 	if len(inv.Children) > 0 {
 		fmt.Fprintf(&sb, "try: bam build tree %s\n", b.Key)
 	}
-	fmt.Fprintf(&sb, "try: bam build rerun %s\ntry: bam open %s\n", b.Key, b.Key)
+	if !inv.NoRerun {
+		fmt.Fprintf(&sb, "try: bam build rerun %s\n", b.Key)
+	}
+	fmt.Fprintf(&sb, "try: bam open %s\n", b.Key)
 	_, err := fmt.Fprint(o.W, sb.String())
 	return err
 }

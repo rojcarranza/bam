@@ -24,3 +24,10 @@ type Provider interface {
 	FetchLog(ctx context.Context, jobResultKey string, o LogOptions) (LogChunk, error)
 	URL(key string) string
 }
+
+// RestartChecker is an optional Provider extension. CannotRestart reports
+// true when the server is already known to refuse RestartBuild, so callers
+// can leave out hints that would only fail.
+type RestartChecker interface {
+	CannotRestart(ctx context.Context) bool
+}

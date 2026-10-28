@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/r0jjames/bam-cli/internal/view/style"
@@ -396,6 +397,12 @@ func argCountError(cmd *cobra.Command, err error) error {
 		}
 	}
 	synopsis := strings.TrimSuffix(cmd.UseLine(), " [flags]")
+	// "bam build show PROJ-PLAN 482" (or "#482"): the plan and number as two arguments
+	if len(args) == 2 && strings.Contains(cmd.Use, "<build>") {
+		if k := args[0] + "-" + strings.TrimPrefix(args[1], "#"); app.IsBuildKey(k) {
+			return errs.Usagef("%s", msg).WithTry(fmt.Sprintf("did you mean %s %s?", cmd.CommandPath(), k))
+		}
+	}
 	return errs.Usagef("%s", msg).WithTry(fmt.Sprintf("%s; %s --help shows more", synopsis, cmd.CommandPath()))
 }
 

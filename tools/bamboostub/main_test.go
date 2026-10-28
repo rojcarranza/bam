@@ -221,6 +221,24 @@ func TestRunningBuildReportsProgress(t *testing.T) {
 	assert.False(t, done.Valid, "a finished build has no estimate")
 }
 
+func TestNoEstimateAtFirstLikeBamboo(t *testing.T) {
+	s, c := testStub(t)
+	s.noEstimate = 5 * time.Second
+	ctx := context.Background()
+	b, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
+	require.NoError(t, err)
+
+	advance(s, s.queued+time.Second)
+	p, err := c.BuildProgress(ctx, b.Key)
+	require.NoError(t, err)
+	assert.False(t, p.Valid, "no estimate yet")
+
+	advance(s, 5*time.Second)
+	p, err = c.BuildProgress(ctx, b.Key)
+	require.NoError(t, err)
+	assert.True(t, p.Valid)
+}
+
 // TestFailedTestsComePerJobLikeBamboo12: a build's result carries no tests
 // and its failed job's result does, as on Bamboo 12, so trying bam locally
 // takes the same path as a real server.

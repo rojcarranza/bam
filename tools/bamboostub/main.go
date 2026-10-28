@@ -23,6 +23,7 @@
 //	-running DURATION how long it then runs (default 10s)
 //	-child PLAN       plan a triggered build queues a child build of when it ends
 //	-child-fails      that child build fails
+//	-no-estimate DURATION  how long a running build reports no valid estimate, as Bamboo does at first
 package main
 
 import (
@@ -60,6 +61,7 @@ type stub struct {
 	running    time.Duration
 	child      string // plan of the build a triggered build queues when it ends; "" for none
 	childFails bool
+	noEstimate time.Duration
 	now        func() time.Time
 
 	mu    sync.Mutex
@@ -377,6 +379,10 @@ func (s *stub) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	elapsed := s.now().Sub(b.started) - s.queued
+	if elapsed < s.noEstimate {
+		writeJSON(w, []byte(`{"currentStage":"Build","finished":false,"progress":{"isValid":false}}`))
+		return
+	}
 	pct := float64(elapsed) / float64(s.running)
 	writeJSON(w, fmt.Appendf(nil,
 		`{"currentStage":"Build","finished":false,"progress":{"isValid":true,"averageBuildDuration":%d,"buildTime":%d,"percentageCompleted":%.2f}}`,
@@ -505,6 +511,7 @@ func main() {
 	flag.DurationVar(&s.running, "running", s.running, "how long a triggered build then runs")
 	flag.StringVar(&s.child, "child", "", "plan a triggered build queues a child build of when it ends")
 	flag.BoolVar(&s.childFails, "child-fails", false, "that child build fails")
+	flag.DurationVar(&s.noEstimate, "no-estimate", 0, "how long a running build reports no valid estimate, as Bamboo does at first")
 	flag.Parse()
 	s.fixtures = *fixtures
 

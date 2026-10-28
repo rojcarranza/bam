@@ -98,7 +98,8 @@ func TestSetConfigErrors(t *testing.T) {
 		"negative timeout": {"sets: {rel: {timeout: -5m, stages: [[a]]}}", `"-5m" is not a duration like 45m`},
 		"unknown field":    {"sets: {rel: {stages: [[{target: a, env: x}]]}}", `unknown field "env"`},
 		"literal secret":   {"sets: {rel: {stages: [[{target: a, vars: {db_password: hunter2}}]]}}", "holds a literal secret"},
-		"stages as set":    {"sets: {rel: [[a], [b]]}", "line 7: expected a set (stages: [[preset], ...]), found a list"},
+		"scalar set":       {"sets: {rel: a}", "line 7: expected a set (stages: [[preset], ...]), found a single value"},
+		"set field typo":   {"sets: {rel: {stage: [[a]]}}", `line 7: unknown field "stage" in a set`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg, err := loadYAML(t, base+tc.sets+"\n", "")
@@ -110,6 +111,16 @@ func TestSetConfigErrors(t *testing.T) {
 			require.Contains(t, err.Error()+" "+errWhyTry(err), tc.want)
 		})
 	}
+}
+
+func TestSetAsABareListOfStages(t *testing.T) {
+	cfg, err := loadYAML(t, "version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B}\n"+
+		"sets: {rel: [[a], [b, {target: a, vars: {env: qa}}]]}\n", "")
+	require.NoError(t, err)
+	s, ok, err := cfg.Set("rel")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, []Stage{{{Target: "a"}}, {{Target: "b"}, {Target: "a", Vars: StringMap{"env": "qa"}}}}, s.Stages)
 }
 
 func TestSetVarsAcceptEnvReferences(t *testing.T) {

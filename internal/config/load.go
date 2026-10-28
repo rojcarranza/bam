@@ -200,7 +200,6 @@ var yamlTypeError = regexp.MustCompile("line (\\d+): cannot unmarshal !!(\\w+)( 
 func plainShapes(msg string) string {
 	found := map[string]string{"seq": "a list", "map": "a mapping"}
 	expected := map[string]string{
-		"config.Set":    "a set (stages: [[preset], ...])",
 		"config.Target": "a preset (plan: KEY, ...)",
 		"config.Server": "a server (url: URL, ...)",
 		"config.Repo":   "a repository entry (server: ALIAS, ...)",

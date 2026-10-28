@@ -143,6 +143,24 @@ type Set struct {
 	Timeout Duration `yaml:"timeout,omitempty"`
 }
 
+// UnmarshalYAML accepts a bare list of stages as shorthand for {stages: ...}.
+func (s *Set) UnmarshalYAML(n *yaml.Node) error {
+	switch n.Kind {
+	case yaml.SequenceNode:
+		return n.Decode(&s.Stages)
+	case yaml.MappingNode:
+		// Decode does not inherit the file's KnownFields; see Stage.
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			if k := n.Content[i]; k.Value != "stages" && k.Value != "timeout" {
+				return fmt.Errorf("line %d: unknown field %q in a set", k.Line, k.Value)
+			}
+		}
+		type plain Set
+		return n.Decode((*plain)(s))
+	}
+	return fmt.Errorf("line %d: expected a set (stages: [[preset], ...]), found a single value", n.Line)
+}
+
 // Stage is one step of a set. A bare name is shorthand for {target: name}.
 type Stage []SetRun
 

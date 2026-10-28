@@ -109,6 +109,8 @@ sets:
 
 A stage is a list of presets. A bare name is short for `{target: name}`; the long form adds `vars`, which override that preset's `defaults` for this set only.
 
+A set with no `timeout` can be written as just its list of stages: `release: [[publish-specs], [provision, deploy]]` is short for `release: {stages: [[publish-specs], [provision, deploy]]}`.
+
 `sets:` is allowed wherever `targets:` is: the project file, the machine file, and a machine `repos` entry. A set defined in a higher layer replaces the lower one whole; stages are never merged.
 
 Rules, checked when the file loads:

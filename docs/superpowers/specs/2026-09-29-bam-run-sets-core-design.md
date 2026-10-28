@@ -66,6 +66,8 @@ type SetRun struct {
 }
 ```
 
+`Set.UnmarshalYAML` also accepts a bare list of stages as shorthand for `{stages: [...]}`, so `release: [[a], [b]]` needs no `stages:` key when there is no `timeout`. Unknown keys in the mapping form stay config errors.
+
 `ProjectFile`, `MachineFile` and `Repo` each gain `Sets map[string]Set \`yaml:"sets,omitempty"\``.
 
 ### 3.2 Layering

@@ -21,35 +21,33 @@ func addPresets(root *cobra.Command, r *runtime) {
 	p := subgroup(root, "preset", "Run presets: list, show, add, rm, sync, migrate", groupRun)
 	p.SuggestFor = []string{"target", "targets"} // bam target was renamed to bam preset
 	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newPresetRmCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
-	p.Args = cobra.ArbitraryArgs
-	p.RunE = func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return cmd.Help()
-		}
-		// Without this, "preset run" would suggest "preset rm", which deletes the preset.
-		if args[0] == "run" {
-			try := "bam run <preset>"
-			if len(args) > 1 {
-				try = "bam run " + args[1]
-			}
-			return errs.Usagef("bam preset has no \"run\" command").
-				WithWhy("presets run with bam run").
-				WithTry(try)
-		}
-		if slices.Contains([]string{"edit", "update", "modify", "change", "set"}, args[0]) {
-			try := "bam preset show <name> prints the file that defines it"
-			if len(args) > 1 {
-				try = "bam preset show " + args[1] + " prints the file that defines it"
-			}
-			return errs.Usagef("bam preset has no %q command", args[0]).
-				WithWhy("presets are edited in YAML, in the file that defines them").
-				WithTry(try)
-		}
-		return unknownCommand(cmd, args)
-	}
 	c := newInitCmd(r)
 	c.GroupID = groupSetup
 	root.AddCommand(c)
+}
+
+// presetWord explains the words bam preset has no command for. Without it,
+// "preset run" would suggest "preset rm", which deletes the preset.
+func presetWord(args []string) error {
+	if args[0] == "run" {
+		try := "bam run <preset>"
+		if len(args) > 1 {
+			try = "bam run " + args[1]
+		}
+		return errs.Usagef("bam preset has no \"run\" command").
+			WithWhy("presets run with bam run").
+			WithTry(try)
+	}
+	if slices.Contains([]string{"edit", "update", "modify", "change", "set"}, args[0]) {
+		try := "bam preset show <name> prints the file that defines it"
+		if len(args) > 1 {
+			try = "bam preset show " + args[1] + " prints the file that defines it"
+		}
+		return errs.Usagef("bam preset has no %q command", args[0]).
+			WithWhy("presets are edited in YAML, in the file that defines them").
+			WithTry(try)
+	}
+	return nil
 }
 
 // defaultTargetName is the lowercased plan part of a plan key.

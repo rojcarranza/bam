@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -342,6 +343,18 @@ func TestRestartBuildKnownUnsupportedSendsNothing(t *testing.T) {
 	_, err := c.RestartBuild(ctx, "PROJ-BUILD-45")
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Empty(t, rec.all())
+}
+
+func TestCannotRestartAndStopAskNothing(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{})
+	c.caps = Capabilities{Rerun: "no", Stop: "no", Version: "9.6.2", CheckedAt: c.now()}
+	assert.True(t, c.CannotRestart(ctx))
+	assert.True(t, c.CannotStop(ctx))
+	assert.Empty(t, rec.all(), "not even the server version check")
+
+	c.caps.CheckedAt = c.now().Add(-8 * 24 * time.Hour)
+	assert.False(t, c.CannotRestart(ctx), "an answer older than a week is not trusted")
+	assert.False(t, c.CannotStop(ctx))
 }
 
 func TestRestartBuildRefusedNamesTheBuild(t *testing.T) {

@@ -82,6 +82,7 @@ type Tree struct {
 	Root     *TreeNode
 	State    provider.State // TreeState of the root
 	Warnings []string       // sorted; never change the result
+	Depth    int            // the TreeOptions.Depth it was read with; 0 means all
 }
 
 // TreeFinished reports whether a build in a tree has its final result.
@@ -153,7 +154,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 			return Tree{}, nil, err
 		}
 		defer release()
-		if t, ok := s.CachedTree(key); ok && prev == nil && len(t.Warnings) == 0 {
+		if t, ok := s.CachedTree(key); ok && prev == nil && len(t.Warnings) == 0 && (t.Depth == 0 || (o.Depth > 0 && t.Depth >= o.Depth)) {
 			known = t.Root
 		}
 	}
@@ -195,7 +196,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		scan = scan.merged(got)
 	}
 	warnings = append(warnings, s.treeParents(ctx, tr, scan)...)
-	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}}
+	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}, Depth: o.Depth}
 	treeGrow(t.Root, scan.index(), configured, o.Depth, 0, map[string]bool{root.Key: true})
 	warnings = append(warnings, s.treeDetails(ctx, tr, t.Root, done)...)
 	warnings = append(warnings, s.treeLogLinks(ctx, tr, t.Root, scan, configured, o.Depth, done)...)

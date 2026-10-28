@@ -31,3 +31,8 @@ type Provider interface {
 type RestartChecker interface {
 	CannotRestart(ctx context.Context) bool
 }
+
+// StopChecker is RestartChecker for StopBuild.
+type StopChecker interface {
+	CannotStop(ctx context.Context) bool
+}

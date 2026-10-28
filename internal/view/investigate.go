@@ -106,7 +106,10 @@ func changesLine(c app.Comparison) string {
 	for _, v := range c.Variables {
 		parts = append(parts, changeText("var "+v.Name+"=", v.Now, v.Was))
 	}
-	if len(parts) == 0 {
+	switch {
+	case len(parts) == 0 && c.Variables == nil:
+		parts = []string{"no revision changed"}
+	case len(parts) == 0:
 		parts = []string{"no revision or variable changed"}
 	}
 	if c.Variables == nil {

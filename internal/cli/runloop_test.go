@@ -170,6 +170,9 @@ func TestLogs(t *testing.T) {
 	assert.Equal(t, 2, h.run("logs", "PROJ-PROV12-NOPE-8"), "the job in the key is honoured")
 	assert.Equal(t, 0, h.run("logs", workOrigin+"/browse/PROJ-PROV12-TF-8/log"), "a job page link")
 	assert.Equal(t, "terraform apply\nError: quota exceeded\n", h.stdout.String())
+	assert.Empty(t, h.stderr.String(), "a link names its build already")
+	assert.Equal(t, 0, h.run("logs", workOrigin+"/browse/PROJ-PROV12-8"), "a build page link")
+	assert.Empty(t, h.stderr.String(), "a link names its build already")
 	assert.Equal(t, 2, h.run("logs", workOrigin+"/browse/PROJ-PROV12-NOPE-8"))
 	assert.Equal(t, 0, h.run("logs", workOrigin+"/build/result/viewBuildResultLogs.action?buildKey=PROJ-PROV12-TF&buildNumber=8"), "an older .action job link")
 	assert.Equal(t, "terraform apply\nError: quota exceeded\n", h.stdout.String())
@@ -193,6 +196,15 @@ func TestCancel(t *testing.T) {
 	assert.Equal(t, "PROJ-BUILD-482", doc["key"])
 	assert.Equal(t, false, doc["stopped"])
 	assert.Equal(t, "success", doc["state"])
+}
+
+func TestCancelDryRunOnAServerThatCannotStop(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Sequences = map[string][]provider.Build{"PROJ-BUILD-483": {{Key: "PROJ-BUILD-483", State: provider.StateRunning}}}
+	h.fake.NoStop = true
+	assert.Equal(t, 5, h.run("build", "cancel", "PROJ-BUILD-483", "--dry-run"))
+	assert.Empty(t, h.stdout.String(), "no \"would stop\" for a stop that would fail")
+	assert.Contains(t, h.stderr.String(), "this Bamboo cannot stop a build over REST")
 }
 
 func TestCancelDryRun(t *testing.T) {

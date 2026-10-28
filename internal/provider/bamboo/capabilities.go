@@ -44,6 +44,11 @@ func (c Capabilities) CannotRestart(now time.Time) bool {
 	return c.Rerun == "no" && now.Sub(c.CheckedAt) <= capsMaxAge
 }
 
+// CannotStop is CannotRestart for stopping a build.
+func (c Capabilities) CannotStop(now time.Time) bool {
+	return c.Stop == "no" && now.Sub(c.CheckedAt) <= capsMaxAge
+}
+
 // SaveCapabilities writes the capabilities of origin into path, keeping other origins.
 func SaveCapabilities(path, origin string, c Capabilities) error {
 	all, err := readCapsFile(path)

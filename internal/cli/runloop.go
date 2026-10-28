@@ -347,7 +347,15 @@ func newLogsCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			// A plan, preset or --last picks the build; name it so the log is not anonymous.
-			if !r.flags.json && (len(args) == 0 || !app.IsBuildKey(args[0])) {
+			named := false
+			if len(args) == 1 {
+				k := args[0]
+				if pk, ok := pageKey(k); ok {
+					k = pk
+				}
+				named = app.IsBuildKey(k)
+			}
+			if !r.flags.json && !named {
 				r.note(fmt.Sprintf("%s (%s)", key, b.State), "")
 			}
 			if follow {
@@ -519,6 +527,10 @@ func newCancelCmd(r *runtime) *cobra.Command {
 			if dryRun {
 				b, err = svc.Build(cmd.Context(), key)
 				done = b.State.Finished()
+				if err == nil && !done && svc.CannotStop(cmd.Context()) {
+					err = errs.Bamboof("this Bamboo cannot stop a build over REST").
+						WithTry("bam open " + key + ", then stop it from Bamboo's web UI")
+				}
 			} else {
 				b, done, err = svc.Cancel(cmd.Context(), key)
 			}

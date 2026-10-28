@@ -140,6 +140,14 @@ func TestBuildRerunDryRun(t *testing.T) {
 	assert.Equal(t, 2, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run"))
 }
 
+func TestBuildRerunDryRunOnAServerThatCannotRestart(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	h.fake.NoRestart = true
+	assert.Equal(t, 5, h.run("build", "rerun", "PROJ-PROV-9", "--dry-run"))
+	assert.Empty(t, h.stdout.String(), "no \"would rerun\" for a rerun that would fail")
+	assert.Contains(t, h.stderr.String(), "this Bamboo cannot restart a build over REST")
+}
+
 func TestBuildRerunWatch(t *testing.T) {
 	h := treeHarness(t, provider.StateFailed)
 	rerunnable(h, provider.StateSuccess)

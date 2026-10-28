@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -209,6 +210,10 @@ func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, s.liveDetail(key, b))
 		return
 	}
+	if jobKeyRe.MatchString(key) {
+		s.serveJobDetail(w, key)
+		return
+	}
 	s.serveDetail(w, key)
 }
 
@@ -216,9 +221,57 @@ func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 // and job keys become the asked-for ones, and only the recorded branch plan
 // keeps its branch, so PROJ-BUILD-482 reads as build #482 of PROJ-BUILD.
 func (s *stub) serveDetail(w http.ResponseWriter, key string) {
+	if text, ok := s.detail(w, key); ok {
+		writeJSON(w, []byte(text))
+	}
+}
+
+// serveJobDetail writes a job result as its build's detail lists it, or 404
+// when the build has no such job.
+func (s *stub) serveJobDetail(w http.ResponseWriter, key string) {
+	i := strings.LastIndex(key, "-")
+	j := strings.LastIndex(key[:i], "-")
+	text, ok := s.detail(w, key[:j]+key[i:])
+	if !ok {
+		return
+	}
+	var doc struct {
+		Stages struct {
+			Stage []struct {
+				Results struct {
+					Result []map[string]any `json:"result"`
+				} `json:"results"`
+			} `json:"stage"`
+		} `json:"stages"`
+	}
+	if err := json.Unmarshal([]byte(text), &doc); err != nil {
+		log.Printf("job detail %s: %v", key, err)
+		http.Error(w, "fixture unreadable", http.StatusInternalServerError)
+		return
+	}
+	for _, st := range doc.Stages.Stage {
+		for _, job := range st.Results.Result {
+			if job["buildResultKey"] == key {
+				job["key"] = key
+				job["buildNumber"], _ = strconv.Atoi(key[i+1:])
+				out, err := json.Marshal(job)
+				if err != nil { // decoded from JSON just above, so this cannot happen
+					log.Printf("job detail %s: %v", key, err)
+				}
+				writeJSON(w, out)
+				return
+			}
+		}
+	}
+	http.Error(w, "no such job result", http.StatusNotFound)
+}
+
+// detail is the recorded build detail as build key, or false after writing
+// the error.
+func (s *stub) detail(w http.ResponseWriter, key string) (string, bool) {
 	body := s.fixture(w, "result_detail.json")
 	if body == nil {
-		return
+		return "", false
 	}
 	i := strings.LastIndex(key, "-")
 	plan, num := key[:i], key[i+1:]
@@ -233,7 +286,7 @@ func (s *stub) serveDetail(w http.ResponseWriter, key string) {
 		if err := json.Unmarshal([]byte(text), &doc); err != nil {
 			log.Printf("result detail %s: %v", key, err)
 			http.Error(w, "fixture unreadable", http.StatusInternalServerError)
-			return
+			return "", false
 		}
 		doc["plan"] = map[string]any{"key": plan, "shortName": "Build and test"}
 		doc["planName"] = "Build and test"
@@ -243,7 +296,7 @@ func (s *stub) serveDetail(w http.ResponseWriter, key string) {
 		}
 		text = string(out)
 	}
-	writeJSON(w, []byte(text))
+	return text, true
 }
 
 // handleStatus answers the progress endpoint: a running simulated build

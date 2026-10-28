@@ -78,6 +78,22 @@ func TestServerAddListRm(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), ".bam.yaml")
 }
 
+func TestServerRmRefusesWhileAPresetNamesIt(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("server", "add", "home", "--url", "https://bamboo.lab.example"))
+	f, err := os.OpenFile(h.env.Paths.MachineConfig, os.O_APPEND|os.O_WRONLY, 0)
+	require.NoError(t, err)
+	_, err = f.WriteString("targets:\n  lab-deploy:\n    plan: LAB-DEPLOY\n    server: home\n")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	assert.Equal(t, 2, h.run("server", "rm", "Home"))
+	assert.Contains(t, h.stderr.String(), `server "home" is used by preset lab-deploy`)
+	data, _ := os.ReadFile(h.env.Paths.MachineConfig)
+	assert.Contains(t, string(data), "url: https://bamboo.lab.example", "nothing is removed")
+	assert.Equal(t, 0, h.run("preset", "list"), h.stderr.String())
+}
+
 func TestLoginWithTokenFromStdin(t *testing.T) {
 	h := newHarness(t)
 	h.stdin = "newtok\n"

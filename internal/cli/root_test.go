@@ -70,6 +70,19 @@ func TestUnknownSubcommandIsUsageError(t *testing.T) {
 	}
 }
 
+func TestGroupWordsHoldOnHelpAndFlagErrors(t *testing.T) {
+	h := newHarness(t)
+	for _, args := range [][]string{{"set", "rm", "release", "--help"}, {"set", "delete", "release", "--force"}} {
+		assert.Equal(t, 2, h.run(args...), args)
+		assert.Contains(t, h.stderr.String(), "bam set has no \""+args[1]+"\" command", args)
+		assert.NotContains(t, h.stderr.String(), "preset rm", args)
+	}
+	assert.Equal(t, 2, h.run("preset", "edit", "api", "--help"))
+	assert.Contains(t, h.stderr.String(), "presets are edited in YAML")
+	assert.Equal(t, 2, h.run("help", "set", "rm"))
+	assert.Contains(t, h.stderr.String(), "bam set has no \"rm\" command")
+}
+
 func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	for args, want := range map[string]string{
 		"biuld":           "try: did you mean bam build? bam --help shows them all",

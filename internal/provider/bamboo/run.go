@@ -128,8 +128,20 @@ func (c *Client) dequeue(ctx context.Context, key string) error {
 }
 
 // CannotRestart reports whether an earlier RestartBuild learned that this
-// Bamboo refuses restarts.
-func (c *Client) CannotRestart(ctx context.Context) bool { return c.fresh(ctx).Rerun == "no" }
+// Bamboo refuses restarts. It makes no request.
+func (c *Client) CannotRestart(context.Context) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.caps.CannotRestart(c.now())
+}
+
+// CannotStop reports whether an earlier StopBuild learned that this Bamboo
+// refuses to stop builds. It makes no request.
+func (c *Client) CannotStop(context.Context) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.caps.CannotStop(c.now())
+}
 
 // RestartBuild asks Bamboo to run a finished build's failed jobs again, in
 // the same build (PUT queue/{key}). Whether the server can is learned the

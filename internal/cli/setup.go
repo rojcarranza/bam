@@ -248,11 +248,16 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 					return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry("did you mean bam server rm " + near + "?")
 				}
 			}
+			if names := cfg.PresetsUsingServer(alias); len(names) > 0 {
+				return errs.Usagef("server %q is used by preset %s", alias, strings.Join(names, ", ")).
+					WithWhy("removing it would leave those presets naming an unknown server").
+					WithTry("point them at another server, or remove them with bam preset rm")
+			}
 			if err := config.RemoveMachineServer(r.env.Paths.MachineConfig, alias); err != nil {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "removed server %s from %s\n", alias, r.env.Paths.MachineConfig)
-			if cfg.Machine.DefaultServer == alias {
+			if strings.EqualFold(cfg.Machine.DefaultServer, alias) {
 				fmt.Fprintln(r.env.Stdout, "cleared the machine default_server, which named it")
 				if len(cfg.Machine.Servers) > 2 {
 					fmt.Fprintln(r.env.Stdout, "next: bam server default <alias>")

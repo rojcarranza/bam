@@ -89,6 +89,32 @@ func TestASavedTreeSparesTheDeepRead(t *testing.T) {
 	require.Equal(t, 5, plans, "a fresh read reads deeper again")
 }
 
+// TestAShallowSavedTreeDoesNotStandForADeepRead: the Tree panel saves a
+// one-level tree. A full read must still find OPS-SMOKE-51, which ran more
+// than a window ago, rather than take the shallow tree as complete.
+func TestAShallowSavedTreeDoesNotStandForADeepRead(t *testing.T) {
+	p := treeFake()
+	p.History["PROJ-DOCS"][0].State = provider.StateSuccess
+	var smoke []provider.Build
+	for i := 0; i < 60; i++ {
+		smoke = append(smoke, tb(fmt.Sprintf("OPS-SMOKE-%d", 200-i), "Manual run by jdoe", provider.StateSuccess, 200-i))
+	}
+	p.History["OPS-SMOKE"] = append(smoke, p.History["OPS-SMOKE"]...)
+	svc := treeService(t, p)
+	svc.Trees = &TreeStore{Dir: t.TempDir()}
+	ctx := context.Background()
+
+	shallow, err := svc.BuildTree(ctx, "PROJ-API-142", TreeOptions{Depth: 1, Shared: true})
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88,PROJ-DOCS-30)", shape(shallow.Root))
+	svc.KeepTree("PROJ-API-142", shallow)
+
+	svc.Clock.(*fakeClock).After(treeShareAge + 1)
+	deep, err := svc.BuildTree(ctx, "PROJ-API-142", TreeOptions{Shared: true})
+	require.NoError(t, err)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88(OPS-SMOKE-51),PROJ-DOCS-30)", shape(deep.Root))
+}
+
 // gatedPlans holds every ListPlans until release closes.
 type gatedPlans struct {
 	provider.Provider

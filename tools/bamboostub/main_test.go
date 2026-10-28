@@ -212,3 +212,19 @@ func TestBuildDetailIsTheBuildAskedFor(t *testing.T) {
 	assert.Equal(t, "develop", b.Branch)
 	assert.Equal(t, "PROJ-BUILD12-INT-7", b.Stages[1].Jobs[1].Key)
 }
+
+// TestJobDetailIsTheJobAskedFor: a job result key is not a build of a plan
+// named after its first three parts.
+func TestJobDetailIsTheJobAskedFor(t *testing.T) {
+	_, c := testStub(t)
+	b, err := c.GetBuild(context.Background(), "PROJ-BUILD12-INT-44")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BUILD12-INT-44", b.Key)
+	assert.Equal(t, "PROJ-BUILD12-INT", b.PlanKey)
+	assert.Equal(t, 44, b.Number)
+	assert.Equal(t, provider.StateFailed, b.State, "the recorded INT job failed")
+	assert.Empty(t, b.Stages)
+
+	_, err = c.GetBuild(context.Background(), "PROJ-BUILD12-NOPE-44")
+	require.Error(t, err)
+}

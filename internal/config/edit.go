@@ -83,12 +83,12 @@ func RemoveMachineServer(path, alias string) error {
 		return errs.Usagef("no server alias %q in %s", alias, path).WithTry("bam server list")
 	}
 	// A default or repos entry still naming the alias would fail every command.
-	if v := mappingValue(doc.Content[0], "default_server"); v != nil && v.Value == alias {
+	if v := mappingValue(doc.Content[0], "default_server"); v != nil && strings.EqualFold(v.Value, alias) {
 		deleteKey(doc.Content[0], "default_server")
 	}
 	if repos := mappingValue(doc.Content[0], "repos"); repos != nil {
 		for i := 1; i < len(repos.Content); i += 2 {
-			if v := mappingValue(repos.Content[i], "server"); v != nil && v.Value == alias {
+			if v := mappingValue(repos.Content[i], "server"); v != nil && strings.EqualFold(v.Value, alias) {
 				deleteKey(repos.Content[i], "server")
 			}
 		}

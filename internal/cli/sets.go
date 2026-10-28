@@ -23,19 +23,17 @@ func init() { commandSets = append(commandSets, addSets) }
 func addSets(root *cobra.Command, r *runtime) {
 	set := subgroup(root, "set", "Release trains: presets run in ordered stages", groupRun)
 	set.AddCommand(newSetListCmd(r), newSetShowCmd(r), newSetRunCmd(r), newSetStatusCmd(r), newSetHistoryCmd(r), newSetResumeCmd(r), newSetRerunCmd(r))
-	set.Args = cobra.ArbitraryArgs
-	set.RunE = func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return cmd.Help()
-		}
-		// Sets are edited as YAML; without this, "set rm" would suggest "set run", which starts a train.
-		if slices.Contains([]string{"add", "new", "create", "rm", "remove", "delete", "edit"}, args[0]) {
-			return errs.Usagef("bam set has no %q command", args[0]).
-				WithWhy("sets are edited in YAML: under sets: in .bam.yaml, or in a train file").
-				WithTry("see bam set run --help")
-		}
-		return unknownCommand(cmd, args)
+}
+
+// setWord explains the words bam set has no command for. Sets are edited as
+// YAML; without it, "set rm" would suggest "set run", which starts a train.
+func setWord(args []string) error {
+	if slices.Contains([]string{"add", "new", "create", "rm", "remove", "delete", "edit"}, args[0]) {
+		return errs.Usagef("bam set has no %q command", args[0]).
+			WithWhy("sets are edited in YAML: under sets: in .bam.yaml, or in a train file").
+			WithTry("see bam set run --help")
 	}
+	return nil
 }
 
 func (r *runtime) setStore() *app.SetStore {

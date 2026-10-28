@@ -31,6 +31,10 @@ type savedTree struct {
 	Tree  Tree      `json:"tree"`
 }
 
+// treeFileVersion is the format of a tree file; a file of another version
+// is dropped. 2 records the depth each tree was read to.
+const treeFileVersion = 2
+
 type treeFile struct {
 	Version int                  `json:"version"`
 	Server  string               `json:"server,omitempty"` // Bamboo version; empty when not known yet
@@ -54,7 +58,11 @@ func (s *TreeStore) trees(origin string, now time.Time) map[string]savedTree {
 		return t
 	}
 	var f treeFile
-	if data, err := os.ReadFile(s.path(origin)); err == nil && json.Unmarshal(data, &f) == nil && f.Version == 1 {
+	if data, err := os.ReadFile(s.path(origin)); err == nil {
+		var read treeFile
+		if json.Unmarshal(data, &read) == nil && read.Version == treeFileVersion {
+			f = read
+		}
 		for k, t := range f.Trees {
 			if now.Sub(t.Saved) > treeTTL {
 				delete(f.Trees, k)
@@ -122,7 +130,7 @@ func (s *TreeStore) Keep(origin, key string, t Tree, now time.Time) {
 
 // save writes origin's trees. The caller holds s.mu.
 func (s *TreeStore) save(origin string, trees map[string]savedTree) {
-	data, err := json.Marshal(treeFile{Version: 1, Server: s.versions[origin], Trees: trees})
+	data, err := json.Marshal(treeFile{Version: treeFileVersion, Server: s.versions[origin], Trees: trees})
 	if err != nil {
 		return
 	}
@@ -130,8 +138,16 @@ func (s *TreeStore) save(origin string, trees map[string]savedTree) {
 	if os.MkdirAll(filepath.Dir(p), 0o700) != nil {
 		return
 	}
-	if os.WriteFile(p+".tmp", data, 0o600) == nil {
-		_ = os.Rename(p+".tmp", p)
+	tmp, err := os.CreateTemp(filepath.Dir(p), filepath.Base(p)+".*.tmp")
+	if err != nil {
+		return
+	}
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil || os.Rename(tmp.Name(), p) != nil {
+		_ = os.Remove(tmp.Name())
 	}
 }
 

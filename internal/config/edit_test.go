@@ -102,6 +102,14 @@ repos:
 `, string(data))
 }
 
+func TestRemoveMachineServerMatchesReferencesIgnoringCase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "version: 1\ndefault_server: Work\nservers:\n  work:\n    url: https://bamboo.example.com\nrepos:\n  /src/a:\n    server: WORK\n")
+	require.NoError(t, RemoveMachineServer(path, "work"))
+	data, _ := os.ReadFile(path)
+	assert.Equal(t, "version: 1\nservers: {}\nrepos:\n  /src/a: {}\n", string(data))
+}
+
 func TestSetMachineDefaultServer(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeFile(t, path, "version: 1 # keep\ndefault_server: work\n")

@@ -72,3 +72,29 @@ func TestTreeStoreDropsTreesFromAnotherServerVersion(t *testing.T) {
 	_, ok = (&TreeStore{Dir: dir}).Get(origin, "PROJ-BUILD-44", now)
 	require.False(t, ok, "and the drop reaches disk")
 }
+
+func TestTreeStoreDropsAFileOfAnotherFormat(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	origin := "https://bamboo.example.com"
+	for _, version := range []string{"1", "99"} {
+		s := &TreeStore{Dir: dir}
+		file := `{"version":` + version + `,"trees":{"PROJ-BUILD-44":{"saved":"` + now.Format(time.RFC3339) +
+			`","tree":{"Root":{"PlanKey":"PROJ-BUILD","Build":{"Key":"PROJ-BUILD-44"}},"State":"success"}}}}`
+		require.NoError(t, os.WriteFile(s.path(origin), []byte(file), 0o600))
+		_, ok := s.Get(origin, "PROJ-BUILD-44", now)
+		require.False(t, ok, "version %s: version 1 does not record how deep a tree was read", version)
+	}
+}
+
+func TestTreeStoreLeavesNoTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess}
+	(&TreeStore{Dir: dir}).Keep("https://bamboo.example.com", "PROJ-BUILD-44", done, time.Now())
+	(&TreeStore{Dir: dir}).Keep("https://bamboo.example.com", "PROJ-BUILD-45", done, time.Now())
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	_, ok := (&TreeStore{Dir: dir}).Get("https://bamboo.example.com", "PROJ-BUILD-45", time.Now())
+	require.True(t, ok)
+}

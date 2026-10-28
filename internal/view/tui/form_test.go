@@ -1365,6 +1365,8 @@ func TestAnEmptyOrBadNameAddsNothing(t *testing.T) {
 	m, _ = send(m, mkKey("esc"))
 	require.False(t, m.form.editing)
 	require.Len(t, m.form.fields, 3)
+	require.NoError(t, m.form.err, "the name it was about is gone")
+	require.NotContains(t, m.View(), "is not a variable name")
 }
 
 // TestAFailedFormLoadStopsSayingLoading: when the plan or its variables

@@ -281,6 +281,32 @@ func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 	return out, nil
 }
 
+// PresetsUsingServer names the presets, in every config file and repos
+// entry, whose server: is the machine server alias, sorted.
+func (c *Config) PresetsUsingServer(alias string) []string {
+	set := map[string]bool{}
+	add := func(targets map[string]Target) {
+		for name, t := range targets {
+			if strings.EqualFold(t.Server, alias) {
+				set[name] = true
+			}
+		}
+	}
+	if c.Project != nil {
+		if _, own := c.Project.Servers[alias]; !own {
+			add(c.Project.Targets)
+		}
+	}
+	add(c.Machine.Targets)
+	for _, r := range c.Machine.Repos {
+		add(r.Targets)
+	}
+	for _, s := range c.presetsSources() {
+		add(s.Presets)
+	}
+	return slices.Sorted(maps.Keys(set))
+}
+
 // Target returns one merged target.
 func (c *Config) Target(name string) (ResolvedTarget, bool, error) {
 	all, err := c.Targets()

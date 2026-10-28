@@ -61,3 +61,9 @@ func (s *Service) CannotRestart(ctx context.Context) bool {
 	rc, ok := s.P.(provider.RestartChecker)
 	return ok && rc.CannotRestart(ctx)
 }
+
+// CannotStop reports whether the provider is known to refuse stopping builds.
+func (s *Service) CannotStop(ctx context.Context) bool {
+	sc, ok := s.P.(provider.StopChecker)
+	return ok && sc.CannotStop(ctx)
+}

@@ -422,7 +422,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case presetSavedMsg:
 		m.status = "added preset " + msg.Name + " to " + msg.Path
-		return m, nil
+		if m.deps.Targets == nil {
+			return m, nil
+		}
+		m.presetsGen++
+		return m, loadPresetsCmd(m.deps, m.presetsGen)
 	case logEventMsg:
 		if msg.Gen != m.followGen {
 			return m, nil
@@ -1593,7 +1597,11 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.form.editing {
 		switch msg.Type {
 		case tea.KeyEsc:
+			naming := m.form.naming
 			m.form.cancelEdit()
+			if naming {
+				m.revalidate()
+			}
 			return m, nil
 		case tea.KeyEnter:
 			if m.form.naming {

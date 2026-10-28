@@ -114,3 +114,24 @@ func TestListBuildsLeavesOutUnfinishedBuildsUnlessAsked(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "PROJ-API-142", b.Parent)
 }
+
+// TestFetchLogOffsetsCountSkippedLines: like the real client, an offset
+// counts every line of the log, including those a long log's read left out.
+func TestFetchLogOffsetsCountSkippedLines(t *testing.T) {
+	f := &Provider{
+		Logs:       map[string][]string{"PROJ-BUILD-JOB1-44": {"a", "b", "c"}},
+		LogSkipped: map[string]int{"PROJ-BUILD-JOB1-44": 1000},
+	}
+	chunk, err := f.FetchLog(context.Background(), "PROJ-BUILD-JOB1-44", provider.LogOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []string{"a", "b", "c"}, chunk.Lines)
+	require.Equal(t, 1003, chunk.Next)
+
+	chunk, err = f.FetchLog(context.Background(), "PROJ-BUILD-JOB1-44", provider.LogOptions{Offset: 1001})
+	require.NoError(t, err)
+	require.Equal(t, []string{"b", "c"}, chunk.Lines)
+
+	chunk, err = f.FetchLog(context.Background(), "PROJ-BUILD-JOB1-44", provider.LogOptions{Offset: chunk.Next})
+	require.NoError(t, err)
+	require.Empty(t, chunk.Lines)
+}

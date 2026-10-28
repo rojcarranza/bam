@@ -48,6 +48,10 @@ succeeded is refused.`,
 				}
 				return e
 			}
+			if dryRun && svc.CannotRestart(ctx) {
+				return errs.Bamboof("this Bamboo cannot restart a build over REST").
+					WithTry("bam open " + key + ", then rerun it from Bamboo's web UI")
+			}
 			if dryRun {
 				if r.flags.json {
 					return view.WriteJSON(r.env.Stdout, map[string]any{"key": key, "url": svc.P.URL(key), "state": b.State, "restarted": false})

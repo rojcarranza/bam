@@ -31,6 +31,29 @@ func TestPSavesTheSelectedBuildAsAPreset(t *testing.T) {
 	require.Equal(t, "added preset deploy-eu to /home/jdoe/.config/bam/presets/proj.yaml", m.status)
 }
 
+func TestASavedPresetShowsInThePresetsPanel(t *testing.T) {
+	m := cancelModel()
+	saved := false
+	m.deps.SavePreset = func(context.Context, *app.Service, string, string) (string, error) {
+		saved = true
+		return "/home/jdoe/.config/bam/presets/proj.yaml", nil
+	}
+	m.deps.Targets = func() ([]app.TargetInfo, error) {
+		if !saved {
+			return nil, nil
+		}
+		return []app.TargetInfo{{Name: "deploy-eu", Plan: "PROJ-BUILD"}}, nil
+	}
+	m, _ = send(m, mkKey("p"))
+	m, _ = send(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("deploy-eu")})
+	m, cmd := send(m, mkKey("enter"))
+	m, cmd = send(m, cmd())
+	require.NotNil(t, cmd, "saving reloads the presets")
+	m, _ = send(m, cmd())
+	require.Len(t, m.presets.items, 1)
+	require.Equal(t, "deploy-eu", m.presets.items[0].Name)
+}
+
 func TestSavePresetEmptyNameOrFailure(t *testing.T) {
 	m := cancelModel()
 	calls := 0

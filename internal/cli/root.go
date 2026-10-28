@@ -253,10 +253,19 @@ func strictHelp(root *cobra.Command) {
 // showSuggest points the words other CLIs use for "show" at bam's show commands.
 var showSuggest = []string{"view", "info", "describe", "get"}
 
+// groupWords explain words a group has no command for, where the closest
+// subcommand would do something else.
+var groupWords = map[string]func(args []string) error{"bam set": setWord, "bam preset": presetWord}
+
 // unknownCommand is the usage error for "bam <group> <typo>", with the
 // closest subcommand as a "did you mean" hint.
 func unknownCommand(cmd *cobra.Command, args []string) error {
 	path := cmd.CommandPath()
+	if word, ok := groupWords[path]; ok {
+		if err := word(args); err != nil {
+			return err
+		}
+	}
 	try := path + " --help"
 	var names, suggest []string
 	for _, c := range cmd.Commands() {

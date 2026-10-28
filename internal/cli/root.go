@@ -105,6 +105,10 @@ func newRoot(r *runtime) *cobra.Command {
 	}
 	pf := root.PersistentFlags()
 	pf.StringVar(&r.flags.server, "server", "", "server alias to use")
+	// The flag goes anywhere on the line, so positional args must not hide the aliases.
+	_ = root.RegisterFlagCompletionFunc("server", func(c *cobra.Command, _ []string, s string) ([]string, cobra.ShellCompDirective) {
+		return r.completeServers(false)(c, nil, s)
+	})
 	pf.BoolVar(&r.flags.json, "json", false, "print JSON")
 	pf.StringVar(&r.flags.color, "color", "", "color output: auto, always or never")
 	pf.BoolVar(&r.flags.debug, "debug", false, "log HTTP requests to stderr")

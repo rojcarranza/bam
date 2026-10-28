@@ -128,3 +128,18 @@ func TestProjectFlagMustBeAProjectKey(t *testing.T) {
 		}
 	}
 }
+
+func TestServerCompletion(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("server", "add", "home", "--url", "http://bamboo.lab.example:8085"))
+
+	h.run("__complete", "login", "")
+	assert.Contains(t, h.stdout.String(), "home\nwork\n", "login offers every alias")
+	h.run("__complete", "run", "build", "--server", "")
+	assert.Contains(t, h.stdout.String(), "home\nwork\n", "--server ignores the positional args")
+	h.run("__complete", "server", "rm", "")
+	assert.Contains(t, h.stdout.String(), "home\n")
+	assert.NotContains(t, h.stdout.String(), "work", "rm offers only machine aliases")
+	h.run("__complete", "login", "home", "")
+	assert.NotContains(t, h.stdout.String(), "work", "one alias only")
+}

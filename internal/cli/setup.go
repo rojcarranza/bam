@@ -169,10 +169,11 @@ func yesNo(b bool) string {
 
 func newServerRmCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "rm <alias>",
-		Short:      "Remove a server alias from the machine config",
-		SuggestFor: []string{"remove", "delete"},
-		Args:       cobra.ExactArgs(1),
+		Use:               "rm <alias>",
+		Short:             "Remove a server alias from the machine config",
+		SuggestFor:        []string{"remove", "delete"},
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: r.completeServers(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
@@ -205,10 +206,11 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 
 func newServerDefaultCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "default [alias]",
-		Short:      "Show or set the machine-wide default server alias",
-		SuggestFor: []string{"use"},
-		Args:       cobra.MaximumNArgs(1),
+		Use:               "default [alias]",
+		Short:             "Show or set the machine-wide default server alias",
+		SuggestFor:        []string{"use"},
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: r.completeServers(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
@@ -243,9 +245,10 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 func newLoginCmd(r *runtime) *cobra.Command {
 	var withToken bool
 	cmd := &cobra.Command{
-		Use:   "login <alias>",
-		Short: "Store a verified personal access token for a server",
-		Args:  cobra.ExactArgs(1),
+		Use:               "login <alias>",
+		Short:             "Store a verified personal access token for a server",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			return login(cmd, r, args[0], withToken)
 		}),
@@ -320,9 +323,10 @@ func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
 
 func newLogoutCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "logout <alias>",
-		Short: "Delete the stored token for a server",
-		Args:  cobra.ExactArgs(1),
+		Use:               "logout <alias>",
+		Short:             "Delete the stored token for a server",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {

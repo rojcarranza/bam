@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -56,6 +57,25 @@ func (r *runtime) completeTargets(_ *cobra.Command, args []string, _ string) ([]
 		names = append(names, n)
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
+// completeServers offers server aliases that have a url; machineOnly limits
+// them to the machine file, the only one server rm and server default edit.
+func (r *runtime) completeServers(machineOnly bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+	return func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+		cfg, err := r.config()
+		if len(args) > 0 || err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		var names []string
+		for n, s := range cfg.Servers() {
+			if s.URL != "" && (!machineOnly || cfg.Machine.Servers[n].URL != "") {
+				names = append(names, n)
+			}
+		}
+		slices.Sort(names)
+		return names, cobra.ShellCompDirectiveNoFileComp
+	}
 }
 
 func newProjectListCmd(r *runtime) *cobra.Command {

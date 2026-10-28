@@ -221,7 +221,10 @@ func (c *Client) backoff(attempt int, retryAfter string) time.Duration {
 
 // httpError carries the status code of a failed response. A 404 matches
 // errs.ErrNotFound through errors.Is.
-type httpError struct{ Status int }
+type httpError struct {
+	Status  int
+	Message string // Bamboo's own error text, when it sent one
+}
 
 func (e *httpError) Error() string { return fmt.Sprintf("HTTP %d", e.Status) }
 func (e *httpError) Is(target error) bool {
@@ -239,7 +242,7 @@ func statusOf(err error) int {
 
 func (c *Client) statusError(r request, status int, body []byte) error {
 	host := c.base.Host
-	cause := &httpError{Status: status}
+	cause := &httpError{Status: status, Message: bambooMessage(body)}
 	switch {
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		return errs.Authf("%d from %s", status, host).

@@ -24,7 +24,10 @@ type Capabilities struct {
 	Log             string `json:"log,omitempty"`               // entries | download
 	Stop            string `json:"stop,omitempty"`              // yes | no
 	Rerun           string `json:"rerun,omitempty"`             // yes | no
-	Progress        string `json:"progress,omitempty"`          // yes | no
+	// Progress is whether the server reports build progress. It replaced
+	// progress, which learned "no" from Bamboo's 404 for a result it was
+	// not building at that moment.
+	Progress string `json:"progress_status,omitempty"` // yes | no
 }
 
 const capsMaxAge = 7 * 24 * time.Hour

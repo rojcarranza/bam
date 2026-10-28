@@ -95,6 +95,40 @@ func TestBuildProgressLearnsUnsupportedOn404(t *testing.T) {
 	assert.Len(t, rec.all(), 1)
 }
 
+// notBuilding is Bamboo 9.6's answer for a result it is not building at
+// that moment, such as one that just ended.
+const notBuildingBody = `{"message":"Result PROJ-PLAN-44 not building.","status-code":404}`
+
+func TestBuildProgressIsEmptyForAResultNotBuilding(t *testing.T) {
+	for _, known := range []string{"", "yes"} {
+		t.Run("known="+known, func(t *testing.T) {
+			c, _ := newTestServer(t, map[string]*route{
+				"GET /rest/api/latest/result/status/PROJ-PLAN-44": {status: 404, body: notBuildingBody},
+			})
+			knownCaps(c, Capabilities{Progress: known})
+
+			p, err := c.BuildProgress(context.Background(), "PROJ-PLAN-44")
+
+			require.NoError(t, err)
+			assert.Equal(t, provider.Progress{}, p)
+			assert.Equal(t, "yes", c.Capabilities().Progress, "the endpoint answered, so it is there")
+		})
+	}
+}
+
+func TestBuildProgressKeepsAKnownEndpointOnAnyBuild404(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/status/PROJ-PLAN-44": {status: 404, body: `{"message":"gone","status-code":404}`},
+	})
+	knownCaps(c, Capabilities{Progress: "yes"})
+
+	p, err := c.BuildProgress(context.Background(), "PROJ-PLAN-44")
+
+	require.NoError(t, err)
+	assert.Equal(t, provider.Progress{}, p)
+	assert.Equal(t, "yes", c.Capabilities().Progress, "one build's 404 does not take the endpoint away")
+}
+
 func TestBuildProgressSkipsRequestWhenKnownUnsupported(t *testing.T) {
 	c, rec := newTestServer(t, map[string]*route{})
 	knownCaps(c, Capabilities{Progress: "no"})

@@ -76,6 +76,17 @@ func TestAnOldCachedFailedTestsNoIsForgotten(t *testing.T) {
 	assert.Equal(t, "entries", caps.Log, "the rest of the cache is kept")
 }
 
+func TestAnOldCachedProgressNoIsForgotten(t *testing.T) {
+	// progress: no was learned from Bamboo's 404 for a result it was not
+	// building; it must not keep the bars off for a week.
+	path := filepath.Join(t.TempDir(), "capabilities.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"https://bamboo.example.com":{"version":"9.6.9","progress":"no","log":"entries"}}`), 0o600))
+	caps, err := LoadCapabilities(path, "https://bamboo.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "", caps.Progress)
+	assert.Equal(t, "entries", caps.Log, "the rest of the cache is kept")
+}
+
 func TestCachedCannotRestartIgnoresStaleAnswers(t *testing.T) {
 	now := time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)
 	no := Capabilities{Rerun: "no", CheckedAt: now.Add(-time.Hour)}

@@ -175,6 +175,9 @@ func (m Model) commandServer(arg string) (tea.Model, tea.Cmd, error) {
 	for _, s := range m.deps.Servers {
 		aliases = append(aliases, s.Alias)
 	}
+	if i := slices.IndexFunc(aliases, func(a string) bool { return strings.EqualFold(a, arg) }); i >= 0 && !slices.Contains(aliases, arg) {
+		arg = aliases[i]
+	}
 	if !slices.Contains(aliases, arg) {
 		return m, nil, fmt.Errorf("no server %q; %sservers: %s", arg, didYouMean(":server ", arg, aliases), strings.Join(aliases, " "))
 	}

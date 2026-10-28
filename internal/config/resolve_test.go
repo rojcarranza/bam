@@ -80,6 +80,13 @@ func TestServerSelectionSingleAndNone(t *testing.T) {
 	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
 	assert.Contains(t, err.Error(), "only, second")
 
+	assert.Equal(t, "second", alias(t, c, "SECOND", ""), "aliases match in any case")
+	c.Machine.Servers["Second"] = Server{URL: "https://c.example.com"}
+	assert.Equal(t, "Second", alias(t, c, "Second", ""), "an exact match wins")
+	_, err = c.SelectServer("SECOND", "")
+	require.Error(t, err, "two case-insensitive matches pick neither")
+	delete(c.Machine.Servers, "Second")
+
 	_, err = c.SelectServer("missing", "")
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)

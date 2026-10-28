@@ -126,6 +126,8 @@ func TestServerCommand(t *testing.T) {
 	m.deps.Servers = append(m.deps.Servers, Server{Alias: "work", URL: "https://bamboo.example.com"})
 	m, _ = runCmdLine(m, "server work")
 	require.Equal(t, "work", m.server)
+	m, _ = runCmdLine(m, "server LAB")
+	require.Equal(t, "lab", m.server, "aliases match in any case")
 	m, _ = runCmdLine(m, "server nope")
 	require.EqualError(t, m.err, `no server "nope"; servers: lab work`)
 	m, _ = runCmdLine(m, "server wrk")

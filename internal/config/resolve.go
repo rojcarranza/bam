@@ -129,6 +129,19 @@ func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error)
 	servers := c.Servers()
 	pick := func(alias string) (ResolvedServer, error) {
 		s, ok := servers[alias]
+		if !ok {
+			// Aliases are lowercase, so --server LAB means lab; an exact
+			// match still wins in a hand-written config.
+			var hits []ResolvedServer
+			for n, r := range servers {
+				if strings.EqualFold(n, alias) {
+					hits = append(hits, r)
+				}
+			}
+			if len(hits) == 1 {
+				s, ok = hits[0], true
+			}
+		}
 		if !ok || s.URL == "" {
 			return ResolvedServer{}, c.UnknownServer(alias)
 		}

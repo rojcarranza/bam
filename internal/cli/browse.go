@@ -7,9 +7,11 @@ import (
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/view"
+	"github.com/r0jjames/bam-cli/internal/view/style"
 	"github.com/spf13/cobra"
 )
 
@@ -121,6 +123,36 @@ func (r *runtime) completeBranch(cmd *cobra.Command, args []string, _ string) ([
 		names = append(names, b.ShortName)
 	}
 	return names, none
+}
+
+// completeFrom offers "last" and the recent build numbers of the plan branch
+// a command resolves, the numbers --from reads relative to that branch.
+func (r *runtime) completeFrom(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	out := []string{"last\tmost recent manual build"}
+	arg := ""
+	if p, err := cmd.Flags().GetString("plan"); err == nil && p != "" {
+		arg = p
+	} else if len(args) > 0 {
+		arg = args[0]
+	}
+	if !config.ValidTargetName(arg) && !app.IsPlanKey(arg) {
+		return out, none
+	}
+	svc, _, err := r.connectFor(cmd.Context(), arg)
+	if err != nil {
+		return out, none
+	}
+	branch, _ := cmd.Flags().GetString("branch")
+	ref, err := svc.ResolvePlan(cmd.Context(), arg, branch)
+	if err != nil {
+		return out, none
+	}
+	builds, _ := svc.P.ListBuilds(cmd.Context(), ref.PlanKey, provider.ListOptions{Limit: 20})
+	for _, b := range builds {
+		out = append(out, fmt.Sprintf("%d\t%s", b.Number, style.Label(b.State)))
+	}
+	return out, none | cobra.ShellCompDirectiveKeepOrder
 }
 
 func newProjectListCmd(r *runtime) *cobra.Command {

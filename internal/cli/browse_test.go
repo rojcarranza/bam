@@ -189,3 +189,15 @@ func TestBranchFlagCompletesPlanBranches(t *testing.T) {
 	h.run("__complete", "run", "PROJ-BUILD-12", "--branch", "")
 	assert.NotContains(t, h.stdout.String(), "develop", "a build key names no plan")
 }
+
+func TestFromFlagCompletesRecentBuilds(t *testing.T) {
+	h := newHarness(t)
+	h.run("__complete", "run", "build", "--from", "")
+	assert.Contains(t, h.stdout.String(), "last\tmost recent manual build\n")
+	assert.Contains(t, h.stdout.String(), "482\tsuccess\n")
+	// The preset's develop branch numbers its own builds.
+	h.run("__complete", "run", "provision-lab", "--from", "")
+	assert.Contains(t, h.stdout.String(), "8\tfailed\n")
+	h.run("__complete", "preset", "add", "x", "--from", "")
+	assert.Equal(t, "last\tmost recent manual build\n:4\n", h.stdout.String(), "no plan, so only last")
+}

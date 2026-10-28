@@ -139,17 +139,21 @@ func newRoot(r *runtime) *cobra.Command {
 	for _, c := range root.Commands() {
 		requireSubcommand(c)
 	}
-	completeBranchFlags(root, r)
+	completePlanFlags(root, r)
 	return root
 }
 
-// completeBranchFlags registers plan branch completion on every --branch flag.
-func completeBranchFlags(cmd *cobra.Command, r *runtime) {
+// completePlanFlags registers plan branch completion on every --branch flag
+// and recent build completion on every --from flag.
+func completePlanFlags(cmd *cobra.Command, r *runtime) {
 	for _, c := range cmd.Commands() {
-		completeBranchFlags(c, r)
+		completePlanFlags(c, r)
 	}
 	if cmd.LocalFlags().Lookup("branch") != nil {
 		_ = cmd.RegisterFlagCompletionFunc("branch", r.completeBranch)
+	}
+	if cmd.LocalFlags().Lookup("from") != nil {
+		_ = cmd.RegisterFlagCompletionFunc("from", r.completeFrom)
 	}
 }
 

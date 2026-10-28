@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
+	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/view"
@@ -756,7 +758,10 @@ func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool,
 	}
 	var svc *app.Service
 	var err error
-	if last {
+	if key, ok := pageKey(arg); ok {
+		arg = key
+		svc, err = r.connectPage(args[0], key)
+	} else if last {
 		svc, _, err = r.connectLast(ctx)
 	} else {
 		svc, _, err = r.connectFor(ctx, arg)
@@ -766,6 +771,40 @@ func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool,
 	}
 	key, err := svc.ResolveBuild(ctx, app.BuildArg{Arg: arg, Last: last, Branch: branch})
 	return svc, key, err
+}
+
+// pageKeyRe is the key in a Bamboo page link: .../browse/PROJ-PLAN-42, or a
+// job's .../browse/PROJ-PLAN-JOB1-42/log.
+var pageKeyRe = regexp.MustCompile(`^https?://[^/]+(?:/[^?#]*)?/browse/([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)(?:[/?#]|$)`)
+
+// pageKey returns the key of a pasted Bamboo page link.
+func pageKey(arg string) (string, bool) {
+	m := pageKeyRe.FindStringSubmatch(arg)
+	if m == nil {
+		return "", false
+	}
+	return m[1], true
+}
+
+// connectPage connects to the configured server that a page link points at,
+// so a link's key is never looked up on another server.
+func (r *runtime) connectPage(link, key string) (*app.Service, error) {
+	cfg, err := r.config()
+	if err != nil {
+		return nil, err
+	}
+	origin, err := credential.Origin(link)
+	if err != nil {
+		return nil, err
+	}
+	for _, s := range cfg.Servers() {
+		if o, err := credential.Origin(s.URL); err == nil && o == origin {
+			svc, _, err := r.connectServer(s)
+			return svc, err
+		}
+	}
+	return nil, errs.Configf("%s is on %s, which no configured server matches", key, origin).
+		WithTry("bam server add <alias> --url " + origin)
 }
 
 func newBuildShowCmd(r *runtime) *cobra.Command {

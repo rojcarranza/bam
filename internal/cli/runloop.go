@@ -301,8 +301,12 @@ func newLogsCmd(r *runtime) *cobra.Command {
 			ctx := cmd.Context()
 			// A job result key copied from Bamboo's job page names the build and the job.
 			if len(args) == 1 && job == "" {
-				if build, _, ok := app.SplitJobResult(args[0]); ok {
-					job, args = args[0], []string{build}
+				k := args[0]
+				if pk, ok := pageKey(k); ok {
+					k = pk
+				}
+				if build, _, ok := app.SplitJobResult(k); ok {
+					job, args = k, []string{strings.Replace(args[0], k, build, 1)}
 				}
 			}
 			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)

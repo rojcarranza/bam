@@ -251,6 +251,9 @@ func TestBuildShow(t *testing.T) {
 	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
 	assert.Equal(t, "PROJ-PROV12-8", doc["key"])
 
+	assert.Equal(t, 0, h.run("build", "show", workOrigin+"/browse/PROJ-PROV12-8"), "a build page link")
+	assert.Contains(t, h.stdout.String(), "bam logs PROJ-PROV12-8 --job TF")
+
 	assert.Equal(t, 2, h.run("build", "show", "--last"))
 	assert.Contains(t, h.stderr.String(), "no build triggered from this repository")
 	assert.Equal(t, 2, h.run("build", "show"))

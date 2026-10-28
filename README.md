@@ -271,7 +271,7 @@ To watch a running build and its sub-pipelines live:
 bam build tree PROJ-API-142 --watch
 ```
 
-- The argument works as in `bam build show`: a build key, a plan or preset (its latest build, with `--branch`), or `--last`.
+- The argument works as in `bam build show`: a build key, a link copied from its Bamboo page, a plan or preset (its latest build, with `--branch`), or `--last`.
 - `--watch` follows the tree until every build has finished, including children that start after their parent ends. On a terminal the tree redraws in place as builds start, run and finish; Ctrl-C stops watching only. `bam watch <build>` and `bam run --watch` draw the same live tree; `bam watch --json` follows the single build.
 - `--failed` shows only the branches that lead to a failure; `--depth N` limits the levels; `--json` prints the tree as one document.
 - It exits 0 when every build succeeded and 1 when any did not. Without `--watch`, a tree that is still running exits 0 and suggests `--watch`.

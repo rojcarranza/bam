@@ -113,3 +113,21 @@ func TestColorFlagValidated(t *testing.T) {
 	_, err := r.out()
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 }
+
+func TestBuildArgAcceptsAPageLinkOnItsServer(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o700))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(
+		"version: 1\nservers:\n  home:\n    url: http://bamboo.lab.example:8085\n"), 0o644))
+	h.kr.m["bam|http://bamboo.lab.example:8085"] = "home-tok"
+	svc, key, err := newRuntime(h).resolveBuildArg(context.Background(),
+		[]string{"http://bamboo.lab.example:8085/browse/PROJ-PROV12-8/log"}, false, "")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV12-8", key)
+	assert.Equal(t, "home", svc.Server.Alias, "the link's server, not the default one")
+	assert.Equal(t, "home-tok", h.connectOpts[0].Token)
+
+	_, _, err = newRuntime(h).resolveBuildArg(context.Background(),
+		[]string{"https://bamboo.other.example/browse/PROJ-PROV12-8"}, false, "")
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err), "a link to an unconfigured server")
+}

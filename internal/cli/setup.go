@@ -353,7 +353,12 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 			alias := args[0]
 			s, ok := cfg.Servers()[alias]
 			if !ok {
-				return cfg.UnknownServer(alias)
+				// UnknownServer's hint, bam server add, is no way to log out.
+				e := cfg.UnknownServer(alias).WithTry("")
+				if e.Why == "" {
+					e = e.WithWhy("no servers are configured, so there is nothing to log out of")
+				}
+				return e
 			}
 			origin, err := credential.Origin(s.URL)
 			if err != nil {

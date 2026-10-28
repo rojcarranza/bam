@@ -127,6 +127,16 @@ func TestWhoamiWithNoServers(t *testing.T) {
 	assert.JSONEq(t, `[]`, h.stdout.String())
 }
 
+func TestLogoutUnknownServer(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 3, h.run("logout", "x"))
+	assert.Equal(t, "error: no server alias \"x\"\n  servers: work\n", h.stderr.String(), "no hint to add a server just to log out of it")
+
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	assert.Equal(t, 3, h.run("logout", "x"))
+	assert.Equal(t, "error: no server alias \"x\"\n  no servers are configured, so there is nothing to log out of\n", h.stderr.String())
+}
+
 func TestServerRmWithNoServers(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))

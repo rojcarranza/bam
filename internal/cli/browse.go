@@ -93,6 +93,36 @@ func (r *runtime) completeProjects(cmd *cobra.Command, args []string, _ string) 
 	return keys, cobra.ShellCompDirectiveNoFileComp
 }
 
+// completeBranch offers the branch names of the plan a command names: its
+// --plan flag (preset add) or its first argument, a plan key or preset.
+func (r *runtime) completeBranch(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	arg := ""
+	if p, err := cmd.Flags().GetString("plan"); err == nil && p != "" {
+		arg = p
+	} else if len(args) > 0 {
+		arg = args[0]
+	}
+	svc, _, err := r.connectFor(cmd.Context(), arg)
+	if err != nil {
+		return nil, none
+	}
+	// Not ResolvePlan: it would also resolve a preset's stored branch, one more request that can fail.
+	master := arg
+	if t, ok, err := r.cfg.Target(arg); err == nil && ok {
+		master = t.Plan
+	}
+	if !app.IsPlanKey(master) {
+		return nil, none
+	}
+	branches, _ := svc.P.ListBranches(cmd.Context(), master)
+	var names []string
+	for _, b := range branches {
+		names = append(names, b.ShortName)
+	}
+	return names, none
+}
+
 func newProjectListCmd(r *runtime) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{

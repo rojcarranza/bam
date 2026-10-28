@@ -174,3 +174,18 @@ func TestBuildListCompletesStates(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "success\n")
 	assert.Contains(t, h.stdout.String(), ":4\n", "no file completion")
 }
+
+func TestBranchFlagCompletesPlanBranches(t *testing.T) {
+	h := newHarness(t)
+	for _, line := range [][]string{
+		{"run", "provision-lab", "--branch", ""},
+		{"plan", "show", "PROJ-PROV", "--branch", ""},
+		{"preset", "add", "new-one", "--plan", "PROJ-PROV", "--branch", ""},
+	} {
+		h.run(append([]string{"__complete"}, line...)...)
+		assert.Contains(t, h.stdout.String(), "develop\n", line)
+		assert.Contains(t, h.stdout.String(), ":4\n", "no file names")
+	}
+	h.run("__complete", "run", "PROJ-BUILD-12", "--branch", "")
+	assert.NotContains(t, h.stdout.String(), "develop", "a build key names no plan")
+}

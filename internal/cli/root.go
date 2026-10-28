@@ -139,7 +139,18 @@ func newRoot(r *runtime) *cobra.Command {
 	for _, c := range root.Commands() {
 		requireSubcommand(c)
 	}
+	completeBranchFlags(root, r)
 	return root
+}
+
+// completeBranchFlags registers plan branch completion on every --branch flag.
+func completeBranchFlags(cmd *cobra.Command, r *runtime) {
+	for _, c := range cmd.Commands() {
+		completeBranchFlags(c, r)
+	}
+	if cmd.LocalFlags().Lookup("branch") != nil {
+		_ = cmd.RegisterFlagCompletionFunc("branch", r.completeBranch)
+	}
 }
 
 // requireSubcommand gives every group command ("bam server", "bam plan") a

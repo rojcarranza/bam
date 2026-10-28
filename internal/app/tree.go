@@ -711,9 +711,9 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 						done[n.Build.Key] = n.Build
 					}
 				})
+				s.estimateTree(ctx, t, &noProgress)
 				sig := treeSignature(t)
 				if sig != last {
-					s.estimateTree(ctx, t, &noProgress)
 					if !send(TreeEvent{Type: TreeUpdate, Tree: t}) {
 						return
 					}
@@ -750,9 +750,8 @@ func endedBefore(t Tree, cutoff time.Time) bool {
 	return ok
 }
 
-// estimateTree reads an estimate for each running build of t. A live view
-// moves the bars on between updates, so they are read only for a tree
-// that is about to be sent.
+// estimateTree reads an estimate for each running build of t, on every
+// refresh: Bamboo may have none yet when a build starts, or fail once.
 func (s *Service) estimateTree(ctx context.Context, t Tree, unsupported *bool) {
 	now := s.Clock.Now()
 	t.Root.Walk(func(n *TreeNode, _ int) {
@@ -764,11 +763,12 @@ func (s *Service) estimateTree(ctx context.Context, t Tree, unsupported *bool) {
 }
 
 // treeSignature is what a watcher compares between refreshes: every node,
-// its state and its stages' states.
+// its state, whether it has an estimate and its stages' states. A newer
+// estimate alone is no change; a live view moves the bars on by itself.
 func treeSignature(t Tree) string {
 	var b strings.Builder
 	t.Root.Walk(func(n *TreeNode, depth int) {
-		fmt.Fprintf(&b, "%d %s %s %s %t %t", depth, n.PlanKey, n.Build.Key, n.Build.State, n.NotRun, n.Loop)
+		fmt.Fprintf(&b, "%d %s %s %s %t %t %t", depth, n.PlanKey, n.Build.Key, n.Build.State, n.NotRun, n.Loop, n.Progress.Valid)
 		for _, st := range n.Build.Stages {
 			fmt.Fprintf(&b, " %s=%s", st.Name, st.State)
 		}

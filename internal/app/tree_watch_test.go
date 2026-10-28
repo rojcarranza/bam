@@ -336,3 +336,30 @@ func TestWatchTreeEstimatesRunningBuilds(t *testing.T) {
 		require.False(t, n.Progress.Valid, n.Build.Key+" has finished")
 	})
 }
+
+func TestWatchTreeRetriesAMissingEstimate(t *testing.T) {
+	p := treeFake()
+	running := tb("PROJ-DOCS-30", childOf("PROJ-API-142"), provider.StateRunning, 5)
+	p.Sequences = map[string][]provider.Build{"PROJ-DOCS-30": {
+		running, running, running,
+		tb("PROJ-DOCS-30", childOf("PROJ-API-142"), provider.StateSuccess, 5),
+	}}
+	est := provider.Progress{Valid: true, Average: 10 * time.Minute, Elapsed: 4 * time.Minute, Remaining: 6 * time.Minute, Percent: 0.4}
+	later := est
+	later.Elapsed, later.Remaining, later.Percent = 5*time.Minute, 5*time.Minute, 0.5
+	// Bamboo has no estimate yet when the build starts, then has one.
+	p.Progressions = map[string][]provider.Progress{"PROJ-DOCS-30": {{}, est, later}}
+	svc := treeService(t, p)
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	var docs []provider.Progress
+	for _, e := range evs[:len(evs)-1] {
+		e.Tree.Root.Walk(func(n *TreeNode, _ int) {
+			if n.Build.Key == "PROJ-DOCS-30" {
+				docs = append(docs, n.Progress)
+			}
+		})
+	}
+	// The third update is the build ending: a newer estimate alone sends
+	// nothing, since the view moves the bar on by itself.
+	require.Equal(t, []provider.Progress{{}, est, {}}, docs, "the estimate arrives without a state change")
+}

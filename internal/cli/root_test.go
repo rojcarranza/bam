@@ -213,6 +213,8 @@ func TestWrongArgCountPointsAtHelp(t *testing.T) {
 		"logs PROJ-PLAN 482":        "error: unexpected argument \"482\"\n  try: did you mean bam logs PROJ-PLAN-482?\n",
 		"build show PROJ-PLAN #482": "error: unexpected argument \"#482\"\n  try: did you mean bam build show PROJ-PLAN-482?\n",
 		"plan stats PROJ-PLAN 5":    "error: unexpected argument \"5\"\n  try: bam plan stats",
+		"preset add web PROJ-PLAN":  "error: unexpected argument \"PROJ-PLAN\"\n  try: did you mean bam preset add web --plan PROJ-PLAN?\n",
+		"doctor PROJ-PLAN":          "error: unexpected argument \"PROJ-PLAN\"\n  try: did you mean bam doctor --plan PROJ-PLAN?\n",
 	} {
 		h := newHarness(t)
 		assert.Equal(t, 2, h.run(strings.Fields(args)...), args)

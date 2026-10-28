@@ -403,6 +403,11 @@ func argCountError(cmd *cobra.Command, err error) error {
 			return errs.Usagef("%s", msg).WithTry(fmt.Sprintf("did you mean %s %s?", cmd.CommandPath(), k))
 		}
 	}
+	// "bam preset add web PROJ-PLAN": the plan as an argument of a command that takes --plan
+	if extra := extraArgs(err.Error(), args); len(extra) == 1 && app.IsPlanKey(extra[0]) && cmd.Flags().Lookup("plan") != nil {
+		fixed := append([]string{cmd.CommandPath()}, args[:len(args)-1]...)
+		return errs.Usagef("%s", msg).WithTry(fmt.Sprintf("did you mean %s --plan %s?", strings.Join(fixed, " "), extra[0]))
+	}
 	return errs.Usagef("%s", msg).WithTry(fmt.Sprintf("%s; %s --help shows more", synopsis, cmd.CommandPath()))
 }
 

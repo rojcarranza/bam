@@ -1223,7 +1223,7 @@ func TestFormLoadedCarriesTheHintAndReopeningClearsIt(t *testing.T) {
 }
 
 // At 80 columns the status bar must still fit the key line with the f hint;
-// a line too long for the bar is dropped whole, hiding the hint it offers.
+// a line too long for the bar loses its last hints, such as ^R run.
 func TestTheFHintFitsTheStatusBarAt80Columns(t *testing.T) {
 	m := hintedForm()
 	m.form.cursor = len(m.form.fields)

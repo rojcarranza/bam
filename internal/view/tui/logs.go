@@ -147,7 +147,7 @@ func (m Model) logsView() string {
 	if m.logs.following {
 		keyLine = "following · " + keyLine
 	}
-	foot := truncate(statusStyle.Render(keyLine), m.width)
+	foot := statusStyle.Render(fitHints(keyLine, m.width))
 	if m.inputFor != inputNone {
 		foot = truncate(m.input.View(), m.width)
 	}

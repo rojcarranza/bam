@@ -57,6 +57,16 @@ func truncate(s string, w int) string {
 	return lipgloss.NewStyle().MaxWidth(w).Render(s)
 }
 
+// fitHints drops whole hints from the end of a key line until it fits in w,
+// so a narrow bar keeps its first keys instead of none or half a word.
+func fitHints(line string, w int) string {
+	hints := strings.Split(line, "  ")
+	for len(hints) > 0 && lipgloss.Width(strings.Join(hints, "  ")) > w {
+		hints = hints[:len(hints)-1]
+	}
+	return strings.Join(hints, "  ")
+}
+
 // cursorFor marks the selected row, and marks it differently when its panel
 // does not have focus, so there is never more than one live cursor.
 func (m Model) cursorFor(focused, selected bool) string {
@@ -93,8 +103,8 @@ func (m Model) keyLine() string {
 			return "esc cancel"
 		}
 		// The f hint replaces "tab next" and "d dry-run" rather than adding
-		// to them: a key line longer than the bar's free space is dropped
-		// whole, and at 80 columns the longer line would not fit.
+		// to them: a key line longer than the bar's free space loses its
+		// last hints, and at 80 columns the longer line would lose esc cancel.
 		if m.form.onRevision() && m.form.fromRevision != "" {
 			return "f use " + app.BuildLabel(m.form.fromBuild) + "'s revision  enter edit  ^R run  esc cancel"
 		}
@@ -107,7 +117,7 @@ func (m Model) keyLine() string {
 	}
 	if m.screen == screenSet {
 		// o and y work here too but stay in ? help: with them the longest
-		// line does not fit an 80-column bar, which drops the line whole.
+		// line does not fit an 80-column bar, which drops its last hints.
 		parts := []string{"enter build"}
 		run, resume, rerun := m.setActions()
 		if run {
@@ -162,9 +172,9 @@ func (m Model) statusBar(width int) string {
 	case m.status != "":
 		left = m.status
 	}
-	right := m.keyLine()
+	right := fitHints(m.keyLine(), width-lipgloss.Width(left)-1)
 	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
+	if right == "" || gap < 1 {
 		return truncate(left, width)
 	}
 	return left + strings.Repeat(" ", gap) + statusStyle.Render(right)

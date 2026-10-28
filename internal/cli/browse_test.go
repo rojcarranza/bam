@@ -407,6 +407,16 @@ func TestPageKey(t *testing.T) {
 	}
 }
 
+func TestPlanListAcceptsAProjectLink(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 0, h.run("plan", "list", workOrigin+"/browse/PROJ"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV")
+	assert.Equal(t, 3, h.run("plan", "list", "https://bamboo.other.example/browse/PROJ"), "an unconfigured server")
+	assert.Contains(t, h.stderr.String(), "bam server add <alias> --url https://bamboo.other.example")
+	assert.Equal(t, 2, h.run("plan", "list", workOrigin+"/browse/PROJ", "https://bamboo.other.example/browse/OPS"), "two servers")
+	assert.Contains(t, h.stderr.String(), "two servers")
+}
+
 func TestPlanArgAcceptsAPageLink(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("plan", "show", workOrigin+"/browse/PROJ-PROV"), "a plan page link")

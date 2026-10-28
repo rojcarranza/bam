@@ -328,15 +328,37 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 		Short:      "List plans of the configured projects, grouped by project",
 		Long: "List plans of the configured projects, or of the projects given, grouped by\n" +
 			"project. With --match, list only the plans whose key or name contains the\n" +
-			"text, ignoring case.",
-		Example:           "  bam plan list\n  bam plan list OPS LAB\n  bam plan list --match deploy",
+			"text, ignoring case. A project can also be a link copied from its Bamboo page.",
+		Example:           "  bam plan list\n  bam plan list OPS LAB\n  bam plan list https://bamboo.example.com/browse/OPS\n  bam plan list --match deploy",
 		ValidArgsFunction: r.completeProjects,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			svc, _, err := r.connect(cmd.Context(), "")
+			keys, link, linkKey := slices.Clone(args), "", ""
+			for i, a := range args {
+				m := projectLinkRe.FindStringSubmatch(a)
+				if m == nil {
+					continue
+				}
+				keys[i] = m[1]
+				if link == "" {
+					link, linkKey = a, m[1]
+					continue
+				}
+				o1, _ := credential.Origin(link)
+				if o2, _ := credential.Origin(a); o1 != o2 {
+					return errs.Usagef("project links point at two servers, %s and %s", o1, o2).
+						WithTry("list each server's projects in its own bam plan list")
+				}
+			}
+			var svc *app.Service
+			var err error
+			if link != "" {
+				svc, err = r.connectPage(link, linkKey)
+			} else {
+				svc, _, err = r.connect(cmd.Context(), "")
+			}
 			if err != nil {
 				return err
 			}
-			keys := args
 			if len(keys) == 0 {
 				keys = r.cfg.ProjectKeys(svc.Server)
 			}
@@ -790,6 +812,9 @@ func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool,
 // pageKeyRe is the key in a Bamboo page link: .../browse/PROJ-PLAN-42, or a
 // job's .../browse/PROJ-PLAN-JOB1-42/log.
 var pageKeyRe = regexp.MustCompile(`^https?://[^/]+(?:/[^?#]*)?/browse/([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)(?:[/?#]|$)`)
+
+// projectLinkRe is the project key in a Bamboo project page link: .../browse/PROJ.
+var projectLinkRe = regexp.MustCompile(`^https?://[^/]+(?:/[^?#]*)?/browse/([A-Z][A-Z0-9]*)(?:[/?#]|$)`)
 
 // actionKeyRe is a plan or job key in an older .action link's planKey or buildKey.
 var actionKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$`)

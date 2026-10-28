@@ -223,3 +223,14 @@ func TestGetBuildReadsTheParentFromMetadata(t *testing.T) {
 	assert.Equal(t, "PROJ-API-142", b.Parent)
 	assert.Contains(t, strings.Split(rec.all()[0].URL.Query().Get("expand"), ","), "metadata")
 }
+
+func TestCurrentUserNotFoundPointsAtTheURL(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{})
+	_, err := c.CurrentUser(ctx)
+	require.ErrorIs(t, err, errs.ErrNotFound)
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindBamboo, e.Kind)
+	assert.Equal(t, "no Bamboo REST API at "+strings.TrimSuffix(c.URL(""), "/browse/"), e.What)
+	assert.Contains(t, e.Try, "context path")
+}

@@ -3,10 +3,12 @@ package bamboo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"strconv"
 	"sync"
 
+	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
@@ -15,6 +17,13 @@ const api = "/rest/api/latest"
 func (c *Client) CurrentUser(ctx context.Context) (provider.User, error) {
 	var u userDTO
 	if err := c.getJSON(ctx, api+"/currentUser", nil, &u); err != nil {
+		// Every Bamboo answers currentUser, so a 404 means the URL is not a
+		// Bamboo base URL, most often a missing or extra context path.
+		if errors.Is(err, errs.ErrNotFound) {
+			err = errs.Bamboof("no Bamboo REST API at %s", c.base).
+				WithTry("check the server URL; if Bamboo runs under a context path, include it, for example https://bamboo.example.com/bamboo").
+				Wrap(err)
+		}
 		return provider.User{}, err
 	}
 	return provider.User{Name: u.Name, FullName: u.FullName}, nil

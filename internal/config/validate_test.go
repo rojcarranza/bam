@@ -127,6 +127,13 @@ func TestValidTargetName(t *testing.T) {
 	assert.False(t, ValidTargetName("2lab"))
 }
 
+func TestTargetNameFor(t *testing.T) {
+	assert.Equal(t, "web-deploy", TargetNameFor("Web Deploy"))
+	assert.Equal(t, "lab", TargetNameFor(" Lab!"))
+	assert.Empty(t, TargetNameFor("2lab"), "no suggestion that is itself invalid")
+	assert.Empty(t, TargetNameFor("--"))
+}
+
 func TestEnvServerAliasIsReserved(t *testing.T) {
 	_, err := loadProject(t, "version: 1\nservers:\n  env:\n    url: https://bamboo.example.com\n", "")
 	require.Error(t, err)

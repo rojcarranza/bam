@@ -35,8 +35,8 @@ func CheckGenerate(o GenerateOptions) error {
 	if !config.ValidTargetName(o.Name) {
 		e := errs.Usagef("invalid preset name %q", o.Name).
 			WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter")
-		if low := strings.ToLower(o.Name); config.ValidTargetName(low) {
-			e = e.WithTry("did you mean " + low + "?")
+		if s := config.TargetNameFor(o.Name); s != "" {
+			e = e.WithTry("did you mean " + s + "?")
 		}
 		return e
 	}

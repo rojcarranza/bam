@@ -275,6 +275,8 @@ func TestInitChecksPlansBeforeConnecting(t *testing.T) {
 	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD=Lab")...))
 	assert.Contains(t, h.stderr.String(), "invalid preset name \"Lab\"", "an explicit name is not derived")
 	assert.Contains(t, h.stderr.String(), "did you mean lab?")
+	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD=web deploy")...))
+	assert.Contains(t, h.stderr.String(), "try: did you mean web-deploy?")
 	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-2X")...))
 	assert.Equal(t, "error: cannot derive a preset name from PROJ-2X\n  try: --plan PROJ-2X=NAME\n", h.stderr.String())
 	assert.Empty(t, h.connectOpts, "bad --plan input is reported before connecting")

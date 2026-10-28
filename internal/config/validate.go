@@ -52,6 +52,24 @@ func EnvNameFor(variable string) string {
 // lowercase so they never collide with uppercase plan keys.
 func ValidTargetName(name string) bool { return targetNameRe.MatchString(name) }
 
+// TargetNameFor suggests a valid target or set name for name, or returns ""
+// when lowercasing and dashing it still does not make one.
+func TargetNameFor(name string) string {
+	s := strings.Trim(strings.ToLower(nonAlnumRe.ReplaceAllString(name, "-")), "-")
+	if !ValidTargetName(s) {
+		return ""
+	}
+	return s
+}
+
+// renameTry is the try line for an invalid target or set name in a file.
+func renameTry(name string) string {
+	if s := TargetNameFor(name); s != "" {
+		return fmt.Sprintf("rename it, for example %q", s)
+	}
+	return "rename it to start with a lowercase letter, then letters, digits, - or _"
+}
+
 // checkProjectCredentialKeys fails when a committed file carries a credential.
 // It runs on the raw YAML so it reports the key even though strict decoding
 // would also reject it.
@@ -186,7 +204,7 @@ func checkTargetNames(path, where string, targets map[string]Target) error {
 		if !ValidTargetName(name) {
 			return errs.Configf("%s: %s: invalid preset name %q", path, where, name).
 				WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter").
-				WithTry(fmt.Sprintf("rename it, for example %q", strings.ToLower(nonAlnumRe.ReplaceAllString(name, "-"))))
+				WithTry(renameTry(name))
 		}
 	}
 	return nil
@@ -197,7 +215,7 @@ func checkSetNames(path, where string, sets map[string]Set) error {
 		if !ValidTargetName(name) {
 			return errs.Configf("%s: %s: invalid set name %q", path, where, name).
 				WithWhy("set names are lowercase letters, digits, - and _, starting with a letter").
-				WithTry(fmt.Sprintf("rename it, for example %q", strings.ToLower(nonAlnumRe.ReplaceAllString(name, "-"))))
+				WithTry(renameTry(name))
 		}
 	}
 	return nil

@@ -245,6 +245,11 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 		for _, s := range nestedCommands(root, strings.ToLower(args[0])) {
 			suggest = append(suggest, root.Name()+" "+s)
 		}
+		// "bam build open" meant the top-level "bam open"; groups are left out,
+		// since "bam plan build" names no command.
+		if c, _, err := root.Find([]string{strings.ToLower(args[0])}); len(suggest) == 0 && err == nil && c != root && c.IsAvailableCommand() && !c.HasSubCommands() {
+			suggest = []string{c.CommandPath()}
+		}
 	}
 	if len(suggest) > 0 {
 		last := len(suggest) - 1

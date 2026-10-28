@@ -239,6 +239,13 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 					// The machine config may not exist yet, and bam server list would only say there are none.
 					return errs.Usagef("unknown server %q", alias).WithWhy("no servers are configured").WithTry("bam server add " + alias + " --url URL")
 				}
+				if cfg.Project != nil {
+					if _, inProject := cfg.Project.Servers[alias]; inProject {
+						return errs.Usagef("server %q is defined in %s", alias, cfg.ProjectPath).
+							WithWhy("the machine default must be a machine server, or every other repo would break").
+							WithTry("set default_server: " + alias + " in " + cfg.ProjectPath)
+					}
+				}
 				return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry("bam server list")
 			}
 			if err := config.SetMachineDefaultServer(r.env.Paths.MachineConfig, alias); err != nil {

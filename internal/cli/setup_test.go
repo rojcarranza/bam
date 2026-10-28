@@ -48,7 +48,12 @@ func TestServerAddListRm(t *testing.T) {
 	data, _ = os.ReadFile(h.env.Paths.MachineConfig)
 	assert.Contains(t, string(data), "default_server: home")
 	assert.Equal(t, 2, h.run("server", "default", "work"), "a project alias cannot be the machine default")
+	project := filepath.Join(h.root, ".bam.yaml")
+	assert.Equal(t, "error: server \"work\" is defined in "+project+"\n"+
+		"  the machine default must be a machine server, or every other repo would break\n"+
+		"  try: set default_server: work in "+project+"\n", h.stderr.String())
 	assert.Equal(t, 2, h.run("server", "default", "nope"))
+	assert.Contains(t, h.stderr.String(), "no server alias \"nope\" in")
 
 	assert.Equal(t, 0, h.run("server", "rm", "home"))
 	assert.Contains(t, h.stdout.String(), "cleared the machine default_server")

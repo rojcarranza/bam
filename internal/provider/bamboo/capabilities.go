@@ -38,6 +38,12 @@ func LoadCapabilities(path, origin string) (Capabilities, error) {
 	return all[origin], nil
 }
 
+// CannotRestart reports whether c, learned within the last week, records
+// that the server refuses restarts. It reads only the cache, never the server.
+func (c Capabilities) CannotRestart(now time.Time) bool {
+	return c.Rerun == "no" && now.Sub(c.CheckedAt) <= capsMaxAge
+}
+
 // SaveCapabilities writes the capabilities of origin into path, keeping other origins.
 func SaveCapabilities(path, origin string, c Capabilities) error {
 	all, err := readCapsFile(path)

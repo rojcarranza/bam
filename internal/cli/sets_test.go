@@ -12,6 +12,7 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
 	"github.com/stretchr/testify/require"
 )
 
@@ -168,6 +169,13 @@ func TestSetListShowStatusResume(t *testing.T) {
 		Stages: []app.StageRecord{{Runs: []app.RunRecord{{Target: "publish-specs", PlanKey: "PROJ-BUILD", BuildKey: "PROJ-BUILD-2"}}}}}))
 	require.Equal(t, 2, h.run("set", "resume", "release"))
 	require.Contains(t, h.stderr.String(), "try: bam set rerun --failed "+failed)
+
+	// Once bam has learned this Bamboo refuses restarts, set rerun could only fail.
+	require.NoError(t, bamboo.SaveCapabilities(h.env.Paths.Capabilities, workOrigin,
+		bamboo.Capabilities{Rerun: "no", CheckedAt: fixedNow}))
+	require.Equal(t, 2, h.run("set", "resume", "release"))
+	require.NotContains(t, h.stderr.String(), "set rerun")
+	require.Contains(t, h.stderr.String(), "try: bam set status "+failed)
 }
 
 func TestSetStatusWithNoRuns(t *testing.T) {

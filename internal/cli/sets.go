@@ -13,6 +13,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
 	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/spf13/cobra"
 )
@@ -390,7 +391,8 @@ func (r *runtime) notResumable(arg string) error {
 	if err != nil || !ok {
 		return err
 	}
-	return app.NotResumable(rec)
+	caps, _ := bamboo.LoadCapabilities(r.env.Paths.Capabilities, rec.Origin)
+	return app.NotResumable(rec, caps.CannotRestart(r.env.Clock.Now()))
 }
 
 // planFromRecord is enough of a plan for the live display: the set's name

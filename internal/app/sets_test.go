@@ -469,6 +469,11 @@ func TestResumeRefusals(t *testing.T) {
 	}
 }
 
+func TestResumeFailedWithoutRestartsPointsAtStatus(t *testing.T) {
+	err := NotResumable(SetRecord{ID: "release-1", Status: SetFailed}, true)
+	require.Contains(t, errTry(err), "bam set status release-1")
+}
+
 func TestResumeWhileRunningIsRefusedByTheLock(t *testing.T) {
 	fp := trainBamboo(nil)
 	svc := setService(t, fp)

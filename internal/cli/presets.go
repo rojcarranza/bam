@@ -509,6 +509,22 @@ func newInitCmd(r *runtime) *cobra.Command {
 			if err := checkProjectKeys(projects); err != nil {
 				return err
 			}
+			// Check every --plan before connecting, so a typo fails offline.
+			var opts []app.GenerateOptions
+			for _, p := range plans {
+				key, name, _ := strings.Cut(p, "=")
+				o := app.GenerateOptions{Name: name, PlanKey: key, Full: true}
+				if name == "" {
+					o.Name = defaultTargetName(key)
+				}
+				if err := app.CheckGenerate(o); err != nil {
+					if name == "" && !config.ValidTargetName(o.Name) {
+						return errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
+					}
+					return err
+				}
+				opts = append(opts, o)
+			}
 			cfg, err := r.config()
 			if err != nil {
 				return err
@@ -545,16 +561,9 @@ func newInitCmd(r *runtime) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				for _, p := range plans {
-					key, name, _ := strings.Cut(p, "=")
-					if name == "" {
-						name = defaultTargetName(key)
-					}
-					d, err := svc.GenerateTarget(cmd.Context(), app.GenerateOptions{Name: name, PlanKey: key, Full: true})
+				for _, o := range opts {
+					d, err := svc.GenerateTarget(cmd.Context(), o)
 					if err != nil {
-						if errs.KindOf(err) == errs.KindUsage && !config.ValidTargetName(name) {
-							return errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
-						}
 						return err
 					}
 					drafts = append(drafts, d)

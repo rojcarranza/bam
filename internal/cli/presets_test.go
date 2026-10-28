@@ -233,6 +233,19 @@ func TestInit(t *testing.T) {
 	assert.NotEmpty(t, h.connectOpts)
 }
 
+func TestInitChecksPlansBeforeConnecting(t *testing.T) {
+	h := newHarness(t)
+	base := []string{"init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ", "--force"}
+	assert.Equal(t, 2, h.run(append(base, "--plan", "proj-build")...))
+	assert.Equal(t, "error: \"proj-build\" is not a plan key\n  try: keys are uppercase: did you mean PROJ-BUILD?\n", h.stderr.String())
+	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD=Lab")...))
+	assert.Contains(t, h.stderr.String(), "invalid preset name \"Lab\"", "an explicit name is not derived")
+	assert.Contains(t, h.stderr.String(), "did you mean lab?")
+	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-2X")...))
+	assert.Equal(t, "error: cannot derive a preset name from PROJ-2X\n  try: --plan PROJ-2X=NAME\n", h.stderr.String())
+	assert.Empty(t, h.connectOpts, "bad --plan input is reported before connecting")
+}
+
 func TestInitWithDifferentURLDropsMachineAuthEnv(t *testing.T) {
 	h := newHarness(t)
 	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))

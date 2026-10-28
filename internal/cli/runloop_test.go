@@ -211,7 +211,7 @@ func TestCancelDryRun(t *testing.T) {
 func TestOpenAndURL(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 0, h.run("open", "provision-lab"))
-	assert.Equal(t, []string{workOrigin + "/browse/PROJ-PROV"}, h.opened)
+	assert.Equal(t, []string{workOrigin + "/browse/PROJ-PROV12"}, h.opened, "the preset's branch: develop")
 	assert.Equal(t, 0, h.run("url", "PROJ-BUILD-482"))
 	assert.Equal(t, workOrigin+"/browse/PROJ-BUILD-482\n", h.stdout.String())
 	assert.Equal(t, 0, h.run("url", "PROJ"))
@@ -220,7 +220,7 @@ func TestOpenAndURL(t *testing.T) {
 	assert.Equal(t, 0, h.run("url", "PROJ-BUILD-482", "--job", "int"))
 	assert.Equal(t, workOrigin+"/browse/PROJ-BUILD-INT-482\n", h.stdout.String())
 	assert.Equal(t, 0, h.run("url", "provision-lab", "--job", "JOB1"))
-	assert.Equal(t, workOrigin+"/browse/PROJ-PROV-JOB1\n", h.stdout.String())
+	assert.Equal(t, workOrigin+"/browse/PROJ-PROV12-JOB1\n", h.stdout.String())
 	assert.Equal(t, 0, h.run("open", "PROJ-BUILD-482", "--job", "INT"))
 	assert.Equal(t, workOrigin+"/browse/PROJ-BUILD-INT-482", h.opened[len(h.opened)-1])
 	assert.Equal(t, 2, h.run("url", "PROJ", "--job", "INT"))

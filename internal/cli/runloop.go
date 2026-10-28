@@ -553,10 +553,10 @@ func newCancelCmd(r *runtime) *cobra.Command {
 	return cmd
 }
 
-// urlFor builds a Bamboo browse URL without any network call; job, when
-// set, turns a build key into that job's result key.
-func (r *runtime) urlFor(args []string, last bool, job string) (string, error) {
-	base, key, err := r.browseKey(args, last)
+// urlFor builds a Bamboo browse URL, with no network call unless a preset
+// names a branch; job, when set, turns a build key into that job's result key.
+func (r *runtime) urlFor(ctx context.Context, args []string, last bool, job string) (string, error) {
+	base, key, err := r.browseKey(ctx, args, last)
 	if err != nil {
 		return "", err
 	}
@@ -579,7 +579,7 @@ func (r *runtime) urlFor(args []string, last bool, job string) (string, error) {
 }
 
 // browseKey returns the server URL and the key that urlFor browses.
-func (r *runtime) browseKey(args []string, last bool) (string, string, error) {
+func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (string, string, error) {
 	if err := lastOrArg(args, last); err != nil {
 		return "", "", err
 	}
@@ -587,7 +587,7 @@ func (r *runtime) browseKey(args []string, last bool) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	var key, targetServer string
+	var key, targetServer, branch string
 	switch {
 	case last:
 		rec, ok, err := (&app.StateStore{Path: r.env.Paths.State}).Last(cfg.RepoRoot)
@@ -613,7 +613,7 @@ func (r *runtime) browseKey(args []string, last bool) (string, string, error) {
 		if !ok {
 			return "", "", app.UnknownTarget(cfg, args[0])
 		}
-		key, targetServer = t.Plan, t.Server
+		key, targetServer, branch = t.Plan, t.Server, t.Branch
 	case anyKeyRe.MatchString(args[0]):
 		key = args[0]
 	default:
@@ -622,6 +622,15 @@ func (r *runtime) browseKey(args []string, last bool) (string, string, error) {
 	server, err := cfg.SelectServer(r.flags.server, targetServer)
 	if err != nil {
 		return "", "", err
+	}
+	if branch != "" {
+		svc, _, err := r.connectServer(server)
+		if err != nil {
+			return "", "", err
+		}
+		if key, err = svc.ResolveBranch(ctx, key, branch); err != nil {
+			return "", "", err
+		}
 	}
 	return strings.TrimRight(server.URL, "/"), key, nil
 }
@@ -637,7 +646,7 @@ func newOpenCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			url, err := r.urlFor(args, last, job)
+			url, err := r.urlFor(cmd.Context(), args, last, job)
 			if err != nil {
 				return err
 			}
@@ -665,7 +674,7 @@ func newURLCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			url, err := r.urlFor(args, last, job)
+			url, err := r.urlFor(cmd.Context(), args, last, job)
 			if err != nil {
 				return err
 			}

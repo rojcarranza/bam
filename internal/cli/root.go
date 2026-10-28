@@ -229,14 +229,20 @@ func unknownCommand(cmd *cobra.Command, args []string) error {
 		for i, s := range suggest {
 			suggest[i] = path + " " + s
 		}
-		try = fmt.Sprintf("did you mean %s? %s shows them all", strings.Join(suggest, " or "), try)
+		last := len(suggest) - 1
+		said := suggest[last]
+		if last > 0 {
+			said = strings.Join(suggest[:last], ", ") + " or " + said
+		}
+		try = fmt.Sprintf("did you mean %s? %s shows them all", said, try)
 	}
 	return errs.Usagef("unknown command %q for %q", args[0], path).WithTry(try)
 }
 
 // nestedCommands finds the grandchildren that "bam cancel" or "bam rerun"
 // meant, by name, alias or SuggestFor: "build cancel", or "build rerun" and
-// "set rerun". A word as common as "list" returns nil.
+// "set rerun". More than two matches are kept only when they share one name,
+// as "show" does in most groups; a word that means different things returns nil.
 func nestedCommands(cmd *cobra.Command, word string) []string {
 	var found []string
 	for _, group := range cmd.Commands() {
@@ -249,7 +255,9 @@ func nestedCommands(cmd *cobra.Command, word string) []string {
 			}
 		}
 	}
-	if len(found) > 2 {
+	if len(found) > 2 && slices.ContainsFunc(found, func(f string) bool {
+		return strings.Fields(f)[1] != strings.Fields(found[0])[1]
+	}) {
 		return nil
 	}
 	return found

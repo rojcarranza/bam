@@ -67,3 +67,23 @@ func (s *Service) CannotStop(ctx context.Context) bool {
 	sc, ok := s.P.(provider.StopChecker)
 	return ok && sc.CannotStop(ctx)
 }
+
+// RefusesRestart is CannotRestart for a command about to restart: a refusal
+// learned before is held against the server's version first, as the restart
+// itself would, so an upgraded server is not refused on an old answer.
+func (s *Service) RefusesRestart(ctx context.Context) bool {
+	if !s.CannotRestart(ctx) {
+		return false
+	}
+	_, _ = s.P.ServerInfo(ctx)
+	return s.CannotRestart(ctx)
+}
+
+// RefusesStop is RefusesRestart for stopping a build.
+func (s *Service) RefusesStop(ctx context.Context) bool {
+	if !s.CannotStop(ctx) {
+		return false
+	}
+	_, _ = s.P.ServerInfo(ctx)
+	return s.CannotStop(ctx)
+}

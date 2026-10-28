@@ -527,7 +527,7 @@ func newCancelCmd(r *runtime) *cobra.Command {
 			if dryRun {
 				b, err = svc.Build(cmd.Context(), key)
 				done = b.State.Finished()
-				if err == nil && !done && svc.CannotStop(cmd.Context()) {
+				if err == nil && !done && svc.RefusesStop(cmd.Context()) {
 					err = errs.Bamboof("this Bamboo cannot stop a build over REST").
 						WithTry("bam open " + key + ", then stop it from Bamboo's web UI")
 				}

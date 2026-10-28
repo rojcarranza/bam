@@ -48,7 +48,7 @@ succeeded is refused.`,
 				}
 				return e
 			}
-			if dryRun && svc.CannotRestart(ctx) {
+			if dryRun && svc.RefusesRestart(ctx) {
 				return errs.Bamboof("this Bamboo cannot restart a build over REST").
 					WithTry("bam open " + key + ", then rerun it from Bamboo's web UI")
 			}

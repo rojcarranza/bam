@@ -1,10 +1,15 @@
 package cli
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -191,4 +196,43 @@ func TestBuildRerunRefusesANotBuiltBuild(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "PROJ-PROV-9 is not built; nothing to rerun")
 	assert.NotContains(t, h.stderr.String(), "bam watch")
 	assert.Empty(t, h.fake.Restarted)
+}
+
+// upgradedBamboo is a Bamboo now on 10.2.0, with a stopped PROJ-BUILD-45 and
+// a running PROJ-BUILD-46, seen by bam's real client through a capabilities
+// cache that learned, on 9.6.2, that it could neither restart nor stop.
+func upgradedBamboo(t *testing.T) *harness {
+	t.Helper()
+	builds := map[string]string{
+		"PROJ-BUILD-45": `{"key":"PROJ-BUILD-45","buildResultKey":"PROJ-BUILD-45","buildNumber":45,"state":"Unknown","lifeCycleState":"Finished","plan":{"key":"PROJ-BUILD"}}`,
+		"PROJ-BUILD-46": `{"key":"PROJ-BUILD-46","buildResultKey":"PROJ-BUILD-46","buildNumber":46,"state":"Unknown","lifeCycleState":"InProgress","plan":{"key":"PROJ-BUILD"}}`,
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/rest/api/latest/info" {
+			_, _ = w.Write([]byte(`{"version":"10.2.0"}`))
+			return
+		}
+		if b, ok := builds[strings.TrimPrefix(r.URL.Path, "/rest/api/latest/result/")]; ok {
+			_, _ = w.Write([]byte(b))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	h := realBackendHarness(t, "version: 1\nservers:\n  lab:\n    url: "+srv.URL+"\ndefault_server: lab\n", "version: 1\n")
+	h.kr.m["bam|"+srv.URL] = "tok"
+	require.NoError(t, bamboo.SaveCapabilities(h.env.Paths.Capabilities, srv.URL,
+		bamboo.Capabilities{Version: "9.6.2", CheckedAt: time.Now(), Rerun: "no", Stop: "no"}))
+	return h
+}
+
+func TestDryRunsDoNotTrustAnAnswerFromAnOlderServerVersion(t *testing.T) {
+	h := upgradedBamboo(t)
+	assert.Equal(t, 0, h.run("build", "rerun", "PROJ-BUILD-45", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "would rerun PROJ-BUILD-45 (stopped)")
+
+	h = upgradedBamboo(t)
+	assert.Equal(t, 0, h.run("build", "cancel", "PROJ-BUILD-46", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "would stop PROJ-BUILD-46 (running)")
 }

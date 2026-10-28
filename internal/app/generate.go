@@ -135,7 +135,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 			if value != v.Value && !isSecretDraft(dv) {
 				dv.Comment = "from " + usedKey
 			}
-			if value == "" && !isSecretDraft(dv) {
+			if value == "" && v.Value == "" && !isSecretDraft(dv) {
 				d.Required = append(d.Required, v.Name)
 			}
 			// A secret the plan stores is left out too: the plan already sends it.

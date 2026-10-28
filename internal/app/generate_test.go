@@ -78,6 +78,16 @@ func TestGenerateTargetFromBuildKeepsPlanDefaultComment(t *testing.T) {
 	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "k8s", Comment: "plan default"}, d.Vars[0])
 }
 
+func TestGenerateTargetFromBuildEmptyValueOverPlanDefaultIsNotRequired(t *testing.T) {
+	p := fakeBamboo()
+	p.BuildVars["PROJ-PROV12-8"]["compute_nodes"] = ""
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
+	require.NoError(t, err)
+	assert.Contains(t, d.Vars, config.DraftVar{Name: "compute_nodes", Value: "", Comment: "from PROJ-PROV12-8"})
+	assert.NotContains(t, d.Required, "compute_nodes", "the build ran with it empty on purpose")
+}
+
 func TestGenerateTargetFromBuildNeedsReadableVariables(t *testing.T) {
 	p := fakeBamboo()
 	p.BuildVarsErr = errs.Bamboof("no").Wrap(errs.ErrUnsupported)

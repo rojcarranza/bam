@@ -417,6 +417,8 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 				e := cfg.UnknownServer(alias).WithTry("")
 				if e.Why == "" {
 					e = e.WithWhy("no servers are configured, so there is nothing to log out of")
+				} else if near := app.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 {
+					e.Try = "did you mean bam logout " + near[0] + "?"
 				}
 				return e
 			}

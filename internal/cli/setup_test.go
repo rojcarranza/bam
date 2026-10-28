@@ -179,6 +179,9 @@ func TestLogoutUnknownServer(t *testing.T) {
 	assert.Equal(t, 3, h.run("logout", "x"))
 	assert.Equal(t, "error: no server alias \"x\"\n  servers: work\n", h.stderr.String(), "no hint to add a server just to log out of it")
 
+	assert.Equal(t, 3, h.run("logout", "wrk"))
+	assert.Equal(t, "error: no server alias \"wrk\"\n  servers: work\n  try: did you mean bam logout work?\n", h.stderr.String())
+
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
 	assert.Equal(t, 3, h.run("logout", "x"))
 	assert.Equal(t, "error: no server alias \"x\"\n  no servers are configured, so there is nothing to log out of\n", h.stderr.String())

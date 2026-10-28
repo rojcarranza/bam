@@ -78,6 +78,18 @@ func TestSetLinesOneLinePerChange(t *testing.T) {
 	}
 }
 
+func TestSetLinesPrintsTheFinishedStateOnce(t *testing.T) {
+	o, buf := testOut(false)
+	l := NewSetLines(o)
+	b := provider.Build{Key: "OPS-DEP-9", State: provider.StateSuccess, Duration: 21 * time.Second}
+	inner := app.Event{Type: app.EventState, Time: setAt, Build: b, State: provider.StateSuccess}
+	e := setEv(app.SetRunEvent, 0, "deploy", b, "")
+	e.Event = &inner
+	l.Event(e)
+	l.Event(setEv(app.SetRunDone, 0, "deploy", b, provider.StateSuccess))
+	require.Equal(t, "2026-09-29T10:15:00Z stage 1 deploy OPS-DEP-9 success 21s\n", buf.String())
+}
+
 func TestSetLinesTriggerFailure(t *testing.T) {
 	o, buf := testOut(false)
 	l := NewSetLines(o)

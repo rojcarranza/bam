@@ -153,7 +153,8 @@ func (l *SetLines) Event(e app.SetEvent) {
 		}
 		fmt.Fprintf(l.o.W, "%s %s triggered\n", head, e.Build.Key)
 	case app.SetRunEvent:
-		if e.Event != nil && e.Event.Type == app.EventState {
+		// A finished state is printed once, with its duration, by SetRunDone.
+		if e.Event != nil && e.Event.Type == app.EventState && !e.Event.State.Finished() {
 			fmt.Fprintf(l.o.W, "%s %s %s\n", head, e.Build.Key, e.Event.State)
 		}
 	case app.SetRunDone:

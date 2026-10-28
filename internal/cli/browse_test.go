@@ -175,6 +175,12 @@ func TestBuildListCompletesStates(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), ":4\n", "no file completion")
 }
 
+func TestColorFlagCompletesModes(t *testing.T) {
+	h := newHarness(t)
+	h.run("__complete", "plan", "list", "--color", "")
+	assert.Contains(t, h.stdout.String(), "auto\nalways\nnever\n:4\n")
+}
+
 func TestBranchFlagCompletesPlanBranches(t *testing.T) {
 	h := newHarness(t)
 	for _, line := range [][]string{

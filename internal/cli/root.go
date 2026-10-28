@@ -111,6 +111,7 @@ func newRoot(r *runtime) *cobra.Command {
 	})
 	pf.BoolVar(&r.flags.json, "json", false, "print JSON")
 	pf.StringVar(&r.flags.color, "color", "", "color output: auto, always or never")
+	_ = root.RegisterFlagCompletionFunc("color", cobra.FixedCompletions([]string{"auto", "always", "never"}, cobra.ShellCompDirectiveNoFileComp))
 	pf.BoolVar(&r.flags.debug, "debug", false, "log HTTP requests to stderr")
 	pf.BoolVar(&r.flags.noTUI, "no-tui", false, "never open the terminal UI")
 	addProjectFlag(root, r)

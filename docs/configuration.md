@@ -9,7 +9,7 @@ bam reads four layers. Only the last is secret.
 | Presets | `~/bam/presets/*.yaml` and `~/bam/presets.yaml` (`BAM_PRESETS` overrides) | no | your personal presets, usable in every directory |
 | Credentials | OS keychain, an env variable, or `~/.config/bam/credentials.yaml` (0600) | never | tokens only |
 
-bam looks for `.bam.yaml` from the current directory up to the git root (or your home directory outside a repository).
+bam looks for `.bam.yaml` from the current directory up to the git root (or your home directory outside a repository). A file named `.bam.yml`, `bam.yaml` or `bam.yml` there instead is an error that tells you to rename it, rather than being silently ignored.
 
 ## Project file
 

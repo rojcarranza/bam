@@ -17,6 +17,10 @@ import (
 // ProjectFileName is the committed per-repository config file.
 const ProjectFileName = ".bam.yaml"
 
+// misnamedProjectFiles are names people give the project file by mistake.
+// bam reads none of them, so finding one is an error rather than silence.
+var misnamedProjectFiles = []string{".bam.yml", "bam.yaml", "bam.yml"}
+
 // Env holds the BAM_* environment variables that affect server selection.
 type Env struct {
 	Server string // BAM_SERVER
@@ -55,11 +59,12 @@ type LoadOptions struct {
 
 // Discover finds .bam.yaml by walking up from workDir. The walk stops at the
 // git root inside a repository, else at home. repoRoot is the git root, or
-// workDir outside a repository.
+// workDir outside a repository. A misnamed project file in its place, such
+// as .bam.yml, is a config error.
 func Discover(workDir, home string) (projectPath, repoRoot string, err error) {
 	workDir, err = filepath.Abs(workDir)
 	if err != nil {
-		return "", "", err
+		return "", "", errs.Configf("cannot resolve the working directory").Wrap(err)
 	}
 	gitRoot := findUp(workDir, "", ".git")
 	stop := gitRoot
@@ -73,6 +78,15 @@ func Discover(workDir, home string) (projectPath, repoRoot string, err error) {
 	}
 	if dir := findUp(workDir, stop, ProjectFileName); dir != "" {
 		projectPath = filepath.Join(dir, ProjectFileName)
+		return projectPath, repoRoot, nil
+	}
+	for _, name := range misnamedProjectFiles {
+		if dir := findUp(workDir, stop, name); dir != "" {
+			found := filepath.Join(dir, name)
+			return "", "", errs.Configf("found %s, but bam reads only %s", found, ProjectFileName).
+				WithWhy("bam ignores a project config under any other name").
+				WithTry(fmt.Sprintf("rename it: mv %s %s", found, filepath.Join(dir, ProjectFileName)))
+		}
 	}
 	return projectPath, repoRoot, nil
 }
@@ -105,7 +119,7 @@ func within(path, dir string) bool {
 func Load(o LoadOptions) (*Config, error) {
 	projectPath, root, err := Discover(o.WorkDir, o.Home)
 	if err != nil {
-		return nil, errs.Configf("cannot resolve the working directory").Wrap(err)
+		return nil, err
 	}
 	cfg := &Config{ProjectPath: projectPath, MachinePath: o.MachineFile, PresetsPath: o.PresetsFile, RepoRoot: root, Home: o.Home}
 	cfg.Env = Env{Server: o.Getenv("BAM_SERVER"), URL: o.Getenv("BAM_URL"), Token: o.Getenv("BAM_TOKEN")}

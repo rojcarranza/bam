@@ -49,6 +49,32 @@ func TestDiscoverWithoutGitStopsAtHome(t *testing.T) {
 	assert.Equal(t, filepath.Join(home, ".bam.yaml"), path)
 }
 
+func TestDiscoverRejectsAMisnamedProjectFile(t *testing.T) {
+	for _, name := range []string{".bam.yml", "bam.yaml", "bam.yml"} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			repo := filepath.Join(home, "repo")
+			sub := filepath.Join(repo, "a")
+			require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o755))
+			require.NoError(t, os.MkdirAll(sub, 0o755))
+			writeFile(t, filepath.Join(repo, name), "version: 1\n")
+
+			_, _, err := Discover(sub, home)
+			var e *errs.Error
+			require.ErrorAs(t, err, &e)
+			assert.Equal(t, errs.KindConfig, e.Kind)
+			assert.Equal(t, "found "+filepath.Join(repo, name)+", but bam reads only .bam.yaml", e.What)
+			assert.Equal(t, "rename it: mv "+filepath.Join(repo, name)+" "+filepath.Join(repo, ".bam.yaml"), e.Try)
+
+			// The real file wins; the stray one is then left alone.
+			writeFile(t, filepath.Join(repo, ".bam.yaml"), "version: 1\n")
+			path, _, err := Discover(sub, home)
+			require.NoError(t, err)
+			assert.Equal(t, filepath.Join(repo, ".bam.yaml"), path)
+		})
+	}
+}
+
 func TestLoadParsesBothLayers(t *testing.T) {
 	home := t.TempDir()
 	repo := filepath.Join(home, "repo")

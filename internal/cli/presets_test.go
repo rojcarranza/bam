@@ -216,6 +216,11 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--plan", "PROJ-PROV", "--force"))
 	assert.Equal(t, "error: --project is required\n  try: bam init --server work --project PROJ --plan PROJ-PROV\n", h.stderr.String())
 
+	assert.Equal(t, 3, h.run("init", "--server", "wrk", "--project", "PROJ", "--force"))
+	assert.Equal(t, "error: no URL for server alias \"wrk\"\n  try: did you mean bam init --server work --project PROJ? Or pass --url to add wrk\n", h.stderr.String())
+	assert.Equal(t, 3, h.run("init", "--server", "lab", "--project", "PROJ", "--force"))
+	assert.Equal(t, "error: no URL for server alias \"lab\"\n  try: pass --url, or bam server add lab --url URL\n", h.stderr.String())
+
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
 	assert.Equal(t, 3, h.run("init", "--server", "work", "--url", "bamboo.example.com", "--project", "PROJ"))
 	assert.Equal(t, "error: invalid server URL \"bamboo.example.com\"\n  try: bam init --server work --url https://bamboo.example.com --project PROJ\n", h.stderr.String())

@@ -576,8 +576,11 @@ func newInitCmd(r *runtime) *cobra.Command {
 				url = known.URL
 			}
 			if url == "" {
-				return errs.Configf("no URL for server alias %q", alias).
-					WithTry(fmt.Sprintf("pass --url, or bam server add %s --url URL", alias))
+				try := fmt.Sprintf("pass --url, or bam server add %s --url URL", alias)
+				if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 {
+					try = "did you mean " + initTry(near[0], "", projects, plans) + "? Or pass --url to add " + alias
+				}
+				return errs.Configf("no URL for server alias %q", alias).WithTry(try)
 			}
 			if _, err := credential.Origin(url); err != nil {
 				return schemeTry(err, url, func(u string) string { return initTry(alias, u, projects, plans) })

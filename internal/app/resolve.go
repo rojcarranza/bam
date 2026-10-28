@@ -154,7 +154,7 @@ func UnknownTarget(cfg *config.Config, name string) error {
 		if isKey {
 			// with no presets, a lowercase key is a key typed in lowercase
 			return e.WithWhy("no presets are configured").
-				WithTry(keys + " or bam preset add " + name + " --plan KEY to create a preset")
+				WithTry(keys + " bam preset add " + name + " --plan KEY creates a preset by that name")
 		}
 		return e.WithWhy("no presets are configured").
 			WithTry("bam preset add " + name + " --plan KEY to create it; " + keys)

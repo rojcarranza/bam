@@ -204,7 +204,7 @@ func TestUnknownTargetWithNoPresetsSaysHowToAddOne(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, errs.KindUsage, e.Kind)
 	assert.Equal(t, "no presets are configured", e.Why)
-	assert.Equal(t, "keys are uppercase: did you mean DEPLOY-QA? or bam preset add deploy-qa --plan KEY to create a preset", e.Try)
+	assert.Equal(t, "keys are uppercase: did you mean DEPLOY-QA? bam preset add deploy-qa --plan KEY creates a preset by that name", e.Try)
 }
 
 func TestUnknownTargetThatIsALowercaseKeySuggestsTheKey(t *testing.T) {
@@ -213,7 +213,7 @@ func TestUnknownTargetThatIsALowercaseKeySuggestsTheKey(t *testing.T) {
 	for name, want := range map[string]string{"proj-build": "PROJ-BUILD", "proj-build-482": "PROJ-BUILD-482"} {
 		require.ErrorAs(t, UnknownTarget(cfg, name), &e)
 		assert.Equal(t, errs.KindUsage, e.Kind)
-		assert.Equal(t, "keys are uppercase: did you mean "+want+"? or bam preset add "+name+" --plan KEY to create a preset", e.Try, name)
+		assert.Equal(t, "keys are uppercase: did you mean "+want+"? bam preset add "+name+" --plan KEY creates a preset by that name", e.Try, name)
 	}
 	require.ErrorAs(t, UnknownTarget(cfg, "deploy"), &e)
 	assert.Contains(t, e.Try, "like PROJ-PLAN", "a name that is no key keeps the example")

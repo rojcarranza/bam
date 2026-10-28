@@ -59,13 +59,13 @@ func truncate(s string, w int) string {
 
 // fitHints drops whole hints from the end of a key line until it fits in w,
 // so a narrow bar keeps its first keys instead of none or half a word. The
-// way out (esc …, q quit) goes last: without it a narrow screen hides how to
-// leave it.
+// way out (esc …, q quit) and a form's submit (^R …) go last: without them a
+// narrow screen hides how to leave it or finish it.
 func fitHints(line string, w int) string {
 	hints := strings.Split(line, "  ")
 	for len(hints) > 0 && lipgloss.Width(strings.Join(hints, "  ")) > w {
 		drop := len(hints) - 1
-		for drop > 0 && isWayOut(hints[drop]) {
+		for drop > 0 && mustKeep(hints[drop]) {
 			drop--
 		}
 		hints = append(hints[:drop], hints[drop+1:]...)
@@ -73,8 +73,8 @@ func fitHints(line string, w int) string {
 	return strings.Join(hints, "  ")
 }
 
-func isWayOut(hint string) bool {
-	return strings.HasPrefix(hint, "esc ") || hint == "q quit"
+func mustKeep(hint string) bool {
+	return strings.HasPrefix(hint, "esc ") || strings.HasPrefix(hint, "^R ") || hint == "q quit"
 }
 
 // cursorFor marks the selected row, and marks it differently when its panel

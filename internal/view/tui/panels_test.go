@@ -71,7 +71,8 @@ func TestNarrowKeyLinesDropWholeHints(t *testing.T) {
 }
 
 func TestNarrowKeyLinesKeepTheWayOut(t *testing.T) {
-	require.Equal(t, "enter edit  a add  esc cancel",
+	// The form keeps ^R run too: without it there is no way to start the build.
+	require.Equal(t, "enter edit  ^R run  esc cancel",
 		fitHints("enter edit  a add  x remove  d dry-run  ^R run  esc cancel", 30))
 	require.Equal(t, "enter open  q quit",
 		fitHints("enter open  / filter  s sort  : cmd  R run  ?help  q quit", 20))

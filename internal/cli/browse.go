@@ -428,10 +428,13 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 
 func newPlanBranchesCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:               "branches <plan>",
-		Short:             "List a plan's branches",
+		Use:   "branches <plan> [text]",
+		Short: "List a plan's branches",
+		Long: "List a plan's branches. With text, list only the branches whose name or key\n" +
+			"contains it, ignoring case.",
+		Example:           "  bam plan branches PROJ-BUILD\n  bam plan branches PROJ-BUILD feature",
 		SuggestFor:        []string{"branch"},
-		Args:              cobra.ExactArgs(1),
+		Args:              cobra.RangeArgs(1, 2),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
@@ -447,6 +450,17 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			empty := "no branches on " + ref.MasterKey
+			if len(args) == 2 {
+				text, all := strings.ToLower(args[1]), branches
+				branches = nil
+				for _, b := range all {
+					if strings.Contains(strings.ToLower(b.ShortName), text) || strings.Contains(strings.ToLower(b.Key), text) {
+						branches = append(branches, b)
+					}
+				}
+				empty = fmt.Sprintf("no branches on %s match %q", ref.MasterKey, args[1])
+			}
 			if r.flags.json {
 				docs := []view.BranchDoc{}
 				for _, b := range branches {
@@ -455,7 +469,7 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 				return view.WriteJSON(r.env.Stdout, docs)
 			}
 			if len(branches) == 0 {
-				r.note("no branches on "+ref.MasterKey, "")
+				r.note(empty, "")
 				return nil
 			}
 			o, err := r.out()

@@ -118,6 +118,20 @@ func TestPlanBranches(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "no branches on PROJ-BUILD")
 }
 
+func TestPlanBranchesFiltersByText(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Branches["PROJ-PROV"] = append(h.fake.Branches["PROJ-PROV"],
+		provider.Branch{Key: "PROJ-PROV7", Name: "Provision lab - feat/login", ShortName: "feat/login", PlanKey: "PROJ-PROV"})
+	assert.Equal(t, 0, h.run("plan", "branches", "PROJ-PROV", "FEAT"))
+	assert.Regexp(t, `feat/login\s+PROJ-PROV7`, h.stdout.String())
+	assert.NotContains(t, h.stdout.String(), "develop")
+	assert.Equal(t, 0, h.run("plan", "branches", "PROJ-PROV", "prov12", "--json"))
+	assert.Contains(t, h.stdout.String(), `"short_name": "develop"`)
+	assert.NotContains(t, h.stdout.String(), "feat/login")
+	assert.Equal(t, 0, h.run("plan", "branches", "PROJ-PROV", "nope"))
+	assert.Contains(t, h.stderr.String(), `no branches on PROJ-PROV match "nope"`)
+}
+
 func TestPlanBranchesMarksDisabled(t *testing.T) {
 	h := newHarness(t)
 	h.fake.Branches["PROJ-PROV"] = append(h.fake.Branches["PROJ-PROV"],

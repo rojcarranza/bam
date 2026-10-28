@@ -202,6 +202,10 @@ func TestInit(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--project", "PROJ"), ".bam.yaml exists")
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--force"), "--project is required")
+	assert.Equal(t, 2, h.run("init", "--plan", "PROJ-PROV=lab", "--plan", "OPS-DEPLOY"))
+	assert.Equal(t, "error: --server ALIAS is required\n  try: bam init --server work --project PROJ --project OPS --plan PROJ-PROV=lab --plan OPS-DEPLOY\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("init", "--server", "work", "--plan", "PROJ-PROV", "--force"))
+	assert.Equal(t, "error: --project is required\n  try: bam init --server work --project PROJ --plan PROJ-PROV\n", h.stderr.String())
 
 	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
 	assert.Equal(t, 0, h.run("init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ", "--project", "OPS"))

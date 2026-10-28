@@ -453,6 +453,32 @@ func displayPath(root, path string) string {
 	return path
 }
 
+// initTry is the init command the user typed, with the missing required
+// flags filled in: --project defaults to the projects of the --plan keys.
+func initTry(alias, url string, projects, plans []string) string {
+	if len(projects) == 0 {
+		for _, p := range plans {
+			if proj, _, ok := strings.Cut(p, "-"); ok && !slices.Contains(projects, proj) {
+				projects = append(projects, proj)
+			}
+		}
+	}
+	if len(projects) == 0 {
+		projects = []string{"PROJ"}
+	}
+	try := "bam init --server " + alias
+	if url != "" {
+		try += " --url " + url
+	}
+	for _, p := range projects {
+		try += " --project " + p
+	}
+	for _, p := range plans {
+		try += " --plan " + p
+	}
+	return try
+}
+
 func newInitCmd(r *runtime) *cobra.Command {
 	var url string
 	var projects, plans []string
@@ -465,10 +491,10 @@ func newInitCmd(r *runtime) *cobra.Command {
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			alias := r.flags.server
 			if alias == "" {
-				return errs.Usagef("--server ALIAS is required").WithTry("bam init --server work --project PROJ")
+				return errs.Usagef("--server ALIAS is required").WithTry(initTry("work", url, projects, plans))
 			}
 			if len(projects) == 0 {
-				return errs.Usagef("--project is required").WithTry("bam init --server " + alias + " --project PROJ")
+				return errs.Usagef("--project is required").WithTry(initTry(alias, url, projects, plans))
 			}
 			if err := checkProjectKeys(projects); err != nil {
 				return err

@@ -8,13 +8,18 @@ import (
 // Closest returns up to n candidates similar to input: substring matches
 // first, shortest first so "log" finds "logs" before "login", then names
 // within a small edit distance, nearest first. A swap of two neighbouring
-// letters counts as one edit.
+// letters counts as one edit. Input under three letters must be a prefix:
+// "go" inside "logout" is chance, not a hint.
 func Closest(input string, candidates []string, n int) []string {
 	lower := strings.ToLower(input)
 	var out []string
 	seen := map[string]bool{}
+	match := strings.Contains
+	if len([]rune(input)) < 3 {
+		match = strings.HasPrefix
+	}
 	for _, c := range candidates {
-		if strings.Contains(strings.ToLower(c), lower) {
+		if match(strings.ToLower(c), lower) {
 			out = append(out, c)
 			seen[c] = true
 		}

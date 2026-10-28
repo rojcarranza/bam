@@ -42,4 +42,6 @@ func TestClosest(t *testing.T) {
 	assert.Empty(t, Closest("del", []string{"set"}, 1), "two edits rewrite a short word")
 	assert.Equal(t, []string{"run"}, Closest("rnu", []string{"run"}, 1), "a swap is one edit")
 	assert.Equal(t, []string{"logs"}, Closest("log", []string{"login", "logs"}, 1), "shortest substring match first")
+	assert.Empty(t, Closest("go", []string{"logout"}, 1), "two letters match only as a prefix")
+	assert.Equal(t, []string{"logout"}, Closest("lo", []string{"logout"}, 1))
 }

@@ -102,6 +102,9 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"del":             "try: bam --help\n",
 		"ls":              "try: did you mean bam build list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
 		"preset ls":       "try: did you mean bam preset list? bam preset --help shows them all",
+		"branch":          "try: did you mean bam plan branches? bam --help shows them all",
+		"branches":        "try: did you mean bam plan branches? bam --help shows them all",
+		"plan branch":     "try: did you mean bam plan branches? bam plan --help shows them all",
 		"rnu":             "try: did you mean bam run? bam --help shows them all",
 		"completion zhs":  "error: unknown command \"zhs\" for \"bam completion\"\n  try: did you mean bam completion zsh? bam completion --help shows them all\n",
 	} {

@@ -422,6 +422,7 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "branches <plan>",
 		Short:             "List a plan's branches",
+		SuggestFor:        []string{"branch"},
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

@@ -328,7 +328,29 @@ func TestFromFlagCompletesRecentBuilds(t *testing.T) {
 	h.run("__complete", "run", "provision-lab", "--from", "")
 	assert.Contains(t, h.stdout.String(), "8\tfailed\n")
 	h.run("__complete", "preset", "add", "x", "--from", "")
-	assert.Equal(t, "last\tmost recent manual build\n:4\n", h.stdout.String(), "no plan, so only last")
+	assert.Equal(t, "last\tmost recent manual build\n:36\n", h.stdout.String(), "no plan, so only last")
+}
+
+func TestRevisionFlagCompletesRecentCommits(t *testing.T) {
+	h := newHarness(t)
+	b := h.fake.History["PROJ-BUILD"][0]
+	rev := func(n int, state provider.State, commit string) provider.Build {
+		c := b
+		c.Number, c.State, c.Revision = n, state, commit
+		return c
+	}
+	h.fake.History["PROJ-BUILD"] = []provider.Build{
+		rev(484, provider.StateFailed, "9fceb02d0ae598e95dc970b74767f19372d61af8"),
+		rev(483, provider.StateSuccess, "9fceb02d0ae598e95dc970b74767f19372d61af8"),
+		rev(482, provider.StateSuccess, "e83c5163316f89bfbde7d9ab23ca2e25604af290"),
+		rev(481, provider.StateSuccess, ""),
+	}
+	h.run("__complete", "run", "build", "--revision", "")
+	assert.Equal(t, "from\tthe commit of the --from build\n"+
+		"9fceb02d0ae598e95dc970b74767f19372d61af8\t#484 failed\n"+
+		"e83c5163316f89bfbde7d9ab23ca2e25604af290\t#482 success\n:36\n", h.stdout.String(), "newest first, each commit once")
+	h.run("__complete", "run", "--revision", "")
+	assert.Equal(t, "from\tthe commit of the --from build\n:36\n", h.stdout.String(), "no plan, so only from")
 }
 
 func TestJobFlagCompletesBuildJobs(t *testing.T) {

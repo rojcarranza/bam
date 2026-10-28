@@ -161,6 +161,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 	f.BoolVar(&dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
 	f.BoolVar(&edit, "edit", false, "review and change the variables in $EDITOR before running")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeVar)
+	_ = cmd.RegisterFlagCompletionFunc("revision", r.completeRevision)
 	return cmd
 }
 

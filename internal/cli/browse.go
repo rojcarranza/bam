@@ -174,8 +174,32 @@ func (r *runtime) completeBranch(cmd *cobra.Command, args []string, _ string) ([
 // completeFrom offers "last" and the recent build numbers of the plan branch
 // a command resolves, the numbers --from reads relative to that branch.
 func (r *runtime) completeFrom(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-	none := cobra.ShellCompDirectiveNoFileComp
 	out := []string{"last\tmost recent manual build"}
+	for _, b := range r.recentBuilds(cmd, args) {
+		out = append(out, fmt.Sprintf("%d\t%s", b.Number, style.Label(b.State)))
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveKeepOrder
+}
+
+// completeRevision offers "from" and the commits the recent builds of the
+// plan branch a command resolves were built from, newest first.
+func (r *runtime) completeRevision(cmd *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	out := []string{"from\tthe commit of the --from build"}
+	seen := map[string]bool{}
+	for _, b := range r.recentBuilds(cmd, args) {
+		if b.Revision == "" || seen[b.Revision] {
+			continue
+		}
+		seen[b.Revision] = true
+		out = append(out, fmt.Sprintf("%s\t#%d %s", b.Revision, b.Number, style.Label(b.State)))
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp | cobra.ShellCompDirectiveKeepOrder
+}
+
+// recentBuilds lists the last 20 builds of the plan branch a command names
+// through --plan or its first argument, honouring --branch; nil when it names
+// none or the plan cannot be resolved.
+func (r *runtime) recentBuilds(cmd *cobra.Command, args []string) []provider.Build {
 	arg := ""
 	if p, err := cmd.Flags().GetString("plan"); err == nil && p != "" {
 		arg = p
@@ -183,22 +207,19 @@ func (r *runtime) completeFrom(cmd *cobra.Command, args []string, _ string) ([]s
 		arg = args[0]
 	}
 	if !config.ValidTargetName(arg) && !app.IsPlanKey(arg) {
-		return out, none
+		return nil
 	}
 	svc, _, err := r.connectFor(cmd.Context(), arg)
 	if err != nil {
-		return out, none
+		return nil
 	}
 	branch, _ := cmd.Flags().GetString("branch")
 	ref, err := svc.ResolvePlan(cmd.Context(), arg, branch)
 	if err != nil {
-		return out, none
+		return nil
 	}
 	builds, _ := svc.P.ListBuilds(cmd.Context(), ref.PlanKey, provider.ListOptions{Limit: 20})
-	for _, b := range builds {
-		out = append(out, fmt.Sprintf("%d\t%s", b.Number, style.Label(b.State)))
-	}
-	return out, none | cobra.ShellCompDirectiveKeepOrder
+	return builds
 }
 
 // completeJob offers the short job keys of the build a command names (a build

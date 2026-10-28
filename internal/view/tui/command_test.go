@@ -94,6 +94,8 @@ func TestProjectCommand(t *testing.T) {
 	require.NotNil(t, cmd)
 	m, _ = runCmdLine(m, "project all")
 	require.Equal(t, "", m.project)
+	m, _ = runCmdLine(homeModel(), "project ops")
+	require.Equal(t, "OPS", m.project, "a known key matches in any case")
 
 	// finding 4: rejecting an unknown project only makes sense once projects
 	// are actually configured; projectChoices falls back to the loaded
@@ -102,6 +104,9 @@ func TestProjectCommand(t *testing.T) {
 	configured.svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
 	m, _ = runCmdLine(configured, "project LAB")
 	require.EqualError(t, m.err, `project "LAB" is not listed; projects: OPS PROJ`)
+	m, _ = runCmdLine(configured, "project proj")
+	require.NoError(t, m.err)
+	require.Equal(t, "PROJ", m.project, "a configured key matches in any case")
 	m, _ = runCmdLine(configured, "project PRJ")
 	require.EqualError(t, m.err, `project "PRJ" is not listed; did you mean :project PROJ? projects: OPS PROJ`)
 }

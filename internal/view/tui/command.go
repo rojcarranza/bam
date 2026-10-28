@@ -153,6 +153,10 @@ func (m Model) commandProject(arg string) (tea.Model, tea.Cmd, error) {
 		next, cmd := m.setProject("")
 		return next, cmd, nil
 	}
+	// Project keys are uppercase in Bamboo; a known key typed in another case means that key.
+	if i := slices.IndexFunc(m.projectChoices(), func(k string) bool { return strings.EqualFold(k, arg) }); i >= 0 {
+		arg = m.projectChoices()[i]
+	}
 	// Only a configured project list is a validation list. projectChoices
 	// falls back to the projects seen in the loaded plans when none is
 	// configured, and that is completion's job, not a reason to reject a

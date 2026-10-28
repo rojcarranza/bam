@@ -43,7 +43,10 @@ func PlanStatsView(o Out, s app.PlanStats) error {
 	}
 	fmt.Fprintln(o.W, line)
 
-	if d := s.Durations; d != nil {
+	if d := s.Durations; d != nil && d.Of == 1 {
+		// median, p90 and max of one build are the same number
+		fmt.Fprintf(o.W, "%-9s %s (#%d)   of 1 successful\n", "Duration", Duration(d.Max), d.MaxBuild)
+	} else if d != nil {
 		fmt.Fprintf(o.W, "%-9s median %s  p90 %s  max %s (#%d)   of %d successful\n", "Duration",
 			Duration(d.Median), Duration(d.P90), Duration(d.Max), d.MaxBuild, d.Of)
 	} else {

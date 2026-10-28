@@ -45,6 +45,14 @@ func TestPlanStatsViewBranchAndEmptyParts(t *testing.T) {
 	require.Regexp(t, `Failing jobs\s+none`, out)
 }
 
+func TestPlanStatsViewOneSuccessfulBuild(t *testing.T) {
+	s := fullStats()
+	s.Durations = &app.DurationStats{Median: 131 * time.Second, P90: 131 * time.Second, Max: 131 * time.Second, MaxBuild: 482, Of: 1}
+	o, buf := testOut(false)
+	require.NoError(t, PlanStatsView(o, s))
+	require.Contains(t, buf.String(), "Duration  2m11s (#482)   of 1 successful\n")
+}
+
 func TestPlanStatsNoFinishedBuilds(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, PlanStatsView(o, app.PlanStats{PlanKey: "PROJ-DEPLOY", Builds: 20, Other: map[provider.State]int{}}))

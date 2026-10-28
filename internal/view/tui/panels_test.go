@@ -69,3 +69,13 @@ func TestNarrowKeyLinesDropWholeHints(t *testing.T) {
 	require.Equal(t, "esc back  / search  G end  f follow", strings.TrimRight(foot, " "),
 		"the log footer used to end in half a hint")
 }
+
+func TestNarrowKeyLinesKeepTheWayOut(t *testing.T) {
+	require.Equal(t, "enter edit  a add  esc cancel",
+		fitHints("enter edit  a add  x remove  d dry-run  ^R run  esc cancel", 30))
+	require.Equal(t, "enter open  q quit",
+		fitHints("enter open  / filter  s sort  : cmd  R run  ?help  q quit", 20))
+	require.Equal(t, "esc back  / search", fitHints("esc back  / search  G end  f follow", 20))
+	require.Equal(t, "esc cancel", fitHints("enter edit  esc cancel", 12))
+	require.Equal(t, "", fitHints("enter edit  esc cancel", 5))
+}

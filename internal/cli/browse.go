@@ -167,6 +167,7 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "show <plan>",
 		Short:             "Show a plan: URL, branches, variables, recent builds",
+		SuggestFor:        showSuggest,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -470,6 +471,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "show [<build>|<plan>|<preset>]",
 		Short:             "Show a build: state, stages, jobs, failure summary",
+		SuggestFor:        showSuggest,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

@@ -95,6 +95,7 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "show <name>",
 		Short:             "Show a run preset with its defaults, options and origin",
+		SuggestFor:        showSuggest,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

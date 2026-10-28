@@ -82,6 +82,9 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"cancel":        "try: did you mean bam build cancel? bam --help shows them all",
 		"history":       "try: did you mean bam build list? bam --help shows them all",
 		"target":        "try: did you mean bam preset? bam --help shows them all",
+		"build view":    "try: did you mean bam build show? bam build --help shows them all",
+		"set describe":  "try: did you mean bam set show? bam set --help shows them all",
+		"view":          "try: bam --help\n",
 		"list":          "try: bam --help\n",
 	} {
 		h := newHarness(t)

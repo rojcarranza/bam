@@ -179,6 +179,9 @@ func strictHelp(root *cobra.Command) {
 	}
 }
 
+// showSuggest points the words other CLIs use for "show" at bam's show commands.
+var showSuggest = []string{"view", "info", "describe", "get"}
+
 // unknownCommand is the usage error for "bam <group> <typo>", with the
 // closest subcommand as a "did you mean" hint.
 func unknownCommand(cmd *cobra.Command, args []string) error {

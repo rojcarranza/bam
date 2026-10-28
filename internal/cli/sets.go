@@ -65,6 +65,7 @@ func newSetShowCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:               "show <set>",
 		Short:             "Show a set's stages and variables",
+		SuggestFor:        showSuggest,
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeSets(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

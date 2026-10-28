@@ -198,6 +198,15 @@ func TestTargetAddNeedsPlan(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "add", "x"))
 }
 
+func TestPresetAddChecksThePlanKeyBeforeConnecting(t *testing.T) {
+	h := newHarness(t)
+	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "proj-build"))
+	assert.Equal(t, "error: \"proj-build\" is not a plan key\n  try: keys are uppercase: did you mean PROJ-BUILD?\n", h.stderr.String())
+	assert.Equal(t, 2, h.run("preset", "add", "Deploy", "--plan", "PROJ-BUILD"))
+	assert.Contains(t, h.stderr.String(), "did you mean deploy?")
+	assert.Empty(t, h.connectOpts, "bad input is reported before any server is picked")
+}
+
 func TestInit(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("init", "--server", "work", "--project", "PROJ"), ".bam.yaml exists")

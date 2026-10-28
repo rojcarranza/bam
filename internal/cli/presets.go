@@ -189,11 +189,15 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 					return err
 				}
 			}
+			o := app.GenerateOptions{Name: args[0], PlanKey: plan, From: from, Branch: branch, Full: full}
+			if err := app.CheckGenerate(o); err != nil {
+				return err
+			}
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
 				return err
 			}
-			d, err := svc.GenerateTarget(cmd.Context(), app.GenerateOptions{Name: args[0], PlanKey: plan, From: from, Branch: branch, Full: full})
+			d, err := svc.GenerateTarget(cmd.Context(), o)
 			if err != nil {
 				return err
 			}

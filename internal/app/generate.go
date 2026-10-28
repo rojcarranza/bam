@@ -29,16 +29,35 @@ func (s *Service) GenerateTarget(ctx context.Context, o GenerateOptions) (config
 	return d, err
 }
 
-// generate is GenerateTarget that also reports whether the names came from
-// the plan's declared list rather than from a build.
-func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.TargetDraft, bool, error) {
+// CheckGenerate reports a bad preset name or plan key without asking Bamboo,
+// so callers can fail before picking a server.
+func CheckGenerate(o GenerateOptions) error {
 	if !config.ValidTargetName(o.Name) {
 		e := errs.Usagef("invalid preset name %q", o.Name).
 			WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter")
 		if low := strings.ToLower(o.Name); config.ValidTargetName(low) {
 			e = e.WithTry("did you mean " + low + "?")
 		}
-		return config.TargetDraft{}, false, e
+		return e
+	}
+	if o.PlanKey == "" && IsBuildKey(o.From) {
+		return nil // the build names the plan
+	}
+	if !IsPlanKey(o.PlanKey) {
+		try := "bam plan list"
+		if up := strings.ToUpper(o.PlanKey); IsPlanKey(up) {
+			try = "keys are uppercase: did you mean " + up + "?"
+		}
+		return errs.Usagef("%q is not a plan key", o.PlanKey).WithTry(try)
+	}
+	return nil
+}
+
+// generate is GenerateTarget that also reports whether the names came from
+// the plan's declared list rather than from a build.
+func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.TargetDraft, bool, error) {
+	if err := CheckGenerate(o); err != nil {
+		return config.TargetDraft{}, false, err
 	}
 	if IsBuildKey(o.From) && (o.PlanKey == "" || o.Branch == "") {
 		b, err := s.P.GetBuild(ctx, o.From)
@@ -57,13 +76,6 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 			return config.TargetDraft{}, false, errs.Usagef("%s is a build of %s, not of %s", o.From, plan, o.PlanKey).
 				WithTry("drop --plan; --from " + o.From + " names the plan")
 		}
-	}
-	if !IsPlanKey(o.PlanKey) {
-		try := "bam plan list"
-		if up := strings.ToUpper(o.PlanKey); IsPlanKey(up) {
-			try = "keys are uppercase: did you mean " + up + "?"
-		}
-		return config.TargetDraft{}, false, errs.Usagef("%q is not a plan key", o.PlanKey).WithTry(try)
 	}
 	if _, err := s.P.GetPlan(ctx, o.PlanKey); err != nil {
 		return config.TargetDraft{}, false, err

@@ -313,7 +313,7 @@ func TestSetResumeOfAMatrixDrawsOneRowPerRun(t *testing.T) {
 	frames := strings.Split(h.stdout.String(), "\x1b[J")
 	last := frames[len(frames)-1]
 	require.Contains(t, last, "provision-lab[cluster_name=alpha]")
-	require.NotRegexp(t, `provision-lab\s+–\s+pending`, last)
+	require.NotRegexp(t, `provision-lab\s+–\s+Pending`, last)
 }
 
 const hotfixFile = "stages:\n  - [publish-specs]\n  - [{target: provision-lab, vars: {cluster_name: alpha}}]\n"

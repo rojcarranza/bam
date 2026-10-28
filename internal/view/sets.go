@@ -182,7 +182,7 @@ func runGlyph(o Out, s provider.State) string {
 
 func stateTitle(s provider.State) string {
 	if s == "" {
-		return "pending"
+		return "Pending"
 	}
 	return style.Title(s)
 }

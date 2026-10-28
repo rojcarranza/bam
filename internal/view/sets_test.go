@@ -91,7 +91,7 @@ func TestSetStatusView(t *testing.T) {
 	require.Contains(t, out, "release  release-20260929T101500Z  interrupted\n")
 	require.Contains(t, out, "stage 2/2")
 	require.Regexp(t, `provision\s+OPS-PROV-40\s+Running`, out)
-	require.Regexp(t, `deploy\s+–\s+pending\s+queue full`, out)
+	require.Regexp(t, `deploy\s+–\s+Pending\s+queue full`, out)
 	require.Contains(t, out, "try: bam set resume release-20260929T101500Z")
 
 	data, err := json.Marshal(SetRecordJSON(rec, builds))

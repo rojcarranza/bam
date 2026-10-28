@@ -131,7 +131,7 @@ func TestSetLiveShowsPendingStagesBeforeTheyStart(t *testing.T) {
 	l.Event(setEv(app.SetStageStart, 0, "", provider.Build{}, ""))
 	out := lastFrame(buf.String())
 	require.Contains(t, out, "stage 2/2")
-	require.Regexp(t, `deploy\s+–\s+pending`, out)
+	require.Regexp(t, `deploy\s+–\s+Pending`, out)
 }
 
 func TestSetNDJSONEndsWithSetDoneAndSkipsProgress(t *testing.T) {

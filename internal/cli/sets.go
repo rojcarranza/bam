@@ -351,7 +351,7 @@ alone, and no build is ever stopped.`,
 			// Checked before any config or network: --failed is what keeps a
 			// future bare rerun (every run again) from changing meaning.
 			if !failed {
-				return errs.Usagef("rerun needs --failed").WithTry("bam set rerun --failed")
+				return errs.Usagef("rerun needs --failed").WithTry(strings.Join(append([]string{"bam set rerun"}, args...), " ") + " --failed")
 			}
 			ctx := cmd.Context()
 			rec, err := r.findSetRun(args, isFailedRun, noFailedRun)

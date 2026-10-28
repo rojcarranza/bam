@@ -243,7 +243,11 @@ func TestSetRerunNeedsFailed(t *testing.T) {
 	h := setHarness(t, provider.StateSuccess)
 	require.Equal(t, 2, h.run("set", "rerun"))
 	require.Contains(t, h.stderr.String(), "rerun needs --failed")
+	require.Contains(t, h.stderr.String(), "try: bam set rerun --failed")
 	require.Empty(t, h.connectOpts, "no network before the check")
+	h.stderr.Reset()
+	require.Equal(t, 2, h.run("set", "rerun", "release"))
+	require.Contains(t, h.stderr.String(), "try: bam set rerun release --failed", "the try line keeps the set named")
 }
 
 func TestSetRerunWithNoFailedRun(t *testing.T) {

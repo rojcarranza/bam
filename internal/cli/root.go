@@ -58,7 +58,8 @@ func Execute(ctx context.Context, args []string, env Env) int {
 				return e.WithTry("did you mean --" + near[0] + "?")
 			}
 			for _, syn := range flagSynonyms[name] {
-				if slices.Contains(names, syn) {
+				// Only counts are synonyms: --last on build commands is a bool.
+				if slices.Contains(names, syn) && c.Flag(syn).Value.Type() == "int" {
 					return e.WithTry("did you mean --" + syn + "?")
 				}
 			}
@@ -337,6 +338,7 @@ var flagSynonyms = map[string][]string{
 	"limit": {"last"},
 	"last":  {"limit"},
 	"count": {"limit", "last"},
+	"max":   {"limit", "last"},
 }
 
 // argFlags maps a flag name users guess to how the command's Use line names

@@ -352,3 +352,16 @@ func TestSetRunVarCompletesThePresetVariables(t *testing.T) {
 	h.run("__complete", "set", "run", "nope", "--var", "")
 	require.Equal(t, ":4\n", h.stdout.String())
 }
+
+func TestSetResumeAndRerunVarCompleteTheRecordedPresetVariables(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	id := failedSetRecord(t, h)
+	for _, cmd := range []string{"resume", "rerun"} {
+		h.run("__complete", "set", cmd, "--var", "")
+		require.Equal(t, "cluster_name=\ncluster_type=\n:6\n", h.stdout.String(), cmd)
+		h.run("__complete", "set", cmd, id, "--var", "cluster_type=")
+		require.Equal(t, "cluster_type=k8s\ncluster_type=dcos\n:4\n", h.stdout.String(), cmd)
+		h.run("__complete", "set", cmd, "nope", "--var", "")
+		require.Equal(t, ":4\n", h.stdout.String(), cmd)
+	}
+}

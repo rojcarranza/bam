@@ -254,6 +254,7 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
 	f.StringVar(&file, "file", "", "the train file of a file set, when it has moved since the run")
 	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
+	_ = cmd.RegisterFlagCompletionFunc("var", r.completeRecordVar)
 	return cmd
 }
 
@@ -299,6 +300,7 @@ alone, and no build is ever stopped.`,
 	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
 	f.StringVar(&file, "file", "", "the train file of a file set, when it has moved since the run")
 	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
+	_ = cmd.RegisterFlagCompletionFunc("var", r.completeRecordVar)
 	return cmd
 }
 
@@ -541,12 +543,38 @@ func (r *runtime) completeSetVar(_ *cobra.Command, args []string, toComplete str
 	if err != nil || !ok {
 		return nil, none
 	}
-	var targets []config.ResolvedTarget
+	var names []string
 	for _, stage := range s.Stages {
 		for _, run := range stage {
-			if t, ok, err := cfg.Target(run.Target); err == nil && ok {
-				targets = append(targets, t)
-			}
+			names = append(names, run.Target)
+		}
+	}
+	return presetVars(cfg, toComplete, names)
+}
+
+// completeRecordVar offers the variables of every preset a recorded set run
+// (named by set or id, or the latest) ran, for resume and rerun.
+func (r *runtime) completeRecordVar(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	rec, err := r.findSetRun(args, nil, nil)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	cfg, _ := r.config() // findSetRun already loaded it
+	var names []string
+	for _, st := range rec.Stages {
+		for _, run := range st.Runs {
+			names = append(names, run.Target)
+		}
+	}
+	return presetVars(cfg, toComplete, names)
+}
+
+// presetVars completes --var from the named presets that still resolve.
+func presetVars(cfg *config.Config, toComplete string, names []string) ([]string, cobra.ShellCompDirective) {
+	var targets []config.ResolvedTarget
+	for _, name := range names {
+		if t, ok, err := cfg.Target(name); err == nil && ok {
+			targets = append(targets, t)
 		}
 	}
 	return targetVars(toComplete, targets...)

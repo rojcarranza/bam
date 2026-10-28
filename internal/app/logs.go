@@ -63,12 +63,18 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 		}
 		names := make([]string, 0, len(all))
 		keys := make([]string, 0, len(all))
+		byName := ""
 		for _, sj := range all {
 			keys = append(keys, ShortJobKey(b, sj.job))
 			names = append(names, keys[len(keys)-1]+" ("+sj.job.Name+")")
+			if strings.EqualFold(sj.job.Name, o.Job) {
+				byName = keys[len(keys)-1]
+			}
 		}
 		e := errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
-		if c := errs.Closest(o.Job, keys, 1); len(c) > 0 {
+		if byName != "" { // --job Integration: the user typed the job's name, not its key
+			e = e.WithTry("--job takes the job key: --job " + byName)
+		} else if c := errs.Closest(o.Job, keys, 1); len(c) > 0 {
 			e = e.WithTry("did you mean --job " + c[0] + "?")
 		}
 		if parts := strings.FieldsFunc(job, func(r rune) bool { return r == ',' || r == ' ' }); len(parts) > 1 {

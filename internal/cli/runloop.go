@@ -49,9 +49,13 @@ func newRunCmd(r *runtime) *cobra.Command {
 	var watch, dryRun, edit bool
 	var timeout time.Duration
 	cmd := &cobra.Command{
-		Use:               "run <plan|preset>",
-		Short:             "Trigger a plan or preset with variables",
-		SuggestFor:        []string{"trigger", "start"},
+		Use:        "run <plan|preset>",
+		Short:      "Trigger a plan or preset with variables",
+		SuggestFor: []string{"trigger", "start"},
+		Example: "  bam run deploy-qa --watch\n" +
+			"  bam run PROJ-BUILD --branch develop --var cluster_type=k8s\n" +
+			"  bam run deploy-qa --from last --dry-run\n" +
+			"  bam run PROJ-BUILD --from 482 --revision from",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

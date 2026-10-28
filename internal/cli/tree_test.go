@@ -78,6 +78,19 @@ func TestBuildTreeWatchInterrupted(t *testing.T) {
 	assert.Empty(t, h.fake.Stopped)
 }
 
+// stuckClock never ticks, so a watch never reaches its next refresh.
+type stuckClock struct{ instantClock }
+
+func (*stuckClock) After(time.Duration) <-chan time.Time { return nil }
+
+func TestWatchTimeoutAfterTheTreeFinishedSaysSo(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	h.env.Clock = &stuckClock{instantClock{now: fixedNow}}
+	assert.Equal(t, 6, h.run("watch", "PROJ-BUILD-482", "--timeout", "50ms"))
+	assert.Contains(t, h.stderr.String(), "every build in PROJ-BUILD-482's tree finished, but bam had not yet confirmed that no more start")
+	assert.NotContains(t, h.stderr.String(), "still running")
+}
+
 const clearLine = "\r\x1b[K"
 
 func TestBuildTreeShowsProgressOnATerminal(t *testing.T) {

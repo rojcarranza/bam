@@ -6,6 +6,15 @@ Trigger a plan or preset with variables
 bam run <plan|preset> [flags]
 ```
 
+### Examples
+
+```
+  bam run deploy-qa --watch
+  bam run PROJ-BUILD --branch develop --var cluster_type=k8s
+  bam run deploy-qa --from last --dry-run
+  bam run PROJ-BUILD --from 482 --revision from
+```
+
 ### Options
 
 ```

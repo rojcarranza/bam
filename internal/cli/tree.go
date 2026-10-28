@@ -154,9 +154,12 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 			rend = view.NewTreeLines(out, failed)
 		}
 	}
+	finished := false
 	for e := range svc.WatchTree(wctx, key, o) {
 		rend.Event(e)
 		switch e.Type {
+		case app.TreeUpdate:
+			finished = e.Tree.State != provider.StateRunning
 		case app.TreeDone:
 			view.PrintWarnings(r.env.Stderr, e.Tree.Warnings)
 			if revision != "" && !r.flags.json && e.Tree.Root.Build.State == provider.StateNotBuilt {
@@ -171,8 +174,13 @@ func (r *runtime) treeLoop(ctx context.Context, svc *app.Service, key string, o 
 	}
 	live.Stop()
 	if ctx.Err() == nil && wctx.Err() != nil {
+		why := key + "'s tree is still running"
+		if finished {
+			// The watch waits one more poll for builds the tree may still start.
+			why = "every build in " + key + "'s tree finished, but bam had not yet confirmed that no more start"
+		}
 		return errs.New(errs.KindTimeout, fmt.Sprintf("timed out after %s", limit)).
-			WithWhy(key + "'s tree is still running").WithTry(resume)
+			WithWhy(why).WithTry(resume)
 	}
 	fmt.Fprintf(r.env.Stderr, "still running: %s\n", resume)
 	return ctx.Err()

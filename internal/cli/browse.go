@@ -693,9 +693,12 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 	var branch, state string
 	var limit int
 	cmd := &cobra.Command{
-		Use:               "list <plan|preset>",
-		Short:             "List recent builds of a plan",
-		SuggestFor:        []string{"history", "builds", "ls"},
+		Use:        "list <plan|preset>",
+		Short:      "List recent builds of a plan",
+		SuggestFor: []string{"history", "builds", "ls"},
+		Example: "  bam build list PROJ-BUILD\n" +
+			"  bam build list deploy-qa --branch develop\n" +
+			"  bam build list PROJ-BUILD --state failed -n 5",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -884,9 +887,12 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 	var last bool
 	var branch string
 	cmd := &cobra.Command{
-		Use:               "show [<build>|<plan>|<preset>]",
-		Short:             "Show a build: state, stages, jobs, failure summary",
-		SuggestFor:        append(slices.Clone(showSuggest), "status"),
+		Use:        "show [<build>|<plan>|<preset>]",
+		Short:      "Show a build: state, stages, jobs, failure summary",
+		SuggestFor: append(slices.Clone(showSuggest), "status"),
+		Example: "  bam build show PROJ-BUILD-482\n" +
+			"  bam build show --last\n" +
+			"  bam build show deploy-qa --branch develop",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

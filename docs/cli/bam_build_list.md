@@ -6,6 +6,14 @@ List recent builds of a plan
 bam build list <plan|preset> [flags]
 ```
 
+### Examples
+
+```
+  bam build list PROJ-BUILD
+  bam build list deploy-qa --branch develop
+  bam build list PROJ-BUILD --state failed -n 5
+```
+
 ### Options
 
 ```

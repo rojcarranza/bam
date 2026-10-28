@@ -6,6 +6,14 @@ Show a build: state, stages, jobs, failure summary
 bam build show [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam build show PROJ-BUILD-482
+  bam build show --last
+  bam build show deploy-qa --branch develop
+```
+
 ### Options
 
 ```

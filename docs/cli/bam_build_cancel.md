@@ -14,6 +14,14 @@ result with bam build show.
 bam build cancel [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam build cancel PROJ-BUILD-482
+  bam build cancel --last --dry-run
+  bam build cancel deploy-qa --branch develop
+```
+
 ### Options
 
 ```

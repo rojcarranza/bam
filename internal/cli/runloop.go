@@ -490,6 +490,9 @@ func newCancelCmd(r *runtime) *cobra.Command {
 			"Bamboo stops a build by removing its unfinished jobs from the queue, so a\n" +
 			"stage that has not started yet can still be queued afterwards. Check the\n" +
 			"result with bam build show.",
+		Example: "  bam build cancel PROJ-BUILD-482\n" +
+			"  bam build cancel --last --dry-run\n" +
+			"  bam build cancel deploy-qa --branch develop",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

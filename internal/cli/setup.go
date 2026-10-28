@@ -235,6 +235,10 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 			alias := args[0]
 			// A machine default naming a repo's alias would break every other repo.
 			if _, ok := cfg.Machine.Servers[alias]; !ok {
+				if len(cfg.Servers()) == 0 {
+					// The machine config may not exist yet, and bam server list would only say there are none.
+					return errs.Usagef("unknown server %q", alias).WithWhy("no servers are configured").WithTry("bam server add " + alias + " --url URL")
+				}
 				return errs.Usagef("no server alias %q in %s", alias, r.env.Paths.MachineConfig).WithTry("bam server list")
 			}
 			if err := config.SetMachineDefaultServer(r.env.Paths.MachineConfig, alias); err != nil {

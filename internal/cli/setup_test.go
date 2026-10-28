@@ -129,6 +129,13 @@ func TestServerRmWithNoServers(t *testing.T) {
 	assert.Equal(t, "error: unknown server \"x\"\n  no servers are configured, so there is nothing to remove\n", h.stderr.String())
 }
 
+func TestServerDefaultWithNoServers(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.Remove(filepath.Join(h.root, ".bam.yaml")))
+	assert.Equal(t, 2, h.run("server", "default", "x"))
+	assert.Equal(t, "error: unknown server \"x\"\n  no servers are configured\n  try: bam server add x --url URL\n", h.stderr.String())
+}
+
 func TestProjectFlagMustBeAProjectKey(t *testing.T) {
 	for _, tc := range []struct{ arg, try string }{
 		{"proj", "did you mean PROJ?"},

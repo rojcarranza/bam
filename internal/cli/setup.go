@@ -42,7 +42,14 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <alias> --url URL",
 		Short: "Add a server alias to the machine config, then log in",
-		Args:  cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			// git remote add muscle memory: show the exact command with --url.
+			if len(args) == 2 && url == "" && strings.Contains(args[1], "://") {
+				return errs.Usagef("the server URL goes in --url").
+					WithTry("bam server add " + args[0] + " --url " + args[1])
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			alias := args[0]
 			if !aliasRe.MatchString(alias) || alias == config.EnvServerAlias {

@@ -20,6 +20,8 @@ func TestServerAddListRm(t *testing.T) {
 
 	assert.Equal(t, 2, h.run("server", "add", "home", "--url", "http://bamboo.lab.example:8085"), "exists without --force")
 	assert.Equal(t, 3, h.run("server", "add", "bad", "--url", "bamboo.lab.example"), "invalid URL is a config error")
+	assert.Equal(t, 2, h.run("server", "add", "lab", "https://bamboo.lab.example"))
+	assert.Equal(t, "error: the server URL goes in --url\n  try: bam server add lab --url https://bamboo.lab.example\n", h.stderr.String())
 	assert.Equal(t, 2, h.run("server", "add", "env", "--url", "https://x.example.com"), "env is reserved")
 
 	assert.Equal(t, 0, h.run("server", "list"))

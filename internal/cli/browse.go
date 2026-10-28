@@ -472,7 +472,8 @@ func parseState(s string) (provider.State, error) {
 		return "", nil
 	}
 	for _, st := range provider.AllStates() {
-		if string(st) == s {
+		// Bamboo's own UI and API capitalize states ("Failed"), so accept any case.
+		if strings.EqualFold(string(st), s) {
 			return st, nil
 		}
 	}

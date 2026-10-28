@@ -116,6 +116,8 @@ func TestBuildList(t *testing.T) {
 	assert.NotContains(t, h.stderr.String(), "did you mean")
 	assert.Equal(t, 2, h.run("build", "list", "PROJ-BUILD", "--state", "faild"))
 	assert.Contains(t, h.stderr.String(), "did you mean --state failed?")
+	assert.Equal(t, 0, h.run("build", "list", "PROJ-BUILD", "--state", "FAILED"))
+	assert.Contains(t, h.stderr.String(), "no failed builds for PROJ-BUILD")
 	assert.Equal(t, 0, h.run("build", "list", "provision-lab", "--state", "success"))
 	assert.Empty(t, h.stdout.String())
 	assert.Contains(t, h.stderr.String(), "no success builds for PROJ-PROV12 on branch develop")

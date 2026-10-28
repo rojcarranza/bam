@@ -164,6 +164,8 @@ func TestROpensTheFormForAPreset(t *testing.T) {
 	require.Equal(t, screenForm, m.screen)
 	require.True(t, m.form.loading)
 	require.NotNil(t, cmd)
+	v := m.View()
+	require.Contains(t, v, "PROJ-PROV · branch develop · preset smoke", "the header names what is loading")
 
 	msg, ok := cmd().(formLoadedMsg)
 	require.True(t, ok, "got %T", cmd())
@@ -177,8 +179,9 @@ func TestROnAPlanOpensAFormWithNoTargetRules(t *testing.T) {
 	m, _ = send(m, plansLoadedMsg{Gen: m.plansGen, Plans: []provider.Plan{{Key: "PROJ-BUILD"}}})
 	m.focus = focusPlans
 
-	_, cmd := send(m, mkKey("R"))
+	m, cmd := send(m, mkKey("R"))
 	require.NotNil(t, cmd)
+	require.Contains(t, m.View(), "PROJ-BUILD", "the header names the plan while it loads")
 	msg, ok := cmd().(formLoadedMsg)
 	require.True(t, ok, "got %T", cmd())
 	require.Equal(t, "PROJ-BUILD", msg.Ref.PlanKey)

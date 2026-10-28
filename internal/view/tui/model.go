@@ -1764,7 +1764,11 @@ func (m Model) openForm() (tea.Model, tea.Cmd) {
 	m.formFrom = m.screen
 	m.screen = screenForm
 	m.formGen++
-	m.form = formState{loading: true}
+	// Name the plan while it loads, so the header is never blank.
+	m.form = formState{loading: true, ref: app.PlanRef{PlanKey: planKey}}
+	if target != nil {
+		m.form.target, m.form.ref = target.Name, app.PlanRef{PlanKey: target.Plan, Branch: target.Branch}
+	}
 	return m, openFormCmd(m.baseCtx(), m.svc, planKey, target, from, m.formGen)
 }
 

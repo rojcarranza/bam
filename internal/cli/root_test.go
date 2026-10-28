@@ -94,6 +94,9 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"list":            "try: bam --help\n",
 		"rerun":           "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
 		"log":             "try: did you mean bam logs? bam --help shows them all",
+		"del":             "try: bam --help\n",
+		"ls":              "try: bam --help\n",
+		"rnu":             "try: did you mean bam run? bam --help shows them all",
 		"completion zhs":  "error: unknown command \"zhs\" for \"bam completion\"\n  try: did you mean bam completion zsh? bam completion --help shows them all\n",
 	} {
 		h := newHarness(t)

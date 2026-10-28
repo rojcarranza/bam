@@ -7,7 +7,8 @@ import (
 
 // Closest returns up to n candidates similar to input: substring matches
 // first, shortest first so "log" finds "logs" before "login", then names
-// within a small edit distance, nearest first.
+// within a small edit distance, nearest first. A swap of two neighbouring
+// letters counts as one edit.
 func Closest(input string, candidates []string, n int) []string {
 	lower := strings.ToLower(input)
 	var out []string
@@ -22,9 +23,10 @@ func Closest(input string, candidates []string, n int) []string {
 	if len(out) >= n {
 		return out[:n]
 	}
-	limit := len(input) / 3
-	if limit < 2 {
-		limit = 2
+	// Two edits would rewrite most of a short word: "del" is two from "set".
+	limit := 1
+	if l := len([]rune(input)); l > 3 {
+		limit = max(2, l/3)
 	}
 	type near struct {
 		name string
@@ -48,6 +50,7 @@ func Closest(input string, candidates []string, n int) []string {
 
 func levenshtein(a, b string) int {
 	ra, rb := []rune(a), []rune(b)
+	var prev2 []int
 	prev := make([]int, len(rb)+1)
 	for j := range prev {
 		prev[j] = j
@@ -61,8 +64,11 @@ func levenshtein(a, b string) int {
 				cost = 0
 			}
 			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+			if i > 1 && j > 1 && ra[i-1] == rb[j-2] && ra[i-2] == rb[j-1] {
+				cur[j] = min(cur[j], prev2[j-2]+1)
+			}
 		}
-		prev = cur
+		prev2, prev = prev, cur
 	}
 	return prev[len(rb)]
 }

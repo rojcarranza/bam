@@ -121,6 +121,9 @@ func (m Model) runCommandLine(line string) (tea.Model, tea.Cmd) {
 		switch {
 		case c.arg != "" && arg == "" && !c.optional:
 			err = fmt.Errorf(":%s needs a %s", c.name, c.arg)
+			if choices := m.argChoices(c); len(choices) > 0 {
+				err = fmt.Errorf("%w; %ss: %s", err, c.arg, strings.Join(choices, " "))
+			}
 		case c.arg == "" && arg != "":
 			err = fmt.Errorf(":%s takes no argument", c.name)
 		default:
@@ -230,17 +233,10 @@ func (m Model) complete(line string) []string {
 	if err != nil {
 		return nil
 	}
-	var values []string
-	switch c.arg {
-	case "project":
-		values = append(m.projectChoices(), "all")
-	case "server":
-		for _, s := range m.deps.Servers {
-			values = append(values, s.Alias)
-		}
-	case "column":
+	values := m.argChoices(c)
+	if c.arg == "column" {
 		for _, n := range homeColNames[m.home.view] {
-			values = append(values, n, "-"+n)
+			values = append(values, "-"+n)
 		}
 	}
 	var out []string
@@ -250,6 +246,23 @@ func (m Model) complete(line string) []string {
 		}
 	}
 	return out
+}
+
+// argChoices is the values a command's argument takes, for completion and
+// for the hint when the argument is left out.
+func (m Model) argChoices(c command) []string {
+	var values []string
+	switch c.arg {
+	case "project":
+		values = append(m.projectChoices(), "all")
+	case "server":
+		for _, s := range m.deps.Servers {
+			values = append(values, s.Alias)
+		}
+	case "column":
+		values = append(values, homeColNames[m.home.view]...)
+	}
+	return values
 }
 
 // completeInput is tab in the prompt: take the only candidate, or the

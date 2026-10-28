@@ -76,7 +76,9 @@ func TestSortCommand(t *testing.T) {
 	m, _ = runCmdLine(m, "sort stat")
 	require.EqualError(t, m.err, `unknown sort column "stat"; did you mean :sort state? columns: key name state age`)
 	m, _ = runCmdLine(homeModel(), "sort")
-	require.EqualError(t, m.err, ":sort needs a column")
+	require.EqualError(t, m.err, ":sort needs a column; columns: key name state age")
+	m, _ = runCmdLine(homeModel(), "project")
+	require.EqualError(t, m.err, ":project needs a project; projects: OPS PROJ all")
 }
 
 func TestProjectCommand(t *testing.T) {
@@ -116,6 +118,8 @@ func TestServerCommand(t *testing.T) {
 	require.EqualError(t, m.err, `no server "nope"; servers: lab work`)
 	m, _ = runCmdLine(m, "server wrk")
 	require.EqualError(t, m.err, `no server "wrk"; did you mean :server work? servers: lab work`)
+	m, _ = runCmdLine(m, "server")
+	require.EqualError(t, m.err, ":server needs a server; servers: lab work")
 }
 
 func TestQuitCommand(t *testing.T) {

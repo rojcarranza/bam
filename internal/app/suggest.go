@@ -6,19 +6,21 @@ import (
 )
 
 // Closest returns up to n candidates similar to input: substring matches
-// first, then names within a small edit distance, nearest first.
+// first, shortest first so "log" finds "logs" before "login", then names
+// within a small edit distance, nearest first.
 func Closest(input string, candidates []string, n int) []string {
 	lower := strings.ToLower(input)
 	var out []string
 	seen := map[string]bool{}
 	for _, c := range candidates {
-		if len(out) == n {
-			return out
-		}
 		if strings.Contains(strings.ToLower(c), lower) {
 			out = append(out, c)
 			seen[c] = true
 		}
+	}
+	slices.SortStableFunc(out, func(a, b string) int { return len(a) - len(b) })
+	if len(out) >= n {
+		return out[:n]
 	}
 	limit := len(input) / 3
 	if limit < 2 {

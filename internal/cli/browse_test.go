@@ -22,6 +22,19 @@ func TestProjectList(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "OPS")
 }
 
+func TestProjectListFiltersByText(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Projects = append(h.fake.Projects, provider.Project{Key: "OPS", Name: "Operations"})
+	assert.Equal(t, 0, h.run("project", "list", "--all", "operat"))
+	assert.Contains(t, h.stdout.String(), "OPS")
+	assert.NotContains(t, h.stdout.String(), "Example Project")
+	assert.Equal(t, 0, h.run("project", "list", "--all", "proj", "--json"))
+	assert.Contains(t, h.stdout.String(), `"key": "PROJ"`)
+	assert.NotContains(t, h.stdout.String(), "OPS")
+	assert.Equal(t, 0, h.run("project", "list", "nope"))
+	assert.Contains(t, h.stderr.String(), `no projects on work match "nope"`)
+}
+
 func TestPlanListGroupsConfiguredProjects(t *testing.T) {
 	h := newHarness(t)
 	h.tty = true            // relative "ago" times only render on a TTY

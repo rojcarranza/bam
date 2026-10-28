@@ -204,11 +204,14 @@ func (r *runtime) completeFrom(cmd *cobra.Command, args []string, _ string) ([]s
 func newProjectListCmd(r *runtime) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
-		Use:        "list",
+		Use:        "list [text]",
 		SuggestFor: []string{"ls"},
 		Short:      "List configured projects (--all: every project on the server)",
-		Args:       cobra.NoArgs,
-		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
+		Long: "List configured projects (--all: every project on the server). With text, list\n" +
+			"only the projects whose key or name contains it, ignoring case.",
+		Example: "  bam project list\n  bam project list --all ops",
+		Args:    cobra.MaximumNArgs(1),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
 				return err
@@ -235,6 +238,17 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 					}
 				}
 			}
+			empty := "no projects on " + svc.Server.Alias
+			if len(args) == 1 {
+				text, found := strings.ToLower(args[0]), projects
+				projects = nil
+				for _, p := range found {
+					if strings.Contains(strings.ToLower(p.Key), text) || strings.Contains(strings.ToLower(p.Name), text) {
+						projects = append(projects, p)
+					}
+				}
+				empty = fmt.Sprintf("no projects on %s match %q", svc.Server.Alias, args[0])
+			}
 			if r.flags.json {
 				docs := []view.ProjectDoc{}
 				for _, p := range projects {
@@ -243,7 +257,7 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 				return view.WriteJSON(r.env.Stdout, docs)
 			}
 			if len(projects) == 0 {
-				r.note("no projects on "+svc.Server.Alias, "")
+				r.note(empty, "")
 				return nil
 			}
 			o, err := r.out()

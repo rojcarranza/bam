@@ -2,8 +2,20 @@
 
 List configured projects (--all: every project on the server)
 
+### Synopsis
+
+List configured projects (--all: every project on the server). With text, list
+only the projects whose key or name contains it, ignoring case.
+
 ```
-bam project list [flags]
+bam project list [text] [flags]
+```
+
+### Examples
+
+```
+  bam project list
+  bam project list --all ops
 ```
 
 ### Options

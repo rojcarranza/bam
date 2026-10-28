@@ -50,6 +50,8 @@ func TestServerAddListRm(t *testing.T) {
 	assert.Equal(t, 2, h.run("server", "default", "nope"))
 
 	assert.Equal(t, 0, h.run("server", "rm", "home"))
+	assert.Contains(t, h.stdout.String(), "cleared the machine default_server")
+	assert.NotContains(t, h.stdout.String(), "next:", "no machine server is left to pick")
 	assert.Equal(t, 2, h.run("server", "rm", "work"))
 	assert.Contains(t, h.stderr.String(), ".bam.yaml")
 }

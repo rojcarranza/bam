@@ -192,6 +192,12 @@ func newServerRmCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "removed server %s from %s\n", alias, r.env.Paths.MachineConfig)
+			if cfg.Machine.DefaultServer == alias {
+				fmt.Fprintln(r.env.Stdout, "cleared the machine default_server, which named it")
+				if len(cfg.Machine.Servers) > 2 {
+					fmt.Fprintln(r.env.Stdout, "next: bam server default <alias>")
+				}
+			}
 			return nil
 		}),
 	}

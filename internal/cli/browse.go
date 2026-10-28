@@ -95,8 +95,10 @@ func (r *runtime) completeProjects(cmd *cobra.Command, args []string, _ string) 
 	return keys, cobra.ShellCompDirectiveNoFileComp
 }
 
-// completePlans offers the plan keys of the server's configured projects,
-// each described by its name: one request per project, like doctor's default.
+// completePlans offers the plan keys of the server's configured projects (or
+// of init's --project values), each described by its name: one request per
+// project, like doctor's default. Keys already given to a repeatable --plan
+// are left out.
 func (r *runtime) completePlans(cmd *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 	none := cobra.ShellCompDirectiveNoFileComp
 	cfg, err := r.config()
@@ -111,11 +113,27 @@ func (r *runtime) completePlans(cmd *cobra.Command, _ []string, _ string) ([]str
 	if err != nil {
 		return nil, none
 	}
+	projects, _ := cmd.Flags().GetStringSlice("project")
+	// Completion parses flags twice, so a slice flag holds each value twice.
+	slices.Sort(projects)
+	projects = slices.Compact(projects)
+	if len(projects) == 0 {
+		projects = cfg.ProjectKeys(server)
+	}
+	var given []string
+	if vals, err := cmd.Flags().GetStringArray("plan"); err == nil {
+		for _, v := range vals {
+			key, _, _ := strings.Cut(v, "=")
+			given = append(given, key)
+		}
+	}
 	var keys []string
-	for _, project := range cfg.ProjectKeys(server) {
+	for _, project := range projects {
 		plans, _ := backend.ListPlans(cmd.Context(), project)
 		for _, p := range plans {
-			keys = append(keys, p.Key+"\t"+p.Name)
+			if !slices.Contains(given, p.Key) {
+				keys = append(keys, p.Key+"\t"+p.Name)
+			}
 		}
 	}
 	return keys, none

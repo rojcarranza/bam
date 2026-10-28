@@ -196,6 +196,9 @@ func TestPlanFlagCompletesConfiguredPlans(t *testing.T) {
 		h.run(append([]string{"__complete"}, line...)...)
 		assert.Equal(t, "PROJ-BUILD\tBuild and test\nPROJ-PROV\tProvision lab\n:4\n", h.stdout.String(), line)
 	}
+	// init lists its own --project values and skips plans already given.
+	h.run("__complete", "init", "--server", "work", "--project", "PROJ", "--plan", "PROJ-BUILD=build", "--plan", "")
+	assert.Equal(t, "PROJ-PROV\tProvision lab\n:4\n", h.stdout.String())
 }
 
 func TestFromFlagCompletesRecentBuilds(t *testing.T) {

@@ -507,6 +507,7 @@ func newInitCmd(r *runtime) *cobra.Command {
 	_ = cmd.RegisterFlagCompletionFunc("project", func(c *cobra.Command, _ []string, s string) ([]string, cobra.ShellCompDirective) {
 		return r.completeProjects(c, projects, s)
 	})
+	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	f.BoolVar(&force, "force", false, "overwrite an existing .bam.yaml")
 	return cmd
 }

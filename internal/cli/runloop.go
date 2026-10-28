@@ -354,6 +354,7 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "investigate [<build>|<plan>|<preset>]",
 		Short:             "Find the error lines of a failed build and its likely cause",
+		SuggestFor:        []string{"test", "tests", "failures", "errors", "diagnose", "debug", "why"},
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

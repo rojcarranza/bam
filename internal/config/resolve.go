@@ -34,7 +34,7 @@ func (c *Config) Servers() map[string]ResolvedServer {
 			r := out[alias]
 			r.Alias = alias
 			if s.URL != "" {
-				r.URL = s.URL
+				r.URL = strings.TrimRight(s.URL, "/")
 			}
 			// auth_env is applied only from the machine layer, and only
 			// when that same machine entry also sets url. A project-layer
@@ -64,7 +64,7 @@ func (c *Config) Servers() map[string]ResolvedServer {
 	}
 	add("machine", c.Machine.Servers)
 	if c.Env.URL != "" {
-		out[EnvServerAlias] = ResolvedServer{Alias: EnvServerAlias, URL: c.Env.URL, Token: c.Env.Token, DefinedIn: []string{"env"}}
+		out[EnvServerAlias] = ResolvedServer{Alias: EnvServerAlias, URL: strings.TrimRight(c.Env.URL, "/"), Token: c.Env.Token, DefinedIn: []string{"env"}}
 	}
 	return out
 }

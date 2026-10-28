@@ -62,7 +62,7 @@ func TestServerSelectionEnvURL(t *testing.T) {
 	s, err := c.SelectServer("", "")
 	require.NoError(t, err)
 	assert.Equal(t, EnvServerAlias, s.Alias)
-	assert.Equal(t, "https://ci.bamboo.example.com/", s.URL)
+	assert.Equal(t, "https://ci.bamboo.example.com", s.URL, "a trailing slash is dropped")
 	assert.Equal(t, "tok", s.Token)
 
 	s, err = c.SelectServer("work", "")
@@ -115,6 +115,14 @@ func TestServerFieldsMergeWithMachineWinning(t *testing.T) {
 	assert.Equal(t, "BAM_WORK_TOKEN", s.AuthEnv)
 	assert.Equal(t, []string{"PROJ"}, s.Projects, "project-only field survives the override")
 	assert.Equal(t, []string{"project", "machine"}, s.DefinedIn)
+}
+
+func TestServerURLDropsTrailingSlash(t *testing.T) {
+	c := baseConfig()
+	c.Machine.Servers["work"] = Server{URL: "https://bamboo.example.com/bamboo/"}
+	c.Env.URL = "https://bamboo.lab.example/"
+	assert.Equal(t, "https://bamboo.example.com/bamboo", c.Servers()["work"].URL)
+	assert.Equal(t, "https://bamboo.lab.example", c.Servers()[EnvServerAlias].URL)
 }
 
 func TestMachineAuthEnvWithoutURLIsNotAppliedToProjectURL(t *testing.T) {

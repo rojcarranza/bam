@@ -244,7 +244,9 @@ func (m Model) formBody(width, height int) string {
 	lines = append(lines, "", dimStyle.Render(fmt.Sprintf("%d of %d changed from the plan's values",
 		m.changedCount(), len(m.form.fields))))
 	if m.form.err != nil {
-		lines = append(lines, "", errorStyle.Render(truncate(errorWhat(m.form.err), width)))
+		// Wrapped, not cut: a Bamboo refusal ends with the reason.
+		wrapped := errorStyle.Render(lipgloss.NewStyle().Width(width).Render(errorWhat(m.form.err)))
+		lines = append(append(lines, ""), strings.Split(wrapped, "\n")...)
 	}
 	if len(lines) > height {
 		lines = lines[:height]
@@ -515,7 +517,7 @@ func (m Model) dryRunBody(width int) string {
 	}
 	vs, err := app.ValidateVars(m.form.ref, m.form.base, m.form.flags(), getenv)
 	if err != nil {
-		return errorStyle.Render(truncate(errorWhat(err), width))
+		return errorStyle.Render(lipgloss.NewStyle().Width(width).Render(errorWhat(err)))
 	}
 	vs = m.form.stripUntypedMasks(vs)
 

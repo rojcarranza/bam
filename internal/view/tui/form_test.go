@@ -1,9 +1,13 @@
 package tui
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -1376,4 +1380,16 @@ func TestAFailedFormLoadStopsSayingLoading(t *testing.T) {
 
 	m, _ = send(m, mkKey("enter"))
 	require.False(t, m.form.editing, "a failed form still has nothing to edit")
+}
+
+// TestALongFormErrorWraps: a Bamboo refusal is often wider than the form, and
+// its reason is at the end.
+func TestALongFormErrorWraps(t *testing.T) {
+	m := formModel()
+	m.form.err = fmt.Errorf("Bamboo refused the trigger for PROJ-API: the plan is disabled by an administrator")
+	body := m.formBody(40, 40)
+	for _, l := range strings.Split(body, "\n") {
+		require.LessOrEqual(t, lipgloss.Width(l), 40, l)
+	}
+	require.Contains(t, strings.Join(strings.Fields(ansi.Strip(body)), " "), "disabled by an administrator")
 }

@@ -182,12 +182,11 @@ func (s *Service) ResolveBranch(ctx context.Context, master, branch string) (str
 		}
 		names = append(names, b.ShortName)
 	}
-	e := errs.Usagef("branch %q not found on %s", branch, master).
-		WithTry(fmt.Sprintf("bam plan branches %s (omit --branch for the default branch)", master))
-	if close := errs.Closest(branch, names, 3); len(close) > 0 {
-		e = e.WithWhy("close matches: " + strings.Join(close, ", "))
+	e := errs.Usagef("branch %q not found on %s", branch, master)
+	if c := errs.Closest(branch, names, 1); len(c) > 0 {
+		return "", e.WithTry(fmt.Sprintf("did you mean %s? bam plan branches %s lists them all", c[0], master))
 	}
-	return "", e
+	return "", e.WithTry(fmt.Sprintf("bam plan branches %s (omit --branch for the default branch)", master))
 }
 
 // BuildArg is how a command names a build.

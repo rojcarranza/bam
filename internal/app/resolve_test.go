@@ -84,7 +84,12 @@ func TestResolvePlanErrors(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	assert.Contains(t, err.Error(), `branch "devlop" not found on PROJ-PROV`)
-	assert.Contains(t, err.Error(), "develop")
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "did you mean develop? bam plan branches PROJ-PROV lists them all", e.Try)
+
+	_, err = s.ResolvePlan(bg, "PROJ-PROV", "zzzzzz")
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "bam plan branches PROJ-PROV (omit --branch for the default branch)", e.Try)
 }
 
 func TestResolveBuild(t *testing.T) {

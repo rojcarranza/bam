@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"cmp"
 	"context"
 	"maps"
 	"slices"
@@ -1360,7 +1361,9 @@ func (m Model) openStageLogs(stage string) (tea.Model, tea.Cmd) {
 	}
 	m.screen = screenLogs
 	m.stopFollow() // reopening replaces the log state; its follow ends first
-	m.logs = logState{}
+	// The header names the build from the start, so a slow or failed load
+	// still says whose logs these are.
+	m.logs = logState{title: b.Key, stage: stage}
 	m.logsGen++
 	return m, stageLogsCmd(m.baseCtx(), m.svc, b, stage, m.logsGen)
 }
@@ -1376,7 +1379,7 @@ func (m Model) openLogs(jobKey string, all bool) (tea.Model, tea.Cmd) {
 	// Reopening replaces the log state, so an active follow has to end first
 	// or its chunks land in the view that replaced it.
 	m.stopFollow()
-	m.logs = logState{all: all}
+	m.logs = logState{title: cmp.Or(jobKey, b.Key), all: all}
 	m.logsGen++
 	// ListBuilds returns builds without their stage and job tree, so a row
 	// straight from the Builds panel has no job to take a log from. Expand it

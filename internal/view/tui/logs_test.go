@@ -505,6 +505,25 @@ func TestLOnAStageRowOfAFinishedBuildDoesNotFollow(t *testing.T) {
 	require.False(t, m.logs.following)
 }
 
+// TestTheLogHeaderNamesTheBuildBeforeTheLogsArrive: while loading, or when
+// loading fails, the header still says whose logs these are.
+func TestTheLogHeaderNamesTheBuildBeforeTheLogsArrive(t *testing.T) {
+	m := goldenModel(80, 24)
+	m.svc = testService()
+	m.detail = ptr(sampleBuild())
+	m.focus = focusStages
+	m.expanded = map[string]bool{}
+	m.treeCursor = 1
+
+	staged, _ := send(m, mkKey("l"))
+	staged, _ = send(staged, errMsg{Err: errBoom, Where: "logs", Stream: streamLogs, Gen: staged.logsGen})
+	require.Contains(t, staged.View(), "PROJ-BUILD-44 · Test")
+
+	m.focus = focusBuilds
+	failed, _ := send(m, mkKey("l"))
+	require.Contains(t, failed.View(), "PROJ-BUILD-44 · logs · failed")
+}
+
 func TestLOnAJobRowOpensThatJob(t *testing.T) {
 	m := goldenModel(80, 24)
 	m.svc = testService()

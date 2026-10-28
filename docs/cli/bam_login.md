@@ -10,6 +10,14 @@ Store a verified personal access token for a server. The alias defaults to --ser
 bam login <alias> [flags]
 ```
 
+### Examples
+
+```
+  bam login work
+  bam login --server work
+  printf '%s' "$TOKEN" | bam login work --with-token
+```
+
 ### Options
 
 ```

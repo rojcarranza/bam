@@ -64,6 +64,9 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add <alias> --url URL",
 		Short: "Add a server alias to the machine config, then log in",
+		Example: "  bam server add work --url https://bamboo.example.com\n" +
+			"  bam server add lab --url https://bamboo.lab.example --project LAB --project OPS\n" +
+			"  bam server add work --url https://bamboo.example.com --force",
 		Args: func(cmd *cobra.Command, args []string) error {
 			// git remote add muscle memory: show the exact command with --url.
 			if len(args) == 2 && url == "" && strings.Contains(args[1], "://") {
@@ -310,10 +313,13 @@ func newServerDefaultCmd(r *runtime) *cobra.Command {
 func newLoginCmd(r *runtime) *cobra.Command {
 	var withToken bool
 	cmd := &cobra.Command{
-		Use:               "login <alias>",
-		Short:             "Store a verified personal access token for a server",
-		SuggestFor:        []string{"auth", "token", "signin"},
-		Long:              "Store a verified personal access token for a server. The alias defaults to --server.",
+		Use:        "login <alias>",
+		Short:      "Store a verified personal access token for a server",
+		SuggestFor: []string{"auth", "token", "signin"},
+		Long:       "Store a verified personal access token for a server. The alias defaults to --server.",
+		Example: "  bam login work\n" +
+			"  bam login --server work\n" +
+			"  printf '%s' \"$TOKEN\" | bam login work --with-token",
 		Args:              r.aliasArg,
 		ValidArgsFunction: r.completeServers(false),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

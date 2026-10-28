@@ -6,6 +6,14 @@ Check config, credentials and what this Bamboo server supports
 bam doctor [flags]
 ```
 
+### Examples
+
+```
+  bam doctor
+  bam doctor --server lab
+  bam doctor --plan PROJ-BUILD
+```
+
 ### Options
 
 ```

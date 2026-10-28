@@ -32,7 +32,10 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 		Short:      "Check config, credentials and what this Bamboo server supports",
 		GroupID:    groupSetup,
 		SuggestFor: []string{"check", "health", "ping"},
-		Args:       cobra.NoArgs,
+		Example: "  bam doctor\n" +
+			"  bam doctor --server lab\n" +
+			"  bam doctor --plan PROJ-BUILD",
+		Args: cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			var checks []check
 			var first error

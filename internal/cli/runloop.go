@@ -551,6 +551,9 @@ func (r *runtime) urlFor(args []string, last bool, job string) (string, error) {
 
 // browseKey returns the server URL and the key that urlFor browses.
 func (r *runtime) browseKey(args []string, last bool) (string, string, error) {
+	if err := lastOrArg(args, last); err != nil {
+		return "", "", err
+	}
 	cfg, err := r.config()
 	if err != nil {
 		return "", "", err

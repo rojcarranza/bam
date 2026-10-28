@@ -792,6 +792,9 @@ func (r *runtime) resolvePlanArg(ctx context.Context, arg string) (*app.Service,
 
 // resolveBuildArg connects to the right server and turns [<build>] / --last into a build key.
 func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool, branch string) (*app.Service, string, error) {
+	if err := lastOrArg(args, last); err != nil {
+		return nil, "", err
+	}
 	arg := ""
 	if len(args) > 0 {
 		arg = args[0]
@@ -811,6 +814,16 @@ func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool,
 	}
 	key, err := svc.ResolveBuild(ctx, app.BuildArg{Arg: arg, Last: last, Branch: branch})
 	return svc, key, err
+}
+
+// lastOrArg refuses --last next to a key or preset, which would otherwise be
+// silently ignored.
+func lastOrArg(args []string, last bool) error {
+	if !last || len(args) == 0 {
+		return nil
+	}
+	return errs.Usagef("--last and %s both name a build", args[0]).
+		WithTry("drop " + args[0] + " for the last build bam triggered here, or drop --last")
 }
 
 // pageKeyRe is the key in a Bamboo page link: .../browse/PROJ-PLAN-42, or a

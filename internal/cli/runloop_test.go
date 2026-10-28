@@ -47,6 +47,11 @@ func TestRunWithoutWatch(t *testing.T) {
 
 	assert.Equal(t, 0, h.run("url", "--last"))
 	assert.Equal(t, workOrigin+"/browse/PROJ-PROV12-9\n", h.stdout.String())
+
+	for _, cmd := range [][]string{{"url", "--last", "PROJ-BUILD"}, {"build", "show", "--last", "PROJ-BUILD"}} {
+		assert.Equal(t, 2, h.run(cmd...), "a key next to --last is never ignored")
+		assert.Equal(t, "error: --last and PROJ-BUILD both name a build\n  try: drop PROJ-BUILD for the last build bam triggered here, or drop --last\n", h.stderr.String())
+	}
 }
 
 func TestRunFromAPageLink(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -283,7 +284,12 @@ func (s *Service) ResolveFrom(ctx context.Context, ref PlanRef, from string) (st
 	case from == "":
 		return "", nil
 	case digitsRe.MatchString(from):
-		return ref.PlanKey + "-" + from, nil
+		n, err := strconv.Atoi(from)
+		if err != nil || n < 1 {
+			return "", errs.Usagef("--from takes a build number from 1 up, not %s", from).
+				WithTry("--from last reuses the latest build")
+		}
+		return ref.PlanKey + "-" + strconv.Itoa(n), nil // 007 names build 7
 	case IsBuildKey(from):
 		return from, nil
 	case !strings.EqualFold(from, "last"):

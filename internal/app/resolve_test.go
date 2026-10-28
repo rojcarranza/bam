@@ -184,6 +184,11 @@ func TestResolveFrom(t *testing.T) {
 
 	key, _ = s.ResolveFrom(bg, ref, "5")
 	assert.Equal(t, "PROJ-PROV12-5", key)
+	key, _ = s.ResolveFrom(bg, ref, "007")
+	assert.Equal(t, "PROJ-PROV12-7", key, "leading zeros are dropped")
+	_, err = s.ResolveFrom(bg, ref, "0")
+	assert.EqualError(t, err, "--from takes a build number from 1 up, not 0")
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	key, _ = s.ResolveFrom(bg, ref, "PROJ-PROV-3")
 	assert.Equal(t, "PROJ-PROV-3", key)
 	_, err = s.ResolveFrom(bg, ref, "yesterday")

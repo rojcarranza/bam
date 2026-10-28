@@ -722,6 +722,8 @@ type SetInfo struct {
 // display.
 type SetRunInfo struct {
 	Target     string
+	Plan       string // the preset's plan key
+	Branch     string // the preset's branch; empty for the plan's default
 	Vars       []TargetVar
 	Matrix     any      // the configured matrix for JSON: map of value lists, or list of variable maps; nil without one
 	MatrixLine string   // the matrix on one line, for text; empty without one
@@ -734,9 +736,13 @@ func DescribeSets(cfg *config.Config, getenv func(string) string) ([]SetInfo, er
 	if err != nil {
 		return nil, err
 	}
+	targets, err := cfg.Targets()
+	if err != nil {
+		return nil, err
+	}
 	out := make([]SetInfo, 0, len(all))
 	for _, name := range sortedNames(all) {
-		out = append(out, describeSet(all[name], getenv))
+		out = append(out, describeSet(all[name], targets, getenv))
 	}
 	return out, nil
 }
@@ -750,7 +756,11 @@ func DescribeSet(cfg *config.Config, getenv func(string) string, name string) (S
 	if !ok {
 		return SetInfo{}, UnknownSet(cfg, name)
 	}
-	return describeSet(s, getenv), nil
+	targets, err := cfg.Targets()
+	if err != nil {
+		return SetInfo{}, err
+	}
+	return describeSet(s, targets, getenv), nil
 }
 
 // UnknownSet is the usage error for a set name no layer defines, with a
@@ -771,12 +781,13 @@ func UnknownSet(cfg *config.Config, name string) *errs.Error {
 	return e.WithWhy("sets: " + strings.Join(names, ", "))
 }
 
-func describeSet(s config.ResolvedSet, getenv func(string) string) SetInfo {
+func describeSet(s config.ResolvedSet, targets map[string]config.ResolvedTarget, getenv func(string) string) SetInfo {
 	info := SetInfo{Name: s.Name, Timeout: time.Duration(s.Timeout), DefinedIn: s.DefinedIn}
 	for _, st := range s.Stages {
 		runs := make([]SetRunInfo, 0, len(st))
 		for _, r := range st {
-			info := SetRunInfo{Target: r.Target, Vars: targetVars(r.Vars, getenv)}
+			t := targets[r.Target]
+			info := SetRunInfo{Target: r.Target, Plan: t.Plan, Branch: t.Branch, Vars: targetVars(r.Vars, getenv)}
 			if r.Matrix != nil {
 				m := maskedMatrix(r.Matrix)
 				info.MatrixLine = matrixLine(m)

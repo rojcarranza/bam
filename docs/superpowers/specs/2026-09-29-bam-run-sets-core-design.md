@@ -276,7 +276,7 @@ A new `bam set` noun, laid out like `bam target`:
 | Command | Does | `--json` |
 | --- | --- | --- |
 | `bam set list` | Sets, stage count, where each is defined | array |
-| `bam set show <set>` | Stages and their presets, with each run's set `vars` (secrets masked) | object |
+| `bam set show <set>` | Stages and their presets, each with its plan key and branch and the run's set `vars` (secrets masked) | object |
 | `bam set run <set> [--var k=v]... [--dry-run] [--force]` | `PlanSet`, then `RunSet` | NDJSON |
 | `bam set status [set\|id]` | The record with each build's live state | object |
 | `bam set resume [set\|id] [--var k=v]... [--force]` | `ResumeSet`; with no argument, this repository's newest resumable record | NDJSON |

@@ -44,6 +44,7 @@ func SetDetail(o Out, s app.SetInfo) error {
 		}
 		fmt.Fprintf(o.W, "stage %d  %s\n", i+1, strings.Join(names, ", "))
 		for _, r := range st {
+			fmt.Fprintf(o.W, "  %s  %s  branch %s\n", r.Target, r.Plan, branchLabel(r.Branch))
 			if r.MatrixLine == "" {
 				continue
 			}
@@ -178,10 +179,12 @@ type SetDoc struct {
 }
 
 type SetRunDoc struct {
-	Target string            `json:"target"`
-	Vars   map[string]string `json:"vars"`
-	Matrix any               `json:"matrix,omitempty"`
-	Runs   []string          `json:"runs"`
+	Target  string            `json:"target"`
+	PlanKey string            `json:"plan_key"`
+	Branch  string            `json:"branch"`
+	Vars    map[string]string `json:"vars"`
+	Matrix  any               `json:"matrix,omitempty"`
+	Runs    []string          `json:"runs"`
 }
 
 type SetPlanDoc struct {
@@ -271,7 +274,7 @@ func SetJSON(s app.SetInfo) SetDoc {
 	for _, st := range s.Stages {
 		runs := []SetRunDoc{}
 		for _, r := range st {
-			rd := SetRunDoc{Target: r.Target, Vars: varsDoc(r.Vars), Matrix: r.Matrix, Runs: r.Runs}
+			rd := SetRunDoc{Target: r.Target, PlanKey: r.Plan, Branch: r.Branch, Vars: varsDoc(r.Vars), Matrix: r.Matrix, Runs: r.Runs}
 			if len(rd.Runs) == 0 {
 				rd.Runs = []string{r.Target}
 			}

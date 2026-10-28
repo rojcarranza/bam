@@ -15,8 +15,8 @@ import (
 func setInfo() app.SetInfo {
 	return app.SetInfo{Name: "release", Timeout: 2 * time.Hour, DefinedIn: []string{"/src/app/.bam.yaml"},
 		Stages: [][]app.SetRunInfo{
-			{{Target: "publish-specs"}},
-			{{Target: "provision"}, {Target: "deploy", Vars: []app.TargetVar{
+			{{Target: "publish-specs", Plan: "PROJ-SPEC"}},
+			{{Target: "provision", Plan: "OPS-PROV", Branch: "release-1"}, {Target: "deploy", Plan: "OPS-DEP", Vars: []app.TargetVar{
 				{Name: "deploy_token", Value: "${DEPLOY_TOKEN}", EnvRef: "DEPLOY_TOKEN", Secret: true},
 				{Name: "env", Value: "qa"},
 				{Name: "ssh_password", Value: "hunter2", Secret: true}}}},
@@ -34,7 +34,7 @@ func TestSetDetailMasksSecrets(t *testing.T) {
 	require.NoError(t, SetDetail(o, setInfo()))
 	out := buf.String()
 	require.Contains(t, out, "stage 1  publish-specs\n")
-	require.Contains(t, out, "stage 2  provision, deploy\n")
+	require.Contains(t, out, "stage 2  provision, deploy\n  provision  OPS-PROV  branch release-1\n  deploy  OPS-DEP  branch default\n")
 	require.Contains(t, out, "deploy  deploy_token  ${DEPLOY_TOKEN} (unset)")
 	require.Contains(t, out, "deploy  env           qa")
 	require.Contains(t, out, "********")
@@ -46,9 +46,9 @@ func TestSetJSONFieldNames(t *testing.T) {
 	data, err := json.Marshal(SetJSON(setInfo()))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"name":"release","timeout_ms":7200000,"defined_in":["/src/app/.bam.yaml"],
-	  "stages":[[{"target":"publish-specs","vars":{},"runs":["publish-specs"]}],
-	            [{"target":"provision","vars":{},"runs":["provision"]},
-	             {"target":"deploy","vars":{"deploy_token":"${DEPLOY_TOKEN}","env":"qa","ssh_password":"********"},"runs":["deploy"]}]]}`, string(data))
+	  "stages":[[{"target":"publish-specs","plan_key":"PROJ-SPEC","branch":"","vars":{},"runs":["publish-specs"]}],
+	            [{"target":"provision","plan_key":"OPS-PROV","branch":"release-1","vars":{},"runs":["provision"]},
+	             {"target":"deploy","plan_key":"OPS-DEP","branch":"","vars":{"deploy_token":"${DEPLOY_TOKEN}","env":"qa","ssh_password":"********"},"runs":["deploy"]}]]}`, string(data))
 }
 
 func TestSetEventJSONFieldNames(t *testing.T) {

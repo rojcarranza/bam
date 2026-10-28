@@ -134,6 +134,7 @@ func TestSetListShowStatusResume(t *testing.T) {
 	require.Contains(t, h.stdout.String(), "release  2       2")
 	require.Equal(t, 0, h.run("set", "show", "release"), h.stderr.String())
 	require.Contains(t, h.stdout.String(), "stage 2  provision-lab")
+	require.Contains(t, h.stdout.String(), "  provision-lab  PROJ-PROV  branch develop\n")
 	require.Contains(t, h.stdout.String(), "cluster_name")
 
 	// An interrupted run: stage 1 triggered, stage 2 not.

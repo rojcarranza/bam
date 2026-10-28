@@ -107,7 +107,7 @@ func TestPlanShowForTarget(t *testing.T) {
 	assert.Equal(t, 0, h.run("plan", "show", "provision-lab"))
 	out := h.stdout.String()
 	assert.Contains(t, out, "PROJ-PROV  Provision lab  https://bamboo.example.com/browse/PROJ-PROV")
-	assert.Contains(t, out, "develop (1)")
+	assert.Regexp(t, `Branches +1: develop\n`, out)
 	assert.Contains(t, out, "cluster_type=k8s")
 	assert.Contains(t, out, "PROJ-PROV12-8")
 }
@@ -183,7 +183,7 @@ func TestPlanBranchesMarksDisabled(t *testing.T) {
 	assert.Regexp(t, `"short_name": "develop",\s+"plan_key": "PROJ-PROV",\s+"enabled": true`, h.stdout.String())
 	assert.Regexp(t, `"short_name": "feat/old",\s+"plan_key": "PROJ-PROV",\s+"enabled": false`, h.stdout.String())
 	assert.Equal(t, 0, h.run("plan", "show", "PROJ-PROV"))
-	assert.Contains(t, h.stdout.String(), "develop, feat/old (disabled) (2)")
+	assert.Contains(t, h.stdout.String(), "Branches    2: develop, feat/old (disabled)\n")
 }
 
 func TestPlanListAndShowMarkDisabledPlans(t *testing.T) {

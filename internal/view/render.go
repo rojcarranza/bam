@@ -206,7 +206,8 @@ func PlanDetailView(o Out, d PlanDetail) error {
 	if len(names) == 0 {
 		field(o, "Branches", "none")
 	} else {
-		field(o, "Branches", fmt.Sprintf("%s (%d)", strings.Join(names, ", "), len(names)))
+		// The count leads so it never reads as part of a "(disabled)" marker.
+		field(o, "Branches", fmt.Sprintf("%d: %s", len(names), strings.Join(names, ", ")))
 	}
 	switch {
 	case d.VarsErr != "":

@@ -138,7 +138,17 @@ func newSetRunCmd(r *runtime) *cobra.Command {
 		Long: `Run a set: each stage starts when every build of the one before succeeded.
 
 A failed build ends the set once its stage has finished; no build is ever
-stopped. Interrupting stops watching only; continue with bam set resume.`,
+stopped. Interrupting stops watching only; continue with bam set resume.
+
+A set is a list of stages, each a list of presets, under sets: in .bam.yaml:
+
+  sets:
+    release:
+      - [publish-specs]
+      - [provision, deploy]
+
+A train file (-f) holds one set with the same stages. The full format,
+with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 		Example:           "  bam set run release\n  bam set run release --dry-run\n  bam set run release --var version=1.4.0\n  bam set run -f train.yaml",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(false),

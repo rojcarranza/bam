@@ -9,6 +9,16 @@ Run a set: each stage starts when every build of the one before succeeded.
 A failed build ends the set once its stage has finished; no build is ever
 stopped. Interrupting stops watching only; continue with bam set resume.
 
+A set is a list of stages, each a list of presets, under sets: in .bam.yaml:
+
+  sets:
+    release:
+      - [publish-specs]
+      - [provision, deploy]
+
+A train file (-f) holds one set with the same stages. The full format,
+with per-run vars, matrix and timeout, is in docs/configuration.md.
+
 ```
 bam set run [set] [-f FILE] [flags]
 ```

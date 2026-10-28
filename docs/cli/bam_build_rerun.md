@@ -12,6 +12,14 @@ succeeded is refused.
 bam build rerun [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam build rerun PROJ-BUILD-482
+  bam build rerun --last --watch
+  bam build rerun provision --branch feature-x --dry-run
+```
+
 ### Options
 
 ```

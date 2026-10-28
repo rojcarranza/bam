@@ -6,6 +6,14 @@ Find the error lines of a failed build and its likely cause
 bam build investigate [<build>|<plan>|<preset>] [flags]
 ```
 
+### Examples
+
+```
+  bam build investigate PROJ-BUILD-482
+  bam build investigate --last --compare
+  bam build investigate provision --context 0 --max 0
+```
+
 ### Options
 
 ```

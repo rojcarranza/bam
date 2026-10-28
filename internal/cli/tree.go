@@ -31,6 +31,7 @@ builds of each plan of the configured projects and of the build's project.
 A children: map in the configuration narrows a plan's children and shows a
 configured child that never ran. Interrupting --watch never stops a build.
 On a terminal, bam shows on stderr what it is reading while the tree loads.`,
+		Example:           "  bam build tree PROJ-BUILD-482\n  bam build tree --last --watch\n  bam build tree provision --failed --depth 2\n  bam build tree PROJ-BUILD-482 --rerun-failed --yes",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {

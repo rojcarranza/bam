@@ -394,6 +394,7 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:               "investigate [<build>|<plan>|<preset>]",
 		Short:             "Find the error lines of a failed build and its likely cause",
+		Example:           "  bam build investigate PROJ-BUILD-482\n  bam build investigate --last --compare\n  bam build investigate provision --context 0 --max 0",
 		SuggestFor:        []string{"test", "tests", "failures", "errors", "diagnose", "debug", "why", "compare"},
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,

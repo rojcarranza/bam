@@ -21,6 +21,7 @@ func newBuildRerunCmd(r *runtime) *cobra.Command {
 		Long: `Rerun a failed or stopped build's failed jobs, as Bamboo's "Rerun failed jobs"
 does: same build key, same variables and commit. A build that is running or
 succeeded is refused.`,
+		Example:           "  bam build rerun PROJ-BUILD-482\n  bam build rerun --last --watch\n  bam build rerun provision --branch feature-x --dry-run",
 		Args:              cobra.MaximumNArgs(1),
 		SuggestFor:        []string{"retry", "restart"},
 		ValidArgsFunction: r.completeTargets,

@@ -48,7 +48,7 @@ func TestLoadSetFileErrors(t *testing.T) {
 		"bad file name":  {"Train File.yaml", "stages: [[a]]\n", "add name:"},
 		"bad name":       {"t.yaml", "name: Bad\nstages: [[a]]\n", `invalid set name "Bad"`},
 		"unknown key":    {"t.yaml", "stagez: [[a]]\n", "stagez"},
-		"unknown preset": {"t.yaml", "stages: [[nope]]\n", `unknown preset "nope"`},
+		"unknown preset": {"t.yaml", "stages: [[nope]]\n", "presets here: a, b"},
 		"duplicate run":  {"t.yaml", "stages: [[a, a]]\n", `run "a" twice in stage 1`},
 		"no stages":      {"t.yaml", "stages: []\n", "has no stages"},
 		"empty file":     {"t.yaml", "", "is empty"},

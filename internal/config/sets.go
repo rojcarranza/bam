@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
@@ -92,7 +93,11 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		for _, r := range st {
 			t, ok := targets[r.Target]
 			if !ok {
-				return fail("names unknown preset %q in stage %d", r.Target, i+1).WithTry("bam preset list")
+				e := fail("names unknown preset %q in stage %d", r.Target, i+1)
+				if len(targets) == 0 {
+					return e.WithTry("bam preset add " + r.Target + " --plan PROJ-PLAN creates it")
+				}
+				return e.WithTry("presets here: " + strings.Join(sortedKeys(targets), ", "))
 			}
 			for _, x := range r.Expand() {
 				if seen[x.Name] {

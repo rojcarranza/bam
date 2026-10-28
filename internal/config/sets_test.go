@@ -70,11 +70,20 @@ sets:
 	require.Len(t, s.DefinedIn, 2)
 }
 
+func TestSetUnknownPresetWithNoPresets(t *testing.T) {
+	cfg, err := loadYAML(t, "version: 1\nsets: {rel: {stages: [[deploy]]}}\n", "")
+	if err == nil {
+		_, err = cfg.Sets()
+	}
+	require.Error(t, err)
+	require.Contains(t, errWhyTry(err), "bam preset add deploy --plan PROJ-PLAN creates it")
+}
+
 func TestSetConfigErrors(t *testing.T) {
 	base := "version: 1\nservers: {work: {url: https://bamboo.example.com}, lab: {url: https://bamboo.lab.example}}\n" +
 		"targets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B, server: work}\n  c: {plan: PROJ-C, server: lab}\n"
 	for name, tc := range map[string]struct{ sets, want string }{
-		"unknown preset":   {"sets: {rel: {stages: [[nope]]}}", `unknown preset "nope"`},
+		"unknown preset":   {"sets: {rel: {stages: [[nope]]}}", `presets here: a, b, c`},
 		"no stages":        {"sets: {rel: {stages: []}}", "has no stages"},
 		"empty stage":      {"sets: {rel: {stages: [[a], []]}}", "stage 2 has no runs"},
 		"duplicate":        {"sets: {rel: {stages: [[a, a]]}}", `run "a" twice in stage 1`},
@@ -96,7 +105,7 @@ func TestSetConfigErrors(t *testing.T) {
 			}
 			require.Error(t, err)
 			require.Equal(t, errs.KindConfig, errs.KindOf(err))
-			require.Contains(t, err.Error(), tc.want)
+			require.Contains(t, err.Error()+" "+errWhyTry(err), tc.want)
 		})
 	}
 }

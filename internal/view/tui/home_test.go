@@ -527,3 +527,11 @@ func TestTheCompactHeaderDropsWhoAndWhereBeforeTheCount(t *testing.T) {
 	require.Contains(t, narrow, "sort key↑ · filter /prov")
 	require.Equal(t, " p…", m.homeHeader(3), "too narrow even for the essentials still ends in …")
 }
+
+func TestTheCompactHeaderShortensNoneConfiguredBeforeCutting(t *testing.T) {
+	m := homeModel()
+	full := m.homeHeader(0)
+	require.Contains(t, full, "project all (none configured) · 4 plans")
+	narrow := m.homeHeader(50)
+	require.Equal(t, " project all · 4 plans · sort key↑", narrow)
+}

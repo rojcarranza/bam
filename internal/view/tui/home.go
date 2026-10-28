@@ -727,6 +727,9 @@ func (m Model) homeHeader(width int) string {
 		}
 		id = append(id[:drop], id[drop+1:]...)
 	}
+	if width > 0 && lipgloss.Width(line()) > width && parts[0] == "project all (none configured)" {
+		parts[0] = "project all"
+	}
 	if width <= 0 {
 		return line()
 	}

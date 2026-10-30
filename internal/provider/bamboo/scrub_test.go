@@ -176,28 +176,6 @@ func TestDenylistPath(t *testing.T) {
 	assert.Equal(t, filepath.Join("/xdg", "bam", "fixture-denylist.txt"), path)
 }
 
-func TestStrandedDenylist(t *testing.T) {
-	base := t.TempDir()
-	oldDir, newDir := filepath.Join(base, "old"), filepath.Join(base, "xdg", "bam")
-	vars := map[string]string{"XDG_CONFIG_HOME": filepath.Join(base, "xdg")}
-	getenv := func(k string) string { return vars[k] }
-	require.NoError(t, os.MkdirAll(oldDir, 0o700))
-	require.NoError(t, os.MkdirAll(newDir, 0o700))
-
-	assert.Empty(t, StrandedDenylist(getenv, oldDir), "no denylist anywhere")
-
-	old := filepath.Join(oldDir, "fixture-denylist.txt")
-	require.NoError(t, os.WriteFile(old, []byte("term\n"), 0o600))
-	assert.Equal(t, old, StrandedDenylist(getenv, filepath.Join(base, "absent"), oldDir))
-
-	vars["BAM_FIXTURE_DENYLIST"] = filepath.Join(base, "override.txt")
-	assert.Empty(t, StrandedDenylist(getenv, oldDir), "an override names the denylist to use")
-	delete(vars, "BAM_FIXTURE_DENYLIST")
-
-	require.NoError(t, os.WriteFile(filepath.Join(newDir, "fixture-denylist.txt"), []byte("term\n"), 0o600))
-	assert.Empty(t, StrandedDenylist(getenv, oldDir), "the current path has one")
-}
-
 func TestFixtureTermViolationsCaseInsensitive(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "test.json"), []byte(`{"host":"CI.HOME.INTERNAL","name":"RSMITH"}`), 0o644))

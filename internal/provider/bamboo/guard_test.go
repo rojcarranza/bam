@@ -2,6 +2,7 @@ package bamboo
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -20,6 +21,14 @@ func TestFixtureGuard(t *testing.T) {
 	terms, err := LoadDenylist(path)
 	require.NoError(t, err)
 	if len(terms) == 0 {
+		// Older bam versions kept the denylist in os.UserConfigDir:
+		// ~/Library/Application Support/bam on macOS, %AppData%\bam on Windows.
+		var oldDirs []string
+		if dir, err := os.UserConfigDir(); err == nil {
+			oldDirs = append(oldDirs, filepath.Join(dir, "bam"))
+		}
+		stranded := StrandedDenylist(os.Getenv, oldDirs...)
+		require.Empty(t, stranded, "the fixture denylist is still in an old location; move it to %s", path)
 		t.Log("no fixture denylist; private-term check skipped")
 		return
 	}

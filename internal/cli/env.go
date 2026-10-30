@@ -76,7 +76,12 @@ type Env struct {
 // SystemEnv returns the Env of the running process.
 func SystemEnv() Env {
 	wd, _ := os.Getwd()
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// Without a home directory, root bam's files at / so they never
+		// resolve against the working directory.
+		home = string(filepath.Separator)
+	}
 	dirs := config.LocateDirs(home, goruntime.GOOS, os.Getenv)
 	machine := os.Getenv("BAM_CONFIG")
 	if machine == "" {

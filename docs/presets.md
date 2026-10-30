@@ -162,7 +162,7 @@ A plan branch keeps the repository branch bam created it with, and Bamboo does n
 
 ### Move presets you already have
 
-Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml`; `~/Library/Application Support/bam/config.yaml` on macOS before you upgraded), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file, `~/bam/presets.yaml`:
+Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml`), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file, `~/bam/presets.yaml`:
 
     bam preset migrate --dry-run     # what would move
     bam preset migrate

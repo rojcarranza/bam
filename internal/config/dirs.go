@@ -7,9 +7,13 @@ import (
 
 // Dirs are bam's directories outside any repository.
 type Dirs struct {
-	Config string // config.yaml, credentials.yaml
+	Config string // config.yaml, credentials.yaml, fixture-denylist.txt
 	Cache  string // capabilities.json, saved build trees
 	State  string // state.json, set run records
+	// OldConfig is the config directory older releases used on macOS and
+	// Windows, which bam moves config files out of (MoveDir). It is empty
+	// on other systems and when XDG_CONFIG_HOME is set.
+	OldConfig string
 }
 
 // LocateDirs returns bam's directories in the XDG layout on every OS:
@@ -19,8 +23,9 @@ type Dirs struct {
 //
 // Older bam releases used the OS-native directories on macOS
 // (~/Library/Application Support, ~/Library/Caches) and Windows
-// (%LOCALAPPDATA%). While the new directory does not exist and the old one
-// does, the old one is kept, so an upgrade loses no config, token or record.
+// (%LOCALAPPDATA%). Config files are moved out of the old config directory,
+// OldConfig. For cache and state, while the new directory does not exist and
+// the old one does, the old one is kept, so an upgrade loses no record.
 func LocateDirs(home, goos string, getenv func(string) string) Dirs {
 	base := func(name, def string) string {
 		if v := getenv(name); filepath.IsAbs(v) {
@@ -57,7 +62,9 @@ func LocateDirs(home, goos string, getenv func(string) string) Dirs {
 			*cur = legacy
 		}
 	}
-	keep(&d.Config, config, "XDG_CONFIG_HOME")
+	if !filepath.IsAbs(getenv("XDG_CONFIG_HOME")) {
+		d.OldConfig = filepath.Join(config, "bam")
+	}
 	keep(&d.Cache, cache, "XDG_CACHE_HOME")
 	keep(&d.State, state, "XDG_STATE_HOME")
 	return d

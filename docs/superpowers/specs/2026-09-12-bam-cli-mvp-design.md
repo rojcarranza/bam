@@ -126,7 +126,7 @@ Generated data is kept out of files that people edit:
 - Capability results: `$XDG_CACHE_HOME/bam/capabilities.json`, keyed by server origin.
 - Last-build record: `$XDG_STATE_HOME/bam/state.json`, keyed by repository root.
 
-The XDG layout applies on every OS: with the variables unset, `~/.config`, `~/.cache` and `~/.local/state` (`config.LocateDirs`). Releases before this change used `~/Library/Application Support` and `~/Library/Caches` on macOS and `%LOCALAPPDATA%` on Windows; while the new directory does not exist and the old one does, bam keeps using the old one.
+The XDG layout applies on every OS: with the variables unset, `~/.config`, `~/.cache` and `~/.local/state` (`config.LocateDirs`). Releases before this change used `~/Library/Application Support` and `~/Library/Caches` on macOS and `%LOCALAPPDATA%` on Windows. On start, bam moves `config.yaml`, `credentials.yaml` and `fixture-denylist.txt` from the old config directory into the new one, unless a file of that name is already there or `BAM_CONFIG` or `BAM_FIXTURE_DENYLIST` names the old file, and prints one line per file it moved; when a move fails, bam warns and reads the files it could not move from the old directory. For cache and state, while the new directory does not exist and the old one does, bam keeps using the old one.
 
 ### 3.2 Project file discovery
 

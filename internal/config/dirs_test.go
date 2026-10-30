@@ -35,7 +35,9 @@ func TestDirsIgnoreRelativeXDGVariables(t *testing.T) {
 	assert.Equal(t, filepath.Join(home, ".config", "bam"), d.Config)
 }
 
-func TestDirsKeepUsingAnExistingMacOSLocation(t *testing.T) {
+// Issue #126: config files move to ~/.config/bam (OldConfig is where they
+// come from), while cache and state keep using an existing old directory.
+func TestDirsKeepUsingAnExistingMacOSCacheAndState(t *testing.T) {
 	home := t.TempDir()
 	legacyConfig := filepath.Join(home, "Library", "Application Support", "bam")
 	legacyCache := filepath.Join(home, "Library", "Caches", "bam")
@@ -43,19 +45,25 @@ func TestDirsKeepUsingAnExistingMacOSLocation(t *testing.T) {
 	require.NoError(t, os.MkdirAll(legacyCache, 0o700))
 
 	d := LocateDirs(home, "darwin", envOf(nil))
-	assert.Equal(t, Dirs{Config: legacyConfig, Cache: legacyCache, State: legacyConfig}, d)
+	assert.Equal(t, Dirs{
+		Config:    filepath.Join(home, ".config", "bam"),
+		Cache:     legacyCache,
+		State:     legacyConfig,
+		OldConfig: legacyConfig,
+	}, d)
 
 	// Linux never looks there.
 	d = LocateDirs(home, "linux", envOf(nil))
 	assert.Equal(t, filepath.Join(home, ".config", "bam"), d.Config)
+	assert.Empty(t, d.OldConfig)
 }
 
 func TestDirsPreferTheNewLocationOnceItExists(t *testing.T) {
 	home := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "Library", "Application Support", "bam"), 0o700))
-	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "bam"), 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".local", "state", "bam"), 0o700))
 	d := LocateDirs(home, "darwin", envOf(nil))
-	assert.Equal(t, filepath.Join(home, ".config", "bam"), d.Config)
+	assert.Equal(t, filepath.Join(home, ".local", "state", "bam"), d.State)
 }
 
 func TestDirsKeepUsingAnExistingWindowsLocation(t *testing.T) {
@@ -65,8 +73,9 @@ func TestDirsKeepUsingAnExistingWindowsLocation(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(local, "cache", "bam"), 0o700))
 	d := LocateDirs(home, "windows", envOf(map[string]string{"LOCALAPPDATA": local}))
 	assert.Equal(t, Dirs{
-		Config: filepath.Join(local, "bam"),
-		Cache:  filepath.Join(local, "cache", "bam"),
-		State:  filepath.Join(local, "bam"),
+		Config:    filepath.Join(home, ".config", "bam"),
+		Cache:     filepath.Join(local, "cache", "bam"),
+		State:     filepath.Join(local, "bam"),
+		OldConfig: filepath.Join(local, "bam"),
 	}, d)
 }

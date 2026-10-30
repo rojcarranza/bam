@@ -74,6 +74,16 @@ func TestTreeLiveTickRedrawsARunningTreeWithItsNewTimes(t *testing.T) {
 	require.Equal(t, before, buf.Len(), "a finished tree is not redrawn")
 }
 
+// A build in its first second has a time of 0s; "–" would read as unknown.
+func TestTreeLiveShowsAJustStartedBuildAt0s(t *testing.T) {
+	running := tnode("PROJ-API-142", provider.StateRunning, 0)
+	running.Build.StartedAt = fixedNow.Add(-400 * time.Millisecond)
+	o, buf := testOut(true)
+	o.Now = func() time.Time { return fixedNow }
+	NewTreeLive(o, nil, false).Event(treeEv(app.TreeUpdate, app.Tree{Root: running, State: provider.StateRunning}))
+	require.Contains(t, buf.String(), "▸ running  0s")
+}
+
 func TestTreeLiveShowsAndMovesARunningBuildsEstimate(t *testing.T) {
 	docs := tnode("PROJ-DOCS-30", provider.StateRunning, 0)
 	docs.Build.StartedAt = fixedNow.Add(-4 * time.Minute)

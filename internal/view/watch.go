@@ -62,16 +62,23 @@ func RevisionNotBuilt(o Out, revision string) {
 	fmt.Fprintf(o.W, "Bamboo could not build revision %s\n", revision)
 }
 
-func elapsed(o Out, b provider.Build) time.Duration {
+// elapsed is a build's time so far; "–" only when it is not known.
+func elapsed(o Out, b provider.Build) string {
+	from := b.StartedAt
+	if from.IsZero() {
+		from = b.QueuedAt
+	}
 	switch {
 	case b.State.Finished():
-		return b.Duration
-	case !b.StartedAt.IsZero():
-		return o.Now().Sub(b.StartedAt).Truncate(time.Second)
-	case !b.QueuedAt.IsZero():
-		return o.Now().Sub(b.QueuedAt).Truncate(time.Second)
+		return Duration(b.Duration)
+	case from.IsZero():
+		return "–"
 	}
-	return 0
+	d := o.Now().Sub(from)
+	if d < time.Second {
+		return "0s" // its first second, or a server clock a little ahead of ours
+	}
+	return Duration(d.Truncate(time.Second))
 }
 
 // NDJSON writes every event as one JSON line.

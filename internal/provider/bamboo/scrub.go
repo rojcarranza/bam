@@ -283,16 +283,22 @@ func termRe(term string) *regexp.Regexp {
 	return regexp.MustCompile(`(?i)(^|[^\pL\pN])` + regexp.QuoteMeta(term) + `([^\pL\pN]|$)`)
 }
 
+const denylistFile = "fixture-denylist.txt"
+
 // DenylistPath returns the path to the fixture denylist file.
-// Uses BAM_FIXTURE_DENYLIST env var if set, otherwise returns the default path
-// under the user's config directory.
+// Uses BAM_FIXTURE_DENYLIST env var if set, otherwise fixture-denylist.txt in
+// bam's config directory, $XDG_CONFIG_HOME/bam or ~/.config/bam (config.Dir,
+// which this package may not import).
 func DenylistPath(getenv func(string) string) string {
 	if path := getenv("BAM_FIXTURE_DENYLIST"); path != "" {
 		return path
 	}
-	configDir, err := os.UserConfigDir()
+	if x := getenv("XDG_CONFIG_HOME"); filepath.IsAbs(x) {
+		return filepath.Join(x, "bam", denylistFile)
+	}
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(configDir, "bam", "fixture-denylist.txt")
+	return filepath.Join(home, ".config", "bam", denylistFile)
 }

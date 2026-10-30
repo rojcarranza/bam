@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/r0jjames/bam-cli/internal/view/style"
@@ -45,6 +47,7 @@ const (
 
 // Execute runs bam with args and returns the process exit code.
 func Execute(ctx context.Context, args []string, env Env) int {
+	moveLegacyConfig(env)
 	r := &runtime{env: env}
 	root := newRoot(r)
 	root.SetArgs(args)
@@ -481,5 +484,22 @@ func newVersionCmd(r *runtime) *cobra.Command {
 			_, err := fmt.Fprintf(r.env.Stdout, "bam %s\n", v)
 			return err
 		},
+	}
+}
+
+// moveLegacyConfig moves config files from the directory older bam versions
+// used into ~/.config/bam and says so. A file an override names stays where it
+// is. A failed move is a warning: bam still runs, without the old files.
+func moveLegacyConfig(env Env) {
+	if env.Paths.LegacyConfigDir == "" {
+		return
+	}
+	to := filepath.Dir(env.Paths.Credentials)
+	moved, err := config.MoveDir(env.Paths.LegacyConfigDir, to, env.Paths.MachineConfig, env.Getenv("BAM_FIXTURE_DENYLIST"))
+	for _, name := range moved {
+		fmt.Fprintf(env.Stderr, "moved %s from %s to %s\n", name, env.Paths.LegacyConfigDir, to)
+	}
+	if err != nil {
+		fmt.Fprintf(env.Stderr, "warning: could not move config from %s: %v\n", env.Paths.LegacyConfigDir, err)
 	}
 }

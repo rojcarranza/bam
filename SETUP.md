@@ -343,7 +343,7 @@ Prepare before you record:
 
    The recorder replaces your host and user names with placeholders, and `make check-fixtures` rejects anything it missed. Still read every recorded file before committing.
 
-   `make record` also appends your real host and user names to a private denylist at `~/.config/bam/fixture-denylist.txt` (override the location with `BAM_FIXTURE_DENYLIST`), outside the repository. `make check-fixtures` fails if any of those terms show up anywhere in `testdata/`.
+   `make record` also appends your real host and user names to a private denylist at `~/.config/bam/fixture-denylist.txt` (override the location with `BAM_FIXTURE_DENYLIST`), outside the repository. `make check-fixtures` fails if any of those terms show up anywhere in `testdata/`, and also when your denylist is still where older bam versions kept it (`~/Library/Application Support/bam` on macOS); running bam or `make record` moves it.
 
 ## Troubleshooting
 

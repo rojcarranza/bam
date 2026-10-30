@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/adrg/xdg"
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -38,15 +37,16 @@ func SystemOptions() (Options, error) {
 	if err != nil {
 		return Options{}, err
 	}
+	cfgDir := config.Dir(os.Getenv, home)
 	machine := os.Getenv("BAM_CONFIG")
 	if machine == "" {
-		machine = filepath.Join(xdg.ConfigHome, "bam", "config.yaml")
+		machine = filepath.Join(cfgDir, "config.yaml")
 	}
 	return Options{
 		WorkDir:     wd,
 		Home:        home,
 		MachineFile: machine,
-		Credentials: filepath.Join(xdg.ConfigHome, "bam", "credentials.yaml"),
+		Credentials: filepath.Join(cfgDir, "credentials.yaml"),
 		Getenv:      os.Getenv,
 		Keyring:     credential.SystemKeyring{},
 	}, nil

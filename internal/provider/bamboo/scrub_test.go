@@ -162,10 +162,18 @@ func TestDenylistPath(t *testing.T) {
 	assert.Equal(t, "/custom/path", path)
 
 	// Test default path
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
 	path = DenylistPath(func(string) string { return "" })
-	assert.NotEmpty(t, path)
-	assert.Contains(t, path, "bam")
-	assert.Contains(t, path, "fixture-denylist.txt")
+	assert.Equal(t, filepath.Join(home, ".config", "bam", "fixture-denylist.txt"), path)
+
+	path = DenylistPath(func(key string) string {
+		if key == "XDG_CONFIG_HOME" {
+			return "/xdg"
+		}
+		return ""
+	})
+	assert.Equal(t, filepath.Join("/xdg", "bam", "fixture-denylist.txt"), path)
 }
 
 func TestFixtureTermViolationsCaseInsensitive(t *testing.T) {

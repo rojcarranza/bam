@@ -104,7 +104,7 @@ Make one preset per set, each pointing at the same plan:
 
 ### Move presets you already have
 
-Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml` on Linux and WSL, `~/Library/Application Support/bam/config.yaml` on macOS), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file, `~/bam/presets.yaml`:
+Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml`), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file, `~/bam/presets.yaml`:
 
     bam preset migrate --dry-run     # what would move
     bam preset migrate

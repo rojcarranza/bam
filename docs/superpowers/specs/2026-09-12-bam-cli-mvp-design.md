@@ -126,7 +126,7 @@ Generated data is kept out of files that people edit:
 - Capability results: `$XDG_CACHE_HOME/bam/capabilities.json`, keyed by server origin.
 - Last-build record: `$XDG_STATE_HOME/bam/state.json`, keyed by repository root.
 
-Paths come from `github.com/adrg/xdg`, so macOS and Windows get their platform directories.
+The machine file and credentials file live in `$XDG_CONFIG_HOME/bam`, or `~/.config/bam` when it is unset, on every platform, so the config directory is the same on macOS, Linux and Windows. Cache and state paths come from `github.com/adrg/xdg`, so macOS and Windows get their platform directories for those. Older versions kept the config in adrg/xdg's config home (`~/Library/Application Support/bam` on macOS, `%LOCALAPPDATA%\bam` on Windows); on start, bam moves `config.yaml`, `credentials.yaml` and `fixture-denylist.txt` from there into the config directory unless a file of that name is already there, and prints one line per file it moved.
 
 ### 3.2 Project file discovery
 

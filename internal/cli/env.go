@@ -14,6 +14,7 @@ import (
 	"github.com/adrg/xdg"
 	"github.com/pkg/browser"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
@@ -35,6 +36,10 @@ type Paths struct {
 	State         string
 	Sets          string // directory of set run records and locks
 	Trees         string // directory of saved build trees, one file per server
+	// LegacyConfigDir is where bam kept its config before it used
+	// ~/.config/bam on every platform; Execute moves files from it. Empty
+	// means nothing to move.
+	LegacyConfigDir string
 }
 
 // Env is everything the CLI takes from the process. Tests build it by hand.
@@ -73,9 +78,10 @@ type Env struct {
 func SystemEnv() Env {
 	wd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
+	cfgDir := config.Dir(os.Getenv, home)
 	machine := os.Getenv("BAM_CONFIG")
 	if machine == "" {
-		machine = filepath.Join(xdg.ConfigHome, "bam", "config.yaml")
+		machine = filepath.Join(cfgDir, "config.yaml")
 	}
 	out := int(os.Stdout.Fd())
 	return Env{
@@ -101,11 +107,14 @@ func SystemEnv() Env {
 		WindowsHome: wslWindowsHome,
 		Paths: Paths{
 			MachineConfig: machine,
-			Credentials:   filepath.Join(xdg.ConfigHome, "bam", "credentials.yaml"),
+			Credentials:   filepath.Join(cfgDir, "credentials.yaml"),
 			Capabilities:  filepath.Join(xdg.CacheHome, "bam", "capabilities.json"),
 			State:         filepath.Join(xdg.StateHome, "bam", "state.json"),
 			Sets:          filepath.Join(xdg.StateHome, "bam", "sets"),
 			Trees:         filepath.Join(xdg.CacheHome, "bam", "tree"),
+			// adrg/xdg's config home: ~/Library/Application Support on
+			// macOS, %LOCALAPPDATA% on Windows, the same as cfgDir on Linux.
+			LegacyConfigDir: filepath.Join(xdg.ConfigHome, "bam"),
 		},
 		Clock:   app.SystemClock{},
 		Keyring: credential.SystemKeyring{},

@@ -302,23 +302,3 @@ func DenylistPath(getenv func(string) string) string {
 	}
 	return filepath.Join(home, ".config", "bam", denylistFile)
 }
-
-// StrandedDenylist returns a fixture denylist still in one of oldDirs, the
-// directories older bam versions kept it in, when DenylistPath has none and
-// BAM_FIXTURE_DENYLIST names none. The private-term check must not read such a
-// state as "no denylist". It returns "" otherwise.
-func StrandedDenylist(getenv func(string) string, oldDirs ...string) string {
-	if getenv("BAM_FIXTURE_DENYLIST") != "" {
-		return ""
-	}
-	if _, err := os.Stat(DenylistPath(getenv)); err == nil {
-		return ""
-	}
-	for _, dir := range oldDirs {
-		old := filepath.Join(dir, denylistFile)
-		if _, err := os.Stat(old); err == nil {
-			return old
-		}
-	}
-	return ""
-}

@@ -9,7 +9,7 @@ bam reads four layers. Only the last is secret.
 | Presets | `~/bam/presets/*.yaml` and `~/bam/presets.yaml` (`BAM_PRESETS` overrides) | no | your personal presets, usable in every directory |
 | Credentials | OS keychain, an env variable, or `~/.config/bam/credentials.yaml` (0600) | never | tokens only |
 
-The machine and credentials files live in `$XDG_CONFIG_HOME/bam` when that variable is set, and in `~/.config/bam` otherwise, on macOS too. Earlier bam versions kept them in `~/Library/Application Support/bam` on macOS (`%LOCALAPPDATA%\bam` on Windows); the first run of a newer bam moves them to `~/.config/bam` and says so. A file that `BAM_CONFIG` points at stays where it is.
+The machine and credentials files live in `$XDG_CONFIG_HOME/bam` when that variable is an absolute path, and in `~/.config/bam` otherwise, on macOS too. Earlier bam versions kept them in `~/Library/Application Support/bam` on macOS (`%LOCALAPPDATA%\bam` on Windows); the first run of a newer bam moves them to the new directory and says so, and leaves a file alone if one of that name is already there. A file that `BAM_CONFIG` points at stays where it is.
 
 bam looks for `.bam.yaml` from the current directory up to the git root (or your home directory outside a repository). A file named `.bam.yml`, `bam.yaml` or `bam.yml` there instead is an error that tells you to rename it, rather than being silently ignored.
 

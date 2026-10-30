@@ -197,7 +197,7 @@ func treeRow(o Out, n *app.TreeNode, prefix string, underStage bool) []string {
 	case n.Loop:
 		return []string{prefix + o.Key(n.Build.Key, n.Build.URL) + TreePlanName(n.Build), "↺ already shown above", "", ""}
 	}
-	return []string{prefix + o.Key(n.Build.Key, n.Build.URL) + TreePlanName(n.Build), o.State(n.Build.State), Duration(elapsed(o, n.Build)), TreeNodeNote(n, underStage)}
+	return []string{prefix + o.Key(n.Build.Key, n.Build.URL) + TreePlanName(n.Build), o.State(n.Build.State), elapsed(o, n.Build), TreeNodeNote(n, underStage)}
 }
 
 // TreePlanName is what follows a build's key on its tree line: its

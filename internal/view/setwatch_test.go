@@ -134,6 +134,16 @@ func TestSetLiveShowsPendingStagesBeforeTheyStart(t *testing.T) {
 	require.Regexp(t, `deploy\s+–\s+Pending`, out)
 }
 
+// A set run in its first second shows 0s; the cell stays blank only for a
+// time bam does not know.
+func TestSetLiveShowsAJustStartedRunAt0s(t *testing.T) {
+	o, buf := testOut(true)
+	o.Now = func() time.Time { return setAt }
+	l := NewSetLive(o, setPlan())
+	l.Event(setEv(app.SetRunTriggered, 0, "publish-specs", provider.Build{Key: "PROJ-SPEC-12", State: provider.StateRunning, StartedAt: setAt.Add(-400 * time.Millisecond)}, ""))
+	require.Regexp(t, `publish-specs\s+PROJ-SPEC-12\s+Running\s+0s\n`, lastFrame(buf.String()))
+}
+
 func TestSetNDJSONEndsWithSetDoneAndSkipsProgress(t *testing.T) {
 	var b strings.Builder
 	n := NewSetNDJSON(Out{W: &b})

@@ -118,8 +118,8 @@ func (l *SetLive) draw() {
 				state = ""
 			}
 			dur := ""
-			if d := elapsed(l.o, r.Build); r.Build.Key != "" && d > 0 {
-				dur = Duration(d)
+			if d := elapsed(l.o, r.Build); r.Build.Key != "" && d != "–" {
+				dur = d
 			}
 			bar := ""
 			if state == provider.StateRunning {

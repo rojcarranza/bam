@@ -74,6 +74,30 @@ func TestTreeLiveTickRedrawsARunningTreeWithItsNewTimes(t *testing.T) {
 	require.Equal(t, before, buf.Len(), "a finished tree is not redrawn")
 }
 
+// A build in its first second has a time of 0s; "–" is only for a time bam
+// does not know.
+func TestTreeLiveShowsAJustStartedBuildAt0s(t *testing.T) {
+	for name, tc := range map[string]struct {
+		started, queued time.Time
+		want            string
+	}{
+		"started 400ms ago":         {started: fixedNow.Add(-400 * time.Millisecond), want: "▸ running  0s"},
+		"server clock 2s ahead":     {started: fixedNow.Add(2 * time.Second), want: "▸ running  0s"},
+		"only queued 400ms ago":     {queued: fixedNow.Add(-400 * time.Millisecond), want: "▸ running  0s"},
+		"no start or queue time":    {want: "▸ running  –"},
+		"started 2.6s ago, whole s": {started: fixedNow.Add(-2600 * time.Millisecond), want: "▸ running  2s"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			running := tnode("PROJ-API-142", provider.StateRunning, 0)
+			running.Build.StartedAt, running.Build.QueuedAt = tc.started, tc.queued
+			o, buf := testOut(true)
+			o.Now = func() time.Time { return fixedNow }
+			NewTreeLive(o, nil, false).Event(treeEv(app.TreeUpdate, app.Tree{Root: running, State: provider.StateRunning}))
+			require.Equal(t, "PROJ-API-142  "+tc.want+"\n", buf.String())
+		})
+	}
+}
+
 func TestTreeLiveShowsAndMovesARunningBuildsEstimate(t *testing.T) {
 	docs := tnode("PROJ-DOCS-30", provider.StateRunning, 0)
 	docs.Build.StartedAt = fixedNow.Add(-4 * time.Minute)

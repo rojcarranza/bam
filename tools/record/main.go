@@ -48,6 +48,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/adrg/xdg"
+	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
 	"github.com/r0jjames/bam-cli/internal/toolcfg"
 )
@@ -225,6 +227,9 @@ func run() error {
 
 	opts, err := toolcfg.SystemOptions()
 	if err != nil {
+		return err
+	}
+	if err := moveLegacyConfig(os.Stderr, opts, legacyConfigDirs()...); err != nil {
 		return err
 	}
 	cfg, err := toolcfg.Load(opts)
@@ -804,11 +809,39 @@ func (r *recorder) recordTriggerAndStop(plan string) error {
 		url.Values{"expand": {"stages.stage.results.result"}})
 }
 
+// legacyConfigDirs are where older bam versions kept their config: adrg/xdg's
+// config home, and for the denylist on Windows, os.UserConfigDir.
+func legacyConfigDirs() []string {
+	dirs := []string{filepath.Join(xdg.ConfigHome, "bam")}
+	if dir, err := os.UserConfigDir(); err == nil {
+		dirs = append(dirs, filepath.Join(dir, "bam"))
+	}
+	return dirs
+}
+
+// moveLegacyConfig moves bam's config files out of the from directories, so
+// the recorder reads the config bam would and adds to the existing denylist
+// instead of starting a new one that leaves the old terms behind. A failed
+// move stops the recording for the same reason.
+func moveLegacyConfig(w io.Writer, o toolcfg.Options, from ...string) error {
+	to := filepath.Dir(o.Credentials)
+	for _, dir := range from {
+		moved, err := config.MoveDir(dir, to, o.MachineFile, o.Getenv("BAM_FIXTURE_DENYLIST"))
+		for _, name := range moved {
+			fmt.Fprintf(w, "moved %s from %s to %s\n", name, dir, to)
+		}
+		if err != nil {
+			return fmt.Errorf("move config from %s: %w", dir, err)
+		}
+	}
+	return nil
+}
+
 // updateDenylist appends the scrubber's terms to the fixture denylist file.
 func (r *recorder) updateDenylist() error {
 	path := bamboo.DenylistPath(os.Getenv)
 	if path == "" {
-		return nil // If UserConfigDir fails, skip silently
+		return nil // Without a home directory, skip silently
 	}
 
 	// Create directory with 0700

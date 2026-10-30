@@ -77,7 +77,10 @@ type Env struct {
 // SystemEnv returns the Env of the running process.
 func SystemEnv() Env {
 	wd, _ := os.Getwd()
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = xdg.Home // absolute even without HOME, so config never resolves against the working directory
+	}
 	cfgDir := config.Dir(os.Getenv, home)
 	machine := os.Getenv("BAM_CONFIG")
 	if machine == "" {

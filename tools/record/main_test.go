@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
+	"github.com/r0jjames/bam-cli/internal/toolcfg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -217,4 +219,56 @@ func TestWriteScrubbedScrubsNamesInsideHTML(t *testing.T) {
 		assert.NotContains(t, string(out), "WORK", file)
 		assert.Contains(t, string(out), ">LAB-PARENT-2</a>", file)
 	}
+}
+
+func TestMoveLegacyConfigKeepsDenylistTerms(t *testing.T) {
+	base := t.TempDir()
+	old := filepath.Join(base, "old", "bam")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(base, "new"))
+	t.Setenv("BAM_FIXTURE_DENYLIST", "")
+	require.NoError(t, os.MkdirAll(old, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(old, "fixture-denylist.txt"), []byte("earlier-term\n"), 0o600))
+	cfgDir := filepath.Join(base, "new", "bam")
+	opts := toolcfg.Options{
+		MachineFile: filepath.Join(cfgDir, "config.yaml"),
+		Credentials: filepath.Join(cfgDir, "credentials.yaml"),
+		Getenv:      os.Getenv,
+	}
+
+	var out bytes.Buffer
+	require.NoError(t, moveLegacyConfig(&out, opts, old))
+	assert.Equal(t, "moved fixture-denylist.txt from "+old+" to "+cfgDir+"\n", out.String())
+
+	r := &recorder{scrub: bamboo.Scrubber{Host: "ci.home.internal:8085"}}
+	require.NoError(t, r.updateDenylist())
+	terms, err := bamboo.LoadDenylist(filepath.Join(cfgDir, "fixture-denylist.txt"))
+	require.NoError(t, err)
+	assert.Contains(t, terms, "earlier-term")
+	assert.Contains(t, terms, "ci.home.internal")
+	assert.NoFileExists(t, filepath.Join(old, "fixture-denylist.txt"))
+}
+
+func TestMoveLegacyConfigLeavesFilesAnOverrideNames(t *testing.T) {
+	base := t.TempDir()
+	old, cfgDir := filepath.Join(base, "old"), filepath.Join(base, "new")
+	require.NoError(t, os.MkdirAll(old, 0o700))
+	machine, denylist := filepath.Join(old, "config.yaml"), filepath.Join(old, "fixture-denylist.txt")
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\n"), 0o600))
+	require.NoError(t, os.WriteFile(denylist, []byte("term\n"), 0o600))
+	opts := toolcfg.Options{
+		MachineFile: machine,
+		Credentials: filepath.Join(cfgDir, "credentials.yaml"),
+		Getenv: func(k string) string {
+			if k == "BAM_FIXTURE_DENYLIST" {
+				return denylist
+			}
+			return ""
+		},
+	}
+
+	var out bytes.Buffer
+	require.NoError(t, moveLegacyConfig(&out, opts, old))
+	assert.Empty(t, out.String())
+	assert.FileExists(t, machine)
+	assert.FileExists(t, denylist)
 }

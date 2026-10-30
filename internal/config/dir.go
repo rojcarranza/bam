@@ -24,8 +24,9 @@ func Dir(getenv func(string) string, home string) string {
 // MoveDir moves bam's config files from an older config directory (macOS
 // ~/Library/Application Support/bam, Windows %LOCALAPPDATA%\bam) into to, and
 // returns the names it moved. A file already in to is never replaced, and the
-// old copy stays where it is.
-func MoveDir(from, to string) ([]string, error) {
+// old copy stays where it is. So does a file that one of keep names, because
+// BAM_CONFIG or BAM_FIXTURE_DENYLIST points there.
+func MoveDir(from, to string, keep ...string) ([]string, error) {
 	if filepath.Clean(from) == filepath.Clean(to) {
 		return nil, nil
 	}
@@ -36,6 +37,9 @@ func MoveDir(from, to string) ([]string, error) {
 			continue
 		} else if err != nil {
 			return moved, err
+		}
+		if namedBy(keep, src) {
+			continue
 		}
 		if _, err := os.Lstat(dst); err == nil {
 			continue
@@ -51,6 +55,21 @@ func MoveDir(from, to string) ([]string, error) {
 		moved = append(moved, name)
 	}
 	return moved, nil
+}
+
+// namedBy reports whether one of paths is the file at path, however it is
+// spelled.
+func namedBy(paths []string, path string) bool {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	for _, p := range paths {
+		if other, err := os.Stat(p); err == nil && os.SameFile(fi, other) {
+			return true
+		}
+	}
+	return false
 }
 
 // moveFile renames src to dst, copying with src's mode when they are on

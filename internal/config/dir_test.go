@@ -84,3 +84,23 @@ func TestMoveDirSameOrMissing(t *testing.T) {
 	assert.Empty(t, moved)
 	assert.NoDirExists(t, filepath.Join(base, "new"))
 }
+
+func TestMoveDirLeavesFilesAnOverrideNames(t *testing.T) {
+	base := t.TempDir()
+	from, to := filepath.Join(base, "old"), filepath.Join(base, "new")
+	require.NoError(t, os.MkdirAll(from, 0o700))
+	for _, name := range []string{"config.yaml", "credentials.yaml", "fixture-denylist.txt"} {
+		require.NoError(t, os.WriteFile(filepath.Join(from, name), []byte("x\n"), 0o600))
+	}
+	// An override may reach the file through another path, such as a symlink.
+	link := filepath.Join(base, "link.txt")
+	require.NoError(t, os.Symlink(filepath.Join(from, "fixture-denylist.txt"), link))
+
+	moved, err := MoveDir(from, to, filepath.Join(from, "config.yaml"), link, "", filepath.Join(base, "absent"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"credentials.yaml"}, moved)
+	assert.FileExists(t, filepath.Join(from, "config.yaml"))
+	assert.FileExists(t, filepath.Join(from, "fixture-denylist.txt"))
+	assert.NoFileExists(t, filepath.Join(to, "config.yaml"))
+	assert.NoFileExists(t, filepath.Join(to, "fixture-denylist.txt"))
+}

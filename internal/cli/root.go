@@ -488,14 +488,14 @@ func newVersionCmd(r *runtime) *cobra.Command {
 }
 
 // moveLegacyConfig moves config files from the directory older bam versions
-// used into ~/.config/bam and says so. A failed move is a warning: bam still
-// runs, without the old files.
+// used into ~/.config/bam and says so. A file an override names stays where it
+// is. A failed move is a warning: bam still runs, without the old files.
 func moveLegacyConfig(env Env) {
 	if env.Paths.LegacyConfigDir == "" {
 		return
 	}
 	to := filepath.Dir(env.Paths.Credentials)
-	moved, err := config.MoveDir(env.Paths.LegacyConfigDir, to)
+	moved, err := config.MoveDir(env.Paths.LegacyConfigDir, to, env.Paths.MachineConfig, env.Getenv("BAM_FIXTURE_DENYLIST"))
 	for _, name := range moved {
 		fmt.Fprintf(env.Stderr, "moved %s from %s to %s\n", name, env.Paths.LegacyConfigDir, to)
 	}

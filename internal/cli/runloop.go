@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 
@@ -671,71 +670,4 @@ func newURLCmd(r *runtime) *cobra.Command {
 	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
 	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
-}
-
-// completeVar completes --var names from the target and values from its
-// options, or, for a plan key, the names of the plan's Bamboo variables.
-func (r *runtime) completeVar(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	none := cobra.ShellCompDirectiveNoFileComp
-	if len(args) == 0 {
-		return nil, none
-	}
-	cfg, err := r.config()
-	if err != nil {
-		return nil, none
-	}
-	t, ok, err := cfg.Target(args[0])
-	if err == nil && ok {
-		return targetVars(toComplete, t)
-	}
-	if !app.IsPlanKey(args[0]) || strings.Contains(toComplete, "=") {
-		return nil, none
-	}
-	svc, key, err := r.resolvePlanArg(cmd.Context(), args[0])
-	if err != nil {
-		return nil, none
-	}
-	vars, _ := svc.P.ListVariables(cmd.Context(), key)
-	var out []string
-	for _, v := range vars {
-		out = append(out, v.Name+"=")
-	}
-	sort.Strings(out)
-	return out, none | cobra.ShellCompDirectiveNoSpace
-}
-
-// targetVars offers name= for every variable the presets declare, or the
-// declared options once toComplete has a name=.
-func targetVars(toComplete string, targets ...config.ResolvedTarget) ([]string, cobra.ShellCompDirective) {
-	none := cobra.ShellCompDirectiveNoFileComp
-	seen := map[string]bool{}
-	if name, _, hasEq := strings.Cut(toComplete, "="); hasEq {
-		var out []string
-		for _, t := range targets {
-			for _, v := range t.Options[name] {
-				if !seen[v] {
-					seen[v] = true
-					out = append(out, name+"="+v)
-				}
-			}
-		}
-		return out, none
-	}
-	for _, t := range targets {
-		for n := range t.Defaults {
-			seen[n] = true
-		}
-		for n := range t.Options {
-			seen[n] = true
-		}
-		for _, n := range t.Required {
-			seen[n] = true
-		}
-	}
-	var out []string
-	for n := range seen {
-		out = append(out, n+"=")
-	}
-	sort.Strings(out)
-	return out, none | cobra.ShellCompDirectiveNoSpace
 }

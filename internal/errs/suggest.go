@@ -1,56 +1,49 @@
 package errs
 
 import (
+	"maps"
 	"slices"
 	"strings"
 )
 
-// Closest returns up to n candidates similar to input: substring matches
-// first, shortest first so "log" finds "logs" before "login", then names
-// within a small edit distance, nearest first. A swap of two neighbouring
-// letters counts as one edit. Input under three letters must be a prefix:
-// "go" inside "logout" is chance, not a hint.
-func Closest(input string, candidates []string, n int) []string {
+// Nearest returns the candidate most similar to input, or "" when none is
+// close: substring matches first, shortest first so "log" finds "logs"
+// before "login", then names within a small edit distance, nearest first.
+// A swap of two neighbouring letters counts as one edit. Input under three
+// letters must be a prefix: "go" inside "logout" is chance, not a hint.
+// Ties go to the earlier candidate.
+func Nearest(input string, candidates []string) string {
 	lower := strings.ToLower(input)
-	var out []string
-	seen := map[string]bool{}
 	match := strings.Contains
 	if len([]rune(input)) < 3 {
 		match = strings.HasPrefix
 	}
+	best := ""
 	for _, c := range candidates {
-		if match(strings.ToLower(c), lower) {
-			out = append(out, c)
-			seen[c] = true
+		if match(strings.ToLower(c), lower) && (best == "" || len(c) < len(best)) {
+			best = c
 		}
 	}
-	slices.SortStableFunc(out, func(a, b string) int { return len(a) - len(b) })
-	if len(out) >= n {
-		return out[:n]
+	if best != "" {
+		return best
 	}
 	// Two edits would rewrite most of a short word: "del" is two from "set".
 	limit := 1
 	if l := len([]rune(input)); l > 3 {
 		limit = max(2, l/3)
 	}
-	type near struct {
-		name string
-		dist int
-	}
-	var nears []near
 	for _, c := range candidates {
-		if d := levenshtein(lower, strings.ToLower(c)); !seen[c] && d <= limit {
-			nears = append(nears, near{c, d})
+		if d := levenshtein(lower, strings.ToLower(c)); d <= limit {
+			best, limit = c, d-1
 		}
 	}
-	slices.SortStableFunc(nears, func(a, b near) int { return a.dist - b.dist })
-	for _, c := range nears {
-		if len(out) == n {
-			break
-		}
-		out = append(out, c.name)
-	}
-	return out
+	return best
+}
+
+// NearestKey is Nearest over the keys of m, taken in sorted order so the
+// hint is the same on every run.
+func NearestKey[V any](input string, m map[string]V) string {
+	return Nearest(input, slices.Sorted(maps.Keys(m)))
 }
 
 func levenshtein(a, b string) int {

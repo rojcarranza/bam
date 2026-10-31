@@ -375,10 +375,7 @@ func (r *runtime) alias(args []string) string {
 
 // nearMachineServer is the machine server alias closest to a mistyped one, or "".
 func nearMachineServer(cfg *config.Config, alias string) string {
-	if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Machine.Servers)), 1); len(near) > 0 {
-		return near[0]
-	}
-	return ""
+	return errs.NearestKey(alias, cfg.Machine.Servers)
 }
 
 func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
@@ -390,8 +387,8 @@ func login(cmd *cobra.Command, r *runtime, alias string, withToken bool) error {
 	s, ok := cfg.Servers()[alias]
 	if !ok || s.URL == "" {
 		e := cfg.UnknownServer(alias)
-		if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 && near[0] != alias {
-			e.Try = "did you mean bam login " + near[0] + "?"
+		if near := errs.NearestKey(alias, cfg.Servers()); near != "" && near != alias {
+			e.Try = "did you mean bam login " + near + "?"
 		}
 		return e
 	}
@@ -471,8 +468,8 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 				e := cfg.UnknownServer(alias).WithTry("")
 				if e.Why == "" {
 					e = e.WithWhy("no servers are configured, so there is nothing to log out of")
-				} else if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 {
-					e.Try = "did you mean bam logout " + near[0] + "?"
+				} else if near := errs.NearestKey(alias, cfg.Servers()); near != "" {
+					e.Try = "did you mean bam logout " + near + "?"
 				}
 				return e
 			}

@@ -263,8 +263,8 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 		}
 		warned[name] = true
 		w := fmt.Sprintf("%s is not a declared variable of %s", name, ref.MasterKey)
-		if c := errs.Closest(name, sortedNames(base.Declared), 1); len(c) > 0 {
-			w += "; did you mean " + c[0] + "?"
+		if c := errs.NearestKey(name, base.Declared); c != "" {
+			w += "; did you mean " + c + "?"
 		}
 		set.Warnings = append(set.Warnings, w)
 	}
@@ -339,8 +339,8 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 			if !slices.Contains(t.Options[name], v.Value) {
 				e := errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
 					WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
-				if c := errs.Closest(v.Value, t.Options[name], 1); len(c) > 0 {
-					e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c[0]))
+				if c := errs.Nearest(v.Value, t.Options[name]); c != "" {
+					e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c))
 				}
 				return VarSet{}, e
 			}

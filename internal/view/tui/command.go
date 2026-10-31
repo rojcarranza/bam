@@ -88,8 +88,8 @@ func findCommand(name string) (command, error) {
 
 // didYouMean is the typo hint for a : bar error, "" when nothing is close.
 func didYouMean(prefix, input string, candidates []string) string {
-	if c := errs.Closest(input, candidates, 1); len(c) > 0 {
-		return "did you mean " + prefix + c[0] + "? "
+	if c := errs.Nearest(input, candidates); c != "" {
+		return "did you mean " + prefix + c + "? "
 	}
 	return ""
 }

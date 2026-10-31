@@ -782,8 +782,8 @@ func UnknownSet(cfg *config.Config, name string) *errs.Error {
 		return e.WithWhy("no sets are configured").WithTry("add sets: to .bam.yaml; see bam set run --help")
 	}
 	names := sortedNames(all)
-	if c := errs.Closest(name, names, 1); len(c) > 0 {
-		e = e.WithTry("did you mean " + c[0] + "? bam set list shows them all")
+	if c := errs.Nearest(name, names); c != "" {
+		e = e.WithTry("did you mean " + c + "? bam set list shows them all")
 	}
 	return e.WithWhy("sets: " + strings.Join(names, ", "))
 }

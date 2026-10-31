@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"net/url"
 	"regexp"
 	"slices"
@@ -176,8 +175,8 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 				if err != nil {
 					var e *errs.Error
 					if errors.Is(err, errs.ErrNotFound) && errors.As(err, &e) {
-						if c := errs.Closest(k, slices.Sorted(maps.Keys(names)), 1); len(c) > 0 {
-							_ = e.WithTry("did you mean bam plan list " + c[0] + "?")
+						if c := errs.NearestKey(k, names); c != "" {
+							_ = e.WithTry("did you mean bam plan list " + c + "?")
 						}
 					}
 					return err
@@ -403,8 +402,8 @@ func parseState(s string) (provider.State, error) {
 	}
 	names := stateNames()
 	e := errs.Usagef("--state must be one of %s, not %q", strings.Join(names, ", "), s)
-	if c := errs.Closest(s, names, 1); len(c) > 0 {
-		e = e.WithTry("did you mean --state " + c[0] + "?")
+	if c := errs.Nearest(s, names); c != "" {
+		e = e.WithTry("did you mean --state " + c + "?")
 	}
 	return "", e
 }

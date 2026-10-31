@@ -590,8 +590,8 @@ func newInitCmd(r *runtime) *cobra.Command {
 			}
 			if url == "" {
 				try := fmt.Sprintf("pass --url, or bam server add %s --url URL", alias)
-				if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 {
-					try = "did you mean " + initTry(near[0], "", projects, plans) + "? Or pass --url to add " + alias
+				if near := errs.NearestKey(alias, cfg.Servers()); near != "" {
+					try = "did you mean " + initTry(near, "", projects, plans) + "? Or pass --url to add " + alias
 				}
 				return errs.Configf("no URL for server alias %q", alias).WithTry(try)
 			}

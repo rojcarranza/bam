@@ -126,8 +126,8 @@ func (c *Config) UnknownServer(alias string) *errs.Error {
 // nearServerTry suggests the alias closest to a mistyped one, or failing
 // that the bam server add command for it.
 func nearServerTry(alias string, names []string) string {
-	if near := errs.Closest(alias, names, 1); len(near) > 0 {
-		return "did you mean " + near[0] + "?"
+	if near := errs.Nearest(alias, names); near != "" {
+		return "did you mean " + near + "?"
 	}
 	return serverAddTry(alias)
 }

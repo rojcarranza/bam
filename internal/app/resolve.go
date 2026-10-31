@@ -183,8 +183,8 @@ func UnknownTarget(cfg *config.Config, name string) error {
 		return e.WithWhy("no presets are configured").
 			WithTry("bam preset add " + name + " --plan KEY to create it; " + keys)
 	}
-	if c := errs.Closest(name, names, 1); len(c) > 0 {
-		e = e.WithTry("did you mean " + c[0] + "? bam preset list shows them all")
+	if c := errs.Nearest(name, names); c != "" {
+		e = e.WithTry("did you mean " + c + "? bam preset list shows them all")
 	}
 	return e.WithWhy("presets: " + strings.Join(names, ", "))
 }
@@ -203,8 +203,8 @@ func (s *Service) ResolveBranch(ctx context.Context, master, branch string) (str
 		names = append(names, b.ShortName)
 	}
 	e := errs.Usagef("branch %q not found on %s", branch, master)
-	if c := errs.Closest(branch, names, 1); len(c) > 0 {
-		return "", e.WithTry(fmt.Sprintf("did you mean %s? bam plan branches %s lists them all", c[0], master))
+	if c := errs.Nearest(branch, names); c != "" {
+		return "", e.WithTry(fmt.Sprintf("did you mean %s? bam plan branches %s lists them all", c, master))
 	}
 	return "", e.WithTry(fmt.Sprintf("bam plan branches %s (omit --branch for the default branch)", master))
 }

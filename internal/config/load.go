@@ -209,8 +209,8 @@ func decodeStrict(data []byte, path string, out any) error {
 			e = e.WithTry(fmt.Sprintf("in a preset, list allowed values under options: {%s: [a, b]} and must-set names under required: [%s]", mv.name, mv.name))
 		} else if p := yamlUnknownField.FindStringSubmatch(err.Error()); p != nil {
 			if t, ok := fieldPlaces[p[3]]; ok {
-				if near := errs.Closest(p[2], yamlFields(t.typ), 1); len(near) == 1 {
-					e = e.WithTry(fmt.Sprintf("did you mean %s?", near[0]))
+				if near := errs.Nearest(p[2], yamlFields(t.typ)); near != "" {
+					e = e.WithTry(fmt.Sprintf("did you mean %s?", near))
 				}
 			}
 		}

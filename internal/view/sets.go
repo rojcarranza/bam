@@ -294,31 +294,27 @@ func varsDoc(vs []app.TargetVar) map[string]string {
 }
 
 func SetJSON(s app.SetInfo) SetDoc {
-	d := SetDoc{Name: s.Name, TimeoutMS: ms(s.Timeout), DefinedIn: nonNil(s.DefinedIn), Stages: [][]SetRunDoc{}}
-	for _, st := range s.Stages {
-		runs := []SetRunDoc{}
-		for _, r := range st {
+	d := SetDoc{Name: s.Name, TimeoutMS: ms(s.Timeout), DefinedIn: nonNil(s.DefinedIn)}
+	d.Stages = Docs(s.Stages, func(st []app.SetRunInfo) []SetRunDoc {
+		return Docs(st, func(r app.SetRunInfo) SetRunDoc {
 			rd := SetRunDoc{Target: r.Target, PlanKey: r.Plan, Branch: r.Branch, Vars: varsDoc(r.Vars), Matrix: r.Matrix, Runs: r.Runs}
 			if len(rd.Runs) == 0 {
 				rd.Runs = []string{r.Target}
 			}
-			runs = append(runs, rd)
-		}
-		d.Stages = append(d.Stages, runs)
-	}
+			return rd
+		})
+	})
 	return d
 }
 
 func SetPlanJSON(p app.SetPlan) SetPlanDoc {
-	d := SetPlanDoc{Name: p.Name, Origin: p.Origin, Stages: [][]SetRunPlanDoc{}, Warnings: nonNil(p.Warnings)}
-	for _, st := range p.Stages {
-		runs := []SetRunPlanDoc{}
-		for _, r := range st {
+	d := SetPlanDoc{Name: p.Name, Origin: p.Origin, Warnings: nonNil(p.Warnings)}
+	d.Stages = Docs(p.Stages, func(st []app.SetRunPlan) []SetRunPlanDoc {
+		return Docs(st, func(r app.SetRunPlan) SetRunPlanDoc {
 			run := RunJSON(provider.Build{}, r.Ref, r.Vars)
-			runs = append(runs, SetRunPlanDoc{Target: r.Target, Name: app.PlanRunName(r), PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables})
-		}
-		d.Stages = append(d.Stages, runs)
-	}
+			return SetRunPlanDoc{Target: r.Target, Name: app.PlanRunName(r), PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables}
+		})
+	})
 	return d
 }
 

@@ -685,15 +685,11 @@ func newPresetMigrateCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if r.flags.json {
-				doc := migrateDoc{PresetsFile: presets, MachineFile: machine, DryRun: dryRun,
-					Moved: []migrateMoveDoc{}, Skipped: []migrateSkipDoc{}}
-				for _, m := range res.Moved {
-					doc.Moved = append(doc.Moved, migrateMoveDoc{Name: m.Name, From: m.From})
-				}
-				for _, s := range res.Skipped {
-					doc.Skipped = append(doc.Skipped, migrateSkipDoc{Name: s.Name, From: s.From, Reason: s.Reason})
-				}
-				return view.WriteJSON(r.env.Stdout, doc)
+				return view.WriteJSON(r.env.Stdout, migrateDoc{PresetsFile: presets, MachineFile: machine, DryRun: dryRun,
+					Moved: view.Docs(res.Moved, func(m config.MigrateMove) migrateMoveDoc { return migrateMoveDoc{Name: m.Name, From: m.From} }),
+					Skipped: view.Docs(res.Skipped, func(s config.MigrateSkip) migrateSkipDoc {
+						return migrateSkipDoc{Name: s.Name, From: s.From, Reason: s.Reason}
+					})})
 			}
 			if len(res.Moved) == 0 && len(res.Skipped) == 0 {
 				fmt.Fprintf(r.env.Stdout, "no presets to migrate in %s\n", machine)

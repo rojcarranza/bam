@@ -173,14 +173,13 @@ type ChangesDoc struct {
 
 // InvestigationJSON is the `build investigate --json` document.
 func InvestigationJSON(inv app.Investigation) InvestigationDoc {
-	d := InvestigationDoc{Build: BuildJSON(inv.Build), LikelyCause: inv.LikelyCause, Jobs: []JobErrorsDoc{}}
-	for _, j := range inv.Jobs {
-		jd := JobErrorsDoc{Key: j.Job.Key, URL: j.Job.URL, Name: j.Job.Name, Stage: j.Stage, Short: j.Short, Errors: []ErrorBlockDoc{}, SkippedLines: j.Skipped, HiddenErrors: j.Hidden}
-		for _, e := range j.Errors {
-			jd.Errors = append(jd.Errors, ErrorBlockDoc{Line: e.Line, Text: e.Text, Pattern: e.Pattern, Start: e.Start, Context: e.Context, Count: e.Count})
-		}
-		d.Jobs = append(d.Jobs, jd)
-	}
+	d := InvestigationDoc{Build: BuildJSON(inv.Build), LikelyCause: inv.LikelyCause}
+	d.Jobs = Docs(inv.Jobs, func(j app.JobErrors) JobErrorsDoc {
+		return JobErrorsDoc{Key: j.Job.Key, URL: j.Job.URL, Name: j.Job.Name, Stage: j.Stage, Short: j.Short, SkippedLines: j.Skipped, HiddenErrors: j.Hidden,
+			Errors: Docs(j.Errors, func(e app.ErrorBlock) ErrorBlockDoc {
+				return ErrorBlockDoc{Line: e.Line, Text: e.Text, Pattern: e.Pattern, Start: e.Start, Context: e.Context, Count: e.Count}
+			})}
+	})
 	if c := inv.Changes; c != nil {
 		cd := &ChangesDoc{Revisions: changeDocs(c.Revisions)}
 		if c.Since.Key != "" {

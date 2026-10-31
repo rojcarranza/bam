@@ -167,18 +167,15 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 	d := BuildDoc{Key: b.Key, URL: b.URL, PlanKey: b.PlanKey, PlanName: b.PlanName, Branch: b.Branch, Number: b.Number, State: string(b.State),
 		Reason: b.Reason, CustomBuild: b.CustomBuild, Labels: nonNil(b.Labels), QueuedAt: timePtr(b.QueuedAt),
 		StartedAt: timePtr(b.StartedAt), FinishedAt: timePtr(b.FinishedAt), QueueDurationMS: ms(b.QueueDuration),
-		DurationMS: ms(b.Duration), Agent: b.Agent, Revisions: []RevisionDoc{}, Stages: []StageDoc{}, FailedTests: nonNil(b.FailedTests),
-		Progress: progressDoc(pr)}
-	for _, r := range b.Revisions {
-		d.Revisions = append(d.Revisions, RevisionDoc{Repository: r.Repository, Revision: r.Revision, Short: r.Short()})
-	}
-	for _, s := range b.Stages {
-		sd := StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: []JobDoc{}}
-		for _, j := range s.Jobs {
-			sd.Jobs = append(sd.Jobs, JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration)})
-		}
-		d.Stages = append(d.Stages, sd)
-	}
+		DurationMS: ms(b.Duration), Agent: b.Agent, FailedTests: nonNil(b.FailedTests), Progress: progressDoc(pr)}
+	d.Revisions = Docs(b.Revisions, func(r provider.Revision) RevisionDoc {
+		return RevisionDoc{Repository: r.Repository, Revision: r.Revision, Short: r.Short()}
+	})
+	d.Stages = Docs(b.Stages, func(s provider.Stage) StageDoc {
+		return StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: Docs(s.Jobs, func(j provider.Job) JobDoc {
+			return JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration)}
+		})}
+	})
 	return d
 }
 

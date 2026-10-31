@@ -2,6 +2,7 @@ package cli
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
 	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/spf13/cobra"
@@ -497,6 +499,16 @@ func newLogoutCmd(r *runtime) *cobra.Command {
 	}
 }
 
+// whoamiRow is one server's line in bam whoami; the JSON field names are
+// part of the --json contract.
+type whoamiRow struct {
+	Alias    string `json:"alias"`
+	URL      string `json:"url"`
+	User     string `json:"user"`
+	FullName string `json:"full_name"`
+	Error    string `json:"error"`
+}
+
 func newWhoamiCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:        "whoami",
@@ -509,69 +521,24 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			servers := cfg.Servers()
-			var names []string
+			names := slices.Sorted(maps.Keys(servers))
 			if r.flags.server != "" {
 				if _, ok := servers[r.flags.server]; !ok {
 					return cfg.UnknownServer(r.flags.server)
 				}
 				names = []string{r.flags.server}
-			} else {
-				for n := range servers {
-					names = append(names, n)
-				}
-				sort.Strings(names)
 			}
-			type row struct {
-				Alias    string `json:"alias"`
-				URL      string `json:"url"`
-				User     string `json:"user"`
-				FullName string `json:"full_name"`
-				Error    string `json:"error"`
-			}
-			rows := []row{}
+			rows := []whoamiRow{}
 			var first error
 			for _, n := range names {
-				s := servers[n]
-				x := row{Alias: n, URL: s.URL}
-				_, backend, err := r.connectServer(s)
-				if err == nil {
-					u, uerr := backend.CurrentUser(cmd.Context())
-					x.User, x.FullName, err = u.Name, u.FullName, uerr
+				row, err := r.whoami(cmd.Context(), n, servers[n])
+				if err != nil && first == nil {
+					first = err
 				}
-				if err != nil {
-					x.Error = err.Error()
-					var e *errs.Error
-					if errors.As(err, &e) && e.Try != "" {
-						x.Error += " (try: " + e.Try + ")"
-					}
-					if first == nil {
-						first = err
-					}
-				}
-				rows = append(rows, x)
+				rows = append(rows, row)
 			}
-			if r.flags.json {
-				if err := view.WriteJSON(r.env.Stdout, rows); err != nil {
-					return err
-				}
-			} else if len(rows) == 0 {
-				fmt.Fprintln(r.env.Stderr, "no servers configured\n  try: bam server add <alias> --url URL")
-			} else {
-				o, err := r.out()
-				if err != nil {
-					return err
-				}
-				t := view.Table{Headers: []string{"ALIAS", "URL", "USER"}, Flex: []int{2}}
-				for _, x := range rows {
-					who := fmt.Sprintf("%s (%s)", x.User, x.FullName)
-					if x.Error != "" {
-						who = "error: " + x.Error
-					}
-					t.Rows = append(t.Rows, []string{x.Alias, x.URL, who})
-				}
-				if err := t.Render(o); err != nil {
-					return err
-				}
+			if err := r.printWhoami(rows); err != nil {
+				return err
 			}
 			if first != nil {
 				return silentError{first}
@@ -579,4 +546,47 @@ func newWhoamiCmd(r *runtime) *cobra.Command {
 			return nil
 		}),
 	}
+}
+
+// whoami asks one server for the token's user. A failure is both returned
+// and written into the row, with its Try hint, so the table shows it.
+func (r *runtime) whoami(ctx context.Context, alias string, s config.ResolvedServer) (whoamiRow, error) {
+	row := whoamiRow{Alias: alias, URL: s.URL}
+	_, backend, err := r.connectServer(s)
+	if err == nil {
+		var u provider.User
+		u, err = backend.CurrentUser(ctx)
+		row.User, row.FullName = u.Name, u.FullName
+	}
+	if err != nil {
+		row.Error = err.Error()
+		var e *errs.Error
+		if errors.As(err, &e) && e.Try != "" {
+			row.Error += " (try: " + e.Try + ")"
+		}
+	}
+	return row, err
+}
+
+func (r *runtime) printWhoami(rows []whoamiRow) error {
+	if r.flags.json {
+		return view.WriteJSON(r.env.Stdout, rows)
+	}
+	if len(rows) == 0 {
+		fmt.Fprintln(r.env.Stderr, "no servers configured\n  try: bam server add <alias> --url URL")
+		return nil
+	}
+	o, err := r.out()
+	if err != nil {
+		return err
+	}
+	t := view.Table{Headers: []string{"ALIAS", "URL", "USER"}, Flex: []int{2}}
+	for _, x := range rows {
+		who := fmt.Sprintf("%s (%s)", x.User, x.FullName)
+		if x.Error != "" {
+			who = "error: " + x.Error
+		}
+		t.Rows = append(t.Rows, []string{x.Alias, x.URL, who})
+	}
+	return t.Render(o)
 }

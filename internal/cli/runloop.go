@@ -258,8 +258,7 @@ build and writes its events as NDJSON.`,
 			return r.followBuild(cmd, args, svc, key, timeout)
 		}),
 	}
-	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	addBuildArgFlags(cmd, &last, &branch)
 	cmd.Flags().DurationVar(&timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
 	return cmd
 }
@@ -362,8 +361,7 @@ func newLogsCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	addBuildArgFlags(cmd, &last, &branch)
 	f.BoolVar(&failed, "failed", false, "only failed jobs")
 	f.StringVar(&job, "job", "", "one job: JOB1, PROJ-PLAN-JOB1 or its result key")
 	f.BoolVar(&follow, "follow", false, "keep printing new lines until the job finishes")
@@ -429,8 +427,7 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	addBuildArgFlags(cmd, &last, &branch)
 	f.IntVar(&opts.Context, "context", 3, "lines of context around each error")
 	f.IntVar(&opts.Max, "max", 5, "error blocks per job; 0 for all")
 	f.BoolVar(&compare, "compare", false, "show revisions and variables changed since the last successful build")
@@ -523,8 +520,7 @@ func newCancelCmd(r *runtime) *cobra.Command {
 			return nil
 		}),
 	}
-	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	addBuildArgFlags(cmd, &last, &branch)
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show which build would stop, stop nothing")
 	return cmd
 }
@@ -639,7 +635,7 @@ func newOpenCmd(r *runtime) *cobra.Command {
 			return nil
 		}),
 	}
-	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	addLastFlag(cmd, &last)
 	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
 }
@@ -665,7 +661,7 @@ func newURLCmd(r *runtime) *cobra.Command {
 			return err
 		}),
 	}
-	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
+	addLastFlag(cmd, &last)
 	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
 }

@@ -582,6 +582,18 @@ func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool,
 	return svc, key, err
 }
 
+// addLastFlag adds --last, which names the last build bam triggered from
+// this repository instead of a key or preset.
+func addLastFlag(cmd *cobra.Command, last *bool) {
+	cmd.Flags().BoolVar(last, "last", false, "the last build bam triggered from this repository")
+}
+
+// addBuildArgFlags adds the --last and --branch flags that resolveBuildArg reads.
+func addBuildArgFlags(cmd *cobra.Command, last *bool, branch *string) {
+	addLastFlag(cmd, last)
+	cmd.Flags().StringVar(branch, "branch", "", "plan branch when a plan or preset is given")
+}
+
 // lastOrArg refuses --last next to a key or preset, which would otherwise be
 // silently ignored.
 func lastOrArg(args []string, last bool) error {
@@ -677,7 +689,6 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 			return view.BuildDetailWithProgress(o, b, pr)
 		}),
 	}
-	cmd.Flags().BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	cmd.Flags().StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	addBuildArgFlags(cmd, &last, &branch)
 	return cmd
 }

@@ -19,79 +19,103 @@ func Investigation(o Out, inv app.Investigation) error {
 		fmt.Fprintf(&sb, "Reason: %s\n", b.Reason)
 	}
 	for _, j := range inv.Jobs {
-		fmt.Fprintf(&sb, "\n%s / %s (%s)", j.Stage, j.Job.Name, j.Short)
-		if len(j.Errors) == 0 {
-			sb.WriteString("  no known error line\n")
-		} else {
-			fmt.Fprintf(&sb, "  first error at line %d\n", j.Errors[0].Line)
-		}
-		if j.Skipped > 0 {
-			fmt.Fprintf(&sb, "  log truncated: the first %d lines were not read\n", j.Skipped)
-		}
-		// Blocks close together share context lines; print each line once
-		// and mark every error line, even one shown as another's context.
-		errLines := map[int]bool{}
-		for _, e := range j.Errors {
-			errLines[e.Line] = true
-		}
-		last := 0
-		for _, e := range j.Errors {
-			for i, l := range e.Context {
-				n, mark := e.Start+i, "  "
-				if n <= last {
-					continue
-				}
-				last = n
-				if errLines[n] {
-					mark, l = "> ", style.Bold(o.Style, l)
-				}
-				fmt.Fprintf(&sb, "  %s%5d  %s\n", mark, n, l)
-			}
-			if e.Count > 1 {
-				fmt.Fprintf(&sb, "         (seen %d times)\n", e.Count)
-			}
-		}
-		if j.Hidden == 1 {
-			sb.WriteString("  1 more error not shown; --max 0 shows all\n")
-		} else if j.Hidden > 1 {
-			fmt.Fprintf(&sb, "  %d more errors not shown; --max 0 shows all\n", j.Hidden)
-		}
+		writeJobErrors(&sb, o, j)
 	}
 	sb.WriteString("\n")
-	if t := b.FailedTests; len(t) > 5 {
-		fmt.Fprintf(&sb, "Failed tests: %s (+%d more)\n", strings.Join(t[:5], ", "), len(t)-5)
+	writeCause(&sb, inv)
+	writeInvestigationHints(&sb, inv)
+	_, err := fmt.Fprint(o.W, sb.String())
+	return err
+}
+
+// writeJobErrors prints one failed job: its header, a truncation note, the
+// error blocks in context and how many more errors were left out.
+func writeJobErrors(sb *strings.Builder, o Out, j app.JobErrors) {
+	fmt.Fprintf(sb, "\n%s / %s (%s)", j.Stage, j.Job.Name, j.Short)
+	if len(j.Errors) == 0 {
+		sb.WriteString("  no known error line\n")
+	} else {
+		fmt.Fprintf(sb, "  first error at line %d\n", j.Errors[0].Line)
+	}
+	if j.Skipped > 0 {
+		fmt.Fprintf(sb, "  log truncated: the first %d lines were not read\n", j.Skipped)
+	}
+	writeErrorBlocks(sb, o, j.Errors)
+	if j.Hidden == 1 {
+		sb.WriteString("  1 more error not shown; --max 0 shows all\n")
+	} else if j.Hidden > 1 {
+		fmt.Fprintf(sb, "  %d more errors not shown; --max 0 shows all\n", j.Hidden)
+	}
+}
+
+// writeErrorBlocks prints the error blocks of one job. Blocks close together
+// share context lines; print each line once and mark every error line, even
+// one shown as another's context.
+func writeErrorBlocks(sb *strings.Builder, o Out, blocks []app.ErrorBlock) {
+	errLines := map[int]bool{}
+	for _, e := range blocks {
+		errLines[e.Line] = true
+	}
+	last := 0
+	for _, e := range blocks {
+		for i, l := range e.Context {
+			n := e.Start + i
+			if n <= last {
+				continue
+			}
+			last = n
+			mark := "  "
+			if errLines[n] {
+				mark, l = "> ", style.Bold(o.Style, l)
+			}
+			fmt.Fprintf(sb, "  %s%5d  %s\n", mark, n, l)
+		}
+		if e.Count > 1 {
+			fmt.Fprintf(sb, "         (seen %d times)\n", e.Count)
+		}
+	}
+}
+
+// writeCause prints the failed tests, the likely cause and, with --compare,
+// what changed since the last success.
+func writeCause(sb *strings.Builder, inv app.Investigation) {
+	if t := inv.Build.FailedTests; len(t) > 5 {
+		fmt.Fprintf(sb, "Failed tests: %s (+%d more)\n", strings.Join(t[:5], ", "), len(t)-5)
 	} else if len(t) > 0 {
-		fmt.Fprintf(&sb, "Failed tests: %s\n", strings.Join(t, ", "))
+		fmt.Fprintf(sb, "Failed tests: %s\n", strings.Join(t, ", "))
 	} else {
 		sb.WriteString("Failed tests: none reported\n")
 	}
 	if inv.LikelyCause != "" {
-		fmt.Fprintf(&sb, "Likely cause: %s\n", inv.LikelyCause)
+		fmt.Fprintf(sb, "Likely cause: %s\n", inv.LikelyCause)
 	} else {
 		sb.WriteString("Likely cause: unknown, no log line matched a known error pattern\n")
 	}
 	if c := inv.Changes; c != nil {
 		sb.WriteString(changesLine(*c))
 	}
+}
+
+// writeInvestigationHints prints the try: lines for the next commands.
+func writeInvestigationHints(sb *strings.Builder, inv app.Investigation) {
+	b := inv.Build
 	for _, j := range inv.Jobs {
-		fmt.Fprintf(&sb, "try: bam logs %s --job %s\n", b.Key, j.Short)
+		fmt.Fprintf(sb, "try: bam logs %s --job %s\n", b.Key, j.Short)
 	}
 	parent := b.Parent
 	if parent == "" {
 		parent, _ = app.ParentOf(b.Reason)
 	}
 	if parent != "" {
-		fmt.Fprintf(&sb, "try: bam build tree %s\n", parent)
+		fmt.Fprintf(sb, "try: bam build tree %s\n", parent)
 	}
 	if len(inv.Children) > 0 {
-		fmt.Fprintf(&sb, "try: bam build tree %s\n", b.Key)
+		fmt.Fprintf(sb, "try: bam build tree %s\n", b.Key)
 	}
 	if !inv.NoRerun {
-		fmt.Fprintf(&sb, "try: bam build rerun %s\n", b.Key)
+		fmt.Fprintf(sb, "try: bam build rerun %s\n", b.Key)
 	}
-	fmt.Fprintf(&sb, "try: bam open %s\n", b.Key)
-	_, err := fmt.Fprint(o.W, sb.String())
-	return err
+	fmt.Fprintf(sb, "try: bam open %s\n", b.Key)
 }
 
 // changesLine is the --compare line: what differs from the last success.

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -189,13 +191,23 @@ func (r *runtime) connectLast(ctx context.Context) (*app.Service, Backend, error
 	if !ok || r.flags.server != "" {
 		return r.connect(ctx, "")
 	}
-	for _, s := range cfg.Servers() {
-		if o, err := credential.Origin(s.URL); err == nil && o == rec.Origin {
-			return r.connectServer(s)
-		}
+	if s, ok := serverForOrigin(cfg, rec.Origin); ok {
+		return r.connectServer(s)
 	}
 	return nil, nil, errs.Configf("the last build %s ran on %s, which no configured server matches", rec.BuildKey, rec.Origin).
 		WithTry("bam server add <alias> --url " + rec.Origin)
+}
+
+// serverForOrigin returns the configured server at origin. When several
+// aliases share it, the first alias in sorted order wins.
+func serverForOrigin(cfg *config.Config, origin string) (config.ResolvedServer, bool) {
+	servers := cfg.Servers()
+	for _, alias := range slices.Sorted(maps.Keys(servers)) {
+		if o, err := credential.Origin(servers[alias].URL); err == nil && o == origin {
+			return servers[alias], true
+		}
+	}
+	return config.ResolvedServer{}, false
 }
 
 // wrap classifies stray errors from a command as internal so that only

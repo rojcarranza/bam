@@ -10,7 +10,6 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
@@ -435,12 +434,7 @@ func (r *runtime) connectSetFile(ctx context.Context, path string) (*app.Service
 	if err != nil {
 		return nil, err
 	}
-	t, _, err := cfg.Target(s.Stages[0][0].Target)
-	if err != nil {
-		return nil, err
-	}
-	svc, _, err := r.connect(ctx, t.Server)
-	return svc, err
+	return r.connectFirstPreset(ctx, cfg, s)
 }
 
 // connectSet connects to the server of the set's first preset. PlanSet then
@@ -457,6 +451,10 @@ func (r *runtime) connectSet(ctx context.Context, name string) (*app.Service, er
 	if !ok {
 		return nil, app.UnknownSet(cfg, name)
 	}
+	return r.connectFirstPreset(ctx, cfg, s)
+}
+
+func (r *runtime) connectFirstPreset(ctx context.Context, cfg *config.Config, s config.ResolvedSet) (*app.Service, error) {
 	t, _, err := cfg.Target(s.Stages[0][0].Target)
 	if err != nil {
 		return nil, err
@@ -468,23 +466,17 @@ func (r *runtime) connectSet(ctx context.Context, name string) (*app.Service, er
 // connectOrigin connects to the configured server whose origin a set run
 // recorded; --server overrides it and ResumeSet checks the origin.
 func (r *runtime) connectOrigin(ctx context.Context, origin string) (*app.Service, error) {
-	cfg, err := r.config()
-	if err != nil {
-		return nil, err
-	}
 	if r.flags.server != "" {
 		svc, _, err := r.connect(ctx, "")
 		return svc, err
 	}
-	return r.connectMatching(cfg, origin)
-}
-
-func (r *runtime) connectMatching(cfg *config.Config, origin string) (*app.Service, error) {
-	for _, s := range cfg.Servers() {
-		if o, err := credential.Origin(s.URL); err == nil && o == origin {
-			svc, _, err := r.connectServer(s)
-			return svc, err
-		}
+	cfg, err := r.config()
+	if err != nil {
+		return nil, err
+	}
+	if s, ok := serverForOrigin(cfg, origin); ok {
+		svc, _, err := r.connectServer(s)
+		return svc, err
 	}
 	return nil, errs.Configf("the set run ran on %s, which no configured server matches", origin).
 		WithTry("bam server add <alias> --url " + origin)

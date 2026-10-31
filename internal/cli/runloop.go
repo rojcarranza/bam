@@ -573,10 +573,8 @@ func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (stri
 		if !ok {
 			return "", "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
 		}
-		for _, s := range cfg.Servers() {
-			if o, err := credential.Origin(s.URL); err == nil && o == rec.Origin {
-				return strings.TrimRight(s.URL, "/"), rec.BuildKey, nil
-			}
+		if s, ok := serverForOrigin(cfg, rec.Origin); ok {
+			return strings.TrimRight(s.URL, "/"), rec.BuildKey, nil
 		}
 		return rec.Origin, rec.BuildKey, nil
 	case len(args) == 0:

@@ -636,11 +636,9 @@ func (r *runtime) connectPage(link, key string) (*app.Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, s := range cfg.Servers() {
-		if o, err := credential.Origin(s.URL); err == nil && o == origin {
-			svc, _, err := r.connectServer(s)
-			return svc, err
-		}
+	if s, ok := serverForOrigin(cfg, origin); ok {
+		svc, _, err := r.connectServer(s)
+		return svc, err
 	}
 	return nil, errs.Configf("%s is on %s, which no configured server matches", key, origin).
 		WithTry("bam server add <alias> --url " + origin)

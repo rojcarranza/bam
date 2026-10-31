@@ -377,61 +377,14 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 		if recs[j].State.Finished() || recs[j].Error != "" {
 			continue // resumed: its end is already known
 		}
-		key := recs[j].BuildKey
-		if key != "" && i == r.restartStage && r.restart[j] {
-			delete(r.restart, j)
-			if ctx.Err() != nil {
-				return false, true
-			}
-			// Counted and saved first: bam never restarts a build it has
-			// not recorded.
-			recs[j].Reruns++
-			if !r.save(ctx, i) {
-				return false, false
-			}
-			b, restarted, err := r.s.Restart(ctx, key)
-			if err != nil {
-				if ctx.Err() != nil {
-					return false, true
-				}
-				recs[j].State, recs[j].Error = provider.StateFailed, describeErr(err)
-				if !r.save(ctx, i) {
-					return false, false
-				}
-				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, Build: provider.Build{Key: key},
-					State: provider.StateFailed, Err: err})
-				continue
-			}
-			if restarted {
-				r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Run: run.Name, Build: b, Rerun: recs[j].Reruns})
-			} else {
-				// Running or succeeded after all: nothing was restarted, so
-				// nothing counts; the build is watched as it is.
-				recs[j].Reruns--
-				if !r.save(ctx, i) {
-					return false, false
-				}
-			}
-		}
-		if key == "" {
-			if ctx.Err() != nil {
-				return false, true
-			}
-			b, err := r.s.Run(ctx, run.Ref, run.Vars)
-			if err != nil {
-				recs[j].State, recs[j].Error = provider.StateFailed, describeErr(err)
-				if !r.save(ctx, i) {
-					return false, false
-				}
-				r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, State: provider.StateFailed, Err: err})
-				continue
-			}
-			key = b.Key
-			recs[j].BuildKey = key
-			if !r.save(ctx, i) {
-				return false, false
-			}
-			r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Run: run.Name, Build: b})
+		key, step := r.start(ctx, i, j)
+		switch step {
+		case stepEnded:
+			continue
+		case stepStopped:
+			return false, true
+		case stepUnrecorded:
+			return false, false
 		}
 		pending++
 		wg.Add(1)
@@ -440,22 +393,8 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 			results <- r.watchRun(stageCtx, i, j, run, key)
 		}(j, run, key)
 	}
-	for ; pending > 0; pending-- {
-		res := <-results
-		if ctx.Err() != nil && res.err == nil && !res.build.State.Finished() {
-			continue // interrupted: the build keeps running and its end stays unknown
-		}
-		run := runs[res.idx]
-		st := res.build.State
-		if res.err != nil {
-			st = provider.StateFailed
-			recs[res.idx].Error = describeErr(res.err)
-		}
-		recs[res.idx].State = st
-		if !r.save(ctx, i) {
-			return false, false
-		}
-		r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, Build: res.build, State: st, Err: res.err})
+	if !r.collect(ctx, i, results, pending) {
+		return false, false
 	}
 	if ctx.Err() != nil {
 		return false, true
@@ -470,6 +409,118 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 	}
 	r.send(ctx, SetEvent{Type: SetStageDone, Stage: i, State: state})
 	return ok, true
+}
+
+// startStep is what starting one run of a stage led to.
+type startStep int
+
+const (
+	stepWatch      startStep = iota // the run has a build to watch
+	stepEnded                       // the run ended without one: its trigger or restart failed
+	stepStopped                     // the set was interrupted
+	stepUnrecorded                  // the record could not be written; set_error is out
+)
+
+// start restarts or triggers run j of stage i as needed and returns the
+// build key to watch.
+func (r *setRun) start(ctx context.Context, i, j int) (string, startStep) {
+	rec := &r.rec.Stages[i].Runs[j]
+	key := rec.BuildKey
+	if key != "" && i == r.restartStage && r.restart[j] {
+		delete(r.restart, j)
+		if step := r.restartRun(ctx, i, j); step != stepWatch {
+			return "", step
+		}
+	}
+	if key != "" {
+		return key, stepWatch
+	}
+	return r.trigger(ctx, i, j)
+}
+
+// restartRun has Bamboo restart the recorded build of run j of stage i.
+func (r *setRun) restartRun(ctx context.Context, i, j int) startStep {
+	run, rec := r.p.Stages[i][j], &r.rec.Stages[i].Runs[j]
+	if ctx.Err() != nil {
+		return stepStopped
+	}
+	// Counted and saved first: bam never restarts a build it has not
+	// recorded.
+	rec.Reruns++
+	if !r.save(ctx, i) {
+		return stepUnrecorded
+	}
+	b, restarted, err := r.s.Restart(ctx, rec.BuildKey)
+	if err != nil {
+		if ctx.Err() != nil {
+			return stepStopped
+		}
+		rec.State, rec.Error = provider.StateFailed, describeErr(err)
+		if !r.save(ctx, i) {
+			return stepUnrecorded
+		}
+		r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, Build: provider.Build{Key: rec.BuildKey},
+			State: provider.StateFailed, Err: err})
+		return stepEnded
+	}
+	if restarted {
+		r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Run: run.Name, Build: b, Rerun: rec.Reruns})
+		return stepWatch
+	}
+	// Running or succeeded after all: nothing was restarted, so nothing
+	// counts; the build is watched as it is.
+	rec.Reruns--
+	if !r.save(ctx, i) {
+		return stepUnrecorded
+	}
+	return stepWatch
+}
+
+// trigger starts a new build for run j of stage i and records its key.
+func (r *setRun) trigger(ctx context.Context, i, j int) (string, startStep) {
+	run, rec := r.p.Stages[i][j], &r.rec.Stages[i].Runs[j]
+	if ctx.Err() != nil {
+		return "", stepStopped
+	}
+	b, err := r.s.Run(ctx, run.Ref, run.Vars)
+	if err != nil {
+		rec.State, rec.Error = provider.StateFailed, describeErr(err)
+		if !r.save(ctx, i) {
+			return "", stepUnrecorded
+		}
+		r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, State: provider.StateFailed, Err: err})
+		return "", stepEnded
+	}
+	rec.BuildKey = b.Key
+	if !r.save(ctx, i) {
+		return "", stepUnrecorded
+	}
+	r.send(ctx, SetEvent{Type: SetRunTriggered, Stage: i, Target: run.Target, Run: run.Name, Build: b})
+	return b.Key, stepWatch
+}
+
+// collect records the end of each of the pending watched runs of stage i.
+// It returns false when the record could not be written.
+func (r *setRun) collect(ctx context.Context, i int, results <-chan runResult, pending int) bool {
+	runs, recs := r.p.Stages[i], r.rec.Stages[i].Runs
+	for ; pending > 0; pending-- {
+		res := <-results
+		if ctx.Err() != nil && res.err == nil && !res.build.State.Finished() {
+			continue // interrupted: the build keeps running and its end stays unknown
+		}
+		run := runs[res.idx]
+		st := res.build.State
+		if res.err != nil {
+			st = provider.StateFailed
+			recs[res.idx].Error = describeErr(res.err)
+		}
+		recs[res.idx].State = st
+		if !r.save(ctx, i) {
+			return false
+		}
+		r.send(ctx, SetEvent{Type: SetRunDone, Stage: i, Target: run.Target, Run: run.Name, Build: res.build, State: st, Err: res.err})
+	}
+	return true
 }
 
 // watchRun follows one build to its end, forwarding every watch event. A

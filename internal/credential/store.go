@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/r0jjames/bam-cli/internal/atomicfile"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/zalando/go-keyring"
 	"gopkg.in/yaml.v3"
@@ -147,14 +148,7 @@ func (s *Store) writeFile(tokens map[string]string) error {
 	if err != nil {
 		return err
 	}
-	tmp := s.FilePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return errs.Configf("cannot write %s", s.FilePath).Wrap(err)
-	}
-	if err := os.Chmod(tmp, 0o600); err != nil {
-		return errs.Configf("cannot write %s", s.FilePath).Wrap(err)
-	}
-	if err := os.Rename(tmp, s.FilePath); err != nil {
+	if err := atomicfile.Write(s.FilePath, data, 0o600); err != nil {
 		return errs.Configf("cannot write %s", s.FilePath).Wrap(err)
 	}
 	return nil

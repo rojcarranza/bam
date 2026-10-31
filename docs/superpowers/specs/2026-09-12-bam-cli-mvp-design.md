@@ -501,6 +501,7 @@ testdata/                recorded, scrubbed Bamboo responses
 | Package | May import |
 | --- | --- |
 | `errs` | nothing internal |
+| `atomicfile` | nothing internal; every package that persists a file writes it through `atomicfile.Write` |
 | `config`, `provider` | `errs` |
 | `credential` | `config`, `errs` |
 | `provider/bamboo` | `provider`, `errs` |

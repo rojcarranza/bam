@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/r0jjames/bam-cli/internal/atomicfile"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
@@ -81,14 +82,7 @@ func (s *SetStore) Save(r SetRecord) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
-		return err
-	}
-	tmp := s.path(r.ID) + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.path(r.ID))
+	return atomicfile.Write(s.path(r.ID), data, 0o600)
 }
 
 // Load reads one record.

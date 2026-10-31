@@ -44,6 +44,7 @@ Layered packages under `internal/`; each imports only what the table allows. Thi
 
 | Package | Role | May import (from this module) |
 | --- | --- | --- |
+| `atomicfile` | `Write`: temp file + rename, so readers and concurrent bam processes never see a half-written state, cache, config or token file | nothing |
 | `errs` | error `Kind` (usage/config/auth/bamboo/timeout) + What/Why/Try; sentinels `ErrNotFound`, `ErrUnsupported` | nothing |
 | `config` | load/discover/merge the three config layers, targets, validation, secret guards, comment-preserving YAML edits | `errs` |
 | `provider` | neutral domain types, `State`, `Provider` interface; `provider/fake` for tests | `errs` |

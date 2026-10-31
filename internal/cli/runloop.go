@@ -302,10 +302,15 @@ type jobLogDoc struct {
 	Lines []string `json:"lines"`
 }
 
+// logsFlags holds the flags of bam logs.
+type logsFlags struct {
+	last, failed, follow bool
+	branch, job          string
+	tail                 int
+}
+
 func newLogsCmd(r *runtime) *cobra.Command {
-	var last, failed, follow bool
-	var branch, job string
-	var tail int
+	var f logsFlags
 	cmd := &cobra.Command{
 		Use:   "logs [<build>|<plan>|<preset>]",
 		Short: "Print job logs; --failed for failed jobs only",
@@ -316,88 +321,112 @@ func newLogsCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			if tail < 0 {
-				return errs.Usagef("--tail takes 0 or more, not %d", tail).WithTry("--tail 0 prints the whole log")
-			}
-			ctx := cmd.Context()
-			// A job result key copied from Bamboo's job page names the build and the job.
-			if len(args) == 1 && job == "" {
-				k, link := args[0], ""
-				if pk, ok := pageKey(k); ok {
-					k = pk
-					link, _ = credential.Origin(args[0])
-				}
-				if build, _, ok := app.SplitJobResult(k); ok {
-					job, args = k, []string{build}
-					if link != "" {
-						args[0] = link + "/browse/" + build
-					}
-				}
-			}
-			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
-			if err != nil {
-				return err
-			}
-			b, err := svc.Build(ctx, key)
-			if err != nil {
-				return err
-			}
-			// A plan, preset or --last picks the build; name it so the log is not anonymous.
-			named := false
-			if len(args) == 1 {
-				k := args[0]
-				if pk, ok := pageKey(k); ok {
-					k = pk
-				}
-				named = app.IsBuildKey(k)
-			}
-			if !r.flags.json && !named {
-				r.note(fmt.Sprintf("%s (%s)", key, b.State), "")
-			}
-			if follow {
-				return r.followLogs(ctx, svc, b, job, tail)
-			}
-			logs, err := svc.Logs(ctx, b, app.LogsOptions{Failed: failed, Job: job, Tail: tail})
-			if err != nil {
-				return err
-			}
-			if failed && len(logs) == 0 {
-				if r.flags.json {
-					return view.WriteJSON(r.env.Stdout, []jobLogDoc{})
-				}
-				if !b.State.Finished() {
-					r.note(fmt.Sprintf("no failed jobs in %s yet; it is %s", key, b.State), "bam watch "+key)
-					return nil
-				}
-				r.note("no failed jobs in "+key, "")
-				return nil
-			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.Docs(logs, func(l app.JobLog) jobLogDoc {
-					return jobLogDoc{Job: l.Job.Key, Name: l.Job.Name, Stage: l.Stage, State: string(l.Job.State), Lines: append([]string{}, l.Lines...)}
-				}))
-			}
-			var buf bytes.Buffer
-			if err := view.PrintLogs(&buf, logs); err != nil {
-				return err
-			}
-			if r.env.StdoutTTY {
-				pager := view.PagerCommand(r.env.Getenv, r.cfg.Machine.Pager, r.env.GOOS)
-				if pager != "" {
-					return r.env.RunPager(pager, &buf)
-				}
-			}
-			_, err = io.Copy(r.env.Stdout, &buf)
-			return err
+			return f.run(cmd.Context(), r, args)
 		}),
 	}
-	f := cmd.Flags()
-	addBuildArgFlags(cmd, &last, &branch)
-	f.BoolVar(&failed, "failed", false, "only failed jobs")
-	f.StringVar(&job, "job", "", "one job: JOB1, PROJ-PLAN-JOB1 or its result key")
-	f.BoolVar(&follow, "follow", false, "keep printing new lines until the job finishes")
-	f.IntVarP(&tail, "tail", "n", 0, "last N lines per job; 0 prints the whole log")
+	fl := cmd.Flags()
+	addBuildArgFlags(cmd, &f.last, &f.branch)
+	fl.BoolVar(&f.failed, "failed", false, "only failed jobs")
+	fl.StringVar(&f.job, "job", "", "one job: JOB1, PROJ-PLAN-JOB1 or its result key")
+	fl.BoolVar(&f.follow, "follow", false, "keep printing new lines until the job finishes")
+	fl.IntVarP(&f.tail, "tail", "n", 0, "last N lines per job; 0 prints the whole log")
 	return cmd
+}
+
+func (f *logsFlags) run(ctx context.Context, r *runtime, args []string) error {
+	if f.tail < 0 {
+		return errs.Usagef("--tail takes 0 or more, not %d", f.tail).WithTry("--tail 0 prints the whole log")
+	}
+	args = f.jobResult(args)
+	svc, key, err := r.resolveBuildArg(ctx, args, f.last, f.branch)
+	if err != nil {
+		return err
+	}
+	b, err := svc.Build(ctx, key)
+	if err != nil {
+		return err
+	}
+	// A plan, preset or --last picks the build; name it so the log is not anonymous.
+	if !r.flags.json && !namesBuild(args) {
+		r.note(fmt.Sprintf("%s (%s)", key, b.State), "")
+	}
+	if f.follow {
+		return r.followLogs(ctx, svc, b, f.job, f.tail)
+	}
+	logs, err := svc.Logs(ctx, b, app.LogsOptions{Failed: f.failed, Job: f.job, Tail: f.tail})
+	if err != nil {
+		return err
+	}
+	if f.failed && len(logs) == 0 {
+		return noFailedJobs(r, key, b)
+	}
+	return printLogs(r, logs)
+}
+
+// jobResult handles a job result key copied from Bamboo's job page, which
+// names both the build and the job: it sets --job and returns the build.
+func (f *logsFlags) jobResult(args []string) []string {
+	if len(args) != 1 || f.job != "" {
+		return args
+	}
+	k, link := args[0], ""
+	if pk, ok := pageKey(k); ok {
+		k = pk
+		link, _ = credential.Origin(args[0])
+	}
+	build, _, ok := app.SplitJobResult(k)
+	if !ok {
+		return args
+	}
+	f.job = k
+	if link != "" {
+		return []string{link + "/browse/" + build}
+	}
+	return []string{build}
+}
+
+// namesBuild reports whether the argument is a build key or a build page link.
+func namesBuild(args []string) bool {
+	if len(args) != 1 {
+		return false
+	}
+	k := args[0]
+	if pk, ok := pageKey(k); ok {
+		k = pk
+	}
+	return app.IsBuildKey(k)
+}
+
+func noFailedJobs(r *runtime, key string, b provider.Build) error {
+	switch {
+	case r.flags.json:
+		return view.WriteJSON(r.env.Stdout, []jobLogDoc{})
+	case !b.State.Finished():
+		r.note(fmt.Sprintf("no failed jobs in %s yet; it is %s", key, b.State), "bam watch "+key)
+	default:
+		r.note("no failed jobs in "+key, "")
+	}
+	return nil
+}
+
+// printLogs writes the logs as JSON, or as text through the pager on a terminal.
+func printLogs(r *runtime, logs []app.JobLog) error {
+	if r.flags.json {
+		return view.WriteJSON(r.env.Stdout, view.Docs(logs, func(l app.JobLog) jobLogDoc {
+			return jobLogDoc{Job: l.Job.Key, Name: l.Job.Name, Stage: l.Stage, State: string(l.Job.State), Lines: append([]string{}, l.Lines...)}
+		}))
+	}
+	var buf bytes.Buffer
+	if err := view.PrintLogs(&buf, logs); err != nil {
+		return err
+	}
+	if r.env.StdoutTTY {
+		if pager := view.PagerCommand(r.env.Getenv, r.cfg.Machine.Pager, r.env.GOOS); pager != "" {
+			return r.env.RunPager(pager, &buf)
+		}
+	}
+	_, err := io.Copy(r.env.Stdout, &buf)
+	return err
 }
 
 func newInvestigateCmd(r *runtime) *cobra.Command {

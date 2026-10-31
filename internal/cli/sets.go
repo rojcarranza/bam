@@ -70,11 +70,7 @@ func newSetListCmd(r *runtime) *cobra.Command {
 				})
 			}
 			if r.flags.json {
-				docs := []view.SetDoc{}
-				for _, s := range infos {
-					docs = append(docs, view.SetJSON(s))
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
+				return view.WriteJSON(r.env.Stdout, view.Docs(infos, view.SetJSON))
 			}
 			if len(infos) == 0 && len(args) == 1 {
 				r.note(fmt.Sprintf("no sets match %q", args[0]), "bam set list")
@@ -281,11 +277,9 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 				}
 			}
 			if r.flags.json {
-				docs := []view.SetRecordDoc{}
-				for _, rec := range recs {
-					docs = append(docs, view.SetRecordJSON(rec, nil))
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
+				return view.WriteJSON(r.env.Stdout, view.Docs(recs, func(rec app.SetRecord) view.SetRecordDoc {
+					return view.SetRecordJSON(rec, nil)
+				}))
 			}
 			if len(recs) == 0 {
 				what := "no set runs in this repository"

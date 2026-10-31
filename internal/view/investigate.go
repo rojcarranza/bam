@@ -196,9 +196,5 @@ func InvestigationJSON(inv app.Investigation) InvestigationDoc {
 }
 
 func changeDocs(cs []app.Change) []ChangeDoc {
-	out := []ChangeDoc{}
-	for _, c := range cs {
-		out = append(out, ChangeDoc(c))
-	}
-	return out
+	return Docs(cs, func(c app.Change) ChangeDoc { return ChangeDoc(c) })
 }

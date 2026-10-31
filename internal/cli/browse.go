@@ -307,11 +307,7 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 				empty = fmt.Sprintf("no projects on %s match %q", svc.Server.Alias, args[0])
 			}
 			if r.flags.json {
-				docs := []view.ProjectDoc{}
-				for _, p := range projects {
-					docs = append(docs, view.ProjectJSON(p))
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
+				return view.WriteJSON(r.env.Stdout, view.Docs(projects, view.ProjectJSON))
 			}
 			if len(projects) == 0 {
 				r.note(empty, "")
@@ -472,12 +468,8 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 			}
 			app.WithBranch(d.Builds, ref.Branch)
 			if r.flags.json {
-				branchDocs := []view.BranchDoc{}
-				for _, b := range branches {
-					branchDocs = append(branchDocs, view.BranchJSON(b))
-				}
 				doc := map[string]any{
-					"plan": view.PlanJSON(plan), "branches": branchDocs,
+					"plan": view.PlanJSON(plan), "branches": view.Docs(branches, view.BranchJSON),
 					"variables": view.VarRowsJSON(d.Vars), "builds": view.BuildsJSON(d.Builds),
 				}
 				if d.VarsErr != "" {
@@ -577,11 +569,7 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 				empty = fmt.Sprintf("no branches on %s match %q", ref.MasterKey, args[1])
 			}
 			if r.flags.json {
-				docs := []view.BranchDoc{}
-				for _, b := range branches {
-					docs = append(docs, view.BranchJSON(b))
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
+				return view.WriteJSON(r.env.Stdout, view.Docs(branches, view.BranchJSON))
 			}
 			if len(branches) == 0 {
 				r.note(empty, "")
@@ -718,11 +706,9 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 			app.WithBranch(builds, ref.Branch)
 			progress := runningProgress(ctx, svc, builds)
 			if r.flags.json {
-				docs := []view.BuildDoc{}
-				for _, b := range builds {
-					docs = append(docs, view.BuildJSONWithProgress(b, progress[b.Key]))
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
+				return view.WriteJSON(r.env.Stdout, view.Docs(builds, func(b provider.Build) view.BuildDoc {
+					return view.BuildJSONWithProgress(b, progress[b.Key])
+				}))
 			}
 			if len(builds) == 0 {
 				msg := "no builds for " + ref.PlanKey

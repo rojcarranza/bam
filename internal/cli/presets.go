@@ -88,11 +88,7 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 				}
 			}
 			if r.flags.json {
-				docs := []view.TargetDoc{}
-				for _, t := range infos {
-					docs = append(docs, view.TargetJSON(t))
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
+				return view.WriteJSON(r.env.Stdout, view.Docs(infos, view.TargetJSON))
 			}
 			if len(infos) == 0 && len(args) == 1 {
 				r.note(fmt.Sprintf("no presets match %q", args[0]), "bam preset list")

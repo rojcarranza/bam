@@ -182,12 +182,18 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 	return d
 }
 
-func BuildsJSON(bs []provider.Build) []BuildDoc {
-	out := []BuildDoc{}
-	for _, b := range bs {
-		out = append(out, BuildJSON(b))
+// Docs maps items to their JSON documents. The result is never nil, so an
+// empty list encodes as [] rather than null.
+func Docs[T, D any](items []T, doc func(T) D) []D {
+	out := make([]D, 0, len(items))
+	for _, it := range items {
+		out = append(out, doc(it))
 	}
 	return out
+}
+
+func BuildsJSON(bs []provider.Build) []BuildDoc {
+	return Docs(bs, BuildJSON)
 }
 
 func PlanJSON(p provider.Plan) PlanDoc {

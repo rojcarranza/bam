@@ -344,11 +344,9 @@ func newLogsCmd(r *runtime) *cobra.Command {
 				return nil
 			}
 			if r.flags.json {
-				docs := []jobLogDoc{}
-				for _, l := range logs {
-					docs = append(docs, jobLogDoc{Job: l.Job.Key, Name: l.Job.Name, Stage: l.Stage, State: string(l.Job.State), Lines: append([]string{}, l.Lines...)})
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
+				return view.WriteJSON(r.env.Stdout, view.Docs(logs, func(l app.JobLog) jobLogDoc {
+					return jobLogDoc{Job: l.Job.Key, Name: l.Job.Name, Stage: l.Stage, State: string(l.Job.State), Lines: append([]string{}, l.Lines...)}
+				}))
 			}
 			var buf bytes.Buffer
 			if err := view.PrintLogs(&buf, logs); err != nil {

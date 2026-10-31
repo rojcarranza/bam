@@ -327,22 +327,14 @@ func mergeTarget(base, over Target) Target {
 	}
 	if len(over.Defaults) > 0 {
 		merged := StringMap{}
-		for k, v := range base.Defaults {
-			merged[k] = v
-		}
-		for k, v := range over.Defaults {
-			merged[k] = v
-		}
+		maps.Copy(merged, base.Defaults)
+		maps.Copy(merged, over.Defaults)
 		base.Defaults = merged
 	}
 	if len(over.Options) > 0 {
 		merged := StringListMap{}
-		for k, v := range base.Options {
-			merged[k] = v
-		}
-		for k, v := range over.Options {
-			merged[k] = v
-		}
+		maps.Copy(merged, base.Options)
+		maps.Copy(merged, over.Options)
 		base.Options = merged
 	}
 	if over.Required != nil {

@@ -3,6 +3,7 @@ package view
 import (
 	"encoding/json"
 	"io"
+	"maps"
 	"sort"
 	"time"
 
@@ -234,9 +235,7 @@ func TargetJSON(t app.TargetInfo) TargetDoc {
 			d.Defaults[v.Name] = v.Value
 		}
 	}
-	for k, v := range t.Options {
-		d.Options[k] = v
-	}
+	maps.Copy(d.Options, t.Options)
 	return d
 }
 

@@ -34,32 +34,20 @@ func (r SetRun) Expand() []ExpandedRun {
 	out := make([]ExpandedRun, 0, len(entries))
 	for _, e := range entries {
 		vars := StringMap{}
-		for k, v := range r.Vars {
-			vars[k] = v
-		}
-		for k, v := range e {
-			vars[k] = v
-		}
+		maps.Copy(vars, r.Vars)
+		maps.Copy(vars, e)
 		out = append(out, ExpandedRun{Name: runName(r.Target, e), Target: r.Target, Vars: vars})
 	}
 	return out
 }
 
 func product(p map[string][]string) []StringMap {
-	keys := make([]string, 0, len(p))
-	for k := range p {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
 	out := []StringMap{{}}
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(p)) {
 		var next []StringMap
 		for _, partial := range out {
 			for _, v := range p[k] {
-				e := StringMap{}
-				for pk, pv := range partial {
-					e[pk] = pv
-				}
+				e := maps.Clone(partial)
 				e[k] = v
 				next = append(next, e)
 			}

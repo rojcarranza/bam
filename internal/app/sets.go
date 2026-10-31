@@ -127,12 +127,8 @@ func (s *Service) planRun(ctx context.Context, r config.SetRun, o SetOptions) (S
 		// A copy: the set's vars must not leak into the preset itself.
 		rt := *ref.Target
 		merged := config.StringMap{}
-		for k, v := range rt.Defaults {
-			merged[k] = v
-		}
-		for k, v := range r.Vars {
-			merged[k] = v
-		}
+		maps.Copy(merged, rt.Defaults)
+		maps.Copy(merged, r.Vars)
 		rt.Defaults = merged
 		ref.Target = &rt
 	}

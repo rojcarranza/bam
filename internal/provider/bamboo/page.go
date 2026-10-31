@@ -3,6 +3,7 @@ package bamboo
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/url"
 	"strconv"
 )
@@ -54,9 +55,7 @@ func pageAll[T any](ctx context.Context, c *Client, path string, q url.Values, k
 			size = limit - len(out)
 		}
 		qq := url.Values{}
-		for k, v := range q {
-			qq[k] = v
-		}
+		maps.Copy(qq, q)
 		qq.Set("start-index", strconv.Itoa(start))
 		qq.Set("max-result", strconv.Itoa(size))
 

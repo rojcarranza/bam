@@ -35,14 +35,12 @@ type editRow struct {
 // required name the plan does not declare still needs a line to be filled in.
 func editRows(ref PlanRef, opened VarSet) []editRow {
 	required := map[string]bool{}
-	options := map[string][]string{}
+	var options map[string][]string
 	if t := ref.Target; t != nil {
 		for _, n := range t.Required {
 			required[n] = true
 		}
-		for n, vals := range t.Options {
-			options[n] = vals
-		}
+		options = t.Options
 	}
 	rows := map[string]editRow{}
 	for _, v := range opened.Vars {

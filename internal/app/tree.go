@@ -371,9 +371,7 @@ func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int
 // could not be read keeps what was found before.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
 	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks, covered: sc.covered}
-	for plan, bs := range sc.builds {
-		out.builds[plan] = bs
-	}
+	maps.Copy(out.builds, sc.builds)
 	for plan, fresh := range got {
 		byKey := map[string]provider.Build{}
 		for _, b := range out.builds[plan] {

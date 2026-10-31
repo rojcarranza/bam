@@ -146,10 +146,10 @@ func validateFiles(c *Config) error {
 		if err := checkReservedAliases(c.ProjectPath, c.Project.Servers); err != nil {
 			return err
 		}
-		if err := checkTargetNames(c.ProjectPath, "targets", c.Project.Targets); err != nil {
+		if err := checkNames(c.ProjectPath, "targets", "preset", c.Project.Targets); err != nil {
 			return err
 		}
-		if err := checkSetNames(c.ProjectPath, "sets", c.Project.Sets); err != nil {
+		if err := checkNames(c.ProjectPath, "sets", "set", c.Project.Sets); err != nil {
 			return err
 		}
 		if err := checkSetSecrets(c.ProjectPath, c.Project.Sets); err != nil {
@@ -177,44 +177,34 @@ func validateFiles(c *Config) error {
 	if err := checkReservedAliases(c.MachinePath, c.Machine.Servers); err != nil {
 		return err
 	}
-	if err := checkTargetNames(c.MachinePath, "targets", c.Machine.Targets); err != nil {
+	if err := checkNames(c.MachinePath, "targets", "preset", c.Machine.Targets); err != nil {
 		return err
 	}
-	if err := checkSetNames(c.MachinePath, "sets", c.Machine.Sets); err != nil {
+	if err := checkNames(c.MachinePath, "sets", "set", c.Machine.Sets); err != nil {
 		return err
 	}
 	for _, s := range c.presetsSources() {
-		if err := checkTargetNames(s.Path, "presets", s.Presets); err != nil {
+		if err := checkNames(s.Path, "presets", "preset", s.Presets); err != nil {
 			return err
 		}
 	}
 	for _, root := range slices.Sorted(maps.Keys(c.Machine.Repos)) {
-		if err := checkTargetNames(c.MachinePath, "repos."+root+".targets", c.Machine.Repos[root].Targets); err != nil {
+		if err := checkNames(c.MachinePath, "repos."+root+".targets", "preset", c.Machine.Repos[root].Targets); err != nil {
 			return err
 		}
-		if err := checkSetNames(c.MachinePath, "repos."+root+".sets", c.Machine.Repos[root].Sets); err != nil {
+		if err := checkNames(c.MachinePath, "repos."+root+".sets", "set", c.Machine.Repos[root].Sets); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func checkTargetNames(path, where string, targets map[string]Target) error {
-	for _, name := range slices.Sorted(maps.Keys(targets)) {
+// checkNames refuses a preset or set name bam could not address.
+func checkNames[V any](path, where, kind string, named map[string]V) error {
+	for _, name := range slices.Sorted(maps.Keys(named)) {
 		if !ValidTargetName(name) {
-			return errs.Configf("%s: %s: invalid preset name %q", path, where, name).
-				WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter").
-				WithTry(renameTry(name))
-		}
-	}
-	return nil
-}
-
-func checkSetNames(path, where string, sets map[string]Set) error {
-	for _, name := range slices.Sorted(maps.Keys(sets)) {
-		if !ValidTargetName(name) {
-			return errs.Configf("%s: %s: invalid set name %q", path, where, name).
-				WithWhy("set names are lowercase letters, digits, - and _, starting with a letter").
+			return errs.Configf("%s: %s: invalid %s name %q", path, where, kind, name).
+				WithWhy(kind + " names are lowercase letters, digits, - and _, starting with a letter").
 				WithTry(renameTry(name))
 		}
 	}

@@ -87,22 +87,15 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 					fmt.Fprintln(r.env.Stderr, "  note: "+loc.Note)
 				}
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.Docs(infos, view.TargetJSON))
-			}
-			if len(infos) == 0 && len(args) == 1 {
-				r.note(fmt.Sprintf("no presets match %q", args[0]), "bam preset list")
+			if !r.flags.json && len(infos) == 0 {
+				if len(args) == 1 {
+					r.note(fmt.Sprintf("no presets match %q", args[0]), "bam preset list")
+				} else {
+					r.noPresets(cfg)
+				}
 				return nil
 			}
-			if len(infos) == 0 {
-				r.noPresets(cfg)
-				return nil
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Targets(o, infos)
+			return r.show(view.Docs(infos, view.TargetJSON), func(o view.Out) error { return view.Targets(o, infos) })
 		}),
 	}
 }
@@ -139,14 +132,7 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.TargetJSON(info))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.TargetDetail(o, info)
+			return r.show(view.TargetJSON(info), func(o view.Out) error { return view.TargetDetail(o, info) })
 		}),
 	}
 }

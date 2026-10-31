@@ -89,18 +89,11 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 				projects = matching(projects, args[0], func(p provider.Project) []string { return []string{p.Key, p.Name} })
 				empty = fmt.Sprintf("no projects on %s match %q", svc.Server.Alias, args[0])
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.Docs(projects, view.ProjectJSON))
-			}
-			if len(projects) == 0 {
+			if !r.flags.json && len(projects) == 0 {
 				r.note(empty, "")
 				return nil
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Projects(o, projects)
+			return r.show(view.Docs(projects, view.ProjectJSON), func(o view.Out) error { return view.Projects(o, projects) })
 		}),
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "list every project on the server")
@@ -189,24 +182,15 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 				}
 				groups = append(groups, view.PlanGroup{Project: provider.Project{Key: k, Name: names[k], URL: svc.P.URL(k)}, Plans: plans})
 			}
-			if r.flags.json {
-				docs := []view.PlanDoc{}
-				for _, g := range groups {
-					for _, p := range g.Plans {
-						docs = append(docs, view.PlanJSON(p))
-					}
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
-			}
-			if len(groups) == 0 {
+			if !r.flags.json && len(groups) == 0 {
 				r.note(fmt.Sprintf("no plans match %q", match), "")
 				return nil
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
+			docs := []view.PlanDoc{}
+			for _, g := range groups {
+				docs = append(docs, view.Docs(g.Plans, view.PlanJSON)...)
 			}
-			return view.PlanList(o, groups)
+			return r.show(docs, func(o view.Out) error { return view.PlanList(o, groups) })
 		}),
 	}
 	cmd.Flags().StringVar(&match, "match", "", "only plans whose key or name contains this text, ignoring case")
@@ -250,21 +234,14 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			app.WithBranch(d.Builds, ref.Branch)
-			if r.flags.json {
-				doc := map[string]any{
-					"plan": view.PlanJSON(plan), "branches": view.Docs(branches, view.BranchJSON),
-					"variables": view.VarRowsJSON(d.Vars), "builds": view.BuildsJSON(d.Builds),
-				}
-				if d.VarsErr != "" {
-					doc["variables_error"] = d.VarsErr
-				}
-				return view.WriteJSON(r.env.Stdout, doc)
+			doc := map[string]any{
+				"plan": view.PlanJSON(plan), "branches": view.Docs(branches, view.BranchJSON),
+				"variables": view.VarRowsJSON(d.Vars), "builds": view.BuildsJSON(d.Builds),
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
+			if d.VarsErr != "" {
+				doc["variables_error"] = d.VarsErr
 			}
-			return view.PlanDetailView(o, d)
+			return r.show(doc, func(o view.Out) error { return view.PlanDetailView(o, d) })
 		}),
 	}
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch for the recent builds")
@@ -303,18 +280,11 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 				res.Rows = matching(res.Rows, args[1], func(v app.VarRow) []string { return []string{v.Name} })
 				empty = fmt.Sprintf("no variables on %s match %q", ref.MasterKey, args[1])
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.VarRowsJSON(res))
-			}
-			if len(res.Rows) == 0 {
+			if !r.flags.json && len(res.Rows) == 0 {
 				r.note(empty, "")
 				return nil
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Vars(o, res)
+			return r.show(view.VarRowsJSON(res), func(o view.Out) error { return view.Vars(o, res) })
 		}),
 	}
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch whose builds supply last-used values")
@@ -351,18 +321,11 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 				branches = matching(branches, args[1], func(b provider.Branch) []string { return []string{b.ShortName, b.Key} })
 				empty = fmt.Sprintf("no branches on %s match %q", ref.MasterKey, args[1])
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.Docs(branches, view.BranchJSON))
-			}
-			if len(branches) == 0 {
+			if !r.flags.json && len(branches) == 0 {
 				r.note(empty, "")
 				return nil
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Branches(o, branches)
+			return r.show(view.Docs(branches, view.BranchJSON), func(o view.Out) error { return view.Branches(o, branches) })
 		}),
 	}
 }
@@ -437,14 +400,7 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			view.PrintWarnings(r.env.Stderr, st.Warnings)
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.PlanStatsJSON(st))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.PlanStatsView(o, st)
+			return r.show(view.PlanStatsJSON(st), func(o view.Out) error { return view.PlanStatsView(o, st) })
 		}),
 	}
 	f := cmd.Flags()
@@ -488,12 +444,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 			}
 			app.WithBranch(builds, ref.Branch)
 			progress := runningProgress(ctx, svc, builds)
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.Docs(builds, func(b provider.Build) view.BuildDoc {
-					return view.BuildJSONWithProgress(b, progress[b.Key])
-				}))
-			}
-			if len(builds) == 0 {
+			if !r.flags.json && len(builds) == 0 {
 				msg := "no builds for " + ref.PlanKey
 				if st != "" {
 					msg = fmt.Sprintf("no %s builds for %s", st, ref.PlanKey)
@@ -512,11 +463,10 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 				r.note(msg, try)
 				return nil
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.BuildListWithProgress(o, builds, progress)
+			docs := view.Docs(builds, func(b provider.Build) view.BuildDoc {
+				return view.BuildJSONWithProgress(b, progress[b.Key])
+			})
+			return r.show(docs, func(o view.Out) error { return view.BuildListWithProgress(o, builds, progress) })
 		}),
 	}
 	cmd.Flags().StringVar(&branch, "branch", "", "plan branch")
@@ -678,14 +628,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 			}
 			// A missing estimate is decoration lost, never a failed read.
 			pr, _ := svc.Progress(cmd.Context(), b)
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.BuildJSONWithProgress(b, pr))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.BuildDetailWithProgress(o, b, pr)
+			return r.show(view.BuildJSONWithProgress(b, pr), func(o view.Out) error { return view.BuildDetailWithProgress(o, b, pr) })
 		}),
 	}
 	addBuildArgFlags(cmd, &last, &branch)

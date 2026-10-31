@@ -68,22 +68,15 @@ func newSetListCmd(r *runtime) *cobra.Command {
 					return fields
 				})
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.Docs(infos, view.SetJSON))
-			}
-			if len(infos) == 0 && len(args) == 1 {
-				r.note(fmt.Sprintf("no sets match %q", args[0]), "bam set list")
+			if !r.flags.json && len(infos) == 0 {
+				if len(args) == 1 {
+					r.note(fmt.Sprintf("no sets match %q", args[0]), "bam set list")
+				} else {
+					r.note("no sets configured", "add sets: to .bam.yaml; see bam set run --help")
+				}
 				return nil
 			}
-			if len(infos) == 0 {
-				r.note("no sets configured", "add sets: to .bam.yaml; see bam set run --help")
-				return nil
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Sets(o, infos)
+			return r.show(view.Docs(infos, view.SetJSON), func(o view.Out) error { return view.Sets(o, infos) })
 		}),
 	}
 }
@@ -105,14 +98,7 @@ func newSetShowCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.SetJSON(info))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.SetDetail(o, info)
+			return r.show(view.SetJSON(info), func(o view.Out) error { return view.SetDetail(o, info) })
 		}),
 	}
 }
@@ -183,14 +169,7 @@ with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 			}
 			view.PrintWarnings(r.env.Stderr, p.Warnings)
 			if dryRun {
-				if r.flags.json {
-					return view.WriteJSON(r.env.Stdout, view.SetPlanJSON(p))
-				}
-				o, err := r.out()
-				if err != nil {
-					return err
-				}
-				return view.SetDryRun(o, p)
+				return r.show(view.SetPlanJSON(p), func(o view.Out) error { return view.SetDryRun(o, p) })
 			}
 			id, events, err := svc.RunSet(ctx, p, app.SetLockOptions{Force: force})
 			if err != nil {
@@ -228,14 +207,7 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.SetRecordJSON(rec, builds))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.SetStatusView(o, rec, builds, svc.CannotRestart(cmd.Context()))
+			return r.show(view.SetRecordJSON(rec, builds), func(o view.Out) error { return view.SetStatusView(o, rec, builds, svc.CannotRestart(cmd.Context())) })
 		}),
 	}
 }
@@ -275,12 +247,7 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 					return app.UnknownSet(cfg, set)
 				}
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.Docs(recs, func(rec app.SetRecord) view.SetRecordDoc {
-					return view.SetRecordJSON(rec, nil)
-				}))
-			}
-			if len(recs) == 0 {
+			if !r.flags.json && len(recs) == 0 {
 				what := "no set runs in this repository"
 				if set != "" {
 					what += fmt.Sprintf(" for %q", set)
@@ -288,11 +255,10 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 				r.note(what, setRunTry(cfg, set))
 				return nil
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.SetHistory(o, recs)
+			docs := view.Docs(recs, func(rec app.SetRecord) view.SetRecordDoc {
+				return view.SetRecordJSON(rec, nil)
+			})
+			return r.show(docs, func(o view.Out) error { return view.SetHistory(o, recs) })
 		}),
 	}
 	cmd.Flags().IntVarP(&limit, "limit", "n", 20, "number of runs")

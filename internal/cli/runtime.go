@@ -88,6 +88,19 @@ func (r *runtime) out() (view.Out, error) {
 	return view.Out{W: r.env.Stdout, TTY: r.env.StdoutTTY, Width: r.env.Width(), Style: style.Mode{Color: color, Links: links}, Now: r.env.Clock.Now}, nil
 }
 
+// show prints a command's result: doc as JSON with --json, otherwise text
+// rendered to the styled stdout.
+func (r *runtime) show(doc any, text func(view.Out) error) error {
+	if r.flags.json {
+		return view.WriteJSON(r.env.Stdout, doc)
+	}
+	o, err := r.out()
+	if err != nil {
+		return err
+	}
+	return text(o)
+}
+
 func (r *runtime) store() *credential.Store {
 	return &credential.Store{Keyring: r.env.Keyring, FilePath: r.env.Paths.Credentials, Getenv: r.env.Getenv}
 }

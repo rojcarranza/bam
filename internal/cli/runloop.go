@@ -416,14 +416,7 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 				}
 				inv.Changes = &c
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.InvestigationJSON(inv))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Investigation(o, inv)
+			return r.show(view.InvestigationJSON(inv), func(o view.Out) error { return view.Investigation(o, inv) })
 		}),
 	}
 	f := cmd.Flags()

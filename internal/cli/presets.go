@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -505,10 +506,123 @@ func initTry(alias, url string, projects, plans []string) string {
 	return try
 }
 
+// initFlags are bam init's flags.
+type initFlags struct {
+	url             string
+	projects, plans []string
+	force           bool
+}
+
+// try is the corrected bam init command line for an error's try hint.
+func (f *initFlags) try(alias, url string) string { return initTry(alias, url, f.projects, f.plans) }
+
+// checkAlias rejects a missing --server, suggesting the server bam would
+// pick anyway, and the reserved env alias, which .bam.yaml cannot name.
+func (f *initFlags) checkAlias(r *runtime, alias string) error {
+	if alias != "" && alias != config.EnvServerAlias {
+		return nil
+	}
+	cfg, cerr := r.config()
+	if alias == "" {
+		// BAM_URL has no alias, so offer its URL instead.
+		suggest, u := "work", f.url
+		if cerr == nil {
+			if s, err := cfg.SelectServer("", ""); err == nil {
+				if s.Alias != config.EnvServerAlias {
+					suggest = s.Alias
+				} else if u == "" {
+					u = s.URL
+				}
+			}
+		}
+		return errs.Usagef("--server ALIAS is required").WithTry(f.try(suggest, u))
+	}
+	// A .bam.yaml naming env fails validation and breaks every later command.
+	u := f.url
+	if cerr == nil && u == "" {
+		u = cfg.Servers()[alias].URL
+	}
+	return errs.Usagef("server alias %q is reserved", alias).
+		WithWhy("env is the server defined by BAM_URL; .bam.yaml needs a named server").
+		WithTry(f.try("work", u))
+}
+
+// planOptions checks every --plan before connecting, so a typo fails offline.
+func (f *initFlags) planOptions() ([]app.GenerateOptions, error) {
+	var opts []app.GenerateOptions
+	for _, p := range f.plans {
+		key, name, _ := strings.Cut(p, "=")
+		o := app.GenerateOptions{Name: name, PlanKey: key, Full: true}
+		if name == "" {
+			o.Name = defaultTargetName(key)
+		}
+		if err := app.CheckGenerate(o); err != nil {
+			if name == "" && !config.ValidTargetName(o.Name) {
+				return nil, errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
+			}
+			return nil, err
+		}
+		opts = append(opts, o)
+	}
+	return opts, nil
+}
+
+// serverURL is --url, or the machine config's URL for alias.
+func (f *initFlags) serverURL(cfg *config.Config, alias string) (string, error) {
+	// Same normalisation as server add, so .bam.yaml never stores http://host/.
+	url := strings.TrimRight(strings.TrimSpace(f.url), "/")
+	if url == "" {
+		url = cfg.Servers()[alias].URL
+	}
+	if url == "" {
+		try := fmt.Sprintf("pass --url, or bam server add %s --url URL", alias)
+		if near := errs.NearestKey(alias, cfg.Servers()); near != "" {
+			try = "did you mean " + f.try(near, "") + "? Or pass --url to add " + alias
+		}
+		return "", errs.Configf("no URL for server alias %q", alias).WithTry(try)
+	}
+	if _, err := credential.Origin(url); err != nil {
+		return "", schemeTry(err, url, func(u string) string { return f.try(alias, u) })
+	}
+	return url, nil
+}
+
+// sameOrigin reports whether both URLs parse to the same origin.
+func sameOrigin(a, b string) bool {
+	oa, aerr := credential.Origin(a)
+	ob, berr := credential.Origin(b)
+	return aerr == nil && berr == nil && oa == ob
+}
+
+// initDrafts connects to the server and generates one preset per --plan.
+func initDrafts(ctx context.Context, r *runtime, known config.ResolvedServer, alias, url string, opts []app.GenerateOptions) ([]config.TargetDraft, error) {
+	if len(opts) == 0 {
+		return nil, nil
+	}
+	// known.AuthEnv was learned for known.URL; only carry it over when --url
+	// still resolves to that same origin, so a --url override never pairs a
+	// stored env token with a host it was not created for.
+	authEnv := known.AuthEnv
+	if authEnv != "" && !sameOrigin(known.URL, url) {
+		authEnv = ""
+	}
+	svc, _, err := r.connectServer(config.ResolvedServer{Alias: alias, URL: url, AuthEnv: authEnv})
+	if err != nil {
+		return nil, err
+	}
+	var drafts []config.TargetDraft
+	for _, o := range opts {
+		d, err := svc.GenerateTarget(ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		drafts = append(drafts, d)
+	}
+	return drafts, nil
+}
+
 func newInitCmd(r *runtime) *cobra.Command {
-	var url string
-	var projects, plans []string
-	var force bool
+	var fl initFlags
 	cmd := &cobra.Command{
 		Use:        "init --server ALIAS --project KEY [--plan KEY[=name]]...",
 		Short:      "Write .bam.yaml for this repository, with generated presets",
@@ -517,100 +631,33 @@ func newInitCmd(r *runtime) *cobra.Command {
 		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			alias := r.flags.server
-			if alias == "" {
-				// Suggest the server bam would pick anyway; BAM_URL has no alias, so offer its URL.
-				suggest, u := "work", url
-				if cfg, err := r.config(); err == nil {
-					if s, err := cfg.SelectServer("", ""); err == nil {
-						if s.Alias != config.EnvServerAlias {
-							suggest = s.Alias
-						} else if u == "" {
-							u = s.URL
-						}
-					}
-				}
-				return errs.Usagef("--server ALIAS is required").WithTry(initTry(suggest, u, projects, plans))
-			}
-			if alias == config.EnvServerAlias {
-				// A .bam.yaml naming env fails validation and breaks every later command.
-				u := url
-				if cfg, err := r.config(); err == nil && u == "" {
-					u = cfg.Servers()[alias].URL
-				}
-				return errs.Usagef("server alias %q is reserved", alias).
-					WithWhy("env is the server defined by BAM_URL; .bam.yaml needs a named server").
-					WithTry(initTry("work", u, projects, plans))
-			}
-			if len(projects) == 0 {
-				return errs.Usagef("--project is required").WithTry(initTry(alias, url, projects, plans))
-			}
-			if err := checkProjectKeys(projects); err != nil {
+			if err := fl.checkAlias(r, alias); err != nil {
 				return err
 			}
-			// Check every --plan before connecting, so a typo fails offline.
-			var opts []app.GenerateOptions
-			for _, p := range plans {
-				key, name, _ := strings.Cut(p, "=")
-				o := app.GenerateOptions{Name: name, PlanKey: key, Full: true}
-				if name == "" {
-					o.Name = defaultTargetName(key)
-				}
-				if err := app.CheckGenerate(o); err != nil {
-					if name == "" && !config.ValidTargetName(o.Name) {
-						return errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
-					}
-					return err
-				}
-				opts = append(opts, o)
+			if len(fl.projects) == 0 {
+				return errs.Usagef("--project is required").WithTry(fl.try(alias, fl.url))
+			}
+			if err := checkProjectKeys(fl.projects); err != nil {
+				return err
+			}
+			opts, err := fl.planOptions()
+			if err != nil {
+				return err
 			}
 			cfg, err := r.config()
 			if err != nil {
 				return err
 			}
+			url, err := fl.serverURL(cfg, alias)
+			if err != nil {
+				return err
+			}
+			drafts, err := initDrafts(cmd.Context(), r, cfg.Servers()[alias], alias, url, opts)
+			if err != nil {
+				return err
+			}
 			path := filepath.Join(cfg.RepoRoot, config.ProjectFileName)
-			known := cfg.Servers()[alias]
-			// Same normalisation as server add, so .bam.yaml never stores http://host/.
-			url = strings.TrimRight(strings.TrimSpace(url), "/")
-			if url == "" {
-				url = known.URL
-			}
-			if url == "" {
-				try := fmt.Sprintf("pass --url, or bam server add %s --url URL", alias)
-				if near := errs.NearestKey(alias, cfg.Servers()); near != "" {
-					try = "did you mean " + initTry(near, "", projects, plans) + "? Or pass --url to add " + alias
-				}
-				return errs.Configf("no URL for server alias %q", alias).WithTry(try)
-			}
-			if _, err := credential.Origin(url); err != nil {
-				return schemeTry(err, url, func(u string) string { return initTry(alias, u, projects, plans) })
-			}
-			var drafts []config.TargetDraft
-			if len(plans) > 0 {
-				// known.AuthEnv was learned for known.URL; only carry it over
-				// when --url still resolves to that same origin, so a --url
-				// override never pairs a stored env token with a host it
-				// was not created for.
-				authEnv := known.AuthEnv
-				if authEnv != "" {
-					knownOrigin, kerr := credential.Origin(known.URL)
-					newOrigin, nerr := credential.Origin(url)
-					if kerr != nil || nerr != nil || knownOrigin != newOrigin {
-						authEnv = ""
-					}
-				}
-				svc, _, err := r.connectServer(config.ResolvedServer{Alias: alias, URL: url, AuthEnv: authEnv})
-				if err != nil {
-					return err
-				}
-				for _, o := range opts {
-					d, err := svc.GenerateTarget(cmd.Context(), o)
-					if err != nil {
-						return err
-					}
-					drafts = append(drafts, d)
-				}
-			}
-			if err := config.WriteInitFile(path, config.InitFile{ServerAlias: alias, ServerURL: url, Projects: projects}, drafts, force); err != nil {
+			if err := config.WriteInitFile(path, config.InitFile{ServerAlias: alias, ServerURL: url, Projects: fl.projects}, drafts, fl.force); err != nil {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "wrote %s\n", path)
@@ -621,14 +668,14 @@ func newInitCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.StringVar(&url, "url", "", "server URL (default: the URL of --server in the machine config)")
-	f.StringSliceVar(&projects, "project", nil, "project key (repeatable; the first is the default)")
-	f.StringArrayVar(&plans, "plan", nil, "plan to generate a preset from, KEY or KEY=name (repeatable)")
+	f.StringVar(&fl.url, "url", "", "server URL (default: the URL of --server in the machine config)")
+	f.StringSliceVar(&fl.projects, "project", nil, "project key (repeatable; the first is the default)")
+	f.StringArrayVar(&fl.plans, "plan", nil, "plan to generate a preset from, KEY or KEY=name (repeatable)")
 	_ = cmd.RegisterFlagCompletionFunc("project", func(c *cobra.Command, _ []string, s string) ([]string, cobra.ShellCompDirective) {
-		return r.completeProjects(c, projects, s)
+		return r.completeProjects(c, fl.projects, s)
 	})
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
-	f.BoolVar(&force, "force", false, "overwrite an existing .bam.yaml")
+	f.BoolVar(&fl.force, "force", false, "overwrite an existing .bam.yaml")
 	return cmd
 }
 

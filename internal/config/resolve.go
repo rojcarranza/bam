@@ -81,9 +81,9 @@ func (c *Config) RepoEntry() (Repo, bool) {
 func (c *Config) OtherRepoTargets() map[string][]string {
 	here, _, _ := c.repoEntry()
 	out := map[string][]string{}
-	for _, key := range sortedKeys(c.Machine.Repos) {
+	for _, key := range slices.Sorted(maps.Keys(c.Machine.Repos)) {
 		if key != here && len(c.Machine.Repos[key].Targets) > 0 {
-			out[key] = sortedKeys(c.Machine.Repos[key].Targets)
+			out[key] = slices.Sorted(maps.Keys(c.Machine.Repos[key].Targets))
 		}
 	}
 	return out
@@ -195,7 +195,7 @@ func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error)
 	case c.Machine.DefaultServer != "":
 		return pick(c.Machine.DefaultServer)
 	}
-	aliases := sortedKeys(servers)
+	aliases := slices.Sorted(maps.Keys(servers))
 	switch len(aliases) {
 	case 1:
 		return servers[aliases[0]], nil
@@ -273,7 +273,7 @@ func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 		layer(c.MachinePath+" (repos)", c.MachinePath, []string{"repos", key, "targets"}, repo.Targets)
 	}
 	servers := c.Servers()
-	for _, name := range sortedKeys(out) {
+	for _, name := range slices.Sorted(maps.Keys(out)) {
 		if err := validateTarget(out[name], servers); err != nil {
 			return nil, err
 		}
@@ -379,7 +379,7 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 				WithTry(nearServerTry(t.Server, slices.Sorted(maps.Keys(servers))))
 		}
 	}
-	for _, name := range sortedKeys(t.Options) {
+	for _, name := range slices.Sorted(maps.Keys(t.Options)) {
 		val, ok := t.Defaults[name]
 		if !ok || val == "" {
 			continue

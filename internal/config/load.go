@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -168,7 +169,7 @@ func Load(o LoadOptions) (*Config, error) {
 			if err := normalizeTargets(o.MachineFile, "targets", mf.Targets); err != nil {
 				return nil, err
 			}
-			for _, root := range sortedKeys(mf.Repos) {
+			for _, root := range slices.Sorted(maps.Keys(mf.Repos)) {
 				if err := normalizeTargets(o.MachineFile, "repos."+root+".targets", mf.Repos[root].Targets); err != nil {
 					return nil, err
 				}
@@ -410,7 +411,7 @@ func (c *Config) IsPresetsPath(path string) bool {
 func checkDuplicatePresets(c *Config) error {
 	seen := map[string]string{}
 	for _, s := range c.presetsSources() {
-		for _, name := range sortedKeys(s.Presets) {
+		for _, name := range slices.Sorted(maps.Keys(s.Presets)) {
 			if first, ok := seen[name]; ok {
 				return errs.Configf("preset %q is defined in both %s and %s", name, first, s.Path).
 					WithWhy("preset names are shared by every presets file, so one name can live in one file only").
@@ -425,7 +426,7 @@ func checkDuplicatePresets(c *Config) error {
 // normalizeTargets moves variables into defaults, its older name, and
 // rejects a preset that sets both.
 func normalizeTargets(path, where string, targets map[string]Target) error {
-	for _, name := range sortedKeys(targets) {
+	for _, name := range slices.Sorted(maps.Keys(targets)) {
 		t := targets[name]
 		if t.Variables == nil {
 			continue

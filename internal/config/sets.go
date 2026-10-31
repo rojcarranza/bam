@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -43,7 +45,7 @@ func (c *Config) Sets() (map[string]ResolvedSet, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range sortedKeys(out) {
+	for _, name := range slices.Sorted(maps.Keys(out)) {
 		if err := validateSet(out[name], targets); err != nil {
 			return nil, err
 		}
@@ -102,7 +104,7 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 				if len(targets) == 0 {
 					return e.WithTry("bam preset add " + r.Target + " --plan PROJ-PLAN creates it")
 				}
-				names := sortedKeys(targets)
+				names := slices.Sorted(maps.Keys(targets))
 				if near := errs.Nearest(r.Target, names); near != "" {
 					return e.WithTry("did you mean " + near + "?")
 				}

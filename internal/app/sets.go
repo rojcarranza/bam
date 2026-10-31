@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -748,7 +749,7 @@ func DescribeSets(cfg *config.Config, getenv func(string) string) ([]SetInfo, er
 		return nil, err
 	}
 	out := make([]SetInfo, 0, len(all))
-	for _, name := range sortedNames(all) {
+	for _, name := range slices.Sorted(maps.Keys(all)) {
 		out = append(out, describeSet(all[name], targets, getenv))
 	}
 	return out, nil
@@ -781,7 +782,7 @@ func UnknownSet(cfg *config.Config, name string) *errs.Error {
 	if len(all) == 0 {
 		return e.WithWhy("no sets are configured").WithTry("add sets: to .bam.yaml; see bam set run --help")
 	}
-	names := sortedNames(all)
+	names := slices.Sorted(maps.Keys(all))
 	if c := errs.Nearest(name, names); c != "" {
 		e = e.WithTry("did you mean " + c + "? bam set list shows them all")
 	}
@@ -823,7 +824,7 @@ func matrixLine(m *config.Matrix) string {
 		}
 		return fmt.Sprintf("%d variable sets", len(m.Sets))
 	}
-	keys := sortedNames(m.Product)
+	keys := slices.Sorted(maps.Keys(m.Product))
 	parts := make([]string, len(keys))
 	for i, k := range keys {
 		parts[i] = k + "=[" + strings.Join(m.Product[k], " ") + "]"

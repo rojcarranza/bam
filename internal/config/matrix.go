@@ -1,7 +1,9 @@
 package config
 
 import (
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -110,19 +112,19 @@ func (r SetRun) Size() int64 {
 // matrix value, without expanding the matrix. Keys go in sorted order, so
 // callers see the same sequence on every run.
 func (r SetRun) values(f func(name, value string)) {
-	for _, k := range sortedKeys(r.Vars) {
+	for _, k := range slices.Sorted(maps.Keys(r.Vars)) {
 		f(k, r.Vars[k])
 	}
 	if r.Matrix == nil {
 		return
 	}
-	for _, k := range sortedKeys(r.Matrix.Product) {
+	for _, k := range slices.Sorted(maps.Keys(r.Matrix.Product)) {
 		for _, v := range r.Matrix.Product[k] {
 			f(k, v)
 		}
 	}
 	for _, e := range r.Matrix.Sets {
-		for _, k := range sortedKeys(e) {
+		for _, k := range slices.Sorted(maps.Keys(e)) {
 			f(k, e[k])
 		}
 	}

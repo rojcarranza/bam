@@ -2,7 +2,9 @@ package app
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -61,7 +63,7 @@ func editRows(ref PlanRef, opened VarSet) []editRow {
 		}
 	}
 	out := make([]editRow, 0, len(rows))
-	for _, n := range sortedNames(rows) {
+	for _, n := range slices.Sorted(maps.Keys(rows)) {
 		r := rows[n]
 		r.Required, r.Options = required[n], options[n]
 		out = append(out, r)

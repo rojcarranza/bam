@@ -3,7 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -245,7 +246,7 @@ func setDryRunText(p app.SetPlan) []string {
 			}
 			out = append(out, fmt.Sprintf("  %s  %s  branch %s", app.PlanRunName(r), r.Ref.PlanKey, branch))
 			changed := r.Vars.Changed()
-			for _, n := range sortedVarNames(changed) {
+			for _, n := range slices.Sorted(maps.Keys(changed)) {
 				v, _ := r.Vars.Get(n)
 				out = append(out, fmt.Sprintf("      %s = %s", n, v.Display()))
 			}
@@ -427,16 +428,6 @@ func (m Model) setVarsView() string {
 		lines[i] = truncate(lines[i], m.width)
 	}
 	return strings.Join(append(lines[:body], m.statusBar(m.width)), "\n")
-}
-
-// sortedVarNames is the names of a variable map in order.
-func sortedVarNames(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }
 
 // echoFor is how the prompt's input shows a value of name: hidden for a

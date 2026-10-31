@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -172,7 +172,7 @@ func (s *Service) VarBase(ctx context.Context, ref PlanRef, from string) (VarSet
 		}
 		set.FromBuild = key
 		label := "from " + BuildLabel(key)
-		for _, name := range sortedNames(bv) {
+		for _, name := range slices.Sorted(maps.Keys(bv)) {
 			val := bv[name]
 			if set.DeclaredKnown && !declaredNames[name] && !inTarget(name) {
 				continue
@@ -194,7 +194,7 @@ func (s *Service) VarBase(ctx context.Context, ref PlanRef, from string) (VarSet
 	}
 
 	set.Declared = declaredNames
-	for _, name := range sortedNames(vars) {
+	for _, name := range slices.Sorted(maps.Keys(vars)) {
 		set.Vars = append(set.Vars, *vars[name])
 	}
 	return set, nil
@@ -287,7 +287,7 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 		v.Value, v.Source = e.Value, "edit"
 	}
 
-	for _, name := range sortedNames(vars) {
+	for _, name := range slices.Sorted(maps.Keys(vars)) {
 		set.Vars = append(set.Vars, *vars[name])
 	}
 	return set, nil
@@ -331,7 +331,7 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 				return VarSet{}, e
 			}
 		}
-		for _, name := range sortedNames(t.Options) {
+		for _, name := range slices.Sorted(maps.Keys(t.Options)) {
 			v, ok := vars[name]
 			if !ok || v.Value == "" {
 				continue
@@ -395,20 +395,11 @@ func (s *Service) PlanVars(ctx context.Context, ref PlanRef, from string) (PlanV
 		}
 	case errors.Is(err, errs.ErrUnsupported):
 		res.Warnings = append(res.Warnings, fmt.Sprintf("plan variables of %s cannot be listed; showing the variables of %s", ref.MasterKey, res.FromBuild))
-		for _, name := range sortedNames(used) {
+		for _, name := range slices.Sorted(maps.Keys(used)) {
 			res.Rows = append(res.Rows, VarRow{Name: name, LastUsed: used[name], Masked: config.IsMaskedName(name) || used[name] == MaskedDisplay})
 		}
 	default:
 		return res, err
 	}
 	return res, nil
-}
-
-func sortedNames[M ~map[string]V, V any](m M) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

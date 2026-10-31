@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -145,7 +147,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 			d.Vars = append(d.Vars, dv)
 		}
 		if o.From != "" {
-			for _, name := range sortedNames(used) {
+			for _, name := range slices.Sorted(maps.Keys(used)) {
 				if !names[name] {
 					dv := draftVar(name, used[name], false, used, usedKey, false)
 					if !isSecretDraft(dv) {
@@ -161,7 +163,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 			return d, false, nil
 		}
 		d.Note = "plan variables are not readable on this server; names come from " + usedKey
-		for _, name := range sortedNames(used) {
+		for _, name := range slices.Sorted(maps.Keys(used)) {
 			d.Vars = append(d.Vars, draftVar(name, used[name], false, used, usedKey, false))
 		}
 		return d, false, nil

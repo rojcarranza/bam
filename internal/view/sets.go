@@ -3,7 +3,8 @@ package view
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -83,7 +84,7 @@ func SetDryRun(o Out, p app.SetPlan) error {
 		heads := runLines(lines)
 		for j, r := range st {
 			fmt.Fprintln(o.W, heads[j])
-			for _, n := range sortedChanged(r.Vars) {
+			for _, n := range slices.Sorted(maps.Keys(r.Vars.Changed())) {
 				v, _ := r.Vars.Get(n)
 				fmt.Fprintf(o.W, "      %s = %s\n", n, v.Display())
 			}
@@ -106,16 +107,6 @@ func runLines(lines [][3]string) []string {
 			l[1] + strings.Repeat(" ", pw-style.Width(l[1])) + "  branch " + branchLabel(l[2])
 	}
 	return out
-}
-
-func sortedChanged(vs app.VarSet) []string {
-	changed := vs.Changed()
-	names := make([]string, 0, len(changed))
-	for n := range changed {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names
 }
 
 // SetStatusView is bam set status: the record with each build's live state.

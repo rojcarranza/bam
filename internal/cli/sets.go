@@ -59,19 +59,14 @@ func newSetListCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if len(args) == 1 {
-				text := strings.ToLower(args[0])
-				infos = slices.DeleteFunc(infos, func(s app.SetInfo) bool {
-					if strings.Contains(strings.ToLower(s.Name), text) {
-						return false
-					}
+				infos = matching(infos, args[0], func(s app.SetInfo) []string {
+					fields := []string{s.Name}
 					for _, stage := range s.Stages {
 						for _, run := range stage {
-							if strings.Contains(strings.ToLower(run.Target), text) {
-								return false
-							}
+							fields = append(fields, run.Target)
 						}
 					}
-					return true
+					return fields
 				})
 			}
 			if r.flags.json {

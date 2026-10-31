@@ -77,13 +77,7 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if len(args) == 1 {
-				text, all := strings.ToLower(args[0]), infos
-				infos = nil
-				for _, t := range all {
-					if strings.Contains(strings.ToLower(t.Name), text) || strings.Contains(strings.ToLower(t.Plan), text) {
-						infos = append(infos, t)
-					}
-				}
+				infos = matching(infos, args[0], func(t app.TargetInfo) []string { return []string{t.Name, t.Plan} })
 			}
 			loc := r.presets()
 			if !r.flags.json {

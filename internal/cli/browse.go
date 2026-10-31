@@ -303,13 +303,7 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 			}
 			empty := "no projects on " + svc.Server.Alias
 			if len(args) == 1 {
-				text, found := strings.ToLower(args[0]), projects
-				projects = nil
-				for _, p := range found {
-					if strings.Contains(strings.ToLower(p.Key), text) || strings.Contains(strings.ToLower(p.Name), text) {
-						projects = append(projects, p)
-					}
-				}
+				projects = matching(projects, args[0], func(p provider.Project) []string { return []string{p.Key, p.Name} })
 				empty = fmt.Sprintf("no projects on %s match %q", svc.Server.Alias, args[0])
 			}
 			if r.flags.json {
@@ -409,9 +403,7 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 					return err
 				}
 				if match != "" {
-					plans = slices.DeleteFunc(slices.Clone(plans), func(p provider.Plan) bool {
-						return !strings.Contains(strings.ToLower(p.Key), strings.ToLower(match)) && !strings.Contains(strings.ToLower(p.Name), strings.ToLower(match))
-					})
+					plans = matching(plans, match, func(p provider.Plan) []string { return []string{p.Key, p.Name} })
 					if len(plans) == 0 {
 						continue
 					}
@@ -533,13 +525,7 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 			empty := "no variables declared on " + ref.MasterKey
 			if len(args) == 2 {
 				// Match names only: values may be secrets.
-				text, all := strings.ToLower(args[1]), res.Rows
-				res.Rows = nil
-				for _, v := range all {
-					if strings.Contains(strings.ToLower(v.Name), text) {
-						res.Rows = append(res.Rows, v)
-					}
-				}
+				res.Rows = matching(res.Rows, args[1], func(v app.VarRow) []string { return []string{v.Name} })
 				empty = fmt.Sprintf("no variables on %s match %q", ref.MasterKey, args[1])
 			}
 			if r.flags.json {
@@ -587,13 +573,7 @@ func newPlanBranchesCmd(r *runtime) *cobra.Command {
 			}
 			empty := "no branches on " + ref.MasterKey
 			if len(args) == 2 {
-				text, all := strings.ToLower(args[1]), branches
-				branches = nil
-				for _, b := range all {
-					if strings.Contains(strings.ToLower(b.ShortName), text) || strings.Contains(strings.ToLower(b.Key), text) {
-						branches = append(branches, b)
-					}
-				}
+				branches = matching(branches, args[1], func(b provider.Branch) []string { return []string{b.ShortName, b.Key} })
 				empty = fmt.Sprintf("no branches on %s match %q", ref.MasterKey, args[1])
 			}
 			if r.flags.json {

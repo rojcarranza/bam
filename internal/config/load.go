@@ -126,76 +126,96 @@ func Load(o LoadOptions) (*Config, error) {
 	}
 	cfg := &Config{ProjectPath: projectPath, MachinePath: o.MachineFile, PresetsPath: o.PresetsFile, RepoRoot: root, Home: o.Home}
 	cfg.Env = Env{Server: o.Getenv("BAM_SERVER"), URL: o.Getenv("BAM_URL"), Token: o.Getenv("BAM_TOKEN")}
-
-	if projectPath != "" {
-		data, err := os.ReadFile(projectPath)
-		if err != nil {
-			return nil, errs.Configf("cannot read %s", projectPath).Wrap(err)
-		}
-		if err := checkProjectCredentialKeys(data, projectPath); err != nil {
-			return nil, err
-		}
-		var pf ProjectFile
-		if err := decodeStrict(data, projectPath, &pf); err != nil {
-			return nil, err
-		}
-		if err := checkDecodedProjectAuthEnv(&pf, projectPath); err != nil {
-			return nil, err
-		}
-		if err := checkVersion(pf.Version, projectPath); err != nil {
-			return nil, err
-		}
-		if err := normalizeTargets(projectPath, "targets", pf.Targets); err != nil {
-			return nil, err
-		}
-		cfg.Project = &pf
+	if cfg.Project, err = readProjectFile(projectPath); err != nil {
+		return nil, err
 	}
-
-	cfg.Machine = &MachineFile{Version: 1}
-	if o.MachineFile != "" {
-		data, err := os.ReadFile(o.MachineFile)
-		switch {
-		case errors.Is(err, fs.ErrNotExist):
-		case err != nil:
-			return nil, errs.Configf("cannot read %s", o.MachineFile).Wrap(err)
-		default:
-			var mf MachineFile
-			if err := decodeStrict(data, o.MachineFile, &mf); err != nil {
-				return nil, err
-			}
-			if err := checkVersion(mf.Version, o.MachineFile); err != nil {
-				return nil, err
-			}
-			if err := normalizeTargets(o.MachineFile, "targets", mf.Targets); err != nil {
-				return nil, err
-			}
-			for _, root := range slices.Sorted(maps.Keys(mf.Repos)) {
-				if err := normalizeTargets(o.MachineFile, "repos."+root+".targets", mf.Repos[root].Targets); err != nil {
-					return nil, err
-				}
-			}
-			cfg.Machine = &mf
-		}
+	if cfg.Machine, err = readMachineFile(o.MachineFile); err != nil {
+		return nil, err
 	}
-
-	cfg.Presets = &PresetsFile{}
-	if o.PresetsFile != "" {
-		pf, err := loadPresets(o.PresetsFile)
-		if err != nil {
-			return nil, err
-		}
-		cfg.Presets = pf
-		if cfg.PresetsDirFiles, err = loadPresetsDir(PresetsDir(o.PresetsFile)); err != nil {
-			return nil, err
-		}
-		if err := checkDuplicatePresets(cfg); err != nil {
-			return nil, err
-		}
+	if err := loadPresetLayer(cfg, o.PresetsFile); err != nil {
+		return nil, err
 	}
 	if err := validateFiles(cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+// readProjectFile reads the project config at path, or returns nil when there is none.
+func readProjectFile(path string) (*ProjectFile, error) {
+	if path == "" {
+		return nil, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errs.Configf("cannot read %s", path).Wrap(err)
+	}
+	if err := checkProjectCredentialKeys(data, path); err != nil {
+		return nil, err
+	}
+	var pf ProjectFile
+	if err := decodeStrict(data, path, &pf); err != nil {
+		return nil, err
+	}
+	if err := checkDecodedProjectAuthEnv(&pf, path); err != nil {
+		return nil, err
+	}
+	if err := checkVersion(pf.Version, path); err != nil {
+		return nil, err
+	}
+	if err := normalizeTargets(path, "targets", pf.Targets); err != nil {
+		return nil, err
+	}
+	return &pf, nil
+}
+
+// readMachineFile reads the machine config at path; a missing file (or no path)
+// gives an empty version 1 config.
+func readMachineFile(path string) (*MachineFile, error) {
+	empty := &MachineFile{Version: 1}
+	if path == "" {
+		return empty, nil
+	}
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return empty, nil
+	}
+	if err != nil {
+		return nil, errs.Configf("cannot read %s", path).Wrap(err)
+	}
+	var mf MachineFile
+	if err := decodeStrict(data, path, &mf); err != nil {
+		return nil, err
+	}
+	if err := checkVersion(mf.Version, path); err != nil {
+		return nil, err
+	}
+	if err := normalizeTargets(path, "targets", mf.Targets); err != nil {
+		return nil, err
+	}
+	for _, root := range slices.Sorted(maps.Keys(mf.Repos)) {
+		if err := normalizeTargets(path, "repos."+root+".targets", mf.Repos[root].Targets); err != nil {
+			return nil, err
+		}
+	}
+	return &mf, nil
+}
+
+// loadPresetLayer fills cfg's presets file and presets directory files.
+func loadPresetLayer(cfg *Config, path string) error {
+	cfg.Presets = &PresetsFile{}
+	if path == "" {
+		return nil
+	}
+	pf, err := loadPresets(path)
+	if err != nil {
+		return err
+	}
+	cfg.Presets = pf
+	if cfg.PresetsDirFiles, err = loadPresetsDir(PresetsDir(path)); err != nil {
+		return err
+	}
+	return checkDuplicatePresets(cfg)
 }
 
 func decodeStrict(data []byte, path string, out any) error {

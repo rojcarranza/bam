@@ -78,16 +78,7 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		}
 		// Sized before anything is expanded: a mistyped product can stand
 		// for billions of runs, and building them would hang the load.
-		var count int64
-		for _, r := range st {
-			n := r.Size()
-			if n > math.MaxInt64-count {
-				count = math.MaxInt64
-				break
-			}
-			count += n
-		}
-		if count > maxStageRuns {
+		if count := stageSize(st); count > maxStageRuns {
 			return fail("stage %d expands to %d runs; the limit is %d", i+1, count, maxStageRuns).
 				WithTry("split the matrix across stages, or list fewer variable sets")
 		}
@@ -95,20 +86,7 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		for _, r := range st {
 			t, ok := targets[r.Target]
 			if !ok {
-				e := fail("names unknown preset %q in stage %d", r.Target, i+1)
-				if childPlanKeyRe.MatchString(r.Target) {
-					// a plan key where a preset belongs: offer to wrap the plan in a preset
-					name := strings.ToLower(r.Target[strings.IndexByte(r.Target, '-')+1:])
-					return e.WithTry(fmt.Sprintf("a set lists presets, not plans; bam preset add %s --plan %s creates one", name, r.Target))
-				}
-				if len(targets) == 0 {
-					return e.WithTry("bam preset add " + r.Target + " --plan PROJ-PLAN creates it")
-				}
-				names := slices.Sorted(maps.Keys(targets))
-				if near := errs.Nearest(r.Target, names); near != "" {
-					return e.WithTry("did you mean " + near + "?")
-				}
-				return e.WithTry("presets here: " + strings.Join(names, ", "))
+				return unknownPreset(fail("names unknown preset %q in stage %d", r.Target, i+1), r.Target, targets)
 			}
 			for _, x := range r.Expand() {
 				if seen[x.Name] {
@@ -127,4 +105,35 @@ func validateSet(s ResolvedSet, targets map[string]ResolvedTarget) error {
 		}
 	}
 	return nil
+}
+
+// stageSize counts the runs a stage expands to without expanding it,
+// saturating at math.MaxInt64.
+func stageSize(st Stage) int64 {
+	var count int64
+	for _, r := range st {
+		n := r.Size()
+		if n > math.MaxInt64-count {
+			return math.MaxInt64
+		}
+		count += n
+	}
+	return count
+}
+
+// unknownPreset adds the most useful hint to an unknown-preset error.
+func unknownPreset(e *errs.Error, name string, targets map[string]ResolvedTarget) *errs.Error {
+	if childPlanKeyRe.MatchString(name) {
+		// a plan key where a preset belongs: offer to wrap the plan in a preset
+		preset := strings.ToLower(name[strings.IndexByte(name, '-')+1:])
+		return e.WithTry(fmt.Sprintf("a set lists presets, not plans; bam preset add %s --plan %s creates one", preset, name))
+	}
+	if len(targets) == 0 {
+		return e.WithTry("bam preset add " + name + " --plan PROJ-PLAN creates it")
+	}
+	names := slices.Sorted(maps.Keys(targets))
+	if near := errs.Nearest(name, names); near != "" {
+		return e.WithTry("did you mean " + near + "?")
+	}
+	return e.WithTry("presets here: " + strings.Join(names, ", "))
 }

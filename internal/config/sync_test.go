@@ -102,6 +102,16 @@ func TestSyncTargetFillsEmptyDefaults(t *testing.T) {
 	assert.Contains(t, string(data), "    defaults:\n      a: \"1\"\n")
 }
 
+func TestSyncTargetAddsToEmptyFlowMapping(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "presets.yaml")
+	writeFile(t, path, "version: 1\npresets:\n  lab:\n    plan: PROJ-LAB\n    variables: {}\n")
+	_, err := SyncTarget(path, []string{"presets"}, "lab",
+		TargetEdit{Add: []DraftVar{{Name: "a", Value: "", Comment: "no plan default"}}, Plan: "PROJ-LAB"}, true)
+	require.NoError(t, err)
+	data, _ := os.ReadFile(path)
+	assert.Contains(t, string(data), "    variables:\n      a: \"\" # no plan default\n")
+}
+
 func TestSyncTargetMissingEntry(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ".bam.yaml")
 	writeFile(t, path, syncYAML)

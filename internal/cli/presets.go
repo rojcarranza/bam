@@ -380,8 +380,14 @@ func checkPresetElsewhere(cfg *config.Config, name, path string) error {
 	return nil
 }
 
+// presetSyncFlags holds bam preset sync's flags and runs it.
+type presetSyncFlags struct {
+	r           *runtime
+	all, dryRun bool
+}
+
 func newTargetSyncCmd(r *runtime) *cobra.Command {
-	var all, dryRun bool
+	s := &presetSyncFlags{r: r}
 	cmd := &cobra.Command{
 		Use:               "sync <name> | --all",
 		Short:             "Add new plan variables to a preset and mark removed ones",
@@ -389,76 +395,89 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 		Long:              "sync compares a preset with its plan's declared variables. New variables that preset add\nwould write (no plan default, or an empty secret) are added to the preset's variables (or\ndefaults, if the preset uses that older key) with the same values and comments. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
-		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			if (len(args) == 1) == all {
-				return errs.Usagef("pass a preset name or --all").WithTry("bam preset sync <name>, or bam preset sync --all")
-			}
-			cfg, err := r.config()
-			if err != nil {
-				return err
-			}
-			var targets []config.ResolvedTarget
-			if all {
-				m, err := cfg.Targets()
-				if err != nil {
-					return err
-				}
-				for _, name := range slices.Sorted(maps.Keys(m)) {
-					targets = append(targets, m[name])
-				}
-			} else {
-				t, ok, err := cfg.Target(args[0])
-				if err != nil {
-					return err
-				}
-				if !ok {
-					return app.UnknownTarget(cfg, args[0])
-				}
-				targets = append(targets, t)
-			}
-			if len(targets) == 0 {
-				r.noPresets(cfg)
-				return nil
-			}
-
-			services := map[string]*app.Service{}
-			var results []view.SyncResult
-			var worst error
-			wrote := false
-			for _, t := range targets {
-				res := r.syncTarget(cmd, cfg, services, t, dryRun)
-				if res.Err != nil && (worst == nil || exitCode(res.Err) > exitCode(worst)) {
-					worst = res.Err
-				}
-				wrote = wrote || res.Status == view.SyncSynced
-				results = append(results, res)
-			}
-			if r.flags.json {
-				if err := view.WriteJSON(r.env.Stdout, view.SyncJSON(results)); err != nil {
-					return err
-				}
-			} else {
-				o, err := r.out()
-				if err != nil {
-					return err
-				}
-				if err := view.Sync(o, results, dryRun); err != nil {
-					return err
-				}
-			}
-			if wrote {
-				fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
-			}
-			if worst != nil {
-				return silentError{worst}
-			}
-			return nil
-		}),
+		RunE:              r.wrap(s.run),
 	}
 	f := cmd.Flags()
-	f.BoolVar(&all, "all", false, "sync every preset")
-	f.BoolVar(&dryRun, "dry-run", false, "show the changes and write nothing")
+	f.BoolVar(&s.all, "all", false, "sync every preset")
+	f.BoolVar(&s.dryRun, "dry-run", false, "show the changes and write nothing")
 	return cmd
+}
+
+func (s *presetSyncFlags) run(cmd *cobra.Command, args []string) error {
+	r := s.r
+	if (len(args) == 1) == s.all {
+		return errs.Usagef("pass a preset name or --all").WithTry("bam preset sync <name>, or bam preset sync --all")
+	}
+	cfg, err := r.config()
+	if err != nil {
+		return err
+	}
+	targets, err := s.targets(cfg, args)
+	if err != nil {
+		return err
+	}
+	if len(targets) == 0 {
+		r.noPresets(cfg)
+		return nil
+	}
+	services := map[string]*app.Service{}
+	var results []view.SyncResult
+	var worst error
+	wrote := false
+	for _, t := range targets {
+		res := r.syncTarget(cmd, cfg, services, t, s.dryRun)
+		if res.Err != nil && (worst == nil || exitCode(res.Err) > exitCode(worst)) {
+			worst = res.Err
+		}
+		wrote = wrote || res.Status == view.SyncSynced
+		results = append(results, res)
+	}
+	if err := s.print(results); err != nil {
+		return err
+	}
+	if wrote {
+		fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
+	}
+	if worst != nil {
+		return silentError{worst}
+	}
+	return nil
+}
+
+// targets returns the presets to sync: the named one, or every preset sorted
+// by name with --all.
+func (s *presetSyncFlags) targets(cfg *config.Config, args []string) ([]config.ResolvedTarget, error) {
+	if !s.all {
+		t, ok, err := cfg.Target(args[0])
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, app.UnknownTarget(cfg, args[0])
+		}
+		return []config.ResolvedTarget{t}, nil
+	}
+	m, err := cfg.Targets()
+	if err != nil {
+		return nil, err
+	}
+	var targets []config.ResolvedTarget
+	for _, name := range slices.Sorted(maps.Keys(m)) {
+		targets = append(targets, m[name])
+	}
+	return targets, nil
+}
+
+// print writes the sync results as JSON or a text table.
+func (s *presetSyncFlags) print(results []view.SyncResult) error {
+	if s.r.flags.json {
+		return view.WriteJSON(s.r.env.Stdout, view.SyncJSON(results))
+	}
+	o, err := s.r.out()
+	if err != nil {
+		return err
+	}
+	return view.Sync(o, results, s.dryRun)
 }
 
 // syncTarget plans and applies the sync of one target. Errors land in the

@@ -303,50 +303,78 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 	for i := range out.Vars {
 		v := &out.Vars[i]
 		vars[v.Name] = v
-		if v.Source != "preset" && v.Source != "edit" {
-			continue
-		}
-		if envName, ok := config.EnvRef(v.Value); ok {
-			val := getenv(envName)
-			if val == "" {
-				return VarSet{}, errs.Usagef("variable %s needs environment variable %s, which is not set", v.Name, envName).
-					WithTry(fmt.Sprintf("export %s=..., or pass --var %s=VALUE", envName, v.Name))
-			}
-			v.Value, v.Source, v.Secret = val, "env", true
+		if err := resolveEnvRef(v, getenv); err != nil {
+			return VarSet{}, err
 		}
 	}
 	if t := ref.Target; t != nil {
-		for _, name := range t.Required {
-			if v, ok := vars[name]; !ok || v.Value == "" {
-				e := errs.Usagef("%s is required by preset %s", name, t.Name).
-					WithTry(fmt.Sprintf("--var %s=VALUE", name))
-				// Variable names are case-sensitive: --var Env=dev does not set env.
-				for _, other := range out.Vars {
-					if other.Name != name && other.Value != "" && strings.EqualFold(other.Name, name) {
-						e = e.WithWhy(fmt.Sprintf("%s is set, but names are case-sensitive", other.Name)).
-							WithTry(fmt.Sprintf("--var %s=%s", name, other.Display()))
-						break
-					}
-				}
-				return VarSet{}, e
-			}
+		if err := checkRequired(t, vars, out.Vars); err != nil {
+			return VarSet{}, err
 		}
-		for _, name := range slices.Sorted(maps.Keys(t.Options)) {
-			v, ok := vars[name]
-			if !ok || v.Value == "" {
-				continue
-			}
-			if !slices.Contains(t.Options[name], v.Value) {
-				e := errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
-					WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
-				if c := errs.Nearest(v.Value, t.Options[name]); c != "" {
-					e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c))
-				}
-				return VarSet{}, e
-			}
+		if err := checkOptions(t, vars); err != nil {
+			return VarSet{}, err
 		}
 	}
 	return out, nil
+}
+
+// resolveEnvRef replaces a ${ENV} value of a preset default or an edit with
+// the environment value and marks it secret. Other sources are left alone.
+func resolveEnvRef(v *ResolvedVar, getenv func(string) string) error {
+	if v.Source != "preset" && v.Source != "edit" {
+		return nil
+	}
+	envName, ok := config.EnvRef(v.Value)
+	if !ok {
+		return nil
+	}
+	val := getenv(envName)
+	if val == "" {
+		return errs.Usagef("variable %s needs environment variable %s, which is not set", v.Name, envName).
+			WithTry(fmt.Sprintf("export %s=..., or pass --var %s=VALUE", envName, v.Name))
+	}
+	v.Value, v.Source, v.Secret = val, "env", true
+	return nil
+}
+
+// checkRequired fails on the first name the preset requires that has no
+// value. all is every variable, used to spot a case-only misspelling.
+func checkRequired(t *config.ResolvedTarget, vars map[string]*ResolvedVar, all []ResolvedVar) error {
+	for _, name := range t.Required {
+		if v, ok := vars[name]; ok && v.Value != "" {
+			continue
+		}
+		e := errs.Usagef("%s is required by preset %s", name, t.Name).
+			WithTry(fmt.Sprintf("--var %s=VALUE", name))
+		// Variable names are case-sensitive: --var Env=dev does not set env.
+		for _, other := range all {
+			if other.Name != name && other.Value != "" && strings.EqualFold(other.Name, name) {
+				e = e.WithWhy(fmt.Sprintf("%s is set, but names are case-sensitive", other.Name)).
+					WithTry(fmt.Sprintf("--var %s=%s", name, other.Display()))
+				break
+			}
+		}
+		return e
+	}
+	return nil
+}
+
+// checkOptions fails on the first set variable, by name, whose value is not
+// one the preset allows.
+func checkOptions(t *config.ResolvedTarget, vars map[string]*ResolvedVar) error {
+	for _, name := range slices.Sorted(maps.Keys(t.Options)) {
+		v, ok := vars[name]
+		if !ok || v.Value == "" || slices.Contains(t.Options[name], v.Value) {
+			continue
+		}
+		e := errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
+			WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
+		if c := errs.Nearest(v.Value, t.Options[name]); c != "" {
+			e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c))
+		}
+		return e
+	}
+	return nil
 }
 
 // VarRow is one line of bam plan vars.

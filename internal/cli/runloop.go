@@ -42,11 +42,90 @@ func addRunLoop(root *cobra.Command, r *runtime) {
 // --from build instead of naming one.
 const revisionFromBuild = "from"
 
+// runFlags holds bam run's flags; its methods are the steps of the command.
+type runFlags struct {
+	vars                   []string
+	from, branch, revision string
+	watch, dryRun, edit    bool
+	timeout                time.Duration
+}
+
+// check validates the flags on their own, before any config or network.
+func (f *runFlags) check(r *runtime, cmd *cobra.Command, arg string) error {
+	// The editor inherits stdin and stdout; on a pipe it would hang or
+	// write into the pipe.
+	if f.edit && (!r.env.StdinTTY || !r.env.StdoutTTY) {
+		return errs.Usagef("--edit needs a terminal").WithTry("pass the values with --var")
+	}
+	if cmd.Flags().Changed("revision") && f.revision == "" {
+		return errs.Usagef("--revision needs a value")
+	}
+	if strings.EqualFold(f.revision, revisionFromBuild) {
+		f.revision = revisionFromBuild
+	}
+	if f.revision == revisionFromBuild && f.from == "" {
+		return errs.Usagef("--revision from needs --from").WithTry("bam run " + arg + " --from last --revision from")
+	}
+	return nil
+}
+
+// resolveFrom turns --from into a build key, once: --from last must name
+// the same build for the variables and for the commit. It also sets the
+// --revision from commit on ref.
+func (f *runFlags) resolveFrom(ctx context.Context, svc *app.Service, ref *app.PlanRef) error {
+	if key, ok := pageKey(f.from); ok {
+		// The link names its server; reading another server's build of the same key would be wrong.
+		if o, err := credential.Origin(f.from); err != nil || o != svc.Origin {
+			return errs.Usagef("--from %s is on another server than %s", key, ref.PlanKey).
+				WithTry("pass a build of " + svc.Origin)
+		}
+		f.from = key
+	}
+	var err error
+	if f.from != "" {
+		if f.from, err = svc.ResolveFrom(ctx, *ref, f.from); err != nil {
+			return err
+		}
+	}
+	if f.revision == revisionFromBuild {
+		if ref.Revision, err = svc.BuildRevision(ctx, f.from); err != nil {
+			return err
+		}
+		ref.RevisionFrom = f.from
+	}
+	return nil
+}
+
+// resolveVars resolves the variables to send, through $EDITOR with --edit.
+func (f *runFlags) resolveVars(ctx context.Context, r *runtime, svc *app.Service, ref app.PlanRef) (app.VarSet, error) {
+	if !f.edit {
+		return svc.ResolveVars(ctx, ref, app.VarOptions{From: f.from, Flags: f.vars})
+	}
+	base, err := svc.VarBase(ctx, ref, f.from)
+	if err != nil {
+		return app.VarSet{}, err
+	}
+	return r.editVars(ctx, ref, base, f.vars, svc.Server.Alias, f.dryRun)
+}
+
+// follow reports whether to watch the build and for how long: the preset's
+// watch and timeout apply unless the flags are given.
+func (f *runFlags) follow(cmd *cobra.Command, t *config.ResolvedTarget) (bool, time.Duration) {
+	watch, limit := f.watch, f.timeout
+	if t == nil {
+		return watch, limit
+	}
+	if !cmd.Flags().Changed("watch") && t.Watch != nil {
+		watch = *t.Watch
+	}
+	if !cmd.Flags().Changed("timeout") {
+		limit = time.Duration(t.Timeout)
+	}
+	return watch, limit
+}
+
 func newRunCmd(r *runtime) *cobra.Command {
-	var vars []string
-	var from, branch, revision string
-	var watch, dryRun, edit bool
-	var timeout time.Duration
+	var rf runFlags
 	cmd := &cobra.Command{
 		Use:        "run <plan|preset>",
 		Short:      "Trigger a plan or preset with variables",
@@ -58,66 +137,27 @@ func newRunCmd(r *runtime) *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			// The editor inherits stdin and stdout; on a pipe it would hang
-			// or write into the pipe. Checked before any config or network.
-			if edit && (!r.env.StdinTTY || !r.env.StdoutTTY) {
-				return errs.Usagef("--edit needs a terminal").WithTry("pass the values with --var")
-			}
-			// Checked before any config or network, like --edit's terminal.
-			if cmd.Flags().Changed("revision") && revision == "" {
-				return errs.Usagef("--revision needs a value")
-			}
-			if strings.EqualFold(revision, revisionFromBuild) {
-				revision = revisionFromBuild
-			}
-			if revision == revisionFromBuild && from == "" {
-				return errs.Usagef("--revision from needs --from").WithTry("bam run " + args[0] + " --from last --revision from")
+			if err := rf.check(r, cmd, args[0]); err != nil {
+				return err
 			}
 			ctx := cmd.Context()
 			svc, arg, err := r.resolvePlanArg(ctx, args[0])
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, arg, branch)
+			ref, err := svc.ResolvePlan(ctx, arg, rf.branch)
 			if err != nil {
 				return err
 			}
-			ref.Revision = revision
-			// Resolved once: --from last must name the same build for the
-			// variables and for the commit.
-			if key, ok := pageKey(from); ok {
-				// The link names its server; reading another server's build of the same key would be wrong.
-				if o, err := credential.Origin(from); err != nil || o != svc.Origin {
-					return errs.Usagef("--from %s is on another server than %s", key, ref.PlanKey).
-						WithTry("pass a build of " + svc.Origin)
-				}
-				from = key
-			}
-			if from != "" {
-				if from, err = svc.ResolveFrom(ctx, ref, from); err != nil {
-					return err
-				}
-			}
-			if revision == revisionFromBuild {
-				if ref.Revision, err = svc.BuildRevision(ctx, from); err != nil {
-					return err
-				}
-				ref.RevisionFrom = from
-			}
-			var vs app.VarSet
-			if edit {
-				base, err := svc.VarBase(ctx, ref, from)
-				if err != nil {
-					return err
-				}
-				vs, err = r.editVars(ctx, ref, base, vars, svc.Server.Alias, dryRun)
-				if err != nil {
-					return err
-				}
-			} else if vs, err = svc.ResolveVars(ctx, ref, app.VarOptions{From: from, Flags: vars}); err != nil {
+			ref.Revision = rf.revision
+			if err := rf.resolveFrom(ctx, svc, &ref); err != nil {
 				return err
 			}
-			if dryRun {
+			vs, err := rf.resolveVars(ctx, r, svc, ref)
+			if err != nil {
+				return err
+			}
+			if rf.dryRun {
 				if w := svc.DisabledWarning(ctx, ref.PlanKey); w != "" {
 					vs.Warnings = append(vs.Warnings, w)
 				}
@@ -126,15 +166,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if vs.FromBuild != "" {
 				r.note("variables from "+vs.FromBuild, "")
 			}
-			doWatch, limit := watch, timeout
-			if t := ref.Target; t != nil {
-				if !cmd.Flags().Changed("watch") && t.Watch != nil {
-					doWatch = *t.Watch
-				}
-				if !cmd.Flags().Changed("timeout") {
-					limit = time.Duration(t.Timeout)
-				}
-			}
+			doWatch, limit := rf.follow(cmd, ref.Target)
 			var o view.Out
 			if !r.flags.json {
 				if o, err = r.out(); err != nil {
@@ -142,7 +174,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 				}
 				view.RunPlan(o, ref, vs)
 			}
-			if dryRun {
+			if rf.dryRun {
 				if r.flags.json {
 					return view.WriteJSON(r.env.Stdout, view.RunJSON(provider.Build{}, ref, vs))
 				}
@@ -153,14 +185,13 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !doWatch {
-				if r.flags.json {
-					return view.WriteJSON(r.env.Stdout, view.RunJSON(b, ref, vs))
-				}
+			switch {
+			case !doWatch && r.flags.json:
+				return view.WriteJSON(r.env.Stdout, view.RunJSON(b, ref, vs))
+			case !doWatch:
 				view.Queued(o, b, false, ref.RevisionShort())
 				return nil
-			}
-			if r.flags.json {
+			case r.flags.json:
 				return r.watchLoop(ctx, svc, b.Key, limit)
 			}
 			view.Queued(o, b, true, ref.RevisionShort())
@@ -168,14 +199,14 @@ func newRunCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.StringArrayVar(&vars, "var", nil, "variable name=value (repeatable)")
-	f.StringVar(&from, "from", "", "reuse variables of a build: number, key or last")
-	f.StringVar(&branch, "branch", "", "plan branch to run")
-	f.StringVar(&revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
-	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
-	f.DurationVar(&timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
-	f.BoolVar(&dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
-	f.BoolVar(&edit, "edit", false, "review and change the variables in $EDITOR before running")
+	f.StringArrayVar(&rf.vars, "var", nil, "variable name=value (repeatable)")
+	f.StringVar(&rf.from, "from", "", "reuse variables of a build: number, key or last")
+	f.StringVar(&rf.branch, "branch", "", "plan branch to run")
+	f.StringVar(&rf.revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
+	f.BoolVar(&rf.watch, "watch", false, "follow the build and the builds it triggers until they finish")
+	f.DurationVar(&rf.timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
+	f.BoolVar(&rf.dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
+	f.BoolVar(&rf.edit, "edit", false, "review and change the variables in $EDITOR before running")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeVar)
 	_ = cmd.RegisterFlagCompletionFunc("revision", r.completeRevision)
 	return cmd

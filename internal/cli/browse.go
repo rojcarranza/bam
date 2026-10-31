@@ -112,25 +112,11 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 		Example:           "  bam plan list\n  bam plan list OPS LAB\n  bam plan list https://bamboo.example.com/browse/OPS\n  bam plan list --match deploy",
 		ValidArgsFunction: r.completeProjects,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			keys, link, linkKey := slices.Clone(args), "", ""
-			for i, a := range args {
-				m := projectLinkRe.FindStringSubmatch(a)
-				if m == nil {
-					continue
-				}
-				keys[i] = m[1]
-				if link == "" {
-					link, linkKey = a, m[1]
-					continue
-				}
-				o1, _ := credential.Origin(link)
-				if o2, _ := credential.Origin(a); o1 != o2 {
-					return errs.Usagef("project links point at two servers, %s and %s", o1, o2).
-						WithTry("list each server's projects in its own bam plan list")
-				}
+			keys, link, linkKey, err := projectArgs(args)
+			if err != nil {
+				return err
 			}
 			var svc *app.Service
-			var err error
 			if link != "" {
 				svc, err = r.connectPage(link, linkKey)
 			} else {
@@ -142,45 +128,13 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 			if len(keys) == 0 {
 				keys = r.cfg.ProjectKeys(svc.Server)
 			}
-			names := map[string]string{}
 			projects, perr := svc.P.ListProjects(cmd.Context())
-			for _, p := range projects {
-				names[p.Key] = p.Name
-			}
 			if len(keys) == 0 {
-				e, k := errs.Usagef("no projects configured"), "PROJ"
-				if perr == nil && len(projects) > 0 {
-					onServer := make([]string, len(projects))
-					for i, p := range projects {
-						onServer[i] = p.Key
-					}
-					why := "projects on " + svc.Server.Alias + ": " + strings.Join(onServer[:min(5, len(onServer))], ", ")
-					if n := len(onServer) - 5; n > 0 {
-						why += fmt.Sprintf(" and %d more (bam project list)", n)
-					}
-					e, k = e.WithWhy(why), onServer[0]
-				}
-				return e.WithTry("bam plan list " + k + ", or add projects: [" + k + "] to .bam.yaml")
+				return noProjectsError(svc.Server.Alias, projects, perr)
 			}
-			var groups []view.PlanGroup
-			for _, k := range keys {
-				plans, err := svc.P.ListPlans(cmd.Context(), k)
-				if err != nil {
-					var e *errs.Error
-					if errors.Is(err, errs.ErrNotFound) && errors.As(err, &e) {
-						if c := errs.NearestKey(k, names); c != "" {
-							_ = e.WithTry("did you mean bam plan list " + c + "?")
-						}
-					}
-					return err
-				}
-				if match != "" {
-					plans = matching(plans, match, func(p provider.Plan) []string { return []string{p.Key, p.Name} })
-					if len(plans) == 0 {
-						continue
-					}
-				}
-				groups = append(groups, view.PlanGroup{Project: provider.Project{Key: k, Name: names[k], URL: svc.P.URL(k)}, Plans: plans})
+			groups, err := planGroups(cmd.Context(), svc, keys, projects, match)
+			if err != nil {
+				return err
 			}
 			if !r.flags.json && len(groups) == 0 {
 				r.note(fmt.Sprintf("no plans match %q", match), "")
@@ -195,6 +149,80 @@ func newPlanListCmd(r *runtime) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&match, "match", "", "only plans whose key or name contains this text, ignoring case")
 	return cmd
+}
+
+// projectArgs turns plan list arguments into project keys. Arguments that are
+// links copied from a Bamboo project page become their key; the first link is
+// returned so the caller can connect to its server, and links to two different
+// servers are a usage error.
+func projectArgs(args []string) (keys []string, link, linkKey string, err error) {
+	keys = slices.Clone(args)
+	for i, a := range args {
+		m := projectLinkRe.FindStringSubmatch(a)
+		if m == nil {
+			continue
+		}
+		keys[i] = m[1]
+		if link == "" {
+			link, linkKey = a, m[1]
+			continue
+		}
+		o1, _ := credential.Origin(link)
+		if o2, _ := credential.Origin(a); o1 != o2 {
+			return nil, "", "", errs.Usagef("project links point at two servers, %s and %s", o1, o2).
+				WithTry("list each server's projects in its own bam plan list")
+		}
+	}
+	return keys, link, linkKey, nil
+}
+
+// noProjectsError explains that plan list has no projects to list, naming a
+// few of the server's projects when the listing worked.
+func noProjectsError(alias string, projects []provider.Project, perr error) error {
+	e, k := errs.Usagef("no projects configured"), "PROJ"
+	if perr == nil && len(projects) > 0 {
+		onServer := make([]string, len(projects))
+		for i, p := range projects {
+			onServer[i] = p.Key
+		}
+		why := "projects on " + alias + ": " + strings.Join(onServer[:min(5, len(onServer))], ", ")
+		if n := len(onServer) - 5; n > 0 {
+			why += fmt.Sprintf(" and %d more (bam project list)", n)
+		}
+		e, k = e.WithWhy(why), onServer[0]
+	}
+	return e.WithTry("bam plan list " + k + ", or add projects: [" + k + "] to .bam.yaml")
+}
+
+// planGroups lists each project's plans, keeping only those that contain
+// match, and drops projects left with no plans when match is set. An unknown
+// project key suggests the nearest key on the server.
+func planGroups(ctx context.Context, svc *app.Service, keys []string, projects []provider.Project, match string) ([]view.PlanGroup, error) {
+	names := map[string]string{}
+	for _, p := range projects {
+		names[p.Key] = p.Name
+	}
+	var groups []view.PlanGroup
+	for _, k := range keys {
+		plans, err := svc.P.ListPlans(ctx, k)
+		if err != nil {
+			var e *errs.Error
+			if errors.Is(err, errs.ErrNotFound) && errors.As(err, &e) {
+				if c := errs.NearestKey(k, names); c != "" {
+					_ = e.WithTry("did you mean bam plan list " + c + "?")
+				}
+			}
+			return nil, err
+		}
+		if match != "" {
+			plans = matching(plans, match, func(p provider.Plan) []string { return []string{p.Key, p.Name} })
+			if len(plans) == 0 {
+				continue
+			}
+		}
+		groups = append(groups, view.PlanGroup{Project: provider.Project{Key: k, Name: names[k], URL: svc.P.URL(k)}, Plans: plans})
+	}
+	return groups, nil
 }
 
 func newPlanShowCmd(r *runtime) *cobra.Command {

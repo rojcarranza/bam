@@ -138,9 +138,126 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 	}
 }
 
+// presetAddFlags holds bam preset add's flags.
+type presetAddFlags struct {
+	plan, from, branch, file       string
+	shared, printOnly, force, full bool
+}
+
+// pageLink turns page links in --from and --plan into keys and returns the
+// link whose server bam connects to, or "" for the default server.
+func (f *presetAddFlags) pageLink() (link, linkKey string, err error) {
+	if key, ok := pageKey(f.from); ok {
+		link, linkKey, f.from = f.from, key, key
+	}
+	key, ok := pageKey(f.plan)
+	if !ok {
+		return link, linkKey, nil
+	}
+	if link == "" {
+		link, linkKey = f.plan, key
+	} else if a, b := originOf(link), originOf(f.plan); a != b {
+		return "", "", errs.Usagef("--plan is on %s but --from is on %s", b, a).
+			WithTry("pass links to the same server, or plain keys")
+	}
+	f.plan = key
+	return link, linkKey, nil
+}
+
+// originOf is the server origin of a link, or "" when it has none.
+func originOf(link string) string {
+	o, _ := credential.Origin(link)
+	return o
+}
+
+// check validates the flags on their own, before any network.
+func (f *presetAddFlags) check(r *runtime, name string) error {
+	if f.plan == "" && !app.IsBuildKey(f.from) {
+		try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", name)
+		switch up := strings.ToUpper(f.from); {
+		case app.IsBuildKey(up):
+			try = "keys are uppercase: did you mean --from " + up + "?"
+		case app.IsPlanKey(up):
+			try = fmt.Sprintf("bam preset add %s --plan %s; --from takes a build", name, up)
+		}
+		return errs.Usagef("--plan is required").WithTry(try)
+	}
+	if f.shared && f.file != "" {
+		return errs.Usagef("--shared and --file cannot be used together").
+			WithTry("--file for a file in your presets directory, --shared for .bam.yaml")
+	}
+	if f.file != "" {
+		if _, err := config.PresetsDirFile(r.presetsWritePath(), f.file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// save writes the preset to .bam.yaml with --shared, else to the presets
+// directory, and returns the file it wrote.
+func (f *presetAddFlags) save(r *runtime, d config.TargetDraft) (string, error) {
+	if !f.shared {
+		return r.writePreset(r.cfg, d, f.file, f.force)
+	}
+	path := r.cfg.ProjectPath
+	if path == "" {
+		return "", errs.Usagef("no .bam.yaml in this repository").
+			WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
+	}
+	return path, config.WriteTarget(path, []string{"targets"}, d, f.force)
+}
+
+func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error {
+	// A pasted page link names its server: connect there instead of the default.
+	link, linkKey, err := f.pageLink()
+	if err != nil {
+		return err
+	}
+	if err := f.check(r, name); err != nil {
+		return err
+	}
+	o := app.GenerateOptions{Name: name, PlanKey: f.plan, From: f.from, Branch: f.branch, Full: f.full}
+	if err := app.CheckGenerate(o); err != nil {
+		return err
+	}
+	var svc *app.Service
+	if link != "" {
+		svc, err = r.connectPage(link, linkKey)
+	} else {
+		svc, _, err = r.connect(cmd.Context(), "")
+	}
+	if err != nil {
+		return err
+	}
+	d, err := svc.GenerateTarget(cmd.Context(), o)
+	if err != nil {
+		return err
+	}
+	if f.printOnly {
+		key := "presets"
+		if f.shared {
+			key = "targets"
+		}
+		_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
+		return err
+	}
+	path, err := f.save(r, d)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
+	if d.Note != "" {
+		fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
+	}
+	if len(d.Vars) > 0 {
+		fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
+	}
+	return nil
+}
+
 func newTargetAddCmd(r *runtime) *cobra.Command {
-	var plan, from, branch, file string
-	var shared, printOnly, force, full bool
+	var fl presetAddFlags
 	cmd := &cobra.Command{
 		Use:        "add <name> --plan KEY",
 		Short:      "Generate a run preset from a plan's declared variables",
@@ -162,101 +279,18 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"  bam run deploy-qa --dry-run",
 		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			// A pasted page link names its server: connect there instead of the default.
-			link, linkKey := "", ""
-			if key, ok := pageKey(from); ok {
-				link, linkKey, from = from, key, key
-			}
-			if key, ok := pageKey(plan); ok {
-				if link != "" {
-					a, _ := credential.Origin(link)
-					if b, _ := credential.Origin(plan); a != b {
-						return errs.Usagef("--plan is on %s but --from is on %s", b, a).
-							WithTry("pass links to the same server, or plain keys")
-					}
-				} else {
-					link, linkKey = plan, key
-				}
-				plan = key
-			}
-			if plan == "" && !app.IsBuildKey(from) {
-				try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0])
-				switch up := strings.ToUpper(from); {
-				case app.IsBuildKey(up):
-					try = "keys are uppercase: did you mean --from " + up + "?"
-				case app.IsPlanKey(up):
-					try = fmt.Sprintf("bam preset add %s --plan %s; --from takes a build", args[0], up)
-				}
-				return errs.Usagef("--plan is required").WithTry(try)
-			}
-			if shared && file != "" {
-				return errs.Usagef("--shared and --file cannot be used together").
-					WithTry("--file for a file in your presets directory, --shared for .bam.yaml")
-			}
-			if file != "" {
-				if _, err := config.PresetsDirFile(r.presetsWritePath(), file); err != nil {
-					return err
-				}
-			}
-			o := app.GenerateOptions{Name: args[0], PlanKey: plan, From: from, Branch: branch, Full: full}
-			if err := app.CheckGenerate(o); err != nil {
-				return err
-			}
-			var svc *app.Service
-			var err error
-			if link != "" {
-				svc, err = r.connectPage(link, linkKey)
-			} else {
-				svc, _, err = r.connect(cmd.Context(), "")
-			}
-			if err != nil {
-				return err
-			}
-			d, err := svc.GenerateTarget(cmd.Context(), o)
-			if err != nil {
-				return err
-			}
-			if printOnly {
-				key := "presets"
-				if shared {
-					key = "targets"
-				}
-				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
-				return err
-			}
-			var path string
-			if shared {
-				path = r.cfg.ProjectPath
-				if path == "" {
-					return errs.Usagef("no .bam.yaml in this repository").
-						WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
-				}
-				err = config.WriteTarget(path, []string{"targets"}, d, force)
-			} else {
-				path, err = r.writePreset(r.cfg, d, file, force)
-			}
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
-			if d.Note != "" {
-				fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
-			}
-			if len(d.Vars) > 0 {
-				fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
-			}
-			return nil
+			return fl.run(r, cmd, args[0])
 		}),
 	}
 	f := cmd.Flags()
-	f.StringVar(&plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
-	f.StringVar(&from, "from", "", "build whose variable values fill the preset: number, key or last")
-	f.StringVar(&branch, "branch", "", "default branch for the preset; defaults to the --from build's branch")
-	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
-	f.StringVar(&file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
-	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
-	f.BoolVar(&force, "force", false, "replace an existing preset")
-	f.BoolVar(&full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
+	f.StringVar(&fl.plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
+	f.StringVar(&fl.from, "from", "", "build whose variable values fill the preset: number, key or last")
+	f.StringVar(&fl.branch, "branch", "", "default branch for the preset; defaults to the --from build's branch")
+	f.BoolVar(&fl.shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
+	f.StringVar(&fl.file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
+	f.BoolVar(&fl.printOnly, "print", false, "print the YAML and write nothing")
+	f.BoolVar(&fl.force, "force", false, "replace an existing preset")
+	f.BoolVar(&fl.full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }

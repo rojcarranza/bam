@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
@@ -43,126 +45,17 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 					return err
 				}
 			}
-			var checks []check
-			var first error
-			add := func(name, status, detail string, err error) {
-				checks = append(checks, check{Name: name, Status: status, Detail: detail})
-				if err != nil && first == nil {
-					first = err
-				}
-			}
-			fail := func(name string, err error) {
-				detail := err.Error()
-				var e *errs.Error
-				if errors.As(err, &e) && e.Try != "" {
-					detail += " (try: " + e.Try + ")"
-				}
-				add(name, "error", detail, err)
-			}
-
-			func() {
-				cfg, err := r.config()
-				if err != nil {
-					fail("config", err)
-					return
-				}
-				var files []string
-				if cfg.ProjectPath != "" {
-					files = append(files, cfg.ProjectPath)
-				}
-				for _, f := range []string{cfg.MachinePath, cfg.PresetsPath} {
-					if _, err := os.Stat(f); f != "" && err == nil {
-						files = append(files, f)
-					}
-				}
-				detail := strings.Join(files, ", ")
-				if detail == "" {
-					detail = "no config file; settings come from the environment"
-				}
-				add("config", "ok", detail, nil)
-
-				server, err := cfg.SelectServer(r.flags.server, "")
-				if err != nil {
-					fail("server", err)
-					return
-				}
-
-				origin, err := credential.Origin(server.URL)
-				if err != nil {
-					fail("server", err)
-					return
-				}
-
-				add("server", "ok", fmt.Sprintf("%s (%s)", server.Alias, server.URL), nil)
-				source := "BAM_TOKEN"
-				if server.Token == "" {
-					_, src, err := r.lookupToken(server, origin)
-					if err != nil {
-						fail("token", err)
-						return
-					}
-					source = string(src)
-					if src == credential.SourceEnv {
-						source = "$" + server.AuthEnv
-					}
-				}
-				add("token", "ok", source, nil)
-
-				_, backend, err := r.connectServer(server)
-				if err != nil {
-					fail("auth", err)
-					return
-				}
-				user, err := backend.CurrentUser(cmd.Context())
-				if err != nil {
-					fail("auth", err)
-					return
-				}
-				add("auth", "ok", fmt.Sprintf("%s (%s)", user.Name, user.FullName), nil)
-
-				key := planKey
-				if key == "" {
-					projects := cfg.ProjectKeys(server)
-					if len(projects) > 0 {
-						plans, err := backend.ListPlans(cmd.Context(), projects[0])
-						if err != nil {
-							// A listing that failed is a failed diagnosis:
-							// reporting it as "no plan to probe" would exit 0
-							// during an outage.
-							fail("capabilities", err)
-							return
-						}
-						if len(plans) > 0 {
-							key = plans[0].Key
-						}
-					}
-				}
-				if key == "" {
-					add("capabilities", "skipped", "no plan to probe; pass --plan KEY or set projects in .bam.yaml", nil)
-					return
-				}
-				for _, p := range backend.Probe(cmd.Context(), key) {
-					detail := p.Detail
-					if p.Status == bamboo.ProbeUnsupported {
-						detail = "not supported: " + detail
-					}
-					if p.Status == bamboo.ProbeError {
-						fail(p.Name, p.Err)
-						continue
-					}
-					add(p.Name, string(p.Status), detail, nil)
-				}
-			}()
-
+			d := &doctor{r: r, ctx: cmd.Context()}
+			d.diagnose(planKey)
 			if r.flags.json {
-				if err := view.WriteJSON(r.env.Stdout, map[string][]check{"checks": checks}); err != nil {
+				if err := view.WriteJSON(r.env.Stdout, map[string][]check{"checks": d.checks}); err != nil {
 					return err
 				}
-			} else if err := printChecks(r, checks); err != nil {
+			} else if err := printChecks(r, d.checks); err != nil {
 				return err
 			}
-			if first != nil {
-				return silentError{first}
+			if d.first != nil {
+				return silentError{d.first}
 			}
 			return nil
 		}),
@@ -170,6 +63,140 @@ func newDoctorCmd(r *runtime) *cobra.Command {
 	cmd.Flags().StringVar(&planKey, "plan", "", "plan to probe (default: first plan of the first configured project)")
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
+}
+
+// doctor collects the checks of one bam doctor run, in order, and the first
+// error among them, which decides the exit code.
+type doctor struct {
+	r      *runtime
+	ctx    context.Context
+	checks []check
+	first  error
+}
+
+func (d *doctor) add(name, status, detail string, err error) {
+	d.checks = append(d.checks, check{Name: name, Status: status, Detail: detail})
+	if err != nil && d.first == nil {
+		d.first = err
+	}
+}
+
+func (d *doctor) fail(name string, err error) {
+	detail := err.Error()
+	var e *errs.Error
+	if errors.As(err, &e) && e.Try != "" {
+		detail += " (try: " + e.Try + ")"
+	}
+	d.add(name, "error", detail, err)
+}
+
+// diagnose runs the checks in order; each one needs the ones before it, so
+// the first failure ends the run.
+func (d *doctor) diagnose(planKey string) {
+	cfg, err := d.r.config()
+	if err != nil {
+		d.fail("config", err)
+		return
+	}
+	d.add("config", "ok", configFiles(cfg), nil)
+
+	server, err := cfg.SelectServer(d.r.flags.server, "")
+	if err != nil {
+		d.fail("server", err)
+		return
+	}
+	origin, err := credential.Origin(server.URL)
+	if err != nil {
+		d.fail("server", err)
+		return
+	}
+	d.add("server", "ok", fmt.Sprintf("%s (%s)", server.Alias, server.URL), nil)
+
+	source, err := d.tokenSource(server, origin)
+	if err != nil {
+		d.fail("token", err)
+		return
+	}
+	d.add("token", "ok", source, nil)
+
+	_, backend, err := d.r.connectServer(server)
+	if err != nil {
+		d.fail("auth", err)
+		return
+	}
+	user, err := backend.CurrentUser(d.ctx)
+	if err != nil {
+		d.fail("auth", err)
+		return
+	}
+	d.add("auth", "ok", fmt.Sprintf("%s (%s)", user.Name, user.FullName), nil)
+
+	if planKey == "" {
+		if planKey, err = firstPlan(d.ctx, backend, cfg.ProjectKeys(server)); err != nil {
+			// A listing that failed is a failed diagnosis: reporting it as
+			// "no plan to probe" would exit 0 during an outage.
+			d.fail("capabilities", err)
+			return
+		}
+	}
+	if planKey == "" {
+		d.add("capabilities", "skipped", "no plan to probe; pass --plan KEY or set projects in .bam.yaml", nil)
+		return
+	}
+	for _, p := range backend.Probe(d.ctx, planKey) {
+		switch p.Status {
+		case bamboo.ProbeError:
+			d.fail(p.Name, p.Err)
+		case bamboo.ProbeUnsupported:
+			d.add(p.Name, string(p.Status), "not supported: "+p.Detail, nil)
+		default:
+			d.add(p.Name, string(p.Status), p.Detail, nil)
+		}
+	}
+}
+
+// configFiles lists the config files in effect, or says there are none.
+func configFiles(cfg *config.Config) string {
+	var files []string
+	if cfg.ProjectPath != "" {
+		files = append(files, cfg.ProjectPath)
+	}
+	for _, f := range []string{cfg.MachinePath, cfg.PresetsPath} {
+		if _, err := os.Stat(f); f != "" && err == nil {
+			files = append(files, f)
+		}
+	}
+	if len(files) == 0 {
+		return "no config file; settings come from the environment"
+	}
+	return strings.Join(files, ", ")
+}
+
+// tokenSource names where the server's token comes from.
+func (d *doctor) tokenSource(server config.ResolvedServer, origin string) (string, error) {
+	if server.Token != "" {
+		return "BAM_TOKEN", nil
+	}
+	_, src, err := d.r.lookupToken(server, origin)
+	if err != nil {
+		return "", err
+	}
+	if src == credential.SourceEnv {
+		return "$" + server.AuthEnv, nil
+	}
+	return string(src), nil
+}
+
+// firstPlan is the first plan of the first project, or "" when there is none.
+func firstPlan(ctx context.Context, backend Backend, projects []string) (string, error) {
+	if len(projects) == 0 {
+		return "", nil
+	}
+	plans, err := backend.ListPlans(ctx, projects[0])
+	if err != nil || len(plans) == 0 {
+		return "", err
+	}
+	return plans[0].Key, nil
 }
 
 func printChecks(r *runtime, checks []check) error {

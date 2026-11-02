@@ -10,11 +10,11 @@ bam works with Bamboo Data Center 9.x and later, using a personal access token. 
 
 ## Install on Ubuntu and WSL
 
-WSL runs Linux, so install the Linux build there, not the Windows one. Pick the newest version on the [releases page](https://github.com/r0jjames/bam-cli/releases) and put it in `v`:
+WSL runs Linux, so install the Linux build there, not the Windows one. Pick the newest version on the [releases page](https://github.com/rojcarranza/bam/releases) and put it in `v`:
 
     v=0.3.0
     mkdir -p ~/.local/bin
-    curl -fsSL "https://github.com/r0jjames/bam-cli/releases/download/v${v}/bam_${v}_linux_amd64.tar.gz" | tar -xz -C ~/.local/bin bam
+    curl -fsSL "https://github.com/rojcarranza/bam/releases/download/v${v}/bam_${v}_linux_amd64.tar.gz" | tar -xz -C ~/.local/bin bam
     bam version
 
 If `bam` is not found, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` and open a new terminal. With Go 1.26 or newer, `go install github.com/r0jjames/bam-cli/cmd/bam@latest` works too (it installs into `~/go/bin`).

@@ -74,8 +74,8 @@ func selectJobs(b provider.Build, o LogsOptions) ([]stagedJob, error) {
 		e := errs.Usagef("job %q is not in %s", o.Job, b.Key).WithWhy("jobs: " + strings.Join(names, ", "))
 		if byName != "" { // --job Integration: the user typed the job's name, not its key
 			e = e.WithTry("--job takes the job key: --job " + byName)
-		} else if c := errs.Closest(o.Job, keys, 1); len(c) > 0 {
-			e = e.WithTry("did you mean --job " + c[0] + "?")
+		} else if c := errs.Nearest(o.Job, keys); c != "" {
+			e = e.WithTry("did you mean --job " + c + "?")
 		}
 		if parts := strings.FieldsFunc(job, func(r rune) bool { return r == ',' || r == ' ' }); len(parts) > 1 {
 			e = e.WithTry("--job takes one job: --job " + strings.Join(parts, ", then --job ") + "; --failed reads every failed job")

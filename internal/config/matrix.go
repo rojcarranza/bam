@@ -1,7 +1,9 @@
 package config
 
 import (
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -32,32 +34,20 @@ func (r SetRun) Expand() []ExpandedRun {
 	out := make([]ExpandedRun, 0, len(entries))
 	for _, e := range entries {
 		vars := StringMap{}
-		for k, v := range r.Vars {
-			vars[k] = v
-		}
-		for k, v := range e {
-			vars[k] = v
-		}
+		maps.Copy(vars, r.Vars)
+		maps.Copy(vars, e)
 		out = append(out, ExpandedRun{Name: runName(r.Target, e), Target: r.Target, Vars: vars})
 	}
 	return out
 }
 
 func product(p map[string][]string) []StringMap {
-	keys := make([]string, 0, len(p))
-	for k := range p {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
 	out := []StringMap{{}}
-	for _, k := range keys {
+	for _, k := range slices.Sorted(maps.Keys(p)) {
 		var next []StringMap
 		for _, partial := range out {
 			for _, v := range p[k] {
-				e := StringMap{}
-				for pk, pv := range partial {
-					e[pk] = pv
-				}
+				e := maps.Clone(partial)
 				e[k] = v
 				next = append(next, e)
 			}
@@ -110,19 +100,19 @@ func (r SetRun) Size() int64 {
 // matrix value, without expanding the matrix. Keys go in sorted order, so
 // callers see the same sequence on every run.
 func (r SetRun) values(f func(name, value string)) {
-	for _, k := range sortedKeys(r.Vars) {
+	for _, k := range slices.Sorted(maps.Keys(r.Vars)) {
 		f(k, r.Vars[k])
 	}
 	if r.Matrix == nil {
 		return
 	}
-	for _, k := range sortedKeys(r.Matrix.Product) {
+	for _, k := range slices.Sorted(maps.Keys(r.Matrix.Product)) {
 		for _, v := range r.Matrix.Product[k] {
 			f(k, v)
 		}
 	}
 	for _, e := range r.Matrix.Sets {
-		for _, k := range sortedKeys(e) {
+		for _, k := range slices.Sorted(maps.Keys(e)) {
 			f(k, e[k])
 		}
 	}

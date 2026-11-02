@@ -5,8 +5,9 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"time"
+
+	"github.com/r0jjames/bam-cli/internal/atomicfile"
 )
 
 // LastRecord is the last build bam triggered from one repository. It holds no
@@ -52,14 +53,7 @@ func (s *StateStore) save(f stateFile) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0o700); err != nil {
-		return err
-	}
-	tmp := s.Path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(tmp, s.Path)
+	return atomicfile.Write(s.Path, data, 0o600)
 }
 
 // Last returns the record for a repository root.

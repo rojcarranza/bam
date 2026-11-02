@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"path/filepath"
@@ -77,13 +78,7 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if len(args) == 1 {
-				text, all := strings.ToLower(args[0]), infos
-				infos = nil
-				for _, t := range all {
-					if strings.Contains(strings.ToLower(t.Name), text) || strings.Contains(strings.ToLower(t.Plan), text) {
-						infos = append(infos, t)
-					}
-				}
+				infos = matching(infos, args[0], func(t app.TargetInfo) []string { return []string{t.Name, t.Plan} })
 			}
 			loc := r.presets()
 			if !r.flags.json {
@@ -93,26 +88,15 @@ func newTargetListCmd(r *runtime) *cobra.Command {
 					fmt.Fprintln(r.env.Stderr, "  note: "+loc.Note)
 				}
 			}
-			if r.flags.json {
-				docs := []view.TargetDoc{}
-				for _, t := range infos {
-					docs = append(docs, view.TargetJSON(t))
+			if !r.flags.json && len(infos) == 0 {
+				if len(args) == 1 {
+					r.note(fmt.Sprintf("no presets match %q", args[0]), "bam preset list")
+				} else {
+					r.noPresets(cfg)
 				}
-				return view.WriteJSON(r.env.Stdout, docs)
-			}
-			if len(infos) == 0 && len(args) == 1 {
-				r.note(fmt.Sprintf("no presets match %q", args[0]), "bam preset list")
 				return nil
 			}
-			if len(infos) == 0 {
-				r.noPresets(cfg)
-				return nil
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Targets(o, infos)
+			return r.show(view.Docs(infos, view.TargetJSON), func(o view.Out) error { return view.Targets(o, infos) })
 		}),
 	}
 }
@@ -149,21 +133,131 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.TargetJSON(info))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.TargetDetail(o, info)
+			return r.show(view.TargetJSON(info), func(o view.Out) error { return view.TargetDetail(o, info) })
 		}),
 	}
 }
 
+// presetAddFlags holds bam preset add's flags.
+type presetAddFlags struct {
+	plan, from, branch, file       string
+	shared, printOnly, force, full bool
+}
+
+// pageLink turns page links in --from and --plan into keys and returns the
+// link whose server bam connects to, or "" for the default server.
+func (f *presetAddFlags) pageLink() (link, linkKey string, err error) {
+	if key, ok := pageKey(f.from); ok {
+		link, linkKey, f.from = f.from, key, key
+	}
+	key, ok := pageKey(f.plan)
+	if !ok {
+		return link, linkKey, nil
+	}
+	if link == "" {
+		link, linkKey = f.plan, key
+	} else if a, b := originOf(link), originOf(f.plan); a != b {
+		return "", "", errs.Usagef("--plan is on %s but --from is on %s", b, a).
+			WithTry("pass links to the same server, or plain keys")
+	}
+	f.plan = key
+	return link, linkKey, nil
+}
+
+// originOf is the server origin of a link, or "" when it has none.
+func originOf(link string) string {
+	o, _ := credential.Origin(link)
+	return o
+}
+
+// check validates the flags on their own, before any network.
+func (f *presetAddFlags) check(r *runtime, name string) error {
+	if f.plan == "" && !app.IsBuildKey(f.from) {
+		try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", name)
+		switch up := strings.ToUpper(f.from); {
+		case app.IsBuildKey(up):
+			try = "keys are uppercase: did you mean --from " + up + "?"
+		case app.IsPlanKey(up):
+			try = fmt.Sprintf("bam preset add %s --plan %s; --from takes a build", name, up)
+		}
+		return errs.Usagef("--plan is required").WithTry(try)
+	}
+	if f.shared && f.file != "" {
+		return errs.Usagef("--shared and --file cannot be used together").
+			WithTry("--file for a file in your presets directory, --shared for .bam.yaml")
+	}
+	if f.file != "" {
+		if _, err := config.PresetsDirFile(r.presetsWritePath(), f.file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// save writes the preset to .bam.yaml with --shared, else to the presets
+// directory, and returns the file it wrote.
+func (f *presetAddFlags) save(r *runtime, d config.TargetDraft) (string, error) {
+	if !f.shared {
+		return r.writePreset(r.cfg, d, f.file, f.force)
+	}
+	path := r.cfg.ProjectPath
+	if path == "" {
+		return "", errs.Usagef("no .bam.yaml in this repository").
+			WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
+	}
+	return path, config.WriteTarget(path, []string{"targets"}, d, f.force)
+}
+
+func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error {
+	// A pasted page link names its server: connect there instead of the default.
+	link, linkKey, err := f.pageLink()
+	if err != nil {
+		return err
+	}
+	if err := f.check(r, name); err != nil {
+		return err
+	}
+	o := app.GenerateOptions{Name: name, PlanKey: f.plan, From: f.from, Branch: f.branch, Full: f.full}
+	if err := app.CheckGenerate(o); err != nil {
+		return err
+	}
+	var svc *app.Service
+	if link != "" {
+		svc, err = r.connectPage(link, linkKey)
+	} else {
+		svc, _, err = r.connect(cmd.Context(), "")
+	}
+	if err != nil {
+		return err
+	}
+	d, err := svc.GenerateTarget(cmd.Context(), o)
+	if err != nil {
+		return err
+	}
+	if f.printOnly {
+		key := "presets"
+		if f.shared {
+			key = "targets"
+		}
+		_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
+		return err
+	}
+	path, err := f.save(r, d)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
+	if d.Note != "" {
+		fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
+	}
+	if len(d.Vars) > 0 {
+		fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
+	}
+	return nil
+}
+
 func newTargetAddCmd(r *runtime) *cobra.Command {
-	var plan, from, branch, file string
-	var shared, printOnly, force, full bool
+	var fl presetAddFlags
 	cmd := &cobra.Command{
 		Use:        "add <name> --plan KEY",
 		Short:      "Generate a run preset from a plan's declared variables",
@@ -185,101 +279,18 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"  bam run deploy-qa --dry-run",
 		Args: cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			// A pasted page link names its server: connect there instead of the default.
-			link, linkKey := "", ""
-			if key, ok := pageKey(from); ok {
-				link, linkKey, from = from, key, key
-			}
-			if key, ok := pageKey(plan); ok {
-				if link != "" {
-					a, _ := credential.Origin(link)
-					if b, _ := credential.Origin(plan); a != b {
-						return errs.Usagef("--plan is on %s but --from is on %s", b, a).
-							WithTry("pass links to the same server, or plain keys")
-					}
-				} else {
-					link, linkKey = plan, key
-				}
-				plan = key
-			}
-			if plan == "" && !app.IsBuildKey(from) {
-				try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", args[0])
-				switch up := strings.ToUpper(from); {
-				case app.IsBuildKey(up):
-					try = "keys are uppercase: did you mean --from " + up + "?"
-				case app.IsPlanKey(up):
-					try = fmt.Sprintf("bam preset add %s --plan %s; --from takes a build", args[0], up)
-				}
-				return errs.Usagef("--plan is required").WithTry(try)
-			}
-			if shared && file != "" {
-				return errs.Usagef("--shared and --file cannot be used together").
-					WithTry("--file for a file in your presets directory, --shared for .bam.yaml")
-			}
-			if file != "" {
-				if _, err := config.PresetsDirFile(r.presetsWritePath(), file); err != nil {
-					return err
-				}
-			}
-			o := app.GenerateOptions{Name: args[0], PlanKey: plan, From: from, Branch: branch, Full: full}
-			if err := app.CheckGenerate(o); err != nil {
-				return err
-			}
-			var svc *app.Service
-			var err error
-			if link != "" {
-				svc, err = r.connectPage(link, linkKey)
-			} else {
-				svc, _, err = r.connect(cmd.Context(), "")
-			}
-			if err != nil {
-				return err
-			}
-			d, err := svc.GenerateTarget(cmd.Context(), o)
-			if err != nil {
-				return err
-			}
-			if printOnly {
-				key := "presets"
-				if shared {
-					key = "targets"
-				}
-				_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
-				return err
-			}
-			var path string
-			if shared {
-				path = r.cfg.ProjectPath
-				if path == "" {
-					return errs.Usagef("no .bam.yaml in this repository").
-						WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
-				}
-				err = config.WriteTarget(path, []string{"targets"}, d, force)
-			} else {
-				path, err = r.writePreset(r.cfg, d, file, force)
-			}
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
-			if d.Note != "" {
-				fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
-			}
-			if len(d.Vars) > 0 {
-				fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
-			}
-			return nil
+			return fl.run(r, cmd, args[0])
 		}),
 	}
 	f := cmd.Flags()
-	f.StringVar(&plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
-	f.StringVar(&from, "from", "", "build whose variable values fill the preset: number, key or last")
-	f.StringVar(&branch, "branch", "", "default branch for the preset; defaults to the --from build's branch")
-	f.BoolVar(&shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
-	f.StringVar(&file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
-	f.BoolVar(&printOnly, "print", false, "print the YAML and write nothing")
-	f.BoolVar(&force, "force", false, "replace an existing preset")
-	f.BoolVar(&full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
+	f.StringVar(&fl.plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
+	f.StringVar(&fl.from, "from", "", "build whose variable values fill the preset: number, key or last")
+	f.StringVar(&fl.branch, "branch", "", "default branch for the preset; defaults to the --from build's branch")
+	f.BoolVar(&fl.shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
+	f.StringVar(&fl.file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
+	f.BoolVar(&fl.printOnly, "print", false, "print the YAML and write nothing")
+	f.BoolVar(&fl.force, "force", false, "replace an existing preset")
+	f.BoolVar(&fl.full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }
@@ -369,8 +380,14 @@ func checkPresetElsewhere(cfg *config.Config, name, path string) error {
 	return nil
 }
 
+// presetSyncFlags holds bam preset sync's flags and runs it.
+type presetSyncFlags struct {
+	r           *runtime
+	all, dryRun bool
+}
+
 func newTargetSyncCmd(r *runtime) *cobra.Command {
-	var all, dryRun bool
+	s := &presetSyncFlags{r: r}
 	cmd := &cobra.Command{
 		Use:               "sync <name> | --all",
 		Short:             "Add new plan variables to a preset and mark removed ones",
@@ -378,76 +395,89 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 		Long:              "sync compares a preset with its plan's declared variables. New variables that preset add\nwould write (no plan default, or an empty secret) are added to the preset's variables (or\ndefaults, if the preset uses that older key) with the same values and comments. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
-		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			if (len(args) == 1) == all {
-				return errs.Usagef("pass a preset name or --all").WithTry("bam preset sync <name>, or bam preset sync --all")
-			}
-			cfg, err := r.config()
-			if err != nil {
-				return err
-			}
-			var targets []config.ResolvedTarget
-			if all {
-				m, err := cfg.Targets()
-				if err != nil {
-					return err
-				}
-				for _, name := range slices.Sorted(maps.Keys(m)) {
-					targets = append(targets, m[name])
-				}
-			} else {
-				t, ok, err := cfg.Target(args[0])
-				if err != nil {
-					return err
-				}
-				if !ok {
-					return app.UnknownTarget(cfg, args[0])
-				}
-				targets = append(targets, t)
-			}
-			if len(targets) == 0 {
-				r.noPresets(cfg)
-				return nil
-			}
-
-			services := map[string]*app.Service{}
-			var results []view.SyncResult
-			var worst error
-			wrote := false
-			for _, t := range targets {
-				res := r.syncTarget(cmd, cfg, services, t, dryRun)
-				if res.Err != nil && (worst == nil || exitCode(res.Err) > exitCode(worst)) {
-					worst = res.Err
-				}
-				wrote = wrote || res.Status == view.SyncSynced
-				results = append(results, res)
-			}
-			if r.flags.json {
-				if err := view.WriteJSON(r.env.Stdout, view.SyncJSON(results)); err != nil {
-					return err
-				}
-			} else {
-				o, err := r.out()
-				if err != nil {
-					return err
-				}
-				if err := view.Sync(o, results, dryRun); err != nil {
-					return err
-				}
-			}
-			if wrote {
-				fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
-			}
-			if worst != nil {
-				return silentError{worst}
-			}
-			return nil
-		}),
+		RunE:              r.wrap(s.run),
 	}
 	f := cmd.Flags()
-	f.BoolVar(&all, "all", false, "sync every preset")
-	f.BoolVar(&dryRun, "dry-run", false, "show the changes and write nothing")
+	f.BoolVar(&s.all, "all", false, "sync every preset")
+	f.BoolVar(&s.dryRun, "dry-run", false, "show the changes and write nothing")
 	return cmd
+}
+
+func (s *presetSyncFlags) run(cmd *cobra.Command, args []string) error {
+	r := s.r
+	if (len(args) == 1) == s.all {
+		return errs.Usagef("pass a preset name or --all").WithTry("bam preset sync <name>, or bam preset sync --all")
+	}
+	cfg, err := r.config()
+	if err != nil {
+		return err
+	}
+	targets, err := s.targets(cfg, args)
+	if err != nil {
+		return err
+	}
+	if len(targets) == 0 {
+		r.noPresets(cfg)
+		return nil
+	}
+	services := map[string]*app.Service{}
+	var results []view.SyncResult
+	var worst error
+	wrote := false
+	for _, t := range targets {
+		res := r.syncTarget(cmd, cfg, services, t, s.dryRun)
+		if res.Err != nil && (worst == nil || exitCode(res.Err) > exitCode(worst)) {
+			worst = res.Err
+		}
+		wrote = wrote || res.Status == view.SyncSynced
+		results = append(results, res)
+	}
+	if err := s.print(results); err != nil {
+		return err
+	}
+	if wrote {
+		fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
+	}
+	if worst != nil {
+		return silentError{worst}
+	}
+	return nil
+}
+
+// targets returns the presets to sync: the named one, or every preset sorted
+// by name with --all.
+func (s *presetSyncFlags) targets(cfg *config.Config, args []string) ([]config.ResolvedTarget, error) {
+	if !s.all {
+		t, ok, err := cfg.Target(args[0])
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, app.UnknownTarget(cfg, args[0])
+		}
+		return []config.ResolvedTarget{t}, nil
+	}
+	m, err := cfg.Targets()
+	if err != nil {
+		return nil, err
+	}
+	var targets []config.ResolvedTarget
+	for _, name := range slices.Sorted(maps.Keys(m)) {
+		targets = append(targets, m[name])
+	}
+	return targets, nil
+}
+
+// print writes the sync results as JSON or a text table.
+func (s *presetSyncFlags) print(results []view.SyncResult) error {
+	if s.r.flags.json {
+		return view.WriteJSON(s.r.env.Stdout, view.SyncJSON(results))
+	}
+	o, err := s.r.out()
+	if err != nil {
+		return err
+	}
+	return view.Sync(o, results, s.dryRun)
 }
 
 // syncTarget plans and applies the sync of one target. Errors land in the
@@ -529,10 +559,123 @@ func initTry(alias, url string, projects, plans []string) string {
 	return try
 }
 
+// initFlags are bam init's flags.
+type initFlags struct {
+	url             string
+	projects, plans []string
+	force           bool
+}
+
+// try is the corrected bam init command line for an error's try hint.
+func (f *initFlags) try(alias, url string) string { return initTry(alias, url, f.projects, f.plans) }
+
+// checkAlias rejects a missing --server, suggesting the server bam would
+// pick anyway, and the reserved env alias, which .bam.yaml cannot name.
+func (f *initFlags) checkAlias(r *runtime, alias string) error {
+	if alias != "" && alias != config.EnvServerAlias {
+		return nil
+	}
+	cfg, cerr := r.config()
+	if alias == "" {
+		// BAM_URL has no alias, so offer its URL instead.
+		suggest, u := "work", f.url
+		if cerr == nil {
+			if s, err := cfg.SelectServer("", ""); err == nil {
+				if s.Alias != config.EnvServerAlias {
+					suggest = s.Alias
+				} else if u == "" {
+					u = s.URL
+				}
+			}
+		}
+		return errs.Usagef("--server ALIAS is required").WithTry(f.try(suggest, u))
+	}
+	// A .bam.yaml naming env fails validation and breaks every later command.
+	u := f.url
+	if cerr == nil && u == "" {
+		u = cfg.Servers()[alias].URL
+	}
+	return errs.Usagef("server alias %q is reserved", alias).
+		WithWhy("env is the server defined by BAM_URL; .bam.yaml needs a named server").
+		WithTry(f.try("work", u))
+}
+
+// planOptions checks every --plan before connecting, so a typo fails offline.
+func (f *initFlags) planOptions() ([]app.GenerateOptions, error) {
+	var opts []app.GenerateOptions
+	for _, p := range f.plans {
+		key, name, _ := strings.Cut(p, "=")
+		o := app.GenerateOptions{Name: name, PlanKey: key, Full: true}
+		if name == "" {
+			o.Name = defaultTargetName(key)
+		}
+		if err := app.CheckGenerate(o); err != nil {
+			if name == "" && !config.ValidTargetName(o.Name) {
+				return nil, errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
+			}
+			return nil, err
+		}
+		opts = append(opts, o)
+	}
+	return opts, nil
+}
+
+// serverURL is --url, or the machine config's URL for alias.
+func (f *initFlags) serverURL(cfg *config.Config, alias string) (string, error) {
+	// Same normalisation as server add, so .bam.yaml never stores http://host/.
+	url := strings.TrimRight(strings.TrimSpace(f.url), "/")
+	if url == "" {
+		url = cfg.Servers()[alias].URL
+	}
+	if url == "" {
+		try := fmt.Sprintf("pass --url, or bam server add %s --url URL", alias)
+		if near := errs.NearestKey(alias, cfg.Servers()); near != "" {
+			try = "did you mean " + f.try(near, "") + "? Or pass --url to add " + alias
+		}
+		return "", errs.Configf("no URL for server alias %q", alias).WithTry(try)
+	}
+	if _, err := credential.Origin(url); err != nil {
+		return "", schemeTry(err, url, func(u string) string { return f.try(alias, u) })
+	}
+	return url, nil
+}
+
+// sameOrigin reports whether both URLs parse to the same origin.
+func sameOrigin(a, b string) bool {
+	oa, aerr := credential.Origin(a)
+	ob, berr := credential.Origin(b)
+	return aerr == nil && berr == nil && oa == ob
+}
+
+// initDrafts connects to the server and generates one preset per --plan.
+func initDrafts(ctx context.Context, r *runtime, known config.ResolvedServer, alias, url string, opts []app.GenerateOptions) ([]config.TargetDraft, error) {
+	if len(opts) == 0 {
+		return nil, nil
+	}
+	// known.AuthEnv was learned for known.URL; only carry it over when --url
+	// still resolves to that same origin, so a --url override never pairs a
+	// stored env token with a host it was not created for.
+	authEnv := known.AuthEnv
+	if authEnv != "" && !sameOrigin(known.URL, url) {
+		authEnv = ""
+	}
+	svc, _, err := r.connectServer(config.ResolvedServer{Alias: alias, URL: url, AuthEnv: authEnv})
+	if err != nil {
+		return nil, err
+	}
+	var drafts []config.TargetDraft
+	for _, o := range opts {
+		d, err := svc.GenerateTarget(ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		drafts = append(drafts, d)
+	}
+	return drafts, nil
+}
+
 func newInitCmd(r *runtime) *cobra.Command {
-	var url string
-	var projects, plans []string
-	var force bool
+	var fl initFlags
 	cmd := &cobra.Command{
 		Use:        "init --server ALIAS --project KEY [--plan KEY[=name]]...",
 		Short:      "Write .bam.yaml for this repository, with generated presets",
@@ -541,100 +684,33 @@ func newInitCmd(r *runtime) *cobra.Command {
 		Args:       cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			alias := r.flags.server
-			if alias == "" {
-				// Suggest the server bam would pick anyway; BAM_URL has no alias, so offer its URL.
-				suggest, u := "work", url
-				if cfg, err := r.config(); err == nil {
-					if s, err := cfg.SelectServer("", ""); err == nil {
-						if s.Alias != config.EnvServerAlias {
-							suggest = s.Alias
-						} else if u == "" {
-							u = s.URL
-						}
-					}
-				}
-				return errs.Usagef("--server ALIAS is required").WithTry(initTry(suggest, u, projects, plans))
-			}
-			if alias == config.EnvServerAlias {
-				// A .bam.yaml naming env fails validation and breaks every later command.
-				u := url
-				if cfg, err := r.config(); err == nil && u == "" {
-					u = cfg.Servers()[alias].URL
-				}
-				return errs.Usagef("server alias %q is reserved", alias).
-					WithWhy("env is the server defined by BAM_URL; .bam.yaml needs a named server").
-					WithTry(initTry("work", u, projects, plans))
-			}
-			if len(projects) == 0 {
-				return errs.Usagef("--project is required").WithTry(initTry(alias, url, projects, plans))
-			}
-			if err := checkProjectKeys(projects); err != nil {
+			if err := fl.checkAlias(r, alias); err != nil {
 				return err
 			}
-			// Check every --plan before connecting, so a typo fails offline.
-			var opts []app.GenerateOptions
-			for _, p := range plans {
-				key, name, _ := strings.Cut(p, "=")
-				o := app.GenerateOptions{Name: name, PlanKey: key, Full: true}
-				if name == "" {
-					o.Name = defaultTargetName(key)
-				}
-				if err := app.CheckGenerate(o); err != nil {
-					if name == "" && !config.ValidTargetName(o.Name) {
-						return errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
-					}
-					return err
-				}
-				opts = append(opts, o)
+			if len(fl.projects) == 0 {
+				return errs.Usagef("--project is required").WithTry(fl.try(alias, fl.url))
+			}
+			if err := checkProjectKeys(fl.projects); err != nil {
+				return err
+			}
+			opts, err := fl.planOptions()
+			if err != nil {
+				return err
 			}
 			cfg, err := r.config()
 			if err != nil {
 				return err
 			}
+			url, err := fl.serverURL(cfg, alias)
+			if err != nil {
+				return err
+			}
+			drafts, err := initDrafts(cmd.Context(), r, cfg.Servers()[alias], alias, url, opts)
+			if err != nil {
+				return err
+			}
 			path := filepath.Join(cfg.RepoRoot, config.ProjectFileName)
-			known := cfg.Servers()[alias]
-			// Same normalisation as server add, so .bam.yaml never stores http://host/.
-			url = strings.TrimRight(strings.TrimSpace(url), "/")
-			if url == "" {
-				url = known.URL
-			}
-			if url == "" {
-				try := fmt.Sprintf("pass --url, or bam server add %s --url URL", alias)
-				if near := errs.Closest(alias, slices.Sorted(maps.Keys(cfg.Servers())), 1); len(near) > 0 {
-					try = "did you mean " + initTry(near[0], "", projects, plans) + "? Or pass --url to add " + alias
-				}
-				return errs.Configf("no URL for server alias %q", alias).WithTry(try)
-			}
-			if _, err := credential.Origin(url); err != nil {
-				return schemeTry(err, url, func(u string) string { return initTry(alias, u, projects, plans) })
-			}
-			var drafts []config.TargetDraft
-			if len(plans) > 0 {
-				// known.AuthEnv was learned for known.URL; only carry it over
-				// when --url still resolves to that same origin, so a --url
-				// override never pairs a stored env token with a host it
-				// was not created for.
-				authEnv := known.AuthEnv
-				if authEnv != "" {
-					knownOrigin, kerr := credential.Origin(known.URL)
-					newOrigin, nerr := credential.Origin(url)
-					if kerr != nil || nerr != nil || knownOrigin != newOrigin {
-						authEnv = ""
-					}
-				}
-				svc, _, err := r.connectServer(config.ResolvedServer{Alias: alias, URL: url, AuthEnv: authEnv})
-				if err != nil {
-					return err
-				}
-				for _, o := range opts {
-					d, err := svc.GenerateTarget(cmd.Context(), o)
-					if err != nil {
-						return err
-					}
-					drafts = append(drafts, d)
-				}
-			}
-			if err := config.WriteInitFile(path, config.InitFile{ServerAlias: alias, ServerURL: url, Projects: projects}, drafts, force); err != nil {
+			if err := config.WriteInitFile(path, config.InitFile{ServerAlias: alias, ServerURL: url, Projects: fl.projects}, drafts, fl.force); err != nil {
 				return err
 			}
 			fmt.Fprintf(r.env.Stdout, "wrote %s\n", path)
@@ -645,14 +721,14 @@ func newInitCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	f := cmd.Flags()
-	f.StringVar(&url, "url", "", "server URL (default: the URL of --server in the machine config)")
-	f.StringSliceVar(&projects, "project", nil, "project key (repeatable; the first is the default)")
-	f.StringArrayVar(&plans, "plan", nil, "plan to generate a preset from, KEY or KEY=name (repeatable)")
+	f.StringVar(&fl.url, "url", "", "server URL (default: the URL of --server in the machine config)")
+	f.StringSliceVar(&fl.projects, "project", nil, "project key (repeatable; the first is the default)")
+	f.StringArrayVar(&fl.plans, "plan", nil, "plan to generate a preset from, KEY or KEY=name (repeatable)")
 	_ = cmd.RegisterFlagCompletionFunc("project", func(c *cobra.Command, _ []string, s string) ([]string, cobra.ShellCompDirective) {
-		return r.completeProjects(c, projects, s)
+		return r.completeProjects(c, fl.projects, s)
 	})
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
-	f.BoolVar(&force, "force", false, "overwrite an existing .bam.yaml")
+	f.BoolVar(&fl.force, "force", false, "overwrite an existing .bam.yaml")
 	return cmd
 }
 
@@ -695,15 +771,11 @@ func newPresetMigrateCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if r.flags.json {
-				doc := migrateDoc{PresetsFile: presets, MachineFile: machine, DryRun: dryRun,
-					Moved: []migrateMoveDoc{}, Skipped: []migrateSkipDoc{}}
-				for _, m := range res.Moved {
-					doc.Moved = append(doc.Moved, migrateMoveDoc{Name: m.Name, From: m.From})
-				}
-				for _, s := range res.Skipped {
-					doc.Skipped = append(doc.Skipped, migrateSkipDoc{Name: s.Name, From: s.From, Reason: s.Reason})
-				}
-				return view.WriteJSON(r.env.Stdout, doc)
+				return view.WriteJSON(r.env.Stdout, migrateDoc{PresetsFile: presets, MachineFile: machine, DryRun: dryRun,
+					Moved: view.Docs(res.Moved, func(m config.MigrateMove) migrateMoveDoc { return migrateMoveDoc{Name: m.Name, From: m.From} }),
+					Skipped: view.Docs(res.Skipped, func(s config.MigrateSkip) migrateSkipDoc {
+						return migrateSkipDoc{Name: s.Name, From: s.From, Reason: s.Reason}
+					})})
 			}
 			if len(res.Moved) == 0 && len(res.Skipped) == 0 {
 				fmt.Fprintf(r.env.Stdout, "no presets to migrate in %s\n", machine)

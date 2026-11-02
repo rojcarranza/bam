@@ -375,9 +375,7 @@ func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int
 // could not be read keeps what was found before.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
 	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks, covered: sc.covered}
-	for plan, bs := range sc.builds {
-		out.builds[plan] = bs
-	}
+	maps.Copy(out.builds, sc.builds)
 	for plan, fresh := range got {
 		byKey := map[string]provider.Build{}
 		for _, b := range out.builds[plan] {
@@ -664,74 +662,10 @@ type TreeEvent struct {
 // search got; o.OnProgress is not called. Ending ctx stops watching; no
 // build is stopped.
 func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-chan TreeEvent {
-	ch := make(chan TreeEvent, 4)
+	w := &treeWatch{s: s, ch: make(chan TreeEvent, 4), key: key, o: o, done: map[string]provider.Build{}}
 	go func() {
-		defer close(ch)
-		send := func(e TreeEvent) bool {
-			e.Time = s.Clock.Now()
-			select {
-			case ch <- e:
-				return true
-			case <-ctx.Done():
-				return false
-			}
-		}
-		done := map[string]provider.Build{}
-		noProgress := false
-		var last, settled string
-		var scan *treeScan
-		fails := 0
-		for {
-			ro := o
-			ro.track = nil
-			if scan == nil {
-				// The first refresh is the slow one: say how far it got. A
-				// full channel drops the snapshot rather than hold up the
-				// load; a newer one follows.
-				ro.track = newTreeTracker(func(p TreeProgress) {
-					select {
-					case ch <- TreeEvent{Type: TreeLoading, Time: s.Clock.Now(), Progress: p}:
-					default:
-					}
-				})
-			}
-			t, next, err := s.buildTree(ctx, key, ro, done, scan)
-			if ctx.Err() != nil {
-				return
-			}
-			if err != nil {
-				fails++
-				// The first refresh, or an error retrying cannot fix (a
-				// mistyped build, a bad children map, a refused token),
-				// ends the watch at once.
-				if scan == nil || permanentTreeErr(err) || fails >= treeTries {
-					send(TreeEvent{Type: TreeError, Err: err})
-					return
-				}
-			} else {
-				scan, fails = next, 0
-				t.Root.Walk(func(n *TreeNode, _ int) {
-					if !n.NotRun && !n.Loop && TreeFinished(n.Build.State) {
-						done[n.Build.Key] = n.Build
-					}
-				})
-				s.estimateTree(ctx, t, &noProgress)
-				sig := treeSignature(t)
-				if sig != last {
-					if !send(TreeEvent{Type: TreeUpdate, Tree: t}) {
-						return
-					}
-					last = sig
-				}
-				if t.State == provider.StateRunning || scan.unresolved() {
-					settled = ""
-				} else if settled == sig || endedBefore(t, s.Clock.Now().Add(-treeQuiet)) {
-					send(TreeEvent{Type: TreeDone, Tree: t})
-					return
-				} else {
-					settled = sig
-				}
-			}
+		defer close(w.ch)
+		for w.refresh(ctx) {
 			select {
 			case <-ctx.Done():
 				return
@@ -739,7 +673,103 @@ func (s *Service) WatchTree(ctx context.Context, key string, o TreeOptions) <-ch
 			}
 		}
 	}()
-	return ch
+	return w.ch
+}
+
+// treeWatch is the state WatchTree keeps between refreshes.
+type treeWatch struct {
+	s   *Service
+	ch  chan TreeEvent
+	key string
+	o   TreeOptions
+
+	done          map[string]provider.Build // finished builds, not read again
+	scan          *treeScan                 // nil until the first tree
+	noProgress    bool                      // Bamboo has no build estimates
+	last, settled string                    // signatures of the last sent and the last finished tree
+	fails         int                       // failed refreshes in a row
+}
+
+// send emits e unless ctx ends first, and reports whether it did.
+func (w *treeWatch) send(ctx context.Context, e TreeEvent) bool {
+	e.Time = w.s.Clock.Now()
+	select {
+	case w.ch <- e:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+// options are the tree options for the next refresh. The first refresh
+// is the slow one: it says how far it got. A full channel drops the
+// snapshot rather than hold up the load; a newer one follows.
+func (w *treeWatch) options() TreeOptions {
+	ro := w.o
+	ro.track = nil
+	if w.scan == nil {
+		ro.track = newTreeTracker(func(p TreeProgress) {
+			select {
+			case w.ch <- TreeEvent{Type: TreeLoading, Time: w.s.Clock.Now(), Progress: p}:
+			default:
+			}
+		})
+	}
+	return ro
+}
+
+// refresh reads the tree once and sends what changed. It reports whether
+// the watch goes on.
+func (w *treeWatch) refresh(ctx context.Context) bool {
+	t, next, err := w.s.buildTree(ctx, w.key, w.options(), w.done, w.scan)
+	if ctx.Err() != nil {
+		return false
+	}
+	if err != nil {
+		return w.failed(ctx, err)
+	}
+	w.scan, w.fails = next, 0
+	return w.update(ctx, t)
+}
+
+// failed counts a failed refresh. The first refresh, an error retrying
+// cannot fix (a mistyped build, a bad children map, a refused token), or
+// treeTries failures in a row end the watch.
+func (w *treeWatch) failed(ctx context.Context, err error) bool {
+	w.fails++
+	if w.scan == nil || permanentTreeErr(err) || w.fails >= treeTries {
+		w.send(ctx, TreeEvent{Type: TreeError, Err: err})
+		return false
+	}
+	return true
+}
+
+// update records the finished builds of t, sends t if it changed, and
+// ends the watch once t has settled.
+func (w *treeWatch) update(ctx context.Context, t Tree) bool {
+	t.Root.Walk(func(n *TreeNode, _ int) {
+		if !n.NotRun && !n.Loop && TreeFinished(n.Build.State) {
+			w.done[n.Build.Key] = n.Build
+		}
+	})
+	w.s.estimateTree(ctx, t, &w.noProgress)
+	sig := treeSignature(t)
+	if sig != w.last {
+		if !w.send(ctx, TreeEvent{Type: TreeUpdate, Tree: t}) {
+			return false
+		}
+		w.last = sig
+	}
+	switch {
+	case t.State == provider.StateRunning || w.scan.unresolved():
+		w.settled = ""
+	case w.settled == sig || endedBefore(t, w.s.Clock.Now().Add(-treeQuiet)):
+		w.send(ctx, TreeEvent{Type: TreeDone, Tree: t})
+		return false
+	default:
+		w.settled = sig
+	}
+	return true
 }
 
 // endedBefore reports whether every build in t has a finish time before

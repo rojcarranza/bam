@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -109,95 +109,115 @@ func (s *Service) ResolveVars(ctx context.Context, ref PlanRef, o VarOptions) (V
 // values. It applies no rules, so a required variable left empty is not an
 // error here.
 func (s *Service) VarBase(ctx context.Context, ref PlanRef, from string) (VarSet, error) {
-	var set VarSet
-	vars := map[string]*ResolvedVar{}
-	declaredNames := map[string]bool{}
+	b := varBuilder{vars: map[string]*ResolvedVar{}, set: VarSet{Declared: map[string]bool{}}}
 
 	declared, err := s.P.ListVariables(ctx, ref.MasterKey)
 	switch {
 	case err == nil:
-		set.DeclaredKnown = true
+		b.set.DeclaredKnown = true
 	case errors.Is(err, errs.ErrUnsupported):
 	default:
 		return VarSet{}, err
 	}
 	for _, d := range declared {
-		declaredNames[d.Name] = true
-		vars[d.Name] = &ResolvedVar{Name: d.Name, Value: d.Value, PlanValue: d.Value, Source: "plan",
+		b.set.Declared[d.Name] = true
+		b.vars[d.Name] = &ResolvedVar{Name: d.Name, Value: d.Value, PlanValue: d.Value, Source: "plan",
 			Declared: true, Secret: d.Masked || config.IsMaskedName(d.Name)}
 	}
-	get := func(name string) *ResolvedVar {
-		v, ok := vars[name]
-		if !ok {
-			v = &ResolvedVar{Name: name, Secret: config.IsMaskedName(name)}
-			vars[name] = v
-		}
-		return v
+	if ref.Target != nil {
+		b.defaults(ref.Target.Defaults)
 	}
-	t := ref.Target
-	inTarget := func(name string) bool {
-		if t == nil {
-			return false
-		}
-		_, ok := t.Defaults[name]
-		return ok
-	}
-
-	if t != nil {
-		for name, val := range t.Defaults {
-			v := get(name)
-			v.Value, v.Source = val, "preset"
-			// A ${ENV} default is secret whatever the name looks like:
-			// ValidateVars will mark it when it resolves it, and the run
-			// form builds its fields from this base, before that happens.
-			if _, ok := config.EnvRef(val); ok {
-				v.Secret = true
-			}
-		}
-	}
-
 	if from != "" {
-		key, err := s.ResolveFrom(ctx, ref, from)
-		if err != nil {
+		if err := s.varsFrom(ctx, ref, from, &b); err != nil {
 			return VarSet{}, err
-		}
-		bv, err := s.P.BuildVariables(ctx, key)
-		if errors.Is(err, errs.ErrUnsupported) {
-			return VarSet{}, errs.Bamboof("cannot reuse variables of %s", key).
-				WithWhy("this Bamboo server does not return the variables a build used").
-				WithTry("pass the values with --var")
-		}
-		if err != nil {
-			return VarSet{}, err
-		}
-		set.FromBuild = key
-		label := "from " + BuildLabel(key)
-		for _, name := range sortedNames(bv) {
-			val := bv[name]
-			if set.DeclaredKnown && !declaredNames[name] && !inTarget(name) {
-				continue
-			}
-			if val == MaskedDisplay {
-				keep := "leaving it unset"
-				if v, ok := vars[name]; ok {
-					keep = "keeping the " + v.Source + " value"
-				}
-				set.Warnings = append(set.Warnings, fmt.Sprintf("%s is masked in %s; %s", name, key, keep))
-				continue
-			}
-			v := get(name)
-			v.Value, v.Source = val, label
-		}
-		if !set.DeclaredKnown {
-			set.Warnings = append(set.Warnings, fmt.Sprintf("plan variables of %s cannot be listed; took every variable of %s", ref.MasterKey, key))
 		}
 	}
 
-	set.Declared = declaredNames
-	for _, name := range sortedNames(vars) {
-		set.Vars = append(set.Vars, *vars[name])
+	for _, name := range slices.Sorted(maps.Keys(b.vars)) {
+		b.set.Vars = append(b.set.Vars, *b.vars[name])
 	}
-	return set, nil
+	return b.set, nil
+}
+
+// varBuilder collects the variables VarBase layers, keyed by name.
+type varBuilder struct {
+	set  VarSet
+	vars map[string]*ResolvedVar
+	// targetDefaults are the target's defaults, so --from can keep a build value
+	// for a name the plan does not declare but the target does.
+	targetDefaults map[string]string
+}
+
+// get returns the variable called name, adding an undeclared one if needed.
+func (b *varBuilder) get(name string) *ResolvedVar {
+	v, ok := b.vars[name]
+	if !ok {
+		v = &ResolvedVar{Name: name, Secret: config.IsMaskedName(name)}
+		b.vars[name] = v
+	}
+	return v
+}
+
+// defaults layers the target's defaults over the plan values.
+func (b *varBuilder) defaults(defaults map[string]string) {
+	b.targetDefaults = defaults
+	for name, val := range defaults {
+		v := b.get(name)
+		v.Value, v.Source = val, "preset"
+		// A ${ENV} default is secret whatever the name looks like:
+		// ValidateVars will mark it when it resolves it, and the run
+		// form builds its fields from this base, before that happens.
+		if _, ok := config.EnvRef(val); ok {
+			v.Secret = true
+		}
+	}
+}
+
+// varsFrom layers the values of the build from refers to.
+func (s *Service) varsFrom(ctx context.Context, ref PlanRef, from string, b *varBuilder) error {
+	key, err := s.ResolveFrom(ctx, ref, from)
+	if err != nil {
+		return err
+	}
+	bv, err := s.P.BuildVariables(ctx, key)
+	if errors.Is(err, errs.ErrUnsupported) {
+		return errs.Bamboof("cannot reuse variables of %s", key).
+			WithWhy("this Bamboo server does not return the variables a build used").
+			WithTry("pass the values with --var")
+	}
+	if err != nil {
+		return err
+	}
+	b.set.FromBuild = key
+	b.build(key, bv)
+	if !b.set.DeclaredKnown {
+		b.set.Warnings = append(b.set.Warnings, fmt.Sprintf("plan variables of %s cannot be listed; took every variable of %s", ref.MasterKey, key))
+	}
+	return nil
+}
+
+// build layers the variables bv that build key used. When the plan's
+// variables are known, it takes only declared names and the target's
+// defaults; a masked value keeps what is already there.
+func (b *varBuilder) build(key string, bv map[string]string) {
+	label := "from " + BuildLabel(key)
+	for _, name := range slices.Sorted(maps.Keys(bv)) {
+		val := bv[name]
+		_, inTarget := b.targetDefaults[name]
+		if b.set.DeclaredKnown && !b.set.Declared[name] && !inTarget {
+			continue
+		}
+		if val == MaskedDisplay {
+			keep := "leaving it unset"
+			if v, ok := b.vars[name]; ok {
+				keep = "keeping the " + v.Source + " value"
+			}
+			b.set.Warnings = append(b.set.Warnings, fmt.Sprintf("%s is masked in %s; %s", name, key, keep))
+			continue
+		}
+		v := b.get(name)
+		v.Value, v.Source = val, label
+	}
 }
 
 // Edit is one variable changed in bam run --edit's editor.
@@ -263,8 +283,8 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 		}
 		warned[name] = true
 		w := fmt.Sprintf("%s is not a declared variable of %s", name, ref.MasterKey)
-		if c := errs.Closest(name, sortedNames(base.Declared), 1); len(c) > 0 {
-			w += "; did you mean " + c[0] + "?"
+		if c := errs.NearestKey(name, base.Declared); c != "" {
+			w += "; did you mean " + c + "?"
 		}
 		set.Warnings = append(set.Warnings, w)
 	}
@@ -287,7 +307,7 @@ func applyInputs(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet
 		v.Value, v.Source = e.Value, "edit"
 	}
 
-	for _, name := range sortedNames(vars) {
+	for _, name := range slices.Sorted(maps.Keys(vars)) {
 		set.Vars = append(set.Vars, *vars[name])
 	}
 	return set, nil
@@ -303,50 +323,78 @@ func checkRules(ref PlanRef, set VarSet, getenv func(string) string) (VarSet, er
 	for i := range out.Vars {
 		v := &out.Vars[i]
 		vars[v.Name] = v
-		if v.Source != "preset" && v.Source != "edit" {
-			continue
-		}
-		if envName, ok := config.EnvRef(v.Value); ok {
-			val := getenv(envName)
-			if val == "" {
-				return VarSet{}, errs.Usagef("variable %s needs environment variable %s, which is not set", v.Name, envName).
-					WithTry(fmt.Sprintf("export %s=..., or pass --var %s=VALUE", envName, v.Name))
-			}
-			v.Value, v.Source, v.Secret = val, "env", true
+		if err := resolveEnvRef(v, getenv); err != nil {
+			return VarSet{}, err
 		}
 	}
 	if t := ref.Target; t != nil {
-		for _, name := range t.Required {
-			if v, ok := vars[name]; !ok || v.Value == "" {
-				e := errs.Usagef("%s is required by preset %s", name, t.Name).
-					WithTry(fmt.Sprintf("--var %s=VALUE", name))
-				// Variable names are case-sensitive: --var Env=dev does not set env.
-				for _, other := range out.Vars {
-					if other.Name != name && other.Value != "" && strings.EqualFold(other.Name, name) {
-						e = e.WithWhy(fmt.Sprintf("%s is set, but names are case-sensitive", other.Name)).
-							WithTry(fmt.Sprintf("--var %s=%s", name, other.Display()))
-						break
-					}
-				}
-				return VarSet{}, e
-			}
+		if err := checkRequired(t, vars, out.Vars); err != nil {
+			return VarSet{}, err
 		}
-		for _, name := range sortedNames(t.Options) {
-			v, ok := vars[name]
-			if !ok || v.Value == "" {
-				continue
-			}
-			if !slices.Contains(t.Options[name], v.Value) {
-				e := errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
-					WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
-				if c := errs.Closest(v.Value, t.Options[name], 1); len(c) > 0 {
-					e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c[0]))
-				}
-				return VarSet{}, e
-			}
+		if err := checkOptions(t, vars); err != nil {
+			return VarSet{}, err
 		}
 	}
 	return out, nil
+}
+
+// resolveEnvRef replaces a ${ENV} value of a preset default or an edit with
+// the environment value and marks it secret. Other sources are left alone.
+func resolveEnvRef(v *ResolvedVar, getenv func(string) string) error {
+	if v.Source != "preset" && v.Source != "edit" {
+		return nil
+	}
+	envName, ok := config.EnvRef(v.Value)
+	if !ok {
+		return nil
+	}
+	val := getenv(envName)
+	if val == "" {
+		return errs.Usagef("variable %s needs environment variable %s, which is not set", v.Name, envName).
+			WithTry(fmt.Sprintf("export %s=..., or pass --var %s=VALUE", envName, v.Name))
+	}
+	v.Value, v.Source, v.Secret = val, "env", true
+	return nil
+}
+
+// checkRequired fails on the first name the preset requires that has no
+// value. all is every variable, used to spot a case-only misspelling.
+func checkRequired(t *config.ResolvedTarget, vars map[string]*ResolvedVar, all []ResolvedVar) error {
+	for _, name := range t.Required {
+		if v, ok := vars[name]; ok && v.Value != "" {
+			continue
+		}
+		e := errs.Usagef("%s is required by preset %s", name, t.Name).
+			WithTry(fmt.Sprintf("--var %s=VALUE", name))
+		// Variable names are case-sensitive: --var Env=dev does not set env.
+		for _, other := range all {
+			if other.Name != name && other.Value != "" && strings.EqualFold(other.Name, name) {
+				e = e.WithWhy(fmt.Sprintf("%s is set, but names are case-sensitive", other.Name)).
+					WithTry(fmt.Sprintf("--var %s=%s", name, other.Display()))
+				break
+			}
+		}
+		return e
+	}
+	return nil
+}
+
+// checkOptions fails on the first set variable, by name, whose value is not
+// one the preset allows.
+func checkOptions(t *config.ResolvedTarget, vars map[string]*ResolvedVar) error {
+	for _, name := range slices.Sorted(maps.Keys(t.Options)) {
+		v, ok := vars[name]
+		if !ok || v.Value == "" || slices.Contains(t.Options[name], v.Value) {
+			continue
+		}
+		e := errs.Usagef("%s=%q is not allowed by preset %s", name, v.Display(), t.Name).
+			WithWhy("allowed: " + strings.Join(t.Options[name], ", "))
+		if c := errs.Nearest(v.Value, t.Options[name]); c != "" {
+			e = e.WithTry(fmt.Sprintf("did you mean --var %s=%s?", name, c))
+		}
+		return e
+	}
+	return nil
 }
 
 // VarRow is one line of bam plan vars.
@@ -395,20 +443,11 @@ func (s *Service) PlanVars(ctx context.Context, ref PlanRef, from string) (PlanV
 		}
 	case errors.Is(err, errs.ErrUnsupported):
 		res.Warnings = append(res.Warnings, fmt.Sprintf("plan variables of %s cannot be listed; showing the variables of %s", ref.MasterKey, res.FromBuild))
-		for _, name := range sortedNames(used) {
+		for _, name := range slices.Sorted(maps.Keys(used)) {
 			res.Rows = append(res.Rows, VarRow{Name: name, LastUsed: used[name], Masked: config.IsMaskedName(name) || used[name] == MaskedDisplay})
 		}
 	default:
 		return res, err
 	}
 	return res, nil
-}
-
-func sortedNames[M ~map[string]V, V any](m M) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

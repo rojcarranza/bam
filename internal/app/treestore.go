@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/r0jjames/bam-cli/internal/atomicfile"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
@@ -134,21 +135,7 @@ func (s *TreeStore) save(origin string, trees map[string]savedTree) {
 	if err != nil {
 		return
 	}
-	p := s.path(origin)
-	if os.MkdirAll(filepath.Dir(p), 0o700) != nil {
-		return
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(p), filepath.Base(p)+".*.tmp")
-	if err != nil {
-		return
-	}
-	_, err = tmp.Write(data)
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil || os.Rename(tmp.Name(), p) != nil {
-		_ = os.Remove(tmp.Name())
-	}
+	_ = atomicfile.Write(s.path(origin), data, 0o600) // the cache is best effort
 }
 
 // CachedTree returns the tree saved for root key on this server, with no

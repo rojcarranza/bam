@@ -3,6 +3,7 @@ package view
 import (
 	"encoding/json"
 	"io"
+	"maps"
 	"sort"
 	"time"
 
@@ -181,27 +182,30 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 	d := BuildDoc{Key: b.Key, URL: b.URL, PlanKey: b.PlanKey, PlanName: b.PlanName, Branch: b.Branch, Number: b.Number, State: string(b.State),
 		Reason: b.Reason, CustomBuild: b.CustomBuild, Labels: nonNil(b.Labels), QueuedAt: timePtr(b.QueuedAt),
 		StartedAt: timePtr(b.StartedAt), FinishedAt: timePtr(b.FinishedAt), QueueDurationMS: ms(b.QueueDuration),
-		DurationMS: ms(b.Duration), Agent: b.Agent, Revisions: []RevisionDoc{}, Stages: []StageDoc{}, FailedTests: nonNil(b.FailedTests),
-		Progress: progressDoc(pr)}
-	for _, r := range b.Revisions {
-		d.Revisions = append(d.Revisions, RevisionDoc{Repository: r.Repository, Revision: r.Revision, Short: r.Short()})
-	}
-	for _, s := range b.Stages {
-		sd := StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: []JobDoc{}}
-		for _, j := range s.Jobs {
-			sd.Jobs = append(sd.Jobs, JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration)})
-		}
-		d.Stages = append(d.Stages, sd)
-	}
+		DurationMS: ms(b.Duration), Agent: b.Agent, FailedTests: nonNil(b.FailedTests), Progress: progressDoc(pr)}
+	d.Revisions = Docs(b.Revisions, func(r provider.Revision) RevisionDoc {
+		return RevisionDoc{Repository: r.Repository, Revision: r.Revision, Short: r.Short()}
+	})
+	d.Stages = Docs(b.Stages, func(s provider.Stage) StageDoc {
+		return StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: Docs(s.Jobs, func(j provider.Job) JobDoc {
+			return JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration)}
+		})}
+	})
 	return d
 }
 
-func BuildsJSON(bs []provider.Build) []BuildDoc {
-	out := []BuildDoc{}
-	for _, b := range bs {
-		out = append(out, BuildJSON(b))
+// Docs maps items to their JSON documents. The result is never nil, so an
+// empty list encodes as [] rather than null.
+func Docs[T, D any](items []T, doc func(T) D) []D {
+	out := make([]D, 0, len(items))
+	for _, it := range items {
+		out = append(out, doc(it))
 	}
 	return out
+}
+
+func BuildsJSON(bs []provider.Build) []BuildDoc {
+	return Docs(bs, BuildJSON)
 }
 
 func PlanJSON(p provider.Plan) PlanDoc {
@@ -249,9 +253,7 @@ func TargetJSON(t app.TargetInfo) TargetDoc {
 			d.Defaults[v.Name] = v.Value
 		}
 	}
-	for k, v := range t.Options {
-		d.Options[k] = v
-	}
+	maps.Copy(d.Options, t.Options)
 	return d
 }
 

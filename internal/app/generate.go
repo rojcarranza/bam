@@ -5,10 +5,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
 // GenerateOptions are the inputs of bam preset add and bam init --plan.
@@ -69,23 +72,9 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if err := CheckGenerate(o); err != nil {
 		return config.TargetDraft{}, false, err
 	}
-	if IsBuildKey(o.From) && (o.PlanKey == "" || o.Branch == "") {
-		b, err := s.P.GetBuild(ctx, o.From)
-		if err != nil {
-			return config.TargetDraft{}, false, err
-		}
-		plan := cmp.Or(b.MasterKey, b.PlanKey)
-		switch o.PlanKey {
-		case "", plan:
-			o.PlanKey = plan
-			if o.Branch == "" {
-				o.Branch = b.Branch
-			}
-		case b.PlanKey: // the branch plan key itself, as before
-		default:
-			return config.TargetDraft{}, false, errs.Usagef("%s is a build of %s, not of %s", o.From, plan, o.PlanKey).
-				WithTry("drop --plan; --from " + o.From + " names the plan")
-		}
+	o, err := s.planFromBuild(ctx, o)
+	if err != nil {
+		return config.TargetDraft{}, false, err
 	}
 	if _, err := s.P.GetPlan(ctx, o.PlanKey); err != nil {
 		return config.TargetDraft{}, false, err
@@ -99,76 +88,117 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 		}
 		ref.PlanKey, ref.Branch = key, o.Branch
 	}
-
-	from := o.From
-	if from == "" {
-		from = "last"
-	}
-	var used map[string]string
-	usedKey := ""
-	if key, err := s.ResolveFrom(ctx, ref, from); err == nil {
-		if bv, err := s.P.BuildVariables(ctx, key); err == nil {
-			used, usedKey = bv, key
-		} else if o.From != "" {
-			if errors.Is(err, errs.ErrUnsupported) {
-				return d, false, errs.Bamboof("cannot read the variables of %s", key).
-					WithWhy("this Bamboo server does not return the variables a build ran with").
-					WithTry("drop --from and fill the values by hand")
-			}
-			return d, false, err
-		}
-	} else if o.From != "" {
+	used, usedKey, err := s.usedVars(ctx, ref, o.From)
+	if err != nil {
 		return d, false, err
 	}
 
 	declared, err := s.P.ListVariables(ctx, o.PlanKey)
 	switch {
 	case err == nil:
-		names := map[string]bool{}
-		for _, v := range declared {
-			names[v.Name] = true
-			value := v.Value
-			if bv, ok := used[v.Name]; ok && o.From != "" {
-				value = bv
-			}
-			dv := draftVar(v.Name, value, v.Masked, used, usedKey, true)
-			if value != v.Value && !isSecretDraft(dv) {
-				dv.Comment = "from " + usedKey
-			}
-			if value == "" && v.Value == "" && !isSecretDraft(dv) {
-				d.Required = append(d.Required, v.Name)
-			}
-			// A secret the plan stores is left out too: the plan already sends it.
-			if !o.Full && value == v.Value && value != "" {
-				continue
-			}
-			d.Vars = append(d.Vars, dv)
-		}
-		if o.From != "" {
-			for _, name := range sortedNames(used) {
-				if !names[name] {
-					dv := draftVar(name, used[name], false, used, usedKey, false)
-					if !isSecretDraft(dv) {
-						dv.Comment += "; not declared by the plan"
-					}
-					d.Vars = append(d.Vars, dv)
-				}
-			}
-		}
+		declaredDrafts(&d, declared, used, usedKey, o)
+		return d, true, nil
 	case errors.Is(err, errs.ErrUnsupported):
 		if used == nil {
 			d.Note = "plan variables are not readable on this server; add them under defaults"
 			return d, false, nil
 		}
 		d.Note = "plan variables are not readable on this server; names come from " + usedKey
-		for _, name := range sortedNames(used) {
+		for _, name := range slices.Sorted(maps.Keys(used)) {
 			d.Vars = append(d.Vars, draftVar(name, used[name], false, used, usedKey, false))
 		}
 		return d, false, nil
 	default:
 		return d, false, err
 	}
-	return d, true, nil
+}
+
+// planFromBuild fills the plan key and branch from a --from build key when
+// either is missing, and rejects a --plan the build does not belong to.
+func (s *Service) planFromBuild(ctx context.Context, o GenerateOptions) (GenerateOptions, error) {
+	if !IsBuildKey(o.From) || (o.PlanKey != "" && o.Branch != "") {
+		return o, nil
+	}
+	b, err := s.P.GetBuild(ctx, o.From)
+	if err != nil {
+		return o, err
+	}
+	plan := cmp.Or(b.MasterKey, b.PlanKey)
+	switch o.PlanKey {
+	case "", plan:
+		o.PlanKey = plan
+		if o.Branch == "" {
+			o.Branch = b.Branch
+		}
+	case b.PlanKey: // the branch plan key itself, as before
+	default:
+		return o, errs.Usagef("%s is a build of %s, not of %s", o.From, plan, o.PlanKey).
+			WithTry("drop --plan; --from " + o.From + " names the plan")
+	}
+	return o, nil
+}
+
+// usedVars returns the variables of the --from build, or of the last build
+// when from is empty. Without --from, a missing build or unreadable
+// variables are not an error: the preset is drafted from the plan alone.
+func (s *Service) usedVars(ctx context.Context, ref PlanRef, from string) (map[string]string, string, error) {
+	key, err := s.ResolveFrom(ctx, ref, cmp.Or(from, "last"))
+	if err != nil {
+		if from != "" {
+			return nil, "", err
+		}
+		return nil, "", nil
+	}
+	bv, err := s.P.BuildVariables(ctx, key)
+	switch {
+	case err == nil:
+		return bv, key, nil
+	case from == "":
+		return nil, "", nil
+	case errors.Is(err, errs.ErrUnsupported):
+		return nil, "", errs.Bamboof("cannot read the variables of %s", key).
+			WithWhy("this Bamboo server does not return the variables a build ran with").
+			WithTry("drop --from and fill the values by hand")
+	default:
+		return nil, "", err
+	}
+}
+
+// declaredDrafts adds the plan's declared variables to d, then, with --from,
+// the build's variables the plan does not declare.
+func declaredDrafts(d *config.TargetDraft, declared []provider.Variable, used map[string]string, usedKey string, o GenerateOptions) {
+	names := map[string]bool{}
+	for _, v := range declared {
+		names[v.Name] = true
+		value := v.Value
+		if bv, ok := used[v.Name]; ok && o.From != "" {
+			value = bv
+		}
+		dv := draftVar(v.Name, value, v.Masked, used, usedKey, true)
+		if value != v.Value && !isSecretDraft(dv) {
+			dv.Comment = "from " + usedKey
+		}
+		if value == "" && v.Value == "" && !isSecretDraft(dv) {
+			d.Required = append(d.Required, v.Name)
+		}
+		// A secret the plan stores is left out too: the plan already sends it.
+		if !o.Full && value == v.Value && value != "" {
+			continue
+		}
+		d.Vars = append(d.Vars, dv)
+	}
+	if o.From == "" {
+		return
+	}
+	for _, name := range slices.Sorted(maps.Keys(used)) {
+		if !names[name] {
+			dv := draftVar(name, used[name], false, used, usedKey, false)
+			if !isSecretDraft(dv) {
+				dv.Comment += "; not declared by the plan"
+			}
+			d.Vars = append(d.Vars, dv)
+		}
+	}
 }
 
 func isSecretDraft(v config.DraftVar) bool {

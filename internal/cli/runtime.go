@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
+	"slices"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -84,6 +86,19 @@ func (r *runtime) out() (view.Out, error) {
 	}
 	links := r.env.StdoutTTY && r.env.Getenv("TERM") != "dumb"
 	return view.Out{W: r.env.Stdout, TTY: r.env.StdoutTTY, Width: r.env.Width(), Style: style.Mode{Color: color, Links: links}, Now: r.env.Clock.Now}, nil
+}
+
+// show prints a command's result: doc as JSON with --json, otherwise text
+// rendered to the styled stdout.
+func (r *runtime) show(doc any, text func(view.Out) error) error {
+	if r.flags.json {
+		return view.WriteJSON(r.env.Stdout, doc)
+	}
+	o, err := r.out()
+	if err != nil {
+		return err
+	}
+	return text(o)
 }
 
 func (r *runtime) store() *credential.Store {
@@ -189,13 +204,23 @@ func (r *runtime) connectLast(ctx context.Context) (*app.Service, Backend, error
 	if !ok || r.flags.server != "" {
 		return r.connect(ctx, "")
 	}
-	for _, s := range cfg.Servers() {
-		if o, err := credential.Origin(s.URL); err == nil && o == rec.Origin {
-			return r.connectServer(s)
-		}
+	if s, ok := serverForOrigin(cfg, rec.Origin); ok {
+		return r.connectServer(s)
 	}
 	return nil, nil, errs.Configf("the last build %s ran on %s, which no configured server matches", rec.BuildKey, rec.Origin).
 		WithTry("bam server add <alias> --url " + rec.Origin)
+}
+
+// serverForOrigin returns the configured server at origin. When several
+// aliases share it, the first alias in sorted order wins.
+func serverForOrigin(cfg *config.Config, origin string) (config.ResolvedServer, bool) {
+	servers := cfg.Servers()
+	for _, alias := range slices.Sorted(maps.Keys(servers)) {
+		if o, err := credential.Origin(servers[alias].URL); err == nil && o == origin {
+			return servers[alias], true
+		}
+	}
+	return config.ResolvedServer{}, false
 }
 
 // wrap classifies stray errors from a command as internal so that only

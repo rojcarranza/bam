@@ -2,9 +2,9 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -120,7 +120,7 @@ func authEnvNotAllowedError(path, alias string) error {
 // resolves merge keys, anchors and aliases, so a populated AuthEnv field here
 // is real regardless of how the YAML expressed it.
 func checkDecodedProjectAuthEnv(pf *ProjectFile, path string) error {
-	for _, alias := range sortedKeys(pf.Servers) {
+	for _, alias := range slices.Sorted(maps.Keys(pf.Servers)) {
 		if pf.Servers[alias].AuthEnv != "" {
 			return authEnvNotAllowedError(path, alias)
 		}
@@ -146,18 +146,18 @@ func validateFiles(c *Config) error {
 		if err := checkReservedAliases(c.ProjectPath, c.Project.Servers); err != nil {
 			return err
 		}
-		if err := checkTargetNames(c.ProjectPath, "targets", c.Project.Targets); err != nil {
+		if err := checkNames(c.ProjectPath, "targets", "preset", c.Project.Targets); err != nil {
 			return err
 		}
-		if err := checkSetNames(c.ProjectPath, "sets", c.Project.Sets); err != nil {
+		if err := checkNames(c.ProjectPath, "sets", "set", c.Project.Sets); err != nil {
 			return err
 		}
 		if err := checkSetSecrets(c.ProjectPath, c.Project.Sets); err != nil {
 			return err
 		}
-		for _, name := range sortedKeys(c.Project.Targets) {
+		for _, name := range slices.Sorted(maps.Keys(c.Project.Targets)) {
 			t := c.Project.Targets[name]
-			for _, v := range sortedKeys(t.Defaults) {
+			for _, v := range slices.Sorted(maps.Keys(t.Defaults)) {
 				val := t.Defaults[v]
 				if _, ok := EnvRef(val); ok || val == "" || !IsMaskedName(v) {
 					continue
@@ -177,44 +177,34 @@ func validateFiles(c *Config) error {
 	if err := checkReservedAliases(c.MachinePath, c.Machine.Servers); err != nil {
 		return err
 	}
-	if err := checkTargetNames(c.MachinePath, "targets", c.Machine.Targets); err != nil {
+	if err := checkNames(c.MachinePath, "targets", "preset", c.Machine.Targets); err != nil {
 		return err
 	}
-	if err := checkSetNames(c.MachinePath, "sets", c.Machine.Sets); err != nil {
+	if err := checkNames(c.MachinePath, "sets", "set", c.Machine.Sets); err != nil {
 		return err
 	}
 	for _, s := range c.presetsSources() {
-		if err := checkTargetNames(s.Path, "presets", s.Presets); err != nil {
+		if err := checkNames(s.Path, "presets", "preset", s.Presets); err != nil {
 			return err
 		}
 	}
-	for _, root := range sortedKeys(c.Machine.Repos) {
-		if err := checkTargetNames(c.MachinePath, "repos."+root+".targets", c.Machine.Repos[root].Targets); err != nil {
+	for _, root := range slices.Sorted(maps.Keys(c.Machine.Repos)) {
+		if err := checkNames(c.MachinePath, "repos."+root+".targets", "preset", c.Machine.Repos[root].Targets); err != nil {
 			return err
 		}
-		if err := checkSetNames(c.MachinePath, "repos."+root+".sets", c.Machine.Repos[root].Sets); err != nil {
+		if err := checkNames(c.MachinePath, "repos."+root+".sets", "set", c.Machine.Repos[root].Sets); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func checkTargetNames(path, where string, targets map[string]Target) error {
-	for _, name := range sortedKeys(targets) {
+// checkNames refuses a preset or set name bam could not address.
+func checkNames[V any](path, where, kind string, named map[string]V) error {
+	for _, name := range slices.Sorted(maps.Keys(named)) {
 		if !ValidTargetName(name) {
-			return errs.Configf("%s: %s: invalid preset name %q", path, where, name).
-				WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter").
-				WithTry(renameTry(name))
-		}
-	}
-	return nil
-}
-
-func checkSetNames(path, where string, sets map[string]Set) error {
-	for _, name := range sortedKeys(sets) {
-		if !ValidTargetName(name) {
-			return errs.Configf("%s: %s: invalid set name %q", path, where, name).
-				WithWhy("set names are lowercase letters, digits, - and _, starting with a letter").
+			return errs.Configf("%s: %s: invalid %s name %q", path, where, kind, name).
+				WithWhy(kind + " names are lowercase letters, digits, - and _, starting with a letter").
 				WithTry(renameTry(name))
 		}
 	}
@@ -224,7 +214,7 @@ func checkSetNames(path, where string, sets map[string]Set) error {
 // checkSetSecrets refuses a literal secret in a committed set's vars, as
 // target defaults do.
 func checkSetSecrets(path string, sets map[string]Set) error {
-	for _, name := range sortedKeys(sets) {
+	for _, name := range slices.Sorted(maps.Keys(sets)) {
 		for i, st := range sets[name].Stages {
 			for _, r := range st {
 				// Every offending name is collected and the first in sorted
@@ -256,13 +246,4 @@ func checkReservedAliases(path string, servers map[string]Server) error {
 			WithTry("rename the alias, for example \"env-server\"")
 	}
 	return nil
-}
-
-func sortedKeys[M ~map[string]V, V any](m M) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }

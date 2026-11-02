@@ -126,7 +126,7 @@ Generated data is kept out of files that people edit:
 - Capability results: `$XDG_CACHE_HOME/bam/capabilities.json`, keyed by server origin.
 - Last-build record: `$XDG_STATE_HOME/bam/state.json`, keyed by repository root.
 
-Paths come from `github.com/adrg/xdg`, so macOS and Windows get their platform directories.
+The XDG layout applies on every OS: with the variables unset, `~/.config`, `~/.cache` and `~/.local/state` (`config.LocateDirs`). Releases before this change used `~/Library/Application Support` and `~/Library/Caches` on macOS and `%LOCALAPPDATA%` on Windows; while the new directory does not exist and the old one does, bam keeps using the old one.
 
 ### 3.2 Project file discovery
 
@@ -501,6 +501,7 @@ testdata/                recorded, scrubbed Bamboo responses
 | Package | May import |
 | --- | --- |
 | `errs` | nothing internal |
+| `atomicfile` | nothing internal; every package that persists a file writes it through `atomicfile.Write` |
 | `config`, `provider` | `errs` |
 | `credential` | `config`, `errs` |
 | `provider/bamboo` | `provider`, `errs` |
@@ -635,7 +636,7 @@ Development is test-driven.
 ## 12. Delivery
 
 - Module `github.com/r0jjames/bam-cli`; binary `bam` built from `cmd/bam`; Go current stable, minimum 1.22.
-- Dependencies are limited to those named in this spec: cobra, yaml.v3, adrg/xdg, go-keyring, x/term, pkg/browser, testify, plus the standard library. v0.2 adds bubbletea, lipgloss and bubbles for the terminal UI, under [`2026-09-18-bam-v0.2-tui-navigate-design.md`](2026-09-18-bam-v0.2-tui-navigate-design.md) §10. Any other dependency needs a stated reason in its pull request.
+- Dependencies are limited to those named in this spec: cobra, yaml.v3, go-keyring, x/term, pkg/browser, testify, plus the standard library. v0.2 adds bubbletea, lipgloss and bubbles for the terminal UI, under [`2026-09-18-bam-v0.2-tui-navigate-design.md`](2026-09-18-bam-v0.2-tui-navigate-design.md) §10. Any other dependency needs a stated reason in its pull request.
 - `Makefile` targets: `build`, `test`, `lint`, `e2e`, `record`, `check-fixtures`, `docs`, `release`.
 - `golangci-lint` is the lint gate.
 - `goreleaser` builds darwin and linux on amd64 and arm64, plus windows/amd64, attached to a git tag.

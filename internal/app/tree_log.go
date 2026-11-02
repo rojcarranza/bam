@@ -81,93 +81,129 @@ func (s *Service) treeLogLinks(ctx context.Context, tr *treeTracker, root *TreeN
 	frontier := treeOpen(root, 0, nil, inTree)
 	var warnings []string
 	for len(frontier) > 0 && ctx.Err() == nil {
-		var open []treeAt
-		for _, at := range frontier {
-			if depth == 0 || at.level < depth {
-				open = append(open, at)
-			}
-		}
+		open := withinDepth(frontier, depth)
 		links, w := s.treeReadLinks(ctx, tr, open, sc)
 		warnings = append(warnings, w...)
-
-		type found struct {
-			at   treeAt
-			link logLink
-		}
-		var todo []found
-		for i, at := range open {
-			for _, l := range links[i] {
-				if !inTree[l.key] {
-					inTree[l.key] = true
-					todo = append(todo, found{at, l})
-				}
-			}
-		}
-		reads := 0
-		for _, f := range todo {
-			if _, ok := done[f.link.key]; !ok {
-				reads++
-			}
-		}
-		tr.add(treeBuilds, reads)
-		builds := make([]provider.Build, len(todo))
-		readErrs := make([]error, len(todo))
-		var wg sync.WaitGroup
-		sem := make(chan struct{}, treeFetch)
-		for i, f := range todo {
-			if b, ok := done[f.link.key]; ok {
-				builds[i] = b
-				continue
-			}
-			wg.Add(1)
-			go func(i int, key string) {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-				builds[i], readErrs[i] = s.P.GetBuild(ctx, key)
-				tr.done(treeBuilds)
-			}(i, f.link.key)
-		}
-		wg.Wait()
+		todo := newLinks(open, links, inTree)
+		s.readLinked(ctx, tr, todo, done)
 
 		var fetched []provider.Build
-		for i, b := range builds {
-			if readErrs[i] == nil {
-				fetched = append(fetched, b)
+		for _, f := range todo {
+			if f.err == nil {
+				fetched = append(fetched, f.build)
 			}
 		}
 		warnings = append(warnings, s.treeAddProjects(ctx, tr, sc, fetched, root.Build)...)
-		idx := sc.index()
-
-		frontier = nil
-		grown := map[*TreeNode]bool{}
-		for i, f := range todo {
-			b := builds[i]
-			if err := readErrs[i]; err != nil {
-				if ctx.Err() == nil && !errors.Is(err, errs.ErrNotFound) {
-					warnings = append(warnings, fmt.Sprintf("%s: linked from %s's log, but it could not be read: %s", f.link.key, f.at.n.Build.Key, describeErr(err)))
-				}
-				continue
-			}
-			if parent := f.at.n.Build.StartedAt; !parent.IsZero() && !b.StartedAt.IsZero() && b.StartedAt.Before(parent) {
-				continue
-			}
-			kid := &TreeNode{PlanKey: b.PlanKey, Build: b, FromLog: true, Stage: f.link.stage}
-			path := map[string]bool{kid.Build.Key: true}
-			for _, k := range f.at.path {
-				path[k] = true
-			}
-			treeGrow(kid, idx, configured, depth, f.at.level+1, path)
-			warnings = append(warnings, s.treeDetails(ctx, tr, kid, done)...)
-			f.at.n.Children = append(f.at.n.Children, kid)
-			grown[f.at.n] = true
-			frontier = append(frontier, treeOpen(kid, f.at.level+1, f.at.path, inTree)...)
-		}
-		for n := range grown {
-			sortKids(n.Children)
-		}
+		var w2 []string
+		frontier, w2 = s.attachLinked(ctx, tr, todo, sc.index(), configured, depth, done, inTree)
+		warnings = append(warnings, w2...)
 	}
 	return warnings
+}
+
+// withinDepth is the nodes of frontier whose logs may still add children:
+// all of them with no depth limit, else those above depth.
+func withinDepth(frontier []treeAt, depth int) []treeAt {
+	if depth == 0 {
+		return frontier
+	}
+	var open []treeAt
+	for _, at := range frontier {
+		if at.level < depth {
+			open = append(open, at)
+		}
+	}
+	return open
+}
+
+// linkedBuild is a build a log links to, the node whose log names it, and
+// the build as read (or the error reading it).
+type linkedBuild struct {
+	at    treeAt
+	link  logLink
+	build provider.Build
+	err   error
+}
+
+// newLinks is the links of open's logs to builds not yet in the tree, once
+// each, in order; it marks them in inTree.
+func newLinks(open []treeAt, links [][]logLink, inTree map[string]bool) []linkedBuild {
+	var todo []linkedBuild
+	for i, at := range open {
+		for _, l := range links[i] {
+			if !inTree[l.key] {
+				inTree[l.key] = true
+				todo = append(todo, linkedBuild{at: at, link: l})
+			}
+		}
+	}
+	return todo
+}
+
+// readLinked fills in each linked build, from done when it is there, else
+// read from Bamboo, treeFetch at a time.
+func (s *Service) readLinked(ctx context.Context, tr *treeTracker, todo []linkedBuild, done map[string]provider.Build) {
+	reads := 0
+	for _, f := range todo {
+		if _, ok := done[f.link.key]; !ok {
+			reads++
+		}
+	}
+	tr.add(treeBuilds, reads)
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, treeFetch)
+	for i := range todo {
+		f := &todo[i]
+		if b, ok := done[f.link.key]; ok {
+			f.build = b
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			f.build, f.err = s.P.GetBuild(ctx, f.link.key)
+			tr.done(treeBuilds)
+		}()
+	}
+	wg.Wait()
+}
+
+// attachLinked adds each linked build that was read, and did not start
+// before the build whose log names it, as a child of that build, grows its
+// children by reason and reads its details. It returns the new nodes whose
+// logs are read next, and the warnings.
+func (s *Service) attachLinked(ctx context.Context, tr *treeTracker, todo []linkedBuild, idx map[string][]provider.Build, configured map[string][]string, depth int, done map[string]provider.Build, inTree map[string]bool) ([]treeAt, []string) {
+	var frontier []treeAt
+	var warnings []string
+	grown := map[*TreeNode]bool{}
+	for _, f := range todo {
+		if f.err != nil {
+			if ctx.Err() == nil && !errors.Is(f.err, errs.ErrNotFound) {
+				warnings = append(warnings, fmt.Sprintf("%s: linked from %s's log, but it could not be read: %s", f.link.key, f.at.n.Build.Key, describeErr(f.err)))
+			}
+			continue
+		}
+		b := f.build
+		if parent := f.at.n.Build.StartedAt; !parent.IsZero() && !b.StartedAt.IsZero() && b.StartedAt.Before(parent) {
+			continue
+		}
+		kid := &TreeNode{PlanKey: b.PlanKey, Build: b, FromLog: true, Stage: f.link.stage}
+		path := map[string]bool{kid.Build.Key: true}
+		for _, k := range f.at.path {
+			path[k] = true
+		}
+		treeGrow(kid, idx, configured, depth, f.at.level+1, path)
+		warnings = append(warnings, s.treeDetails(ctx, tr, kid, done)...)
+		f.at.n.Children = append(f.at.n.Children, kid)
+		grown[f.at.n] = true
+		frontier = append(frontier, treeOpen(kid, f.at.level+1, f.at.path, inTree)...)
+	}
+	for n := range grown {
+		sortKids(n.Children)
+	}
+	return frontier, warnings
 }
 
 // treeAddProjects lists the projects of builds the search has not listed,

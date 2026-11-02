@@ -8,10 +8,10 @@ package toolcfg
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
-	"github.com/adrg/xdg"
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -38,15 +38,16 @@ func SystemOptions() (Options, error) {
 	if err != nil {
 		return Options{}, err
 	}
+	dirs := config.LocateDirs(home, runtime.GOOS, os.Getenv)
 	machine := os.Getenv("BAM_CONFIG")
 	if machine == "" {
-		machine = filepath.Join(xdg.ConfigHome, "bam", "config.yaml")
+		machine = filepath.Join(dirs.Config, "config.yaml")
 	}
 	return Options{
 		WorkDir:     wd,
 		Home:        home,
 		MachineFile: machine,
-		Credentials: filepath.Join(xdg.ConfigHome, "bam", "credentials.yaml"),
+		Credentials: filepath.Join(dirs.Config, "credentials.yaml"),
 		Getenv:      os.Getenv,
 		Keyring:     credential.SystemKeyring{},
 	}, nil

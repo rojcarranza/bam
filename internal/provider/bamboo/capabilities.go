@@ -6,8 +6,9 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"time"
+
+	"github.com/r0jjames/bam-cli/internal/atomicfile"
 )
 
 // Capabilities records which optional Bamboo REST features a server supports.
@@ -63,14 +64,7 @@ func SaveCapabilities(path, origin string, c Capabilities) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
+	return atomicfile.Write(path, data, 0o644)
 }
 
 func readCapsFile(path string) (map[string]Capabilities, error) {

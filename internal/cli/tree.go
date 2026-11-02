@@ -75,8 +75,7 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 		}),
 	}
 	f := cmd.Flags()
-	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	addBuildArgFlags(cmd, &last, &branch)
 	f.BoolVar(&watch, "watch", false, "follow the tree until every build has finished")
 	f.BoolVar(&failed, "failed", false, "show only the branches that lead to a failure")
 	f.BoolVar(&rerun, "rerun-failed", false, "restart the failed builds whose parents succeeded, then follow the tree")

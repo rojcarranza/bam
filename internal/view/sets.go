@@ -3,7 +3,8 @@ package view
 import (
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -83,7 +84,7 @@ func SetDryRun(o Out, p app.SetPlan) error {
 		heads := runLines(lines)
 		for j, r := range st {
 			fmt.Fprintln(o.W, heads[j])
-			for _, n := range sortedChanged(r.Vars) {
+			for _, n := range slices.Sorted(maps.Keys(r.Vars.Changed())) {
 				v, _ := r.Vars.Get(n)
 				fmt.Fprintf(o.W, "      %s = %s\n", n, v.Display())
 			}
@@ -106,16 +107,6 @@ func runLines(lines [][3]string) []string {
 			l[1] + strings.Repeat(" ", pw-style.Width(l[1])) + "  branch " + branchLabel(l[2])
 	}
 	return out
-}
-
-func sortedChanged(vs app.VarSet) []string {
-	changed := vs.Changed()
-	names := make([]string, 0, len(changed))
-	for n := range changed {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return names
 }
 
 // SetStatusView is bam set status: the record with each build's live state.
@@ -294,31 +285,27 @@ func varsDoc(vs []app.TargetVar) map[string]string {
 }
 
 func SetJSON(s app.SetInfo) SetDoc {
-	d := SetDoc{Name: s.Name, TimeoutMS: ms(s.Timeout), DefinedIn: nonNil(s.DefinedIn), Stages: [][]SetRunDoc{}}
-	for _, st := range s.Stages {
-		runs := []SetRunDoc{}
-		for _, r := range st {
+	d := SetDoc{Name: s.Name, TimeoutMS: ms(s.Timeout), DefinedIn: nonNil(s.DefinedIn)}
+	d.Stages = Docs(s.Stages, func(st []app.SetRunInfo) []SetRunDoc {
+		return Docs(st, func(r app.SetRunInfo) SetRunDoc {
 			rd := SetRunDoc{Target: r.Target, PlanKey: r.Plan, Branch: r.Branch, Vars: varsDoc(r.Vars), Matrix: r.Matrix, Runs: r.Runs}
 			if len(rd.Runs) == 0 {
 				rd.Runs = []string{r.Target}
 			}
-			runs = append(runs, rd)
-		}
-		d.Stages = append(d.Stages, runs)
-	}
+			return rd
+		})
+	})
 	return d
 }
 
 func SetPlanJSON(p app.SetPlan) SetPlanDoc {
-	d := SetPlanDoc{Name: p.Name, Origin: p.Origin, Stages: [][]SetRunPlanDoc{}, Warnings: nonNil(p.Warnings)}
-	for _, st := range p.Stages {
-		runs := []SetRunPlanDoc{}
-		for _, r := range st {
+	d := SetPlanDoc{Name: p.Name, Origin: p.Origin, Warnings: nonNil(p.Warnings)}
+	d.Stages = Docs(p.Stages, func(st []app.SetRunPlan) []SetRunPlanDoc {
+		return Docs(st, func(r app.SetRunPlan) SetRunPlanDoc {
 			run := RunJSON(provider.Build{}, r.Ref, r.Vars)
-			runs = append(runs, SetRunPlanDoc{Target: r.Target, Name: app.PlanRunName(r), PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables})
-		}
-		d.Stages = append(d.Stages, runs)
-	}
+			return SetRunPlanDoc{Target: r.Target, Name: app.PlanRunName(r), PlanKey: run.PlanKey, Branch: run.Branch, Variables: run.Variables}
+		})
+	})
 	return d
 }
 

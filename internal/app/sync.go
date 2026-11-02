@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -54,7 +56,7 @@ func (s *Service) PlanSync(ctx context.Context, t config.ResolvedTarget) (SyncPl
 			p.Added = append(p.Added, v)
 		}
 	}
-	for _, n := range sortedNames(t.Defaults) {
+	for _, n := range slices.Sorted(maps.Keys(t.Defaults)) {
 		if !names[n] {
 			p.Stale = append(p.Stale, n)
 		}
@@ -72,7 +74,7 @@ func (s *Service) PlanSync(ctx context.Context, t config.ResolvedTarget) (SyncPl
 			p.File = l.Path
 			e.Add = p.Added
 		}
-		for _, n := range sortedNames(l.Target.Defaults) {
+		for _, n := range slices.Sorted(maps.Keys(l.Target.Defaults)) {
 			if names[n] {
 				e.Unmark = append(e.Unmark, n)
 			} else {

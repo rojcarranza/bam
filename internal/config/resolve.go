@@ -81,9 +81,9 @@ func (c *Config) RepoEntry() (Repo, bool) {
 func (c *Config) OtherRepoTargets() map[string][]string {
 	here, _, _ := c.repoEntry()
 	out := map[string][]string{}
-	for _, key := range sortedKeys(c.Machine.Repos) {
+	for _, key := range slices.Sorted(maps.Keys(c.Machine.Repos)) {
 		if key != here && len(c.Machine.Repos[key].Targets) > 0 {
-			out[key] = sortedKeys(c.Machine.Repos[key].Targets)
+			out[key] = slices.Sorted(maps.Keys(c.Machine.Repos[key].Targets))
 		}
 	}
 	return out
@@ -126,8 +126,8 @@ func (c *Config) UnknownServer(alias string) *errs.Error {
 // nearServerTry suggests the alias closest to a mistyped one, or failing
 // that the bam server add command for it.
 func nearServerTry(alias string, names []string) string {
-	if near := errs.Closest(alias, names, 1); len(near) > 0 {
-		return "did you mean " + near[0] + "?"
+	if near := errs.Nearest(alias, names); near != "" {
+		return "did you mean " + near + "?"
 	}
 	return serverAddTry(alias)
 }
@@ -195,7 +195,7 @@ func (c *Config) SelectServer(flag, targetServer string) (ResolvedServer, error)
 	case c.Machine.DefaultServer != "":
 		return pick(c.Machine.DefaultServer)
 	}
-	aliases := sortedKeys(servers)
+	aliases := slices.Sorted(maps.Keys(servers))
 	switch len(aliases) {
 	case 1:
 		return servers[aliases[0]], nil
@@ -273,7 +273,7 @@ func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 		layer(c.MachinePath+" (repos)", c.MachinePath, []string{"repos", key, "targets"}, repo.Targets)
 	}
 	servers := c.Servers()
-	for _, name := range sortedKeys(out) {
+	for _, name := range slices.Sorted(maps.Keys(out)) {
 		if err := validateTarget(out[name], servers); err != nil {
 			return nil, err
 		}
@@ -327,22 +327,14 @@ func mergeTarget(base, over Target) Target {
 	}
 	if len(over.Defaults) > 0 {
 		merged := StringMap{}
-		for k, v := range base.Defaults {
-			merged[k] = v
-		}
-		for k, v := range over.Defaults {
-			merged[k] = v
-		}
+		maps.Copy(merged, base.Defaults)
+		maps.Copy(merged, over.Defaults)
 		base.Defaults = merged
 	}
 	if len(over.Options) > 0 {
 		merged := StringListMap{}
-		for k, v := range base.Options {
-			merged[k] = v
-		}
-		for k, v := range over.Options {
-			merged[k] = v
-		}
+		maps.Copy(merged, base.Options)
+		maps.Copy(merged, over.Options)
 		base.Options = merged
 	}
 	if over.Required != nil {
@@ -394,7 +386,7 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 			WithWhy("defined in " + where + "; with repo_branches bam picks the plan branch").
 			WithTry("remove branch: under targets." + t.Name)
 	}
-	for _, key := range sortedKeys(t.RepoBranches) {
+	for _, key := range slices.Sorted(maps.Keys(t.RepoBranches)) {
 		if _, ok := ParseRepoKey(key); !ok {
 			return errs.Configf("preset %q: repo_branches key %q is not REPO or PLAN:REPO", t.Name, key).
 				WithWhy("defined in " + where).
@@ -405,7 +397,7 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 				WithWhy("defined in " + where)
 		}
 	}
-	for _, name := range sortedKeys(t.Options) {
+	for _, name := range slices.Sorted(maps.Keys(t.Options)) {
 		val, ok := t.Defaults[name]
 		if !ok || val == "" {
 			continue

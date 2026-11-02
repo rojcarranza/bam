@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -52,7 +54,7 @@ func DescribeTargets(cfg *config.Config, getenv func(string) string) ([]TargetIn
 		return nil, err
 	}
 	out := make([]TargetInfo, 0, len(all))
-	for _, name := range sortedNames(all) {
+	for _, name := range slices.Sorted(maps.Keys(all)) {
 		out = append(out, describe(all[name], getenv))
 	}
 	return out, nil
@@ -85,7 +87,7 @@ func describe(t config.ResolvedTarget, getenv func(string) string) TargetInfo {
 // display: a ${NAME} reference is always secret.
 func targetVars(m config.StringMap, getenv func(string) string) []TargetVar {
 	var out []TargetVar
-	for _, name := range sortedNames(m) {
+	for _, name := range slices.Sorted(maps.Keys(m)) {
 		v := TargetVar{Name: name, Value: m[name], Secret: config.IsMaskedName(name)}
 		if ref, ok := config.EnvRef(v.Value); ok {
 			v.EnvRef, v.EnvSet, v.Secret = ref, getenv(ref) != "", true

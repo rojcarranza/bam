@@ -40,76 +40,94 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 	if failedOnly {
 		root = pruneFailed(root)
 	}
-	showStages := !failedOnly || len(root.Children) > 0 || treeBad(root)
-	tb := Table{Headers: []string{"", "", "", ""}}
-	running := map[int]*app.TreeNode{}
-	// row adds a build's line, noting a running one for its estimate.
-	row := func(n *app.TreeNode, prefix string, underStage bool) {
-		if !n.NotRun && !n.Loop && !n.Superseded && n.Build.State == provider.StateRunning && n.Progress.Valid {
-			running[len(tb.Rows)] = n
-		}
-		tb.Rows = append(tb.Rows, treeRow(o, n, prefix, underStage))
-	}
-	row(root, "", false)
-	var failed, next []string
-	if treeBad(root) && !root.NotRun {
-		failed = append(failed, treeFailedLine(root.Build))
-	}
-	if root.Build.State == provider.StateFailed && len(root.Build.FailedJobs()) > 0 {
-		next = append(next, root.Build.Key)
-	}
-	var add func(n *app.TreeNode, indent string, stages bool)
-	// node is one build's line, and everything under it.
-	node := func(k *app.TreeNode, indent, branch, more string, underStage bool) {
-		row(k, indent+branch, underStage)
-		if k.Superseded {
-			return
-		}
-		if !k.NotRun && !k.Loop && treeBad(k) {
-			failed = append(failed, treeFailedLine(k.Build))
-		}
-		if !k.NotRun && !k.Loop && k.Build.State == provider.StateFailed && len(k.Build.FailedJobs()) > 0 {
-			next = append(next, k.Build.Key)
-		}
-		add(k, indent+more, true)
-	}
-	add = func(n *app.TreeNode, indent string, stages bool) {
-		items := TreeItems(n, stages && !n.NotRun && !n.Loop && !n.Superseded)
-		for i, it := range items {
-			branch, more := "├─ ", "│  "
-			if i == len(items)-1 {
-				branch, more = "└─ ", "   "
-			}
-			if it.Stage == nil {
-				node(it.Node, indent, branch, more, false)
-				continue
-			}
-			tb.Rows = append(tb.Rows, stageRow(o, n.Build, *it.Stage, indent+branch))
-			for j, k := range it.Under {
-				b, m := "├─ ", "│  "
-				if j == len(it.Under)-1 {
-					b, m = "└─ ", "   "
-				}
-				node(k, indent+more, b, m, true)
-			}
-		}
-	}
-	add(root, "", showStages)
-	addBars(o, tb, running)
-	if err := RenderRows(o, tb); err != nil {
+	w := &treeWriter{o: o, tb: Table{Headers: []string{"", "", "", ""}}, running: map[int]*app.TreeNode{}}
+	w.row(root, "", false)
+	w.note(root)
+	w.add(root, "", !failedOnly || len(root.Children) > 0 || treeBad(root))
+	addBars(o, w.tb, w.running)
+	if err := RenderRows(o, w.tb); err != nil {
 		return err
 	}
-	for _, l := range failed {
+	for _, l := range w.failed {
 		if _, err := fmt.Fprintln(o.W, l); err != nil {
 			return err
 		}
 	}
-	for _, k := range next {
+	for _, k := range w.next {
 		if _, err := fmt.Fprintf(o.W, "next: bam logs %s --failed\n", k); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// treeWriter collects a tree's rows, its running builds by row index for
+// their estimates, and the failed: and next: lines printed under it.
+type treeWriter struct {
+	o            Out
+	tb           Table
+	running      map[int]*app.TreeNode
+	failed, next []string
+}
+
+// row adds a build's line, noting a running one for its estimate.
+func (w *treeWriter) row(n *app.TreeNode, prefix string, underStage bool) {
+	if !n.NotRun && !n.Loop && !n.Superseded && n.Build.State == provider.StateRunning && n.Progress.Valid {
+		w.running[len(w.tb.Rows)] = n
+	}
+	w.tb.Rows = append(w.tb.Rows, treeRow(w.o, n, prefix, underStage))
+}
+
+// note records a failed: line for a build that did not succeed and a next:
+// line for a failed build with a failed job. Not-run and repeated builds
+// get neither.
+func (w *treeWriter) note(n *app.TreeNode) {
+	if n.NotRun || n.Loop {
+		return
+	}
+	if treeBad(n) {
+		w.failed = append(w.failed, treeFailedLine(n.Build))
+	}
+	if n.Build.State == provider.StateFailed && len(n.Build.FailedJobs()) > 0 {
+		w.next = append(w.next, n.Build.Key)
+	}
+}
+
+// node is one build's line, and everything under it.
+func (w *treeWriter) node(k *app.TreeNode, indent, branch, more string, underStage bool) {
+	w.row(k, indent+branch, underStage)
+	if k.Superseded {
+		return
+	}
+	w.note(k)
+	w.add(k, indent+more, true)
+}
+
+// add draws what sits under n: its stages, with the builds their jobs
+// started, then its other children.
+func (w *treeWriter) add(n *app.TreeNode, indent string, stages bool) {
+	items := TreeItems(n, stages && !n.NotRun && !n.Loop && !n.Superseded)
+	for i, it := range items {
+		branch, more := treeBranch(i, len(items))
+		if it.Stage == nil {
+			w.node(it.Node, indent, branch, more, false)
+			continue
+		}
+		w.tb.Rows = append(w.tb.Rows, stageRow(w.o, n.Build, *it.Stage, indent+branch))
+		for j, k := range it.Under {
+			b, m := treeBranch(j, len(it.Under))
+			w.node(k, indent+more, b, m, true)
+		}
+	}
+}
+
+// treeBranch is the connector for item i of n, and the indent its own
+// items take.
+func treeBranch(i, n int) (branch, more string) {
+	if i == n-1 {
+		return "└─ ", "   "
+	}
+	return "├─ ", "│  "
 }
 
 // treeFailedLine names a build that did not succeed and where to open it:
@@ -151,8 +169,6 @@ func TreeItems(n *app.TreeNode, stages bool) []TreeItem {
 	return items
 }
 
-// treeRow is one build's line. underStage: it is drawn under the stage that
-// started it, which then need not be named again.
 // addBars puts each running build's estimate, moved on to now, in front of
 // its note. On a terminal it takes only the columns the other cells leave,
 // so a redrawn tree does not wrap; running is the rows' builds by index.
@@ -187,6 +203,8 @@ func addBars(o Out, tb Table, running map[int]*app.TreeNode) {
 	}
 }
 
+// treeRow is one build's line. underStage: it is drawn under the stage that
+// started it, which then need not be named again.
 func treeRow(o Out, n *app.TreeNode, prefix string, underStage bool) []string {
 	switch {
 	case n.Superseded:

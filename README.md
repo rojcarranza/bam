@@ -38,7 +38,7 @@ Check the install:
        bam login work
        bam doctor
 
-   `--project` is repeatable. It sets the projects that the terminal UI and plan lists show. To change them later, run `server add` again with `--force`, or edit `projects` under the server in the machine file (`~/.config/bam/config.yaml` on Linux and WSL; see [Configuration](docs/configuration.md)). The token stays: bam stores it by server URL, not by alias.
+   `--project` is repeatable. It sets the projects that the terminal UI and plan lists show. To change them later, run `server add` again with `--force`, or edit `projects` under the server in the machine file (`~/.config/bam/config.yaml`; see [Configuration](docs/configuration.md)). The token stays: bam stores it by server URL, not by alias.
 
 2. Open the terminal UI, or create `.bam.yaml` in your repository with presets generated from your plans' variables:
 

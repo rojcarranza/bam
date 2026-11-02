@@ -10,7 +10,6 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
@@ -59,41 +58,25 @@ func newSetListCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if len(args) == 1 {
-				text := strings.ToLower(args[0])
-				infos = slices.DeleteFunc(infos, func(s app.SetInfo) bool {
-					if strings.Contains(strings.ToLower(s.Name), text) {
-						return false
-					}
+				infos = matching(infos, args[0], func(s app.SetInfo) []string {
+					fields := []string{s.Name}
 					for _, stage := range s.Stages {
 						for _, run := range stage {
-							if strings.Contains(strings.ToLower(run.Target), text) {
-								return false
-							}
+							fields = append(fields, run.Target)
 						}
 					}
-					return true
+					return fields
 				})
 			}
-			if r.flags.json {
-				docs := []view.SetDoc{}
-				for _, s := range infos {
-					docs = append(docs, view.SetJSON(s))
+			if !r.flags.json && len(infos) == 0 {
+				if len(args) == 1 {
+					r.note(fmt.Sprintf("no sets match %q", args[0]), "bam set list")
+				} else {
+					r.note("no sets configured", "add sets: to .bam.yaml; see bam set run --help")
 				}
-				return view.WriteJSON(r.env.Stdout, docs)
-			}
-			if len(infos) == 0 && len(args) == 1 {
-				r.note(fmt.Sprintf("no sets match %q", args[0]), "bam set list")
 				return nil
 			}
-			if len(infos) == 0 {
-				r.note("no sets configured", "add sets: to .bam.yaml; see bam set run --help")
-				return nil
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.Sets(o, infos)
+			return r.show(view.Docs(infos, view.SetJSON), func(o view.Out) error { return view.Sets(o, infos) })
 		}),
 	}
 }
@@ -115,14 +98,7 @@ func newSetShowCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.SetJSON(info))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.SetDetail(o, info)
+			return r.show(view.SetJSON(info), func(o view.Out) error { return view.SetDetail(o, info) })
 		}),
 	}
 }
@@ -193,14 +169,7 @@ with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 			}
 			view.PrintWarnings(r.env.Stderr, p.Warnings)
 			if dryRun {
-				if r.flags.json {
-					return view.WriteJSON(r.env.Stdout, view.SetPlanJSON(p))
-				}
-				o, err := r.out()
-				if err != nil {
-					return err
-				}
-				return view.SetDryRun(o, p)
+				return r.show(view.SetPlanJSON(p), func(o view.Out) error { return view.SetDryRun(o, p) })
 			}
 			id, events, err := svc.RunSet(ctx, p, app.SetLockOptions{Force: force})
 			if err != nil {
@@ -238,14 +207,7 @@ func newSetStatusCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if r.flags.json {
-				return view.WriteJSON(r.env.Stdout, view.SetRecordJSON(rec, builds))
-			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.SetStatusView(o, rec, builds, svc.CannotRestart(cmd.Context()))
+			return r.show(view.SetRecordJSON(rec, builds), func(o view.Out) error { return view.SetStatusView(o, rec, builds, svc.CannotRestart(cmd.Context())) })
 		}),
 	}
 }
@@ -285,14 +247,7 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 					return app.UnknownSet(cfg, set)
 				}
 			}
-			if r.flags.json {
-				docs := []view.SetRecordDoc{}
-				for _, rec := range recs {
-					docs = append(docs, view.SetRecordJSON(rec, nil))
-				}
-				return view.WriteJSON(r.env.Stdout, docs)
-			}
-			if len(recs) == 0 {
+			if !r.flags.json && len(recs) == 0 {
 				what := "no set runs in this repository"
 				if set != "" {
 					what += fmt.Sprintf(" for %q", set)
@@ -300,11 +255,10 @@ func newSetHistoryCmd(r *runtime) *cobra.Command {
 				r.note(what, setRunTry(cfg, set))
 				return nil
 			}
-			o, err := r.out()
-			if err != nil {
-				return err
-			}
-			return view.SetHistory(o, recs)
+			docs := view.Docs(recs, func(rec app.SetRecord) view.SetRecordDoc {
+				return view.SetRecordJSON(rec, nil)
+			})
+			return r.show(docs, func(o view.Out) error { return view.SetHistory(o, recs) })
 		}),
 	}
 	cmd.Flags().IntVarP(&limit, "limit", "n", 20, "number of runs")
@@ -446,12 +400,7 @@ func (r *runtime) connectSetFile(ctx context.Context, path string) (*app.Service
 	if err != nil {
 		return nil, err
 	}
-	t, _, err := cfg.Target(s.Stages[0][0].Target)
-	if err != nil {
-		return nil, err
-	}
-	svc, _, err := r.connect(ctx, t.Server)
-	return svc, err
+	return r.connectFirstPreset(ctx, cfg, s)
 }
 
 // connectSet connects to the server of the set's first preset. PlanSet then
@@ -468,6 +417,10 @@ func (r *runtime) connectSet(ctx context.Context, name string) (*app.Service, er
 	if !ok {
 		return nil, app.UnknownSet(cfg, name)
 	}
+	return r.connectFirstPreset(ctx, cfg, s)
+}
+
+func (r *runtime) connectFirstPreset(ctx context.Context, cfg *config.Config, s config.ResolvedSet) (*app.Service, error) {
 	t, _, err := cfg.Target(s.Stages[0][0].Target)
 	if err != nil {
 		return nil, err
@@ -479,23 +432,17 @@ func (r *runtime) connectSet(ctx context.Context, name string) (*app.Service, er
 // connectOrigin connects to the configured server whose origin a set run
 // recorded; --server overrides it and ResumeSet checks the origin.
 func (r *runtime) connectOrigin(ctx context.Context, origin string) (*app.Service, error) {
-	cfg, err := r.config()
-	if err != nil {
-		return nil, err
-	}
 	if r.flags.server != "" {
 		svc, _, err := r.connect(ctx, "")
 		return svc, err
 	}
-	return r.connectMatching(cfg, origin)
-}
-
-func (r *runtime) connectMatching(cfg *config.Config, origin string) (*app.Service, error) {
-	for _, s := range cfg.Servers() {
-		if o, err := credential.Origin(s.URL); err == nil && o == origin {
-			svc, _, err := r.connectServer(s)
-			return svc, err
-		}
+	cfg, err := r.config()
+	if err != nil {
+		return nil, err
+	}
+	if s, ok := serverForOrigin(cfg, origin); ok {
+		svc, _, err := r.connectServer(s)
+		return svc, err
 	}
 	return nil, errs.Configf("the set run ran on %s, which no configured server matches", origin).
 		WithTry("bam server add <alias> --url " + origin)
@@ -628,79 +575,4 @@ func (r *runtime) setLoop(ctx context.Context, id string, p app.SetPlan, seed *a
 func drain(events <-chan app.SetEvent) {
 	for range events {
 	}
-}
-
-// completeSets offers set names, and record ids too when ids is set.
-func (r *runtime) completeSets(ids bool) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
-	return func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
-		if len(args) > 0 {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		var out []string
-		if cfg, err := r.config(); err == nil {
-			if sets, err := cfg.Sets(); err == nil {
-				for name := range sets {
-					out = append(out, name)
-				}
-			}
-		}
-		slices.Sort(out)
-		if ids {
-			if all, err := r.setStore().IDs(); err == nil {
-				out = append(out, all...)
-			}
-		}
-		return out, cobra.ShellCompDirectiveNoFileComp
-	}
-}
-
-// completeSetVar offers the variables of every preset the named set runs.
-func (r *runtime) completeSetVar(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	none := cobra.ShellCompDirectiveNoFileComp
-	if len(args) == 0 {
-		return nil, none
-	}
-	cfg, err := r.config()
-	if err != nil {
-		return nil, none
-	}
-	s, ok, err := cfg.Set(args[0])
-	if err != nil || !ok {
-		return nil, none
-	}
-	var names []string
-	for _, stage := range s.Stages {
-		for _, run := range stage {
-			names = append(names, run.Target)
-		}
-	}
-	return presetVars(cfg, toComplete, names)
-}
-
-// completeRecordVar offers the variables of every preset a recorded set run
-// (named by set or id, or the latest) ran, for resume and rerun.
-func (r *runtime) completeRecordVar(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	rec, err := r.findSetRun(args, nil, nil)
-	if err != nil {
-		return nil, cobra.ShellCompDirectiveNoFileComp
-	}
-	cfg, _ := r.config() // findSetRun already loaded it
-	var names []string
-	for _, st := range rec.Stages {
-		for _, run := range st.Runs {
-			names = append(names, run.Target)
-		}
-	}
-	return presetVars(cfg, toComplete, names)
-}
-
-// presetVars completes --var from the named presets that still resolve.
-func presetVars(cfg *config.Config, toComplete string, names []string) ([]string, cobra.ShellCompDirective) {
-	var targets []config.ResolvedTarget
-	for _, name := range names {
-		if t, ok, err := cfg.Target(name); err == nil && ok {
-			targets = append(targets, t)
-		}
-	}
-	return targetVars(toComplete, targets...)
 }

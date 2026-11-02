@@ -149,6 +149,50 @@ func TestChildPlanRunsAfterItsParent(t *testing.T) {
 	require.Len(t, children(), 1, "the child plan has no child of its own")
 }
 
+// TestBranchBuildQueuesTheChildsBranch: bam run --repo-branch (issue #130)
+// creates a plan branch on the parent and the child, then runs the parent's;
+// the stub has to keep the branches and start the child's branch of the same
+// name, as Bamboo does, for bam run --watch to have that tree to follow.
+func TestBranchBuildQueuesTheChildsBranch(t *testing.T) {
+	s, c := testStub(t)
+	s.child = "PROJ-OLD"
+	ctx := context.Background()
+
+	child, err := c.CreateBranch(ctx, "PROJ-OLD", "feature-PROJ-101", "feature/PROJ-101")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-OLD20", child.Key)
+	parent, err := c.CreateBranch(ctx, "PROJ-BUILD", "feature-PROJ-101", "feature/PROJ-101")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BUILD20", parent.Key)
+	assert.Equal(t, "feature-PROJ-101", parent.ShortName)
+
+	branches, err := c.ListBranches(ctx, "PROJ-BUILD")
+	require.NoError(t, err)
+	require.Len(t, branches, 3, "the fixture's two, then the one created")
+	assert.Equal(t, provider.Branch{Key: "PROJ-BUILD20", Name: "Example Project - Build and test - feature-PROJ-101",
+		ShortName: "feature-PROJ-101", PlanKey: "PROJ-BUILD", URL: c.URL("PROJ-BUILD20")}, branches[2])
+
+	_, err = c.CreateBranch(ctx, "PROJ-BUILD", "feature-PROJ-101", "feature/PROJ-101")
+	require.Error(t, err, "a plan branch name is unique per plan")
+
+	run, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD20"})
+	require.NoError(t, err)
+	advance(s, s.queued+s.running)
+	kids, err := c.ListBuilds(ctx, "PROJ-OLD20", provider.ListOptions{Limit: 1, Unfinished: true})
+	require.NoError(t, err)
+	require.Len(t, kids, 1, "the parent's branch build queued the child's branch")
+	assert.Equal(t, "Child of "+run.Key, kids[0].Reason)
+	got, err := c.GetBuild(ctx, kids[0].Key)
+	require.NoError(t, err)
+	require.Len(t, got.Revisions, 1, "bam reads which repository a build built")
+	assert.Equal(t, "app", got.Revisions[0].Repository)
+	assert.Equal(t, got.Revision, got.Revisions[0].Revision, "app is the default repository")
+
+	master, err := c.ListBuilds(ctx, "PROJ-OLD", provider.ListOptions{Limit: 1, Unfinished: true})
+	require.NoError(t, err)
+	assert.NotEqual(t, "Child of "+run.Key, master[0].Reason, "the child's master plan does not run")
+}
+
 // TestTriggerWithARevisionReportsCustomRevisionBuild: bam.Client.Trigger
 // treats any trigger reason other than "Custom revision build" as Bamboo
 // having ignored the revision and stops the build it just queued. The stub

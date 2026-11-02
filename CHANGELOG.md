@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-02
+
 ### Added
 
 - `bam run --repo-branch REPO=BRANCH` (repeatable, or `PLAN:REPO=BRANCH` for one plan) builds a repository branch on the plan and the child plans it triggers, through plan branches bam creates and reuses; presets hold the same under `repo_branches`, `--dry-run` shows the plan branches, and `--json` lists them under `repo_branches`.
@@ -20,6 +22,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The terminal UI streams a running build's stage logs live (`l` on a stage, or on a running build) and search highlights and counts matches as lines arrive.
 - `bam build tree` and the terminal UI's tree views show what bam is reading while a tree loads.
 
+- `bam build investigate` prints a failed build's error lines in context, its likely cause and what to try next; `--compare` shows the revisions and variables that changed since the last successful build.
+- `bam server default ALIAS` sets the server bam uses when none is named.
+- `bam set history` lists this repository's past set runs, newest first.
+- `bam preset rm NAME` removes a preset from every file that defines it.
+- `bam preset add --from BUILD` fills a preset with that build's variable values; `p` on a build in the terminal UI does the same.
+- `bam build cancel --dry-run` and `bam build rerun --dry-run` show which build they would stop or restart.
+- `bam open --job` and `bam url --job` point at one job of a build.
+- `bam plan list --match TEXT`, and a text filter on `bam plan branches`, `plan vars`, `project list`, `preset list` and `set list`.
+- Build and plan arguments accept a link copied from a Bamboo page.
+- Plans and branches that Bamboo has disabled are marked `(disabled)` and their JSON gains `enabled`; `bam run --dry-run` warns before running one, and `bam run --json` lists warnings under `warnings`.
+- The terminal UI's run form adds a variable the plan does not declare with `a`.
+- The terminal UI keeps finished build trees for 7 days, so a tree it has seen draws at once.
+- Tab completion offers plan branches, recent builds, job keys and variable names.
+- `bam --version` prints the version, like `bam version`.
+
 ### Changed
 
 - `bam run --watch` and `bam watch` follow the build and every build it triggers, as a live tree with a progress bar on each running build, and finish only when all of them have; each build that did not succeed is listed with its Bamboo link. `--json` still writes the one build's events.
@@ -27,6 +44,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `bam target` is now `bam preset` (`bam preset add`, `list`, `show`, `sync`); `bam target` is removed. Config files keep the `targets:` key.
 - The terminal UI draws the selected row as a full-width bar and opens with a header that names the server, the bam and Bamboo versions and the user, lists the keys, and titles the table, such as `plans(PROJ)[12]`.
 - The terminal UI's three-panel screen is replaced by a plan screen: the plan's full name on top, its builds, the selected build's stages, and the plans that build triggered. The run form and log screen name the plan too.
+
+- `bam preset add` writes only the variables that differ from the plan default; `--full` writes all of them.
+- `bam build rerun --watch` follows the build and every build it triggers, like `bam watch`.
+- A mistyped command, flag, preset, set or server alias gets a "did you mean" suggestion, and aliases, states and keys work in any letter case.
+- A mistake in a config file names its line and the closest real field, and a project config saved as `.bam.yml` is reported instead of ignored.
 
 ### Fixed
 
@@ -73,7 +95,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A terminal UI with a plans table, panels for builds, stages and logs, and a run form.
 - `--json` on every read command, and stable exit codes.
 
-[Unreleased]: https://github.com/r0jjames/bam-cli/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/rojcarranza/bam/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rojcarranza/bam/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/r0jjames/bam-cli/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/r0jjames/bam-cli/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/r0jjames/bam-cli/releases/tag/v0.1.0

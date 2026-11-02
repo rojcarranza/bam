@@ -197,6 +197,7 @@ and `bam build cancel` on the command line, stop a build.
 | build a chosen commit instead of the newest | `bam run provision-lab --revision abc1234` |
 | rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |
 | build a feature branch of a repository on a plan and the plans it triggers | `bam run PROJ-PARENT --repo-branch repo-a=feature/PROJ-101` |
+| keep those repository branches in a preset | `repo_branches:` in the preset, then `bam run feature-101` (see [presets](docs/presets.md#build-other-repository-branches)) |
 | see recent builds | `bam build list provision-lab` |
 | is this plan flaky? | `bam plan stats provision-lab` |
 | follow a running build and the builds it triggers | `bam watch --last` |
@@ -214,7 +215,7 @@ and `bam build cancel` on the command line, stop a build.
 
 `--revision` takes a full or short SHA and passes it to Bamboo as given; Bamboo applies it to the plan's default repository. A revision Bamboo cannot build ends as "not built", so add `--watch` to see it. If the server ignores the revision, bam stops the build it queued and exits 5. `--revision from` reuses the commit of the `--from` build, together with its variables.
 
-`--repo-branch REPO=BRANCH` builds `BRANCH` of repository `REPO` on every plan of the run whose default repository it is: the plan you run and the child plans its last build triggered (plus your `children:` config). `PLAN:REPO=BRANCH` sets it for one plan only, so a child can build its own branch; repeat the flag for more. Name the repository as `bam build show` lists it. Bamboo cannot change a plan's repository over its REST API, so bam runs each plan on a plan branch named after the first branch (`feature-PROJ-101`), creating the ones that are missing, and never edits the plans: nothing needs restoring, and the plan branches stay for the next run. Bamboo starts a child's plan branch only when the parent plan's dependencies are enabled for branches. `--dry-run` shows the plan branches bam would create or reuse, and a preset can hold the same pairs under `repo_branches` (see [presets](docs/presets.md#build-other-repository-branches)).
+`--repo-branch REPO=BRANCH` builds `BRANCH` of repository `REPO` on every plan of the run whose default repository it is: the plan you run and the child plans its last build triggered (plus your `children:` config). `PLAN:REPO=BRANCH` sets it for one plan only, so a child can build its own branch; repeat the flag for more. Name the repository as `bam build show` lists it. Bamboo cannot change a plan's repository over its REST API, so bam runs each plan on a plan branch named after the branch for every plan (`feature-PROJ-101`), creating the ones that are missing, and never edits the plans: nothing needs restoring, and the plan branches stay for the next run. Bamboo starts a child's plan branch only when the parent plan's dependencies are enabled for branches. `--dry-run` shows the plan branches bam would create or reuse, and a preset can hold the same pairs under `repo_branches` (see [presets](docs/presets.md#build-other-repository-branches)).
 
 `bam project list`, `bam preset list` and `bam set list` take the same kind of text filter, and every filter ignores case.
 

@@ -23,18 +23,19 @@ From the Bamboo 9.6 REST reference (`swagger.json` published at `docs.atlassian.
 | List a plan's branches | `GET plan/{key}/branch` (already used by `--branch`) | bam reuses a plan branch that already has the name |
 | A plan's repositories | not on the plan resource; a build result's `vcsRevisions` names each repository, and `vcsRevisionKey` is the default repository's commit | bam learns a plan's repositories from its newest build |
 | Read or change an existing plan branch's VCS branch | none | a reused plan branch keeps whatever branch it builds |
+| Delete a plan branch | `DELETE plan/{branch key}` answers 204 (seen on Bamboo 12.1.8) | the run hint names it; bam does not delete plan branches itself |
 | Pick a revision | the queue's `customRevision` (run revision spec) | default repository only, as here |
 
 Bamboo's knowledge base ("How to trigger a branch after successful build of another branch with a different name") says a parent's plan branch triggers the child plan's branch **with the same name**, when the parent's dependencies are enabled for branches. That is how the branch reaches the children: bam gives every plan of the run a plan branch with one shared name.
 
-Not yet confirmed against a live Bamboo: how Bamboo answers `PUT …/branch/{name}` for a name that exists, whether `vcsBranch` takes `feature/x` or `refs/heads/feature/x`, and the child trigger itself. The forge-lab parent/child pipeline is the check (§10).
+Confirmed on the forge-lab parent/child pipeline (Bamboo 12.1.8, §10): `vcsBranch` takes a plain branch name such as `feature/x`; the parent's plan branch build starts the children's plan branches of the same name; and `PUT …/branch/{name}` for a name that exists answers 400 `This name is already used in a branch or plan.` bam lists the branches first, so it never sends that request.
 
 ## 3. Decisions
 
 | Question (issue #130) | Decision | Why |
 | --- | --- | --- |
 | How the branch is changed | A plan branch per plan, all with one name; plans are never edited | The only REST route; nothing to restore and no effect on other people's builds |
-| Temporary or persistent | The plan branches stay after the run and are reused by the next run with the same name | Bamboo has no REST call to delete a plan branch; the plans themselves never change. bam says so and names the branches it created |
+| Temporary or persistent | The plan branches stay after the run and are reused by the next run with the same name | Deleting them would throw away their build history, and the next run would create them again; the plans themselves never change. bam says so, names the branches it created and how to delete one |
 | How a repository is named | By its name as a build shows it (`vcsRevisions[].repositoryName`), such as `repo-a` | The name the developer sees in Bamboo and in `bam build show` |
 | Which children | The plans in the tree of the root plan's newest build (`bam build tree`), the `children:` config, and any plan named in an override | Works with no setup; config and explicit names cover a child that never ran |
 | `bam run` only, or the terminal UI too | `bam run` and presets now; the terminal UI later | Smallest change; the UI refuses a preset with overrides instead of ignoring them (§5.3) |
@@ -63,7 +64,7 @@ bam run <plan|preset> --repo-branch [PLAN:]REPO=BRANCH ... [--var k=v]... [--wat
 
 ### 4.1 The plan branch name
 
-All plans of the run use one plan branch name: the branch of the first override (flags in the order given, then the preset's entries: those for every plan before those for one plan, each by key), with every `/` replaced by `-`, as older Bamboo versions name branches. `feature/PROJ-101` gives `feature-PROJ-101`. A name without `/` keeps Bamboo's path free of encoded slashes.
+All plans of the run use one plan branch name: the branch of the first override for every plan (`REPO=BRANCH`), or of the first override when every one names a plan, taking flags in the order given, then the preset's entries (those for every plan before those for one plan, each by key), with every `/` replaced by `-`. A flag for one plan on top of a preset so keeps the preset's name and plan branches, as older Bamboo versions name branches. `feature/PROJ-101` gives `feature-PROJ-101`. A name without `/` keeps Bamboo's path free of encoded slashes.
 
 ## 5. What a run does
 
@@ -88,7 +89,7 @@ A plan's **default repository** is the `vcsRevisions` entry whose revision equal
 
 A plan **gets the plan branch** when it is the root, when an override sets its default repository's branch, or when it sits between the root and such a plan, so Bamboo's chain of same-named branches reaches it. A plan that only carries the name on builds its own branch (`vcsBranch` is left out).
 
-For each plan that gets the plan branch, bam lists its branches. One whose short name equals the name is reused; otherwise bam will create it. Reused branches add one warning: `plan branch feature-PROJ-101 already exists on PROJ-PARENT12, PROJ-CHILD3; bam reuses it as it is and cannot check which branch it builds`.
+For each plan that gets the plan branch, bam lists its branches. One whose short name equals the name is reused; otherwise bam will create it. Reused branches add one warning: `plan branch feature-PROJ-101 already exists on PROJ-PARENT12, PROJ-CHILD3; bam reuses it as it is and cannot check which branch it builds; to build another branch there, delete it in Bamboo first`.
 
 ### 5.3 Running
 
@@ -116,7 +117,7 @@ The Plan line names the root's plan branch key once it exists: `(branch feature-
 ✓ Created  PROJ-PARENT20   plan branch feature-PROJ-101 of PROJ-PARENT
 ✓ Created  PROJ-CHILD7      plan branch feature-PROJ-101 of PROJ-CHILD
   bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.
-  To remove one, delete it on its plan's Branches page in Bamboo.
+  To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>.
   A child plan starts on feature-PROJ-101 only when its parent plan's dependencies are enabled for branches.
 ```
 
@@ -164,11 +165,11 @@ No test sleeps or touches the network.
 
 1. `go test -race ./...`, `make lint`, `make check-fixtures`, `make docs` clean.
 2. Against the stub (`-child PROJ-CHILD`, whose builds name their repository `app`), after one plain run of PROJ-PARENT: `bam run PROJ-PARENT --repo-branch app=feature/PROJ-101 --repo-branch PROJ-CHILD:app=feature/PROJ-101-extra --watch` creates both plan branches, runs the parent's, and the tree shows the child's branch build.
-3. Against a forge-lab parent/child pipeline on a live Bamboo: the same command with its repository names, then `bam build show` of each build shows the chosen branch's commit of `repo-a`. This confirms the three unverified points of §2.
+3. Against a forge-lab parent/child pipeline on a live Bamboo: the same command with its repository names, then `bam build show` of each build shows the chosen branch's commit of `repo-a`. This confirmed the three points of §2 that needed a live Bamboo.
 
 ## 11. Out of scope
 
 - The terminal UI run form.
 - Switching a repository that is not a plan's default repository.
-- Deleting plan branches (no REST call).
+- Deleting plan branches; the run hint names `DELETE plan/{branch key}` instead.
 - Following child plan branches in `bam build tree` and `bam watch` of an existing build.

@@ -104,16 +104,60 @@ Make one preset per set, each pointing at the same plan:
 
 ### Build other repository branches
 
-`repo_branches` makes a preset build feature branches across a parent plan and its child plans, as `bam run --repo-branch` does. Key it by repository, or by plan and repository for one plan:
+`repo_branches` makes a preset run a parent plan and the child plans it triggers on other branches of their repositories, as `bam run --repo-branch` does. Keep one preset per feature you test, and `bam run` does the rest.
+
+**1. Find the repository's name** as Bamboo names it on the plan's builds, under Revisions:
+
+    bam build show PROJ-PARENT
+    ...
+    Revisions   repo-a 9b30b9a
+
+bam can switch only a plan's default repository; the dry run in step 3 says when an entry names another one.
+
+**2. Add the preset** to `~/bam/presets.yaml`, or to the plan's project file in `~/bam/presets/`. Key each branch by repository, for every plan of the run whose default repository it is, or by plan and repository, for one plan:
 
     presets:
       feature-101:
         plan: PROJ-PARENT
         repo_branches:
-          repo-a: feature/PROJ-101               # every plan of the run whose default repository is repo-a
-          PROJ-CHILD:repo-a: feature/PROJ-101-extra   # PROJ-CHILD only
+          repo-a: feature/PROJ-101                    # PROJ-PARENT and every child plan that builds repo-a
+          PROJ-CHILD:repo-a: feature/PROJ-101-extra   # PROJ-CHILD builds its own branch
+        variables:
+          cluster_type: dcos
 
-`bam run feature-101` then runs each of those plans on a plan branch named after the branch (`feature-PROJ-101`, from the entry for every plan), creating the plan branches it needs. A `--repo-branch` flag beats the entry with the same key. A preset with `repo_branches` cannot also set `branch:`, and only `bam run` applies it: a release train or the terminal UI's run form refuses it rather than run without the branches. `bam preset show` lists the entries under Repository branches.
+`variables`, `options`, `required` and `watch` work as in any preset. The same `repo_branches` key works under `targets:` in a shared `.bam.yaml` and in your machine config, and the layers merge per key as `variables` do. A preset with `repo_branches` cannot also set `branch:`.
+
+**3. Check it.** `bam preset show feature-101` lists the entries under Repository branches. A dry run finds the child plans from the parent's newest build and your `children:` config, and shows what bam would do to each:
+
+    bam run feature-101 --dry-run
+
+    Plan     PROJ-PARENT  (branch feature-PROJ-101)
+    Branches feature-PROJ-101 on 2 plans
+      PROJ-PARENT  repo-a  feature/PROJ-101        create
+      PROJ-CHILD   repo-a  feature/PROJ-101-extra  create
+    Vars     cluster_type=dcos (preset)  +2 plan defaults
+    dry run: nothing triggered
+
+A repository that no plan of the run builds, or that is not a plan's default repository, is an error here, before anything changes.
+
+**4. Run it.** `bam run feature-101 --watch` creates the plan branches it needs, child plans first, runs `PROJ-PARENT`'s, and follows the child plans' branch builds:
+
+    ✓ Created  PROJ-PARENT20   plan branch feature-PROJ-101 of PROJ-PARENT
+    ✓ Created  PROJ-CHILD20    plan branch feature-PROJ-101 of PROJ-CHILD
+      bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.
+      To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>.
+      A child plan starts on feature-PROJ-101 only when its parent plan's dependencies are enabled for branches.
+    ✓ Queued   PROJ-PARENT20-903   https://bamboo.example.com/browse/PROJ-PARENT20-903
+
+The plan branches are named after the entry for every plan (`feature/PROJ-101` gives `feature-PROJ-101`). The next run of the preset reuses them and creates nothing. Bamboo starts a child plan's branch only when the parent plan's dependencies are enabled for branches, in the parent plan's configuration.
+
+**5. Change a branch for one run** with a flag, which beats the preset's entry with the same key:
+
+    bam run feature-101 --repo-branch repo-a=feature/PROJ-102 --dry-run   # plan branches feature-PROJ-102
+
+A plan branch keeps the repository branch bam created it with, and Bamboo does not let bam read it back. So to point an existing plan branch at another branch, such as after changing the `PROJ-CHILD:repo-a` entry, delete that plan branch first, on its plan's Branches page in Bamboo or with `DELETE /rest/api/latest/plan/PROJ-CHILD20`; bam then creates it again. bam warns whenever it reuses one.
+
+Only `bam run` applies `repo_branches`: a release train or the terminal UI's run form refuses such a preset rather than run it without the branches.
 
 ### Move presets you already have
 

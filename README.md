@@ -70,11 +70,35 @@ Every example uses the same small pipeline, so each command follows from the one
 
 ## Commands
 
+The sections below follow the order you use bam in. You connect once, save a preset for each plan, then check and run it by name:
+
+```mermaid
+flowchart LR
+    subgraph once ["Once"]
+        s1["1 · Connect<br/>bam server add<br/>bam login<br/>bam doctor"]
+    end
+    subgraph perplan ["Once per plan"]
+        s2["2 · Find the plan<br/>bam plan list<br/>bam plan vars"] --> s3["3 · Save a preset<br/>bam preset add"] --> s4["4 · Fill in the values<br/>~/bam/presets/forge.yaml"]
+    end
+    subgraph everyrun ["Every run"]
+        s5["5 · Check it<br/>bam run lab1 --dry-run"] --> s6["6 · Run and follow<br/>bam run ci"]
+    end
+    subgraph feature ["Per feature branch"]
+        s7["7 · Name the repository<br/>bam build show BAMCI-BUILD"] --> s8["8 · Add repo_branches<br/>to a preset"] --> s9["9 · Check it, then run it<br/>bam run my-feature"] --> s10["10 · Delete the<br/>plan branches"]
+    end
+    subgraph fails ["When a build fails"]
+        s11["11 · Read why<br/>bam build investigate --last<br/>bam logs --last --failed"]
+    end
+    once --> perplan --> everyrun
+    everyrun -->|"you pushed a branch"| feature
+    everyrun -->|"a build failed"| fails
+```
+
 Where a command takes a build, `--last` means the build you started last from this directory. Every read command takes `--json`. `bam <command> --help` shows all flags; the full reference is in [docs/cli](docs/cli/bam.md).
 
-### Find what to run
+### Find your plan
 
-`bam project list`, `bam plan list`, `bam plan show`, `bam plan vars` and `bam plan branches` list what exists. In Bamboo this is the Projects menu and a plan's page.
+`bam project list`, `bam plan list`, `bam plan show`, `bam plan vars` and `bam plan branches` list what exists. In Bamboo this is the Projects menu and a plan's page. Note the plan key and its variables; the next step saves them as a preset.
 
     $ bam plan list BAMCI
     BAMCI  bam CI
@@ -94,34 +118,172 @@ Where a command takes a build, `--last` means the build you started last from th
 | see a plan with its branches and recent builds | `bam plan show BAMCI-BUILD` |
 | list a plan's branches | `bam plan branches BAMCI-TEST` |
 | find a plan by part of its name | `bam plan list --match test` |
+| see which repository a plan builds | `bam build show BAMCI-BUILD`, under Revisions |
 
-### Run a build
+### Save it as a preset
 
-`bam run` starts a plan with your variables and prints the link to the build. In Bamboo this is the plan's Run, then Run customised, page.
+A preset is a plan plus the variable values you run it with, under a name you choose. Save one before your first run. `bam preset add` reads the plan's variables from Bamboo and writes the preset for you, in `~/bam/presets/`, one file per Bamboo project:
 
-    $ bam run BAMCI-BUILD --watch
+    $ bam preset add lab1 --plan FORGE-PROV
+    added preset lab1 to ~/bam/presets/forge.yaml
+    review before commit: values copied from Bamboo
+
+    $ bam preset add ci --plan BAMCI-BUILD
+    added preset ci to ~/bam/presets/bamci.yaml
+
+bam writes only `plan:` and the variables that have no plan default, here an empty `cluster_config`. Open the file, set the values, and add the keys you want. Filled in, the two files look like this; only `plan` is required.
+
+`~/bam/presets/forge.yaml`:
+
+    # ~/bam/presets/forge.yaml: presets for FORGE-* plans
+    presets:
+      lab1:                          # the name you type: bam run lab1
+        plan: FORGE-PROV             # Bamboo plan key (required)
+        # branch: develop            # optional: an existing plan branch to run
+        # server: work               # optional: a server alias, when you have several
+        variables:                   # sent with every run; leave one out to keep the plan's value
+          cluster_name: lab1
+          cluster_config: lab1
+        options:                     # allowed values; anything else is refused before the run
+          cluster_config: [lab1, dcos1, reference]
+        required: [cluster_config]   # must have a value before the run
+        watch: true                  # follow the build, as --watch does
+        timeout: 45m                 # stop waiting after 45 minutes
+
+`~/bam/presets/bamci.yaml`, with a second preset that builds a feature branch (see [Test a feature branch](#test-a-feature-branch)):
+
+    # ~/bam/presets/bamci.yaml: presets for BAMCI-* plans
+    presets:
+      ci:                       # the name you type: bam run ci
+        plan: BAMCI-BUILD       # Bamboo plan key (required)
+        watch: true             # follow the build, as --watch does
+
+      my-feature:                                # bam run my-feature
+        plan: BAMCI-BUILD                        # the parent plan; bam finds the child plans it triggers
+        repo_branches:                           # REPO: BRANCH, instead of branch:
+          bam: fix/ignore-undotted-bam-yaml      # every plan of the run that builds repository bam
+          # BAMCI-TEST:bam: fix/my-test-change   # optional: one plan builds its own branch
+        watch: true
+
+Check it with a dry run, which resolves and checks every value and starts nothing. A value outside `options` is refused before anything runs:
+
+    $ bam run lab1 --dry-run
+    Plan     FORGE-PROV
+    Vars     cluster_config=lab1 (preset)  cluster_name=lab1 (preset)
+    dry run: nothing triggered
+
+    $ bam run lab1 --var cluster_config=splunk9 --dry-run
+    error: cluster_config="splunk9" is not allowed by preset lab1
+      allowed: lab1, dcos1, reference
+
+`bam run lab1` then works from any directory. bam reads four files, and the presets file is the one you edit:
+
+| File | What it holds | Written by |
+| --- | --- | --- |
+| `~/.config/bam/config.yaml` | servers, their projects, preferences | `bam server add` |
+| `~/.config/bam/credentials.yaml` | your token, when there is no keychain | `bam login` |
+| `~/bam/presets/<project>.yaml` | your presets, under `presets:` with `variables:` | `bam preset add` |
+| `.bam.yaml` at the repository root | team presets, under `targets:` with `defaults:`; committed | `bam preset add --shared`, `bam init` |
+
+More: [Presets](docs/presets.md), [Configuration](docs/configuration.md); `bam init` writes a team's `.bam.yaml` with presets generated from plans.
+
+| You want to | Type |
+| --- | --- |
+| list your presets and their files | `bam preset list` |
+| see one preset | `bam preset show lab1` |
+| add variables the plan gained since | `bam preset sync lab1 --dry-run` |
+| remove a preset | `bam preset rm lab1` |
+| generate a repository's `.bam.yaml` | `bam init --server work --project BAMCI --plan BAMCI-BUILD=ci` |
+
+### Run it
+
+`bam run` starts a preset, or a plan by its key, and prints the link to the build. In Bamboo this is the plan's Run, then Run customised, page. `ci` sets `watch: true`, so bam follows the build and every build it triggers:
+
+    $ bam run ci
     Plan     BAMCI-BUILD
     Vars     none
-    ✓ Queued   BAMCI-BUILD-7   https://bamboo.example.com/browse/BAMCI-BUILD-7
-    BAMCI-BUILD-7 (Build)   ✓ success  1s
-    ├─ stage Build          ✓ success  1s
-    ├─ BAMCI-LINT-7 (Lint)  ✓ success  1s
-    │  └─ stage Lint        ✓ success  1s
-    └─ BAMCI-TEST-7 (Test)  ✓ success  3s
-       └─ stage Test        ✓ success  1s
+    ✓ Queued   BAMCI-BUILD-8   https://bamboo.example.com/browse/BAMCI-BUILD-8
+    BAMCI-BUILD-8 (Build)   ✓ success  3s
+    ├─ stage Build          ✓ success  3s
+    ├─ BAMCI-LINT-8 (Lint)  ✓ success  3s
+    │  └─ stage Lint        ✓ success  3s
+    └─ BAMCI-TEST-8 (Test)  ✓ success  14s
+       └─ stage Test        ✓ success  10s
 
 On a terminal the tree redraws while the builds run. bam exits 0 when every build succeeded and 1 when one did not. Ctrl-C stops watching; the builds keep running.
 
 | You want to | Type |
 | --- | --- |
+| run a plan by its key and follow it | `bam run BAMCI-BUILD --watch` |
 | set a variable | `bam run FORGE-PROV --var cluster_name=lab2` |
 | see what would be sent, start nothing | `bam run FORGE-PROV --var cluster_name=lab2 --dry-run` |
 | reuse the last build's variables | `bam run FORGE-PROV --from last` |
 | change them in your editor first | `bam run FORGE-PROV --from last --edit` |
 | run an existing plan branch | `bam run BAMCI-BUILD --branch fix-cancel-stale-tree-reads` |
 | build one commit | `bam run BAMCI-BUILD --revision 41d06ce` |
-| test a pushed branch on the parent and both children | `bam run BAMCI-BUILD --repo-branch bam=fix/cancel-stale-tree-reads --dry-run` (see [docs/branches.md](docs/branches.md)) |
-| run a saved preset | `bam run lab1` (see Save your variables) |
+| test a pushed branch on the parent and both children | `bam run BAMCI-BUILD --repo-branch bam=fix/cancel-stale-tree-reads --dry-run` (see Test a feature branch) |
+| run a saved preset | `bam run lab1` (see Save it as a preset) |
+
+### Test a feature branch
+
+You pushed a branch and want the whole pipeline to build it: `BAMCI-BUILD` and the two plans it triggers. Bamboo cannot switch a plan's repository over its REST API, so bam runs each plan on a plan branch named after your branch, and creates the plan branches the first time.
+
+1. Find the repository's name, under Revisions:
+
+       $ bam build show BAMCI-BUILD
+       ...
+       Revisions   bam 7ec79b3
+
+2. Add a preset, then give it the branch. `bam preset add my-feature --plan BAMCI-BUILD` writes the plan line; add `repo_branches` under it in `~/bam/presets/bamci.yaml`:
+
+       my-feature:
+         plan: BAMCI-BUILD
+         repo_branches:
+           bam: fix/ignore-undotted-bam-yaml
+         watch: true
+
+   `bam: BRANCH` applies to every plan of the run that builds `bam`. `BAMCI-TEST:bam: BRANCH` gives one plan its own branch.
+
+3. Check what bam would create:
+
+       $ bam run my-feature --dry-run
+       finding the plans BAMCI-BUILD triggers, for their repository branches
+       Plan     BAMCI-BUILD  (branch fix-ignore-undotted-bam-yaml)
+       Branches fix-ignore-undotted-bam-yaml on 3 plans
+         BAMCI-BUILD  bam  fix/ignore-undotted-bam-yaml  create
+         BAMCI-LINT   bam  fix/ignore-undotted-bam-yaml  create
+         BAMCI-TEST   bam  fix/ignore-undotted-bam-yaml  create
+       Vars     none
+       dry run: nothing triggered
+
+4. Run it:
+
+       $ bam run my-feature
+       ...
+       ✓ Created  BAMCI-BUILD7   plan branch fix-ignore-undotted-bam-yaml of BAMCI-BUILD
+       ✓ Created  BAMCI-LINT7    plan branch fix-ignore-undotted-bam-yaml of BAMCI-LINT
+       ✓ Created  BAMCI-TEST7    plan branch fix-ignore-undotted-bam-yaml of BAMCI-TEST
+       ...
+       ✓ Queued   BAMCI-BUILD7-1   https://bamboo.example.com/browse/BAMCI-BUILD7-1
+       BAMCI-BUILD7-1 (Build · fix-ignore-undotted-bam-yaml)   ✓ success  5s
+       ├─ stage Build                                          ✓ success  5s
+       ├─ BAMCI-LINT7-1 (Lint · fix-ignore-undotted-bam-yaml)  ✓ success  6s
+       │  └─ stage Lint                                        ✓ success  6s
+       └─ BAMCI-TEST7-1 (Test · fix-ignore-undotted-bam-yaml)  ✓ success  17s
+          └─ stage Test                                        ✓ success  11s
+
+   The next `bam run my-feature` reuses the three plan branches. A child plan starts on the branch only when the parent plan's dependencies are enabled for branches.
+
+5. When you are done with the branch, delete the plan branches: on each plan's Branches page in Bamboo, or with `DELETE /rest/api/latest/plan/BAMCI-BUILD7` (and `BAMCI-LINT7`, `BAMCI-TEST7`). `bam plan branches BAMCI-BUILD` lists the keys.
+
+| You want to | Type |
+| --- | --- |
+| try another branch once | `bam run my-feature --repo-branch bam=fix/other-branch --dry-run` |
+| give one child its own branch for one run | `bam run my-feature --repo-branch BAMCI-TEST:bam=fix/my-test-change` |
+| do it without a preset | `bam run BAMCI-BUILD --repo-branch bam=fix/ignore-undotted-bam-yaml` |
+| point an existing plan branch at another branch | delete it in Bamboo first; bam then creates it again |
+
+More: [Build a commit or another branch](docs/branches.md), [Build other repository branches](docs/presets.md#build-other-repository-branches).
 
 ### Follow a build
 
@@ -144,32 +306,6 @@ Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on suc
 | draw the tree of a build and its children | `bam build tree BAMCI-BUILD-7` |
 | follow that tree until every build finishes | `bam build tree BAMCI-BUILD-7 --watch` |
 | stop waiting after 30 minutes | `bam watch --last --timeout 30m` |
-
-### Look at past builds
-
-`bam build list`, `bam build show` and `bam plan stats` read history. In Bamboo this is the plan's build list and a build's Summary tab.
-
-    $ bam build show BAMCI-BUILD-7
-    BAMCI-BUILD-7  ✓ success  https://bamboo.example.com/browse/BAMCI-BUILD-7
-    Plan        BAMCI-BUILD
-    Reason      Manual run by Admin
-    Started     2026-11-02T16:57:33Z
-    Completed   2026-11-02T16:57:35Z
-    Duration    1s
-    Revisions   bam 7ec79b3
-
-    $ bam plan stats BAMCI-BUILD
-    BAMCI-BUILD  last 7 builds (#1–#7, 4h25m)
-    Success   100%  (7 ✓  0 ✗)   streak ✓ 7
-    Duration  median 3s  p90 5s  max 5s (#1)   of 7 successful
-    Failing jobs none
-
-| You want to | Type |
-| --- | --- |
-| list recent builds of a plan | `bam build list BAMCI-BUILD` |
-| list the builds of one plan branch | `bam build list BAMCI-TEST --branch fix-tree-running-time` |
-| see the build you just started | `bam build show --last` |
-| see how often a plan fails | `bam plan stats BAMCI-TEST` |
 
 ### When a build fails
 
@@ -246,28 +382,31 @@ Start from the failed build. `bam build investigate` picks out the error and the
 
 On WSL this opens your Windows browser once `wslu` is installed (see Install). If no browser opens, bam prints the link and a warning, as above, and the link still works.
 
-### Save your variables
+### Look at past builds
 
-A preset is a plan plus the variable values you run it with. `bam preset add` reads the plan's variables from Bamboo and writes the file for you, in `~/bam/presets/`, one file per Bamboo project.
+`bam build list`, `bam build show` and `bam plan stats` read history. In Bamboo this is the plan's build list and a build's Summary tab.
 
-    $ bam preset add lab1 --plan FORGE-PROV
-    added preset lab1 to ~/bam/presets/forge.yaml
-    review before commit: values copied from Bamboo
+    $ bam build show BAMCI-BUILD-7
+    BAMCI-BUILD-7  ✓ success  https://bamboo.example.com/browse/BAMCI-BUILD-7
+    Plan        BAMCI-BUILD
+    Reason      Manual run by Admin
+    Started     2026-11-02T16:57:33Z
+    Completed   2026-11-02T16:57:35Z
+    Duration    1s
+    Revisions   bam 7ec79b3
 
-    $ bam run lab1 --dry-run
-    Plan     FORGE-PROV
-    Vars     cluster_config= (preset)  cluster_name=lab1 (preset)
-    dry run: nothing triggered
-
-Open `~/bam/presets/forge.yaml`, set the values under `variables`, and delete the ones you never change. `bam run lab1` then works from any directory. More: [Presets](docs/presets.md); `bam init` writes a team's `.bam.yaml` with presets generated from plans.
+    $ bam plan stats BAMCI-BUILD
+    BAMCI-BUILD  last 7 builds (#1–#7, 4h25m)
+    Success   100%  (7 ✓  0 ✗)   streak ✓ 7
+    Duration  median 3s  p90 5s  max 5s (#1)   of 7 successful
+    Failing jobs none
 
 | You want to | Type |
 | --- | --- |
-| list your presets and their files | `bam preset list` |
-| see one preset | `bam preset show lab1` |
-| add variables the plan gained since | `bam preset sync lab1 --dry-run` |
-| remove a preset | `bam preset rm lab1` |
-| generate a repository's `.bam.yaml` | `bam init --server work --project BAMCI --plan BAMCI-BUILD=ci` |
+| list recent builds of a plan | `bam build list BAMCI-BUILD` |
+| list the builds of one plan branch | `bam build list BAMCI-TEST --branch fix-tree-running-time` |
+| see the build you just started | `bam build show --last` |
+| see how often a plan fails | `bam plan stats BAMCI-TEST` |
 
 ### Run plans in order
 

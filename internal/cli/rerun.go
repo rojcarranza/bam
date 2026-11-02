@@ -78,8 +78,7 @@ succeeded is refused.`,
 		}),
 	}
 	f := cmd.Flags()
-	f.BoolVar(&last, "last", false, "the last build bam triggered from this repository")
-	f.StringVar(&branch, "branch", "", "plan branch when a plan or preset is given")
+	addBuildArgFlags(cmd, &last, &branch)
 	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	f.BoolVar(&dryRun, "dry-run", false, "show which build would rerun, restart nothing")
 	f.DurationVar(&timeout, "timeout", 0, "with --watch, stop watching after this long (the build keeps running)")

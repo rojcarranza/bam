@@ -66,6 +66,9 @@ type Target struct {
 	Required  []string      `yaml:"required,omitempty"`
 	Watch     *bool         `yaml:"watch,omitempty"`
 	Timeout   Duration      `yaml:"timeout,omitempty"`
+	// RepoBranches maps REPO or PLAN:REPO to the branch of that repository
+	// the run builds, through plan branches (issue #130).
+	RepoBranches StringMap `yaml:"repo_branches,omitempty"`
 }
 
 type Repo struct {

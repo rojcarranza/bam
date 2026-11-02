@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/r0jjames/bam-cli/internal/atomicfile"
 	"github.com/r0jjames/bam-cli/internal/errs"
 	"gopkg.in/yaml.v3"
 )
@@ -191,22 +192,7 @@ func writeAtomic(path string, data []byte, mode fs.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return errs.Configf("cannot create %s", filepath.Dir(path)).Wrap(err)
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".bam-*.tmp")
-	if err != nil {
-		return errs.Configf("cannot write %s", path).Wrap(err)
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		return errs.Configf("cannot write %s", path).Wrap(err)
-	}
-	if err := tmp.Close(); err != nil {
-		return errs.Configf("cannot write %s", path).Wrap(err)
-	}
-	if err := os.Chmod(tmp.Name(), mode); err != nil {
-		return errs.Configf("cannot write %s", path).Wrap(err)
-	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
+	if err := atomicfile.Write(path, data, mode); err != nil {
 		return errs.Configf("cannot write %s", path).Wrap(err)
 	}
 	return nil

@@ -1,7 +1,9 @@
 package config
 
 import (
+	"maps"
 	"regexp"
+	"slices"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
 )
@@ -15,7 +17,7 @@ var childPlanKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*$`)
 func (c *Config) Children() (map[string][]string, error) {
 	out := map[string][]string{}
 	layer := func(path, where string, m map[string][]string) error {
-		for _, k := range sortedKeys(m) {
+		for _, k := range slices.Sorted(maps.Keys(m)) {
 			if !childPlanKeyRe.MatchString(k) {
 				return errs.Configf("%s: %s: %q is not a plan key", path, where, k).
 					WithWhy("children maps a plan key like PROJ-API to the plans it triggers")

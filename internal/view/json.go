@@ -3,6 +3,7 @@ package view
 import (
 	"encoding/json"
 	"io"
+	"maps"
 	"sort"
 	"time"
 
@@ -116,6 +117,8 @@ type TargetDoc struct {
 	Watch     bool                `json:"watch"`
 	TimeoutMS int64               `json:"timeout_ms"`
 	DefinedIn []string            `json:"defined_in"`
+	// RepoBranches maps REPO or PLAN:REPO to a branch, as repo_branches does.
+	RepoBranches map[string]string `json:"repo_branches"`
 }
 
 type RunDoc struct {
@@ -127,6 +130,18 @@ type RunDoc struct {
 	RevisionFrom string            `json:"revision_from"`
 	Variables    map[string]string `json:"variables"`
 	Warnings     []string          `json:"warnings"`
+	// RepoBranches is what a run with --repo-branch does to each plan; [] without.
+	RepoBranches []RepoBranchDoc `json:"repo_branches"`
+}
+
+// RepoBranchDoc is one plan of a run with repository branches.
+type RepoBranchDoc struct {
+	PlanKey    string `json:"plan_key"`
+	BranchKey  string `json:"branch_key"` // "" on a dry run for a plan branch bam would create
+	Branch     string `json:"branch"`     // the plan branch name, the same on every plan
+	Repository string `json:"repository"` // "" when the plan keeps its own branch
+	VCSBranch  string `json:"vcs_branch"`
+	Existing   bool   `json:"existing"` // the plan branch was there before the run
 }
 
 type EventDoc struct {
@@ -167,27 +182,30 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 	d := BuildDoc{Key: b.Key, URL: b.URL, PlanKey: b.PlanKey, PlanName: b.PlanName, Branch: b.Branch, Number: b.Number, State: string(b.State),
 		Reason: b.Reason, CustomBuild: b.CustomBuild, Labels: nonNil(b.Labels), QueuedAt: timePtr(b.QueuedAt),
 		StartedAt: timePtr(b.StartedAt), FinishedAt: timePtr(b.FinishedAt), QueueDurationMS: ms(b.QueueDuration),
-		DurationMS: ms(b.Duration), Agent: b.Agent, Revisions: []RevisionDoc{}, Stages: []StageDoc{}, FailedTests: nonNil(b.FailedTests),
-		Progress: progressDoc(pr)}
-	for _, r := range b.Revisions {
-		d.Revisions = append(d.Revisions, RevisionDoc{Repository: r.Repository, Revision: r.Revision, Short: r.Short()})
-	}
-	for _, s := range b.Stages {
-		sd := StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: []JobDoc{}}
-		for _, j := range s.Jobs {
-			sd.Jobs = append(sd.Jobs, JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration)})
-		}
-		d.Stages = append(d.Stages, sd)
-	}
+		DurationMS: ms(b.Duration), Agent: b.Agent, FailedTests: nonNil(b.FailedTests), Progress: progressDoc(pr)}
+	d.Revisions = Docs(b.Revisions, func(r provider.Revision) RevisionDoc {
+		return RevisionDoc{Repository: r.Repository, Revision: r.Revision, Short: r.Short()}
+	})
+	d.Stages = Docs(b.Stages, func(s provider.Stage) StageDoc {
+		return StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: Docs(s.Jobs, func(j provider.Job) JobDoc {
+			return JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration)}
+		})}
+	})
 	return d
 }
 
-func BuildsJSON(bs []provider.Build) []BuildDoc {
-	out := []BuildDoc{}
-	for _, b := range bs {
-		out = append(out, BuildJSON(b))
+// Docs maps items to their JSON documents. The result is never nil, so an
+// empty list encodes as [] rather than null.
+func Docs[T, D any](items []T, doc func(T) D) []D {
+	out := make([]D, 0, len(items))
+	for _, it := range items {
+		out = append(out, doc(it))
 	}
 	return out
+}
+
+func BuildsJSON(bs []provider.Build) []BuildDoc {
+	return Docs(bs, BuildJSON)
 }
 
 func PlanJSON(p provider.Plan) PlanDoc {
@@ -220,7 +238,11 @@ func VarRowsJSON(res app.PlanVarsResult) []VariableDoc {
 
 func TargetJSON(t app.TargetInfo) TargetDoc {
 	d := TargetDoc{Name: t.Name, PlanKey: t.Plan, Server: t.Server, Branch: t.Branch, Defaults: map[string]string{},
-		Options: map[string][]string{}, Required: nonNil(t.Required), Watch: t.Watch, TimeoutMS: ms(t.Timeout), DefinedIn: nonNil(t.DefinedIn)}
+		Options: map[string][]string{}, Required: nonNil(t.Required), Watch: t.Watch, TimeoutMS: ms(t.Timeout), DefinedIn: nonNil(t.DefinedIn),
+		RepoBranches: map[string]string{}}
+	for _, r := range t.RepoBranches {
+		d.RepoBranches[r.Key()] = r.Branch
+	}
 	for _, v := range t.Defaults {
 		switch {
 		case v.EnvRef != "":
@@ -231,14 +253,17 @@ func TargetJSON(t app.TargetInfo) TargetDoc {
 			d.Defaults[v.Name] = v.Value
 		}
 	}
-	for k, v := range t.Options {
-		d.Options[k] = v
-	}
+	maps.Copy(d.Options, t.Options)
 	return d
 }
 
 func RunJSON(b provider.Build, ref app.PlanRef, vs app.VarSet) RunDoc {
-	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, RevisionFrom: ref.RevisionFrom, Variables: map[string]string{}, Warnings: nonNil(vs.Warnings)}
+	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, RevisionFrom: ref.RevisionFrom, Variables: map[string]string{}, Warnings: nonNil(vs.Warnings),
+		RepoBranches: []RepoBranchDoc{}}
+	for _, bp := range ref.RepoBranches {
+		d.RepoBranches = append(d.RepoBranches, RepoBranchDoc{PlanKey: bp.PlanKey, BranchKey: bp.BranchKey, Branch: bp.Name,
+			Repository: bp.Repository, VCSBranch: bp.VCSBranch, Existing: bp.Existing})
+	}
 	changed := vs.Changed()
 	names := make([]string, 0, len(changed))
 	for n := range changed {

@@ -133,3 +133,51 @@ func TestRunPlanLabelsAReusedRevision(t *testing.T) {
 		"Revision 9b30b9a (from #41)\n"+
 		"Vars     none\n", buf.String())
 }
+
+// Issue #130: a run with --repo-branch says what it does to each plan, and,
+// once it created plan branches, what changed in Bamboo and how to undo it.
+func repoRef() app.PlanRef {
+	return app.PlanRef{PlanKey: "PROJ-PARENT", MasterKey: "PROJ-PARENT", Branch: "feature-PROJ-101", RepoBranches: []app.BranchPlan{
+		{PlanKey: "PROJ-PARENT", Name: "feature-PROJ-101", Repository: "repo-a", VCSBranch: "feature/PROJ-101"},
+		{PlanKey: "PROJ-CHILD", Parent: "PROJ-PARENT", Name: "feature-PROJ-101", Repository: "repo-a", VCSBranch: "feature/PROJ-101-extra",
+			Existing: true, BranchKey: "PROJ-CHILD4", URL: "https://bamboo.example.com/browse/PROJ-CHILD4"},
+		{PlanKey: "PROJ-MID", Parent: "PROJ-PARENT", Name: "feature-PROJ-101"},
+	}}
+}
+
+func TestRunPlanListsTheRepositoryBranches(t *testing.T) {
+	o, buf := testOut(true)
+	RunPlan(o, repoRef(), app.VarSet{})
+	assert.Equal(t, ""+
+		"Plan     PROJ-PARENT  (branch feature-PROJ-101)\n"+
+		"Branches feature-PROJ-101 on 3 plans\n"+
+		"  PROJ-PARENT  repo-a          feature/PROJ-101        create\n"+
+		"  PROJ-CHILD   repo-a          feature/PROJ-101-extra  reuse PROJ-CHILD4\n"+
+		"  PROJ-MID     its own branch                          create\n"+
+		"Vars     none\n", buf.String())
+}
+
+func TestRepoBranchesCreatedSaysWhatChanged(t *testing.T) {
+	ref := repoRef()
+	for i, key := range map[int]string{0: "PROJ-PARENT1", 2: "PROJ-MID1"} {
+		ref.RepoBranches[i].Created, ref.RepoBranches[i].BranchKey, ref.RepoBranches[i].URL = true, key, "https://bamboo.example.com/browse/"+key
+	}
+	o, buf := testOut(true)
+	RepoBranchesCreated(o, ref)
+	assert.Equal(t, ""+
+		"✓ Created  PROJ-PARENT1   plan branch feature-PROJ-101 of PROJ-PARENT\n"+
+		"✓ Created  PROJ-MID1      plan branch feature-PROJ-101 of PROJ-MID\n"+
+		"  bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.\n"+
+		"  To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>.\n"+
+		"  A child plan starts on feature-PROJ-101 only when its parent plan's dependencies are enabled for branches.\n", buf.String())
+}
+
+func TestRunJSONListsTheRepositoryBranches(t *testing.T) {
+	ref := repoRef()
+	raw, err := json.Marshal(RunJSON(provider.Build{}, ref, app.VarSet{}).RepoBranches)
+	require.NoError(t, err)
+	assert.Equal(t, `[`+
+		`{"plan_key":"PROJ-PARENT","branch_key":"","branch":"feature-PROJ-101","repository":"repo-a","vcs_branch":"feature/PROJ-101","existing":false},`+
+		`{"plan_key":"PROJ-CHILD","branch_key":"PROJ-CHILD4","branch":"feature-PROJ-101","repository":"repo-a","vcs_branch":"feature/PROJ-101-extra","existing":true},`+
+		`{"plan_key":"PROJ-MID","branch_key":"","branch":"feature-PROJ-101","repository":"","vcs_branch":"","existing":false}]`, string(raw))
+}

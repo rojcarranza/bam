@@ -63,14 +63,12 @@ func (f formState) planRef() app.PlanRef {
 // variable would be invisible and impossible to satisfy.
 func buildFields(base app.VarSet, ref app.PlanRef) []formField {
 	required := map[string]bool{}
-	options := map[string][]string{}
+	var options map[string][]string
 	if t := ref.Target; t != nil {
 		for _, n := range t.Required {
 			required[n] = true
 		}
-		for n, vals := range t.Options {
-			options[n] = vals
-		}
+		options = t.Options
 	}
 
 	seen := map[string]bool{}

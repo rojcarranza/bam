@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/adrg/xdg"
 	"github.com/pkg/browser"
 	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/credential"
 	"github.com/r0jjames/bam-cli/internal/provider"
 	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
@@ -73,9 +73,10 @@ type Env struct {
 func SystemEnv() Env {
 	wd, _ := os.Getwd()
 	home, _ := os.UserHomeDir()
+	dirs := config.LocateDirs(home, goruntime.GOOS, os.Getenv)
 	machine := os.Getenv("BAM_CONFIG")
 	if machine == "" {
-		machine = filepath.Join(xdg.ConfigHome, "bam", "config.yaml")
+		machine = filepath.Join(dirs.Config, "config.yaml")
 	}
 	out := int(os.Stdout.Fd())
 	return Env{
@@ -101,11 +102,11 @@ func SystemEnv() Env {
 		WindowsHome: wslWindowsHome,
 		Paths: Paths{
 			MachineConfig: machine,
-			Credentials:   filepath.Join(xdg.ConfigHome, "bam", "credentials.yaml"),
-			Capabilities:  filepath.Join(xdg.CacheHome, "bam", "capabilities.json"),
-			State:         filepath.Join(xdg.StateHome, "bam", "state.json"),
-			Sets:          filepath.Join(xdg.StateHome, "bam", "sets"),
-			Trees:         filepath.Join(xdg.CacheHome, "bam", "tree"),
+			Credentials:   filepath.Join(dirs.Config, "credentials.yaml"),
+			Capabilities:  filepath.Join(dirs.Cache, "capabilities.json"),
+			State:         filepath.Join(dirs.State, "state.json"),
+			Sets:          filepath.Join(dirs.State, "sets"),
+			Trees:         filepath.Join(dirs.Cache, "tree"),
 		},
 		Clock:   app.SystemClock{},
 		Keyring: credential.SystemKeyring{},

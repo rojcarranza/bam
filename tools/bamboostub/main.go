@@ -13,7 +13,10 @@
 // triggered build is simulated: it stays queued, then runs, then succeeds,
 // and bam build cancel stops it. With -child, its end queues a build of the
 // child plan, as Bamboo does, so bam build tree and bam run --watch have a
-// tree to follow. Any bearer token is accepted.
+// tree to follow. Plan branches bam run --repo-branch creates are kept for
+// the life of the process, and a build of one queues its child on the
+// child's plan branch of the same name, as Bamboo does when the parent's
+// dependencies are enabled for branches. Any bearer token is accepted.
 //
 // Flags:
 //
@@ -64,10 +67,20 @@ type stub struct {
 	noEstimate time.Duration
 	now        func() time.Time
 
-	mu    sync.Mutex
-	live  map[string]*build
-	lastN int
+	mu       sync.Mutex
+	live     map[string]*build
+	lastN    int
+	branches map[string][]branch // plan branches created in this process, by master plan key
 }
+
+// branch is a plan branch created in this process.
+type branch struct {
+	key, master, name, vcsBranch string
+}
+
+// firstBranch numbers the plan branches the stub creates past the fixture's,
+// PROJ-BUILD7 and PROJ-BUILD12.
+const firstBranch = 20
 
 // build is one simulated build: what was triggered in this process, as
 // opposed to the finished builds the fixtures describe.
@@ -92,6 +105,7 @@ func newStub(fixtures string) *stub {
 		now:      time.Now,
 		live:     map[string]*build{},
 		lastN:    900,
+		branches: map[string][]branch{},
 	}
 }
 
@@ -163,6 +177,9 @@ var jobKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*
 
 func stamp(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
 
+// liveRevision is the commit every simulated build reports, the fixture's.
+const liveRevision = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+
 // liveDetail renders a simulated build the way Bamboo's result detail reads,
 // down to the one stage and one job bam needs to draw its panels.
 func (s *stub) liveDetail(key string, b *build) []byte {
@@ -187,6 +204,12 @@ func (s *stub) liveDoc(key string, b *build) map[string]any {
 		"buildDuration":    elapsed,
 		"buildReason":      reason,
 		"plan":             map[string]any{"key": b.planKey, "shortName": "Build and test"},
+		// The fixture build's one repository, so bam run --repo-branch
+		// can tell which repository a simulated build built.
+		"vcsRevisionKey": liveRevision,
+		"vcsRevisions": map[string]any{"size": 1, "vcsRevision": []any{
+			map[string]any{"repositoryName": "app", "vcsRevisionKey": liveRevision},
+		}},
 		"stages": map[string]any{"size": 1, "stage": []any{map[string]any{
 			"name": "Build", "state": state, "lifeCycleState": life,
 			"results": map[string]any{"size": 1, "result": []any{map[string]any{
@@ -406,9 +429,9 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 		num := s.lastN
 		resultKey := fmt.Sprintf("%s-%d", key, num)
 		s.live[resultKey] = &build{planKey: key, number: num, started: s.now()}
-		if s.child != "" && key != s.child {
+		if child := s.childOf(key); child != "" {
 			s.lastN++
-			s.live[fmt.Sprintf("%s-%d", s.child, s.lastN)] = &build{planKey: s.child, number: s.lastN,
+			s.live[fmt.Sprintf("%s-%d", child, s.lastN)] = &build{planKey: child, number: s.lastN,
 				started: s.now().Add(s.queued + s.running), parent: resultKey, fails: s.childFails}
 		}
 		s.mu.Unlock()
@@ -450,14 +473,43 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// childOf is the plan a build of key queues a build of when it ends: the
+// -child plan, or, for a plan branch, the -child plan's branch of the same
+// name when it has one. Callers hold s.mu.
+func (s *stub) childOf(key string) string {
+	if s.child == "" || key == s.child {
+		return ""
+	}
+	for _, bs := range s.branches {
+		for _, b := range bs {
+			if b.key != key {
+				continue
+			}
+			if b.master == s.child {
+				return ""
+			}
+			for _, c := range s.branches[s.child] {
+				if c.name == b.name {
+					return c.key
+				}
+			}
+		}
+	}
+	return s.child
+}
+
 func (s *stub) handlePlan(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, api+"/plan/")
 	key, sub, _ := strings.Cut(rest, "/")
+	if name, ok := strings.CutPrefix(sub, "branch/"); ok && r.Method == http.MethodPut {
+		s.createBranch(w, key, name, r.URL.Query().Get("vcsBranch"))
+		return
+	}
 	switch sub {
 	case "":
 		s.serve(w, "plan.json", fixturePlan, key)
 	case "branch":
-		s.serve(w, "branches.json", fixturePlan, key)
+		s.serveBranches(w, key)
 	case "variables":
 		s.serve(w, "plan_variables.json", "", "")
 	default:
@@ -465,6 +517,66 @@ func (s *stub) handlePlan(w http.ResponseWriter, r *http.Request) {
 		// variables; refusing it keeps the capability probe honest.
 		http.NotFound(w, r)
 	}
+}
+
+// createBranch answers Bamboo's PUT plan/{key}/branch/{name}: an enabled
+// plan branch called name, keyed after the plan as Bamboo keys them. A name
+// the plan already has is refused with the answer Bamboo 12.1.8 gives.
+func (s *stub) createBranch(w http.ResponseWriter, key, name, vcsBranch string) {
+	s.mu.Lock()
+	for _, b := range s.branches[key] {
+		if b.name == name {
+			s.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprint(w, `{"message":"This name is already used in a branch or plan.","status-code":400}`)
+			return
+		}
+	}
+	b := branch{key: fmt.Sprintf("%s%d", key, firstBranch+len(s.branches[key])), master: key, name: name, vcsBranch: vcsBranch}
+	s.branches[key] = append(s.branches[key], b)
+	s.mu.Unlock()
+	log.Printf("create plan branch %s of %s building %q", b.key, key, vcsBranch)
+	writeJSON(w, s.branchJSON(b))
+}
+
+func (s *stub) branchJSON(b branch) []byte {
+	out, _ := json.Marshal(map[string]any{
+		"key": b.key, "name": "Example Project - Build and test - " + b.name, "shortName": b.name,
+		"shortKey": strings.TrimPrefix(b.key, fixtureProj+"-"), "enabled": true,
+	})
+	return out
+}
+
+// serveBranches lists the fixture's plan branches, retargeted, then those
+// created in this process.
+func (s *stub) serveBranches(w http.ResponseWriter, key string) {
+	body := s.fixture(w, "branches.json")
+	if body == nil {
+		return
+	}
+	body = []byte(strings.ReplaceAll(string(body), fixturePlan, key))
+	var doc struct {
+		Branches map[string]any `json:"branches"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		log.Printf("branches.json: %v", err)
+		http.Error(w, "fixture unavailable", http.StatusInternalServerError)
+		return
+	}
+	list, _ := doc.Branches["branch"].([]any)
+	s.mu.Lock()
+	for _, b := range s.branches[key] {
+		list = append(list, json.RawMessage(s.branchJSON(b)))
+	}
+	s.mu.Unlock()
+	doc.Branches["branch"] = list
+	doc.Branches["size"] = len(list)
+	out, err := json.Marshal(doc)
+	if err != nil { // decoded from JSON a moment ago, so this cannot happen
+		log.Printf("branches for %s: %v", key, err)
+	}
+	writeJSON(w, out)
 }
 
 func (s *stub) handleProject(w http.ResponseWriter, r *http.Request) {

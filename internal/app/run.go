@@ -27,6 +27,12 @@ const (
 // revision was asked for and Bamboo ignored it, the build (which runs the
 // newest commit) is stopped and Run fails.
 func (s *Service) Run(ctx context.Context, ref PlanRef, vs VarSet) (provider.Build, error) {
+	// Only bam run applies repo_branches. Every other way to run a preset
+	// (a set, the terminal UI) refuses it rather than build the wrong
+	// branches.
+	if err := unappliedRepoBranches(ref); err != nil {
+		return provider.Build{}, err
+	}
 	b, err := s.P.Trigger(ctx, provider.TriggerRequest{PlanKey: ref.PlanKey, Variables: vs.Changed(), Secret: vs.Secret(), Revision: ref.Revision})
 	if err != nil {
 		if ref.Revision != "" && b.Key != "" && errors.Is(err, errs.ErrUnsupported) {
@@ -118,75 +124,88 @@ type Event struct {
 // Watch polls a build until it finishes and emits its changes. Ending ctx
 // stops watching only; the build keeps running.
 func (s *Service) Watch(ctx context.Context, key string) <-chan Event {
-	ch := make(chan Event, 16)
-	go func() {
-		defer close(ch)
-		send := func(e Event) bool {
-			select {
-			case ch <- e:
-				return true
-			case <-ctx.Done():
-				return false
-			}
+	w := &watcher{s: s, ctx: ctx, key: key, ch: make(chan Event, 16), interval: MinPoll}
+	go w.run()
+	return w.ch
+}
+
+// watcher is the state of one Watch between polls.
+type watcher struct {
+	s          *Service
+	ctx        context.Context
+	key        string
+	ch         chan Event
+	prev       *provider.Build
+	interval   time.Duration
+	noProgress bool
+	sent       provider.Progress // the estimate the last event carried
+}
+
+func (w *watcher) run() {
+	defer close(w.ch)
+	// The provider ignores ctx, so check it before every poll: ending ctx
+	// must stop watching, not keep polling forever.
+	for w.ctx.Err() == nil && w.poll() {
+		select {
+		case <-w.ctx.Done():
+			return
+		case <-w.s.Clock.After(w.interval):
 		}
-		var prev *provider.Build
-		interval := MinPoll
-		noProgress := false
-		var sent provider.Progress // the estimate the last event carried
-		for {
-			// The provider ignores ctx, so check here before every poll:
-			// ending ctx must stop watching, not keep polling forever.
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-			b, err := s.Build(ctx, key)
-			if err != nil {
-				if ctx.Err() == nil {
-					send(Event{Type: EventError, Time: s.Clock.Now(), Err: err})
-				}
-				return
-			}
-			now := s.Clock.Now()
-			// A missing estimate is decoration lost, never a reason to stop
-			// watching, so every progress error becomes a zero Progress.
-			var pr provider.Progress
-			if !b.State.Finished() {
-				pr = s.estimate(ctx, b, &noProgress)
-			}
-			changes := diff(prev, b)
-			// A poll that changes nothing still brings a fresh estimate; send
-			// it on its own so the bar moves. It does not reset the backoff.
-			moved := len(changes) == 0 && pr.Valid && pr != sent
-			if moved {
-				changes = []Event{{Type: EventProgress, State: b.State}}
-			}
-			for _, e := range changes {
-				e.Time, e.Build, e.Progress = now, b, pr
-				if !send(e) {
-					return
-				}
-			}
-			if b.State.Finished() {
-				send(Event{Type: EventDone, Time: now, Build: b, State: b.State})
-				return
-			}
-			sent = pr
-			if len(changes) > 0 && !moved {
-				interval = MinPoll
-			} else {
-				interval = min(interval*3/2, MaxPoll)
-			}
-			prev = &b
-			select {
-			case <-ctx.Done():
-				return
-			case <-s.Clock.After(interval):
-			}
+	}
+}
+
+// send emits e unless ctx ends first, and reports whether it was sent.
+func (w *watcher) send(e Event) bool {
+	select {
+	case w.ch <- e:
+		return true
+	case <-w.ctx.Done():
+		return false
+	}
+}
+
+// poll fetches the build once, emits what changed and reports whether to
+// keep watching.
+func (w *watcher) poll() bool {
+	b, err := w.s.Build(w.ctx, w.key)
+	if err != nil {
+		if w.ctx.Err() == nil {
+			w.send(Event{Type: EventError, Time: w.s.Clock.Now(), Err: err})
 		}
-	}()
-	return ch
+		return false
+	}
+	now := w.s.Clock.Now()
+	// A missing estimate is decoration lost, never a reason to stop
+	// watching, so every progress error becomes a zero Progress.
+	var pr provider.Progress
+	if !b.State.Finished() {
+		pr = w.s.estimate(w.ctx, b, &w.noProgress)
+	}
+	changes := diff(w.prev, b)
+	// A poll that changes nothing still brings a fresh estimate; send it on
+	// its own so the bar moves. It does not reset the backoff.
+	moved := len(changes) == 0 && pr.Valid && pr != w.sent
+	if moved {
+		changes = []Event{{Type: EventProgress, State: b.State}}
+	}
+	for _, e := range changes {
+		e.Time, e.Build, e.Progress = now, b, pr
+		if !w.send(e) {
+			return false
+		}
+	}
+	if b.State.Finished() {
+		w.send(Event{Type: EventDone, Time: now, Build: b, State: b.State})
+		return false
+	}
+	w.sent = pr
+	if len(changes) > 0 && !moved {
+		w.interval = MinPoll
+	} else {
+		w.interval = min(w.interval*3/2, MaxPoll)
+	}
+	w.prev = &b
+	return true
 }
 
 // diff lists the changes from prev to cur. The first poll reports only the

@@ -86,8 +86,7 @@ type SyncDoc struct {
 
 // SyncJSON returns one document per target; File is the absolute path.
 func SyncJSON(rs []SyncResult) []SyncDoc {
-	docs := make([]SyncDoc, 0, len(rs))
-	for _, r := range rs {
+	return Docs(rs, func(r SyncResult) SyncDoc {
 		d := SyncDoc{Name: r.Sync.Name, PlanKey: r.Sync.Plan, File: r.Sync.File, Status: r.Status,
 			Added: []SyncVarDoc{}, Stale: nonNil(r.Sync.Stale), Redeclared: nonNil(r.Redeclared)}
 		for _, v := range r.Sync.Added {
@@ -96,7 +95,6 @@ func SyncJSON(rs []SyncResult) []SyncDoc {
 		if r.Err != nil {
 			d.Error = r.Err.Error()
 		}
-		docs = append(docs, d)
-	}
-	return docs
+		return d
+	})
 }

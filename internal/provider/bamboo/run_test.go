@@ -431,3 +431,41 @@ func TestRestartBuildAcceptsAnAnswerWithoutABuild(t *testing.T) {
 		})
 	}
 }
+
+// Issue #130: a run on a repository branch creates a plan branch that builds
+// it. Bamboo 9.6's REST reference: PUT plan/{key}/branch/{name}?vcsBranch=…
+func TestCreateBranch(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{"PUT /rest/api/latest/plan/PROJ-PARENT/branch/feature-PROJ-101": {fixture: "branch_created.json"}})
+	b, err := c.CreateBranch(ctx, "PROJ-PARENT", "feature-PROJ-101", "feature/PROJ-101")
+	require.NoError(t, err)
+	assert.Equal(t, provider.Branch{Key: "PROJ-PARENT12", Name: "Example Project - Parent - feature-PROJ-101", ShortName: "feature-PROJ-101",
+		PlanKey: "PROJ-PARENT", URL: c.URL("PROJ-PARENT12")}, b)
+	q := rec.all()[0].URL.Query()
+	assert.Equal(t, "feature/PROJ-101", q.Get("vcsBranch"))
+	assert.Equal(t, "true", q.Get("enabled"), "a disabled branch would not build")
+}
+
+func TestCreateBranchKeepsThePlansBranch(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{"PUT /rest/api/latest/plan/PROJ-MID/branch/feature-PROJ-101": {fixture: "branch_created.json"}})
+	_, err := c.CreateBranch(ctx, "PROJ-MID", "feature-PROJ-101", "")
+	require.NoError(t, err)
+	_, sent := rec.all()[0].URL.Query()["vcsBranch"]
+	assert.False(t, sent, "without vcsBranch Bamboo keeps the plan's own branch")
+}
+
+func TestCreateBranchRejectedNamesTheBranch(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"PUT /rest/api/latest/plan/PROJ-PARENT/branch/feature-PROJ-101": {status: 400,
+		body: `{"errors":["Branch feature/PROJ-101 does not exist in repository repo-a"]}`}})
+	_, err := c.CreateBranch(ctx, "PROJ-PARENT", "feature-PROJ-101", "feature/PROJ-101")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "could not create plan branch feature-PROJ-101 of PROJ-PARENT", e.What)
+	assert.Equal(t, "Branch feature/PROJ-101 does not exist in repository repo-a", e.Why)
+}
+
+func TestCreateBranchUnknownPlan(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{})
+	_, err := c.CreateBranch(ctx, "PROJ-NOPE", "feature-PROJ-101", "feature/PROJ-101")
+	assert.True(t, errors.Is(err, errs.ErrNotFound))
+	assert.Contains(t, err.Error(), "PROJ-NOPE")
+}

@@ -108,6 +108,8 @@ queues a `PROJ-OLD` build when it ends, and that build fails. `bam run
 PROJ-BUILD --var cluster_type=k8s --watch` follows both as a tree and ends
 with the failed build's link.
 
+To try `--repo-branch`, restart the stub with `make stub ARGS='-child PROJ-CHILD'` and run `bam run PROJ-PARENT --watch` once, so the parent's newest build has triggered `PROJ-CHILD`. Then `bam run PROJ-PARENT --repo-branch app=feature/PROJ-101 --repo-branch PROJ-CHILD:app=feature/PROJ-101-extra --watch` creates a plan branch on both plans, runs the parent's, and follows the child's plan branch build. The stub's builds name their repository `app`, and the plan branches it creates last until you stop it.
+
 ## 7. Optional: try presets
 
 Presets live in configuration rather than on the server, so they need a file.

@@ -2,7 +2,9 @@ package app
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -33,14 +35,12 @@ type editRow struct {
 // required name the plan does not declare still needs a line to be filled in.
 func editRows(ref PlanRef, opened VarSet) []editRow {
 	required := map[string]bool{}
-	options := map[string][]string{}
+	var options map[string][]string
 	if t := ref.Target; t != nil {
 		for _, n := range t.Required {
 			required[n] = true
 		}
-		for n, vals := range t.Options {
-			options[n] = vals
-		}
+		options = t.Options
 	}
 	rows := map[string]editRow{}
 	for _, v := range opened.Vars {
@@ -61,7 +61,7 @@ func editRows(ref PlanRef, opened VarSet) []editRow {
 		}
 	}
 	out := make([]editRow, 0, len(rows))
-	for _, n := range sortedNames(rows) {
+	for _, n := range slices.Sorted(maps.Keys(rows)) {
 		r := rows[n]
 		r.Required, r.Options = required[n], options[n]
 		out = append(out, r)

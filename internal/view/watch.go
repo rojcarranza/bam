@@ -83,11 +83,17 @@ func RepoBranchesCreated(o Out, ref app.PlanRef) {
 	if len(ref.RepoBranches) == 0 {
 		return
 	}
+	width := 0
+	for _, bp := range ref.RepoBranches {
+		if bp.Created {
+			width = max(width, len(bp.BranchKey))
+		}
+	}
 	children := false
 	for _, bp := range ref.RepoBranches {
 		if bp.Created {
-			fmt.Fprintf(o.W, "%s  %s   plan branch %s of %s\n", style.Colored(o.Style, provider.StateSuccess, "✓ Created"),
-				o.Key(bp.BranchKey, bp.URL), ref.Branch, bp.PlanKey)
+			fmt.Fprintf(o.W, "%s  %s%s   plan branch %s of %s\n", style.Colored(o.Style, provider.StateSuccess, "✓ Created"),
+				o.Key(bp.BranchKey, bp.URL), strings.Repeat(" ", width-len(bp.BranchKey)), ref.Branch, bp.PlanKey)
 		}
 		children = children || bp.Parent != ""
 	}

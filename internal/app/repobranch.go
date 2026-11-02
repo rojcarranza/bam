@@ -432,3 +432,14 @@ func (r *PlanRef) UseRepoBranches(rp RepoPlan) {
 		r.PlanKey = k
 	}
 }
+
+// unappliedRepoBranches refuses a ref whose preset sets repo_branches that
+// no PlanRepoBranches applied: a run set or the terminal UI would otherwise
+// build the plans' own branches.
+func unappliedRepoBranches(ref PlanRef) error {
+	if t := ref.Target; t != nil && len(t.RepoBranches) > 0 && len(ref.RepoBranches) == 0 {
+		return errs.Usagef("preset %s sets repo_branches, which only bam run applies", t.Name).
+			WithTry("bam run " + t.Name)
+	}
+	return nil
+}

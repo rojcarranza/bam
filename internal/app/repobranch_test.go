@@ -242,6 +242,19 @@ func TestRunRefusesAPresetsRepoBranchesItDidNotApply(t *testing.T) {
 	assert.Empty(t, p.Triggered)
 }
 
+// A release train runs presets without --repo-branch, so one whose preset
+// sets repo_branches is a problem found while planning, before any stage
+// triggers.
+func TestPlanSetRefusesAPresetWithRepoBranches(t *testing.T) {
+	svc := setService(t, fakeBamboo())
+	svc.Cfg.Project.Targets["publish-specs"] = config.Target{Plan: "PROJ-BUILD", RepoBranches: config.StringMap{"repo-a": "feature/PROJ-101"}}
+	_, err := svc.PlanSet(context.Background(), "release", SetOptions{})
+	require.Error(t, err)
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+	assert.Contains(t, errTry(err), "stage 1 publish-specs: preset publish-specs sets repo_branches, which only bam run applies")
+	assert.Empty(t, svc.P.(*fake.Provider).Triggered)
+}
+
 func TestTreeSearchesExtraPlans(t *testing.T) {
 	p := repoFake()
 	// The child's plan branch build names the parent's branch build.

@@ -122,6 +122,9 @@ func (s *Service) planRun(ctx context.Context, r config.SetRun, o SetOptions) (S
 	if err != nil {
 		return SetRunPlan{}, err
 	}
+	if err := unappliedRepoBranches(ref); err != nil {
+		return SetRunPlan{}, err
+	}
 	if len(r.Vars) > 0 {
 		// A copy: the set's vars must not leak into the preset itself.
 		rt := *ref.Target

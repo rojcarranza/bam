@@ -71,7 +71,7 @@ func TestRunRepoBranchCreatesTheBranchesThenRunsTheParentsBranch(t *testing.T) {
 	require.Len(t, h.fake.Triggered, 1)
 	assert.Equal(t, "PROJ-PARENT1", h.fake.Triggered[0].PlanKey)
 	out := h.stdout.String()
-	assert.Contains(t, out, "✓ Created  PROJ-CHILD1   plan branch feature-PROJ-101 of PROJ-CHILD\n")
+	assert.Contains(t, out, "✓ Created  PROJ-CHILD1    plan branch feature-PROJ-101 of PROJ-CHILD\n")
 	assert.Contains(t, out, "✓ Created  PROJ-PARENT1   plan branch feature-PROJ-101 of PROJ-PARENT\n")
 	assert.Contains(t, out, "bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.")
 	assert.Contains(t, out, "A child plan starts on feature-PROJ-101 only when its parent plan's dependencies are enabled for branches.")

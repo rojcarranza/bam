@@ -98,7 +98,7 @@ func RepoBranchesCreated(o Out, ref app.PlanRef) {
 		children = children || bp.Parent != ""
 	}
 	fmt.Fprintln(o.W, "  bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.")
-	fmt.Fprintln(o.W, "  To remove one, delete it on its plan's Branches page in Bamboo.")
+	fmt.Fprintln(o.W, "  To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>.")
 	if children {
 		fmt.Fprintf(o.W, "  A child plan starts on %s only when its parent plan's dependencies are enabled for branches.\n", ref.Branch)
 	}

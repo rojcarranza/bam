@@ -168,7 +168,7 @@ func TestRepoBranchesCreatedSaysWhatChanged(t *testing.T) {
 		"✓ Created  PROJ-PARENT1   plan branch feature-PROJ-101 of PROJ-PARENT\n"+
 		"✓ Created  PROJ-MID1      plan branch feature-PROJ-101 of PROJ-MID\n"+
 		"  bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.\n"+
-		"  To remove one, delete it on its plan's Branches page in Bamboo.\n"+
+		"  To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>.\n"+
 		"  A child plan starts on feature-PROJ-101 only when its parent plan's dependencies are enabled for branches.\n", buf.String())
 }
 

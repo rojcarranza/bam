@@ -521,7 +521,7 @@ func (s *stub) handlePlan(w http.ResponseWriter, r *http.Request) {
 
 // createBranch answers Bamboo's PUT plan/{key}/branch/{name}: an enabled
 // plan branch called name, keyed after the plan as Bamboo keys them. A name
-// the plan already has is refused, as a plan branch name is unique per plan.
+// the plan already has is refused with the answer Bamboo 12.1.8 gives.
 func (s *stub) createBranch(w http.ResponseWriter, key, name, vcsBranch string) {
 	s.mu.Lock()
 	for _, b := range s.branches[key] {
@@ -529,7 +529,7 @@ func (s *stub) createBranch(w http.ResponseWriter, key, name, vcsBranch string) 
 			s.mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprintf(w, `{"message":"Branch %s already exists in plan %s","status-code":400}`, name, key)
+			_, _ = fmt.Fprint(w, `{"message":"This name is already used in a branch or plan.","status-code":400}`)
 			return
 		}
 	}

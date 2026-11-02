@@ -1,299 +1,386 @@
 # bam
 
-A terminal remote control for Atlassian Bamboo: trigger, watch and diagnose builds without the browser, and get the Bamboo link the moment you need it.
+A terminal remote control for Atlassian Bamboo: run a plan, follow the build, read why it failed and open it in Bamboo, without the browser.
 
-    bam run provision-lab --var cluster_name=alpha --watch
+    bam run BAMCI-BUILD --watch
     bam logs --last --failed
     bam open --last
 
-bam works with Bamboo Data Center 9.x and later, using a personal access token.
+bam works with Bamboo Data Center 9.x and later, using a personal access token. Every example below is a real run against a small Bamboo, with only the address changed to `bamboo.example.com`.
 
-## Install
+## Install on Ubuntu and WSL
 
-bam is one binary for Linux, macOS and Windows. It needs nothing else at run time.
+WSL runs Linux, so install the Linux build there, not the Windows one. Pick the newest version on the [releases page](https://github.com/r0jjames/bam-cli/releases) and put it in `v`:
 
-**With Go 1.26 or newer:**
-
-    go install github.com/r0jjames/bam-cli/cmd/bam@latest
-
-This installs the latest release into `$(go env GOPATH)/bin`, usually `~/go/bin`. Add that directory to your PATH if `bam` is not found. Run the same command to upgrade. `@main` installs the newest unreleased changes.
-
-**Without Go:** download the archive for your platform from the [releases page](https://github.com/r0jjames/bam-cli/releases), unpack it, and put `bam` (`bam.exe` on Windows) on your PATH. For example, on Linux x86-64 with the version you want:
-
-    v=0.2.1
+    v=0.3.0
+    mkdir -p ~/.local/bin
     curl -fsSL "https://github.com/r0jjames/bam-cli/releases/download/v${v}/bam_${v}_linux_amd64.tar.gz" | tar -xz -C ~/.local/bin bam
+    bam version
 
-In WSL, install the Linux build: WSL runs Linux, so the Windows archive is not the one you need.
+If `bam` is not found, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` and open a new terminal. With Go 1.26 or newer, `go install github.com/r0jjames/bam-cli/cmd/bam@latest` works too (it installs into `~/go/bin`).
 
-Check the install:
+On WSL, `bam open` needs a way to reach the Windows browser:
 
-    bam version     # prints the installed version
-    type bam        # make sure no other command named bam comes first
+    sudo apt install wslu
+    echo 'export BROWSER=wslview' >> ~/.bashrc
 
-## Quick start
+Without it, `bam open` prints the link and you click it. macOS and Windows: download the archive for your system from the same page and put `bam` on your PATH.
 
-1. Register your server with the Bamboo projects you work in, then log in. `login` asks for a personal access token, which you create in Bamboo under your profile → Personal access tokens; bam prints the link.
+## Connect to your Bamboo
 
-       bam server add work --url https://bamboo.example.com --project PROJ --project OPS
-       bam login work
-       bam doctor
+Three steps, once. You need a personal access token: in Bamboo, open your profile, then Personal access tokens, then Create token.
 
-   `--project` is repeatable. It sets the projects that the terminal UI and plan lists show. To change them later, run `server add` again with `--force`, or edit `projects` under the server in the machine file (`~/.config/bam/config.yaml`; see [Configuration](docs/configuration.md)). The token stays: bam stores it by server URL, not by alias.
+    $ bam server add work --url https://bamboo.example.com --project BAMCI --project FORGE
+    added server work (https://bamboo.example.com) to ~/.config/bam/config.yaml
+    next: bam login work
 
-2. Open the terminal UI, or create `.bam.yaml` in your repository with presets generated from your plans' variables:
+    $ bam login work                 # paste the token when asked
+    logged in to work as jdoe (J Doe); token stored in ~/.config/bam/credentials.yaml (no keychain available)
 
-       bam
-       bam init --server work --project PROJ --plan PROJ-BUILD --plan PROJ-PROV=provision-lab
+`--project` limits the plan lists and the terminal UI to the Bamboo projects you work in. On WSL there is usually no keyring, so bam keeps the token in `~/.config/bam/credentials.yaml`, readable only by you. Then check the connection:
 
-   Review the generated file, then commit it. It holds no secrets.
+    $ bam doctor
+    ✓ config             ~/.config/bam/config.yaml
+    ✓ server             work (https://bamboo.example.com)
+    ✓ token              file
+    ✓ auth               admin (Admin)
+    ✓ server version     12.1.8
+    ✓ plan variables     0 declared on BAMCI-BUILD
+    ✓ build variables    read from BAMCI-BUILD-7
+    ✓ logs               via entries
+    ✓ duration estimate  read from BAMCI-BUILD-7
+    – failed tests       no failed build of BAMCI-BUILD to read
+    ✓ stop builds        confirmed by an earlier cancel
+    – rerun builds       learned the first time bam set rerun --failed runs
 
-3. Save your own presets. They go in `~/bam/presets/`, one file per Bamboo project, and work from any directory:
+A check marked `–` is not a problem: bam learns it the first time you use that feature. A teammate who clones your repository only needs `bam login work`. More: [Authentication](docs/authentication.md), [Configuration](docs/configuration.md), [Troubleshooting](docs/troubleshooting.md).
 
-       bam preset add deploy-qa --plan PROJ-DEPLOY      # reads the plan's variables from Bamboo
-       bam preset list                                  # shows the file each preset is in
+## The example pipeline
 
-   Open `~/bam/presets/proj.yaml`, set the values under `variables`, and delete the ones you never change. Git Bash, WSL and macOS can share one directory; see [Presets](docs/presets.md#one-presets-directory-for-git-bash-wsl-and-macos).
+Every example uses the same small pipeline, so each command follows from the one before:
 
-4. Run, watch, and investigate:
+| Plan | What it does |
+| --- | --- |
+| `BAMCI-BUILD` | runs `make build`, then triggers the two plans below |
+| `BAMCI-TEST` | runs `make test` (a child of `BAMCI-BUILD`) |
+| `BAMCI-LINT` | runs `make lint` (a child of `BAMCI-BUILD`) |
+| `FORGE-PROV` | provisions a cluster; takes the variables `cluster_name` and `cluster_config` |
 
-       bam run deploy-qa --dry-run                      # check the variables, trigger nothing
-       bam run provision-lab --var cluster_name=alpha --watch
-       bam logs --last --failed
-       bam open --last
+`BAMCI-*` has no variables. `FORGE-PROV` has some, so it carries the examples about variables, and those stay dry runs.
 
-A teammate who clones the repository only needs `bam login work`.
+## Commands
 
-To try bam without a Bamboo server, run it against the fake Bamboo built from this repository's test fixtures: see [Try bam locally](docs/try-locally.md).
+Where a command takes a build, `--last` means the build you started last from this directory. Every read command takes `--json`. `bam <command> --help` shows all flags; the full reference is in [docs/cli](docs/cli/bam.md).
+
+### Find what to run
+
+`bam project list`, `bam plan list`, `bam plan show`, `bam plan vars` and `bam plan branches` list what exists. In Bamboo this is the Projects menu and a plan's page.
+
+    $ bam plan list BAMCI
+    BAMCI  bam CI
+      PLAN         NAME   LAST  STATE      COMPLETED             REASON
+      BAMCI-BUILD  Build  #7    ✓ success  2026-11-02T16:57:35Z  Manual run by Admin
+      BAMCI-LINT   Lint   #7    ✓ success  2026-11-02T16:57:37Z  Child of BAMCI-BUILD-7
+      BAMCI-TEST   Test   #7    ✓ success  2026-11-02T16:57:38Z  Child of BAMCI-BUILD-7
+
+    $ bam plan vars FORGE-PROV
+    NAME            VALUE  LAST USED (#13)
+    cluster_config  –      –
+    cluster_name    lab1   setcheck
+
+| You want to | Type |
+| --- | --- |
+| list your Bamboo projects | `bam project list` |
+| see a plan with its branches and recent builds | `bam plan show BAMCI-BUILD` |
+| list a plan's branches | `bam plan branches BAMCI-TEST` |
+| find a plan by part of its name | `bam plan list --match test` |
+
+### Run a build
+
+`bam run` starts a plan with your variables and prints the link to the build. In Bamboo this is the plan's Run, then Run customised, page.
+
+    $ bam run BAMCI-BUILD --watch
+    Plan     BAMCI-BUILD
+    Vars     none
+    ✓ Queued   BAMCI-BUILD-7   https://bamboo.example.com/browse/BAMCI-BUILD-7
+    BAMCI-BUILD-7 (Build)   ✓ success  1s
+    ├─ stage Build          ✓ success  1s
+    ├─ BAMCI-LINT-7 (Lint)  ✓ success  1s
+    │  └─ stage Lint        ✓ success  1s
+    └─ BAMCI-TEST-7 (Test)  ✓ success  3s
+       └─ stage Test        ✓ success  1s
+
+On a terminal the tree redraws while the builds run. bam exits 0 when every build succeeded and 1 when one did not. Ctrl-C stops watching; the builds keep running.
+
+| You want to | Type |
+| --- | --- |
+| set a variable | `bam run FORGE-PROV --var cluster_name=lab2` |
+| see what would be sent, start nothing | `bam run FORGE-PROV --var cluster_name=lab2 --dry-run` |
+| reuse the last build's variables | `bam run FORGE-PROV --from last` |
+| change them in your editor first | `bam run FORGE-PROV --from last --edit` |
+| run an existing plan branch | `bam run BAMCI-BUILD --branch fix-cancel-stale-tree-reads` |
+| build one commit | `bam run BAMCI-BUILD --revision 41d06ce` |
+| test a pushed branch on the parent and both children | `bam run BAMCI-BUILD --repo-branch bam=fix/cancel-stale-tree-reads --dry-run` (see [docs/branches.md](docs/branches.md)) |
+| run a saved preset | `bam run lab1` (see Save your variables) |
+
+### Follow a build
+
+`bam watch` follows a build and every build it triggers until they finish. In Bamboo this is the build page, open and refreshing.
+
+    $ bam watch --last
+    BAMCI-BUILD-7 (Build)   ✓ success  1s
+    ├─ stage Build          ✓ success  1s
+    ├─ BAMCI-LINT-7 (Lint)  ✓ success  1s
+    │  └─ stage Lint        ✓ success  1s
+    └─ BAMCI-TEST-7 (Test)  ✓ success  3s
+       └─ stage Test        ✓ success  1s
+
+Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on success and 1 on failure, which makes `bam run PLAN --watch && deploy` work in a script.
+
+| You want to | Type |
+| --- | --- |
+| watch a build by its key | `bam watch BAMCI-BUILD-7` |
+| watch the newest build of a plan | `bam watch BAMCI-BUILD` |
+| draw the tree of a build and its children | `bam build tree BAMCI-BUILD-7` |
+| follow that tree until every build finishes | `bam build tree BAMCI-BUILD-7 --watch` |
+| stop waiting after 30 minutes | `bam watch --last --timeout 30m` |
+
+### Look at past builds
+
+`bam build list`, `bam build show` and `bam plan stats` read history. In Bamboo this is the plan's build list and a build's Summary tab.
+
+    $ bam build show BAMCI-BUILD-7
+    BAMCI-BUILD-7  ✓ success  https://bamboo.example.com/browse/BAMCI-BUILD-7
+    Plan        BAMCI-BUILD
+    Reason      Manual run by Admin
+    Started     2026-11-02T16:57:33Z
+    Completed   2026-11-02T16:57:35Z
+    Duration    1s
+    Revisions   bam 7ec79b3
+
+    $ bam plan stats BAMCI-BUILD
+    BAMCI-BUILD  last 7 builds (#1–#7, 4h25m)
+    Success   100%  (7 ✓  0 ✗)   streak ✓ 7
+    Duration  median 3s  p90 5s  max 5s (#1)   of 7 successful
+    Failing jobs none
+
+| You want to | Type |
+| --- | --- |
+| list recent builds of a plan | `bam build list BAMCI-BUILD` |
+| list the builds of one plan branch | `bam build list BAMCI-TEST --branch fix-tree-running-time` |
+| see the build you just started | `bam build show --last` |
+| see how often a plan fails | `bam plan stats BAMCI-TEST` |
+
+### When a build fails
+
+Start from the failed build. `bam build investigate` picks out the error and the likely cause, and `bam logs --failed` prints only the failed jobs' logs. In Bamboo this is the build's Logs and Tests tabs. This build is `BAMCI-TEST` on a short-lived branch with a test that fails on purpose:
+
+    $ bam build investigate BAMCI-TEST6-2
+    BAMCI-TEST6-2  ✗ failed
+    Reason: Manual run by Admin
+
+    Test / Test (TEST)  first error at line 10
+            7  ok  	github.com/r0jjames/bam-cli/internal/cli	(cached)
+            8  ok  	github.com/r0jjames/bam-cli/internal/config	(cached)
+            9  ok  	github.com/r0jjames/bam-cli/internal/credential	(cached)
+      >    10  --- FAIL: TestDemoFailure (0.00s)
+           11      demo_failing_test.go:6: deliberate failure for the README example
+           12  FAIL
+           13  FAIL	github.com/r0jjames/bam-cli/internal/errs	0.012s
+
+    Failed tests: none reported
+    Likely cause: --- FAIL: TestDemoFailure (0.00s) (job TEST)
+    try: bam logs BAMCI-TEST6-2 --job TEST
+
+| You want to | Type |
+| --- | --- |
+| run a plan branch and follow it | `bam run BAMCI-TEST --branch demo-readme-failing-test --watch` |
+| read only the failed jobs' logs | `bam logs BAMCI-TEST6-2 --failed` |
+| read the last 50 lines of the newest failure | `bam logs --last --failed -n 50` |
+| read one job's whole log | `bam logs BAMCI-TEST6-2 --job TEST` |
+| compare with the last green build | `bam build investigate BAMCI-TEST6-2 --compare` |
+| show only the failing branches of a tree | `bam build tree BAMCI-BUILD-7 --failed` |
+
+### Retry or stop
+
+`bam build rerun` restarts a failed build's failed jobs, as Bamboo's Rerun failed jobs does: same build key, same variables, same commit. `bam build cancel` stops a queued or running build. Check a rerun first with `--dry-run`:
+
+    $ bam build rerun BAMCI-TEST6-2 --dry-run
+    would rerun BAMCI-TEST6-2 (failed)
+    dry run: nothing restarted
+
+    $ bam run BAMCI-BUILD
+    Plan     BAMCI-BUILD
+    Vars     none
+    ✓ Queued   BAMCI-BUILD-3   https://bamboo.example.com/browse/BAMCI-BUILD-3
+      watch: bam watch BAMCI-BUILD-3
+
+    $ bam build cancel --last
+    stopping BAMCI-BUILD-3
+      watch: bam watch BAMCI-BUILD-3
+
+| You want to | Type |
+| --- | --- |
+| rerun the failed jobs and watch them | `bam build rerun BAMCI-TEST6-2 --watch` |
+| rerun every failed build of a tree | `bam build tree BAMCI-BUILD-7 --rerun-failed` |
+| cancel a build by key | `bam build cancel BAMCI-BUILD-3` |
+| check a cancel first | `bam build cancel --last --dry-run` |
+
+### Open it in Bamboo
+
+`bam open` opens a project, plan, build or job in your browser. `bam url` prints the same link without opening it, to paste into chat.
+
+    $ bam url BAMCI-TEST6-2
+    https://bamboo.example.com/browse/BAMCI-TEST6-2
+
+    $ bam open BAMCI-TEST6-2 --job TEST
+    https://bamboo.example.com/browse/BAMCI-TEST6-TEST-2
+    warning: could not open a browser: exec: "xdg-open,x-www-browser,www-browser": executable file not found in $PATH
+
+| You want to | Type |
+| --- | --- |
+| open the build you just started | `bam open --last` |
+| open a plan | `bam open BAMCI-BUILD` |
+| open one job of a build | `bam open BAMCI-TEST6-2 --job TEST` |
+| print the link of a plan's job | `bam url BAMCI-TEST --job TEST` |
+
+On WSL this opens your Windows browser once `wslu` is installed (see Install). If no browser opens, bam prints the link and a warning, as above, and the link still works.
+
+### Save your variables
+
+A preset is a plan plus the variable values you run it with. `bam preset add` reads the plan's variables from Bamboo and writes the file for you, in `~/bam/presets/`, one file per Bamboo project.
+
+    $ bam preset add lab1 --plan FORGE-PROV
+    added preset lab1 to ~/bam/presets/forge.yaml
+    review before commit: values copied from Bamboo
+
+    $ bam run lab1 --dry-run
+    Plan     FORGE-PROV
+    Vars     cluster_config= (preset)  cluster_name=lab1 (preset)
+    dry run: nothing triggered
+
+Open `~/bam/presets/forge.yaml`, set the values under `variables`, and delete the ones you never change. `bam run lab1` then works from any directory. More: [Presets](docs/presets.md); `bam init` writes a team's `.bam.yaml` with presets generated from plans.
+
+| You want to | Type |
+| --- | --- |
+| list your presets and their files | `bam preset list` |
+| see one preset | `bam preset show lab1` |
+| add variables the plan gained since | `bam preset sync lab1 --dry-run` |
+| remove a preset | `bam preset rm lab1` |
+| generate a repository's `.bam.yaml` | `bam init --server work --project BAMCI --plan BAMCI-BUILD=ci` |
+
+### Run plans in order
+
+A set runs several presets in stages: every run of a stage at once, the next stage only when all of them succeeded. In Bamboo there is no single page for this. You write the sets under `sets:` in `.bam.yaml`: `check: [[ci]]` and `ship: [[ci], [lab1]]`.
+
+    $ bam set run ship --dry-run
+    ship
+    stage 1/2
+      ci  BAMCI-BUILD  branch default
+    stage 2/2
+      lab1  FORGE-PROV  branch default
+    dry run: nothing triggered
+
+    $ bam set run check
+    check  check-20261102T165338Z
+    stage 1/1
+      ✓ ci  BAMCI-BUILD-6  Success  1s
+
+    set succeeded
+
+A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, train files (`bam set run -f`) and the rules: [docs/configuration.md](docs/configuration.md#sets-release-trains). `bam set list` lists your sets.
+
+| You want to | Type |
+| --- | --- |
+| see a set's stages | `bam set show ship` |
+| see the newest run's builds | `bam set status` |
+| list past runs | `bam set history check` |
+| continue after Ctrl-C | `bam set resume` |
+| retry the failed runs, then finish | `bam set rerun --failed` |
+
+### Setup and housekeeping
+
+- `bam server list` shows the servers you added; `bam server default work` picks the one used when none is named; `bam server rm work` removes one.
+- `bam whoami` shows who each server knows you as; `bam logout work` deletes the stored token.
+- `bam version` prints the installed version.
+- `bam completion bash` prints tab completion for bash (`bam completion zsh`, `fish` and `powershell` too); to load it in every new session, add `source <(bam completion bash)` to `~/.bashrc`.
+- `bam preset migrate` moves presets from the old machine config into your presets files.
+- Every command has `--help`, and `--debug` logs the HTTP requests bam makes.
 
 ## Terminal UI
 
-Running `bam` alone on a terminal opens a k9s-style table of every plan, with
-a plan screen behind it to browse detail, watch a build live, read its
-logs, run a preset, and cancel.
+Typing `bam` alone opens a full-screen view of your plans. You can browse, watch, read logs, run and cancel from it, with the keys shown at the bottom. `bam --project BAMCI` opens it on one project, and `bam ui` opens it explicitly. Pipe bam's output, or pass `--no-tui`, and bare `bam` prints help instead.
 
-It opens on the plans table:
+### The plans table
 
-```
- Server:  lab [bamboo.lab.example]   <enter> drill in          <P> filter by project     <y> copy the URL
- Version: 9.6.4                      <R> open the run form     </> filter or search      <:> command bar
- User:    jdoe                       <o> open in the browser   <s> next sort column      <?> help
-──────────────────────────────────────────────────── plans(all)[4] ───────────────────────────────────────── sort key↑ ─
-  PROJECT  KEY          NAME                                                    STATE             #  AGE    BY
-▸ OPS      OPS-NIGHTLY  Nightly                                                 ✓ success         9  now    commit
-  OPS      OPS-OLD      Archived                                                –                 –  –      –
-  PROJ     PROJ-BUILD   Build and test                                          ✗ failed          4  12m    jdoe
-  PROJ     PROJ-PROV    Provision lab                                           ✓ success         8  3h     sched
+    bam v0.2.1-544-g7ec79b3 · home · 12.1.8 · admin · project BAMCI · 3 plans · sort key↑
+      PROJECT  KEY          NAME                                          STATE             #  AGE    BY
+    ▸ BAMCI    BAMCI-BUILD  Build                                         ✓ success         6  now    Admin
+      BAMCI    BAMCI-LINT   Lint                                          ✓ success         6  now    dep
+      BAMCI    BAMCI-TEST   Test                                          ✓ success         6  now    dep
 
- enter open  / filter  s sort  : cmd  R run  ?help  q quit
-```
+    home · 12.1.8 · admin                                enter open  / filter  s sort  : cmd  R run  ?help  q quit
 
-Terminals under 20 rows or 60 columns keep the one-line header.
+`enter` opens a plan, `/` filters, `s` sorts, `:` opens the command bar, `?` shows every key.
 
-`:projects` (or `:proj`) lists the projects, `(all)` first, `●` on the one the plans are narrowed to. `enter` shows that project's plans; `esc` goes back to the list. A configured project the server does not have is marked `missing`.
+### The plan screen
 
-To open the UI on one project, pass `bam --project PROJ` (or `bam ui --project PROJ`), or set `default_project: PROJ` in `.bam.yaml`, under a server in the machine file, or under a `repos` entry. `--project all` opens on every project.
+     Build
+     BAMCI › BAMCI-BUILD                                                           ✓ success last build #7 1m ago
+    ───────────────────────────────────────────────── builds[7] ──────────────────────────────────────────────────
+    ┏━Builds━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #7────────────────────────────────────────────────────╮
+    ┃▸ ✓ #7     default  1m  Admin             ┃│Manual run by Admin · 7ec79b3                                   │
+    ┃  ✓ #6     default  5m  Admin             ┃│                                                                │
+    ┃  ✓ #5     default  6m  Admin             ┃│▸ ✓ Build                      1s                               │
+    ┃  ✓ #4     default  6m  Admin             ┃╰────────────────────────────────────────────────────────────────╯
+    ┃  ✓ #3     default  6m  Admin             ┃╭─Tree · what #7 triggered───────────────────────────────────────╮
+    ┃  ✓ #2     default  4h  Admin             ┃│▸ ✓ Lint  #7    success                                         │
+    ┃  ✓ #1     default  4h  Admin             ┃│  ✓ Test  #7    success                                         │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┃                                          ┃│                                                                │
+    ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────────────────────╯
+    work · 12.1.8 · admin                                  enter stages  R run  l logs  t tree  / filter  esc back
 
-No lowercase key changes anything on the server. `R` only opens the run form,
-`ctrl-R` inside that form is the only key that starts a build, and `C` always
-asks before it cancels one.
+`enter` on a plan opens its screen: builds on the left, the stages of the selected build and the plans it triggered on the right. `esc` goes back.
 
-`enter` on a plan opens its plan screen: the plan's full name on top, its builds on the left, and on the right the stages of the selected build and the plans that build triggered. `enter` on a triggered plan opens its own plan screen; `esc` comes back.
+### Do it in the UI
 
-```
- Build and test
- PROJ › PROJ-BUILD                               ✗ failed last build #44 3m ago
-────────────────────────────────── builds[2] ───────────────────────────────────
-┏━Builds━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #44─────────────────────────────────╮
-┃▸ ✗ #44    main  3m  –        ┃│Manual run by jdoe                            │
-┃  ✓ #43    main  1h  –        ┃│                                              │
-┃                              ┃│▸ ✓ Build                      42s            │
-┃                              ┃│  ✗ Test                       2m30s          │
-┃                              ┃│    ✗ Integration              2m30s          │
-┃                              ┃│  – Deploy                                    │
-┃                              ┃│                                              │
-┃                              ┃│3 failed tests                                │
-┃                              ┃╰──────────────────────────────────────────────╯
-┃                              ┃╭─Tree · what #44 triggered────────────────────╮
-┃                              ┃│▸ ✗ PROJ-PROV  #7    failed                   │
-┃                              ┃│  – Nightly  not run                          │
-┃                              ┃│                                              │
-┃                              ┃│                                              │
-┃                              ┃│                                              │
-┃                              ┃│                                              │
-┃                              ┃│                                              │
-┃                              ┃│                                              │
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰──────────────────────────────────────────────╯
-lab · 9.6.4 · jdoe       enter stages  R run  l logs  t tree  / filter  esc back
-```
-
-`bam ui` opens it explicitly. To keep the UI out of the way, use `--no-tui`,
-set `BAM_NO_TUI=1`, or pipe bam's output — on a pipe, on a dumb terminal, or
-without a terminal, bare `bam` prints help exactly as before.
-
-### Run sets
-
-`:sets` lists the run sets with their last run. `enter` opens a set: its stages and runs, live while it runs. `R` runs it (a prompt takes optional variables, `d` previews the dry run, `ctrl-R` starts it), `U` resumes an interrupted run, `F` reruns the failed runs; resume and rerun ask again for the variables the run was started with. The train keeps running while you browse, one per window; `q` asks first and leaves it interrupted, to continue with `U` or `bam set resume`. A set run by another bam is shown and re-read every few seconds.
-
-### Build trees
-
-`t` on a build, or `:tree KEY` from the command bar, opens its tree: the build and every build it triggered, with their stages, live while they run. `enter` opens the selected build and `l` its logs, `esc` comes back. `F` lists the failed builds whose parents succeeded and asks before rerunning them, then keeps watching the tree.
-
-### Keys
-
-| | Keys | Does |
-| --- | --- | --- |
-| Move | `j` `k` `↑` `↓` | up / down in the focused panel |
-| | `g` `G` | first / last row |
-| | `tab` | next panel: Builds, Stages, Tree |
-| | `shift-tab` | previous panel |
-| | `1` `2` `3` | focus Builds, Stages, Tree (on Home: open the plan screen there) |
-| | `enter` | drill in: a build's stages, expand a stage, open a triggered plan |
-| | `esc` | back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to Home; from a project's plans to `:projects` |
-| Home | `enter` | open the plan screen on the row's plan |
-| | `s` | next sort column |
-| | `:` | command bar: :plans :presets :sets :projects :tree :project :server :sort :q |
-| View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |
-| | `a` | all logs, not only failed; in the run form or set vars prompt, add a variable |
-| | `f` | follow the jobs on the log screen |
-| | `/` | filter the focused list, or search the log |
-| | `n` `N` | next / previous match, or next failure with no search |
-| | `r` | refresh the focused panel |
-| | `t` | the build tree of the selected build: every build it triggered |
-| | `e` | expand the current error |
-| Run | `R` | open the run form for the selection |
-| | `ctrl-R` | run (in the form) |
-| | `d` | dry-run: show what would be sent (in the form) |
-| | `space` | cycle an options field (in the form) |
-| | `f` | use the build's revision (in the form, on the revision row) |
-| | `C` | cancel the selected build (asks first) |
-| | `p` | save the selected build's variables as a preset (asks for a name) |
-| | `U` | resume the set's interrupted run (set screen) |
-| | `F` | rerun the failed runs (set screen) or builds (tree screen) |
-| | `x` | remove an added variable row (run form, set vars prompt) |
-| Go | `o` | open the selection's Bamboo URL in the browser |
-| | `y` | copy the selection's Bamboo URL |
-| | `S` | switch server |
-| | `P` | filter by project |
-| | `b` | switch plan branch |
-| Meta | `?` | help |
-| | `q` `ctrl-c` | quit |
-
-Leaving the UI never stops a build: quitting, leaving a screen and switching
-server all cancel *watches*, and a watch is not a build. Only `C` in the UI,
-and `bam build cancel` on the command line, stop a build.
-
-## Everyday commands
-
-| I want to… | Command |
+| You want to | Press |
 | --- | --- |
-| see my plans | `bam plan list` |
-| see a plan's variables and what the last build used | `bam plan vars provision-lab` |
-| find a plan, branch or variable by part of its name | `bam plan list --match deploy`, `bam plan branches provision-lab feature`, `bam plan vars provision-lab region` |
-| run with the previous build's variables | `bam run provision-lab --from last` |
-| check variables without running | `bam run provision-lab --dry-run` |
-| review and change variables in your editor, then run | `bam run provision-lab --edit` |
-| save my own variable values as a preset | `bam preset add NAME --plan KEY` (see [presets](docs/presets.md)) |
-| change the last (or build #41's) variables, then run | `bam run provision-lab --from 41 --edit` |
-| build a chosen commit instead of the newest | `bam run provision-lab --revision abc1234` |
-| rebuild the commit an earlier build used | `bam run provision-lab --from 41 --revision from` |
-| build a feature branch of a repository on a plan and the plans it triggers | `bam run PROJ-PARENT --repo-branch repo-a=feature/PROJ-101` |
-| keep those repository branches in a preset | `repo_branches:` in the preset, then `bam run feature-101` (see [presets](docs/presets.md#build-other-repository-branches)) |
-| see recent builds | `bam build list provision-lab` |
-| is this plan flaky? | `bam plan stats provision-lab` |
-| follow a running build and the builds it triggers | `bam watch --last` |
-| see every build a build triggered, and where it failed | `bam build tree --last` |
-| follow a build and all its sub-pipelines until they finish | `bam build tree PROJ-API-142 --watch` |
-| retry the failed parts of a run | `bam build tree --last --rerun-failed` |
-| read only the failed jobs' logs | `bam logs --last --failed` |
-| stop a build | `bam build cancel --last` |
-| open anything in Bamboo | `bam open PROJ-PLAN-123`, or one job: `bam open PROJ-PLAN-123 --job JOB1` |
-| run a release train of presets, stage by stage | `bam set run release` |
-| continue a train after Ctrl-C | `bam set resume` |
-| run a one-off train from its own file | `bam set run -f hotfix.yaml` |
-| retry a failed train's failed runs, then finish it | `bam set rerun --failed` |
-| list a train's past runs | `bam set history release` |
+| run the selected plan | `R`, set variables, then `ctrl-R` (`d` previews the dry run) |
+| read the failed log of a build | `l` |
+| see what a build triggered | `t` |
+| rerun the failed builds of a tree | `F` (asks first) |
+| cancel the selected build | `C` (asks first) |
+| open the selection in your browser | `o` |
+| copy the selection's link | `y` |
+| save the selected build's variables as a preset | `p` |
+| go back, or quit | `esc`, `q` |
 
-`--revision` takes a full or short SHA and passes it to Bamboo as given; Bamboo applies it to the plan's default repository. A revision Bamboo cannot build ends as "not built", so add `--watch` to see it. If the server ignores the revision, bam stops the build it queued and exits 5. `--revision from` reuses the commit of the `--from` build, together with its variables.
-
-`--repo-branch REPO=BRANCH` builds `BRANCH` of repository `REPO` on every plan of the run whose default repository it is: the plan you run and the child plans its last build triggered (plus your `children:` config). `PLAN:REPO=BRANCH` sets it for one plan only, so a child can build its own branch; repeat the flag for more. Name the repository as `bam build show` lists it. Bamboo cannot change a plan's repository over its REST API, so bam runs each plan on a plan branch named after the branch for every plan (`feature-PROJ-101`), creating the ones that are missing, and never edits the plans: nothing needs restoring, and the plan branches stay for the next run. Bamboo starts a child's plan branch only when the parent plan's dependencies are enabled for branches. `--dry-run` shows the plan branches bam would create or reuse, and a preset can hold the same pairs under `repo_branches` (see [presets](docs/presets.md#build-other-repository-branches)).
-
-`bam project list`, `bam preset list` and `bam set list` take the same kind of text filter, and every filter ignores case.
-
-Every command has `--help`, and every read command has `--json`. The full reference is in [docs/cli](docs/cli/bam.md).
-
-## Release trains
-
-A set names several presets and runs them in ordered stages: every run of a stage at once, the next stage only when all of them succeeded.
-
-```yaml
-sets:
-  release:
-    stages:
-      - [publish-specs]
-      - [provision, {target: deploy, vars: {env: qa}}]
-```
-
-```
-$ bam set run release
-release  release-20260929T101500Z
-stage 1/2
-  ✓ publish-specs  PROJ-SPEC-12  Success  1m12s
-stage 2/2
-  ✓ provision  OPS-PROV-40  Success  1m30s
-  ✗ deploy     OPS-DEP-9    Failed   48s
-
-set failed: stage 2 (1 of 2 runs failed)
-  try: bam logs OPS-DEP-9 --failed
-```
-
-A `matrix` runs one preset over several variable sets in the same stage: `matrix: {env: [qa, staging]}` runs every combination, `matrix: [{env: qa}, {env: prod, region: us}]` exactly those. Each run is named, for example `deploy[env=qa]`, and is resumed and rerun on its own.
-
-A failure never cancels a build. Ctrl-C stops watching; `bam set status` and `bam set resume` pick the train up again. After a failure, `bam set rerun --failed` has Bamboo restart the failed builds (only their failed jobs run again, with the same variables and commit) and then finishes the train. See [Sets](docs/configuration.md#sets-release-trains) for the rules.
-
-## Build trees
-
-When a plan triggers child plans, each child is a separate build in Bamboo. `bam build tree` shows a build and every build it caused, to any depth, with their stages and what failed:
-
-```
-$ bam build tree PROJ-API-142
-PROJ-API-142              ✗ failed   12m03s
-├─ stage Build            ✓ success  2m10s
-├─ stage Test             ✓ success  4m55s
-├─ OPS-DEPLOY-88          ✓ success  3m12s
-│  ├─ stage Deploy        ✓ success  3m12s
-│  └─ OPS-SMOKE-51        ✗ failed   1m40s   3 tests failed
-│     └─ stage Smoke      ✗ failed   1m40s   Smoke tests
-└─ PROJ-DOCS-30           ▸ running  45s
-failed: PROJ-API-142 https://bamboo.example.com/browse/PROJ-API-142
-failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51
-next: bam logs OPS-SMOKE-51 --failed
-```
-
-To watch a running build and its sub-pipelines live:
-
-```bash
-bam build tree PROJ-API-142 --watch
-```
-
-- The argument works as in `bam build show`: a build key, a link copied from its Bamboo page, a plan or preset (its latest build, with `--branch`), or `--last`.
-- `--watch` follows the tree until every build has finished, including children that start after their parent ends. On a terminal the tree redraws in place as builds start, run and finish; Ctrl-C stops watching only. `bam watch <build>` and `bam run --watch` draw the same live tree; `bam watch --json` follows the single build.
-- `--failed` shows only the branches that lead to a failure; `--depth N` limits the levels; `--json` prints the tree as one document.
-- It exits 0 when every build succeeded and 1 when any did not. Without `--watch`, a tree that is still running exits 0 and suggests `--watch`.
-
-To retry the failures, `bam build tree PROJ-API-142 --rerun-failed` lists the failed builds whose parents succeeded and asks before restarting them. Bamboo reruns only their failed jobs, under the same build keys, and triggers their children again when they succeed; bam then follows the tree until it has finished. `--yes` skips the question (required without a terminal), `--no-watch` restarts and exits. `bam build rerun OPS-SMOKE-51` restarts one build. Only the newest run of a child plan counts: an older one shows as `earlier run`.
-
-Bamboo's API does not list a plan's child plans, so bam finds a child by its reason, "Child of PROJ-API-142", in the last 25 builds of each plan in your projects and in the build's own project. A `children:` map in the configuration narrows that and shows a child that never ran; see [Child plans](docs/configuration.md#child-plans-children).
+Nothing changes on the server by accident. No lowercase key starts or stops a build: `R` only opens the run form, `ctrl-R` is the only key that starts one, and `C` always asks. Leaving the UI never stops a build. `y` copies through the terminal (OSC 52), which Windows Terminal supports. The full key list, run sets and build trees in the UI: [docs/tui.md](docs/tui.md).
 
 ## More
 
 - [Configuration and presets](docs/configuration.md)
 - [Presets and re-running with other variables](docs/presets.md)
+- [Build a commit or another branch](docs/branches.md)
+- [Terminal UI keys](docs/tui.md)
 - [Authentication](docs/authentication.md)
 - [Using bam in CI](docs/ci.md)
 - [JSON output](docs/json.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Try bam locally, without a Bamboo](docs/try-locally.md)
-- [Development setup](SETUP.md) — Go, make and linter on macOS and Linux
+- [Development setup](SETUP.md): Go, make and linter on macOS and Linux
 
 ## License
 

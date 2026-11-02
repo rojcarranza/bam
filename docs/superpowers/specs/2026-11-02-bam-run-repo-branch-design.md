@@ -47,7 +47,7 @@ bam run <plan|preset> --repo-branch [PLAN:]REPO=BRANCH ... [--var k=v]... [--wat
 
 - `--repo-branch` is repeatable. `REPO=BRANCH` applies to every plan of the run whose default repository is `REPO`. `PLAN:REPO=BRANCH` applies to that plan only and wins over `REPO=BRANCH` there.
 - A value without `=`, an empty repository or branch, or a `PLAN` that is not a plan key is a usage error (exit 2), checked before any configuration load or network call.
-- Combined with `--branch` (or a preset's `branch:`), it is a usage error: bam chooses the plan branch.
+- Combined with `--branch`, it is a usage error: bam chooses the plan branch. A preset that sets both `branch:` and `repo_branches` is a config error (exit 3).
 - A preset holds the same entries under `repo_branches`, keyed like the flag:
 
   ```yaml
@@ -88,13 +88,13 @@ A plan's **default repository** is the `vcsRevisions` entry whose revision equal
 
 A plan **gets the plan branch** when it is the root, when an override sets its default repository's branch, or when it sits between the root and such a plan, so Bamboo's chain of same-named branches reaches it. A plan that only carries the name on builds its own branch (`vcsBranch` is left out).
 
-For each plan that gets the plan branch, bam lists its branches. One whose short name equals the name is reused; otherwise bam will create it. A reused branch with an override adds a warning: `PROJ-CHILD: plan branch feature-PROJ-101 (PROJ-CHILD3) already exists; bam cannot check which branch of repo-a it builds`.
+For each plan that gets the plan branch, bam lists its branches. One whose short name equals the name is reused; otherwise bam will create it. Reused branches add one warning: `plan branch feature-PROJ-101 already exists on PROJ-PARENT12, PROJ-CHILD3; bam reuses it as it is and cannot check which branch it builds`.
 
 ### 5.3 Running
 
 Unless `--dry-run`, bam creates the missing plan branches, deepest plans first and the root last, with `enabled=true` and `vcsBranch` when the plan's branch changes. A failed creation stops the run with the Bamboo error, and its Why names the branches already created. Then bam triggers the root's plan branch, as `bam run --branch` does.
 
-`PlanRef` gains `RepoBranches []app.BranchPlan`: what the run does to each plan. `Service.Run` refuses a ref whose preset has `repo_branches` but whose `RepoBranches` is empty: `preset feature-101 sets repo_branches, which only bam run applies` / `bam run feature-101`. That covers run sets and the terminal UI's run form, which would otherwise ignore the overrides.
+`PlanRef` gains `RepoBranches []app.BranchPlan`: what the run does to each plan. `Service.Run` refuses a ref whose preset has `repo_branches` but whose `RepoBranches` is empty: `preset feature-101 sets repo_branches, which only bam run applies` / `bam run feature-101`. That covers the terminal UI's run form, which would otherwise ignore the overrides. A run set reports the same error while planning, as one of its problems, so no stage triggers.
 
 `--watch` follows the tree as before, with each child's plan branch added to the plans searched for children (`TreeOptions.Plans`): the tree otherwise reads each plan's default branch only.
 
@@ -110,12 +110,14 @@ Branches feature-PROJ-101 on 2 plans
 Vars     none
 ```
 
-A plan that only carries the name shows `its own branch` in the repository columns. After creating, one line per created branch, then the undo note, before the queued line:
+The Plan line names the root's plan branch key once it exists: `(branch feature-PROJ-101)` before bam creates it. A plan that only carries the name shows `its own branch` in the repository columns. After creating, one line per created branch, then the undo note, before the queued line:
 
 ```
-✓ Created  PROJ-CHILD7   plan branch feature-PROJ-101 of PROJ-CHILD
-  bam changed no plan, so there is nothing to restore; these plan branches stay for the next run.
-  PROJ-CHILD only starts on feature-PROJ-101 when PROJ-PARENT's dependencies are enabled for branches.
+✓ Created  PROJ-PARENT20   plan branch feature-PROJ-101 of PROJ-PARENT
+✓ Created  PROJ-CHILD7      plan branch feature-PROJ-101 of PROJ-CHILD
+  bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.
+  To remove one, delete it on its plan's Branches page in Bamboo.
+  A child plan starts on feature-PROJ-101 only when its parent plan's dependencies are enabled for branches.
 ```
 
 The dependency line appears when the run has a child plan.
@@ -161,8 +163,8 @@ No test sleeps or touches the network.
 ## 10. Acceptance
 
 1. `go test -race ./...`, `make lint`, `make check-fixtures`, `make docs` clean.
-2. Against the stub: `bam run PROJ-PARENT --repo-branch repo-a=feature/PROJ-101 --repo-branch PROJ-CHILD:repo-a=feature/PROJ-101-extra --watch` creates both plan branches, runs the parent's, and the tree shows the child's branch build.
-3. Against a forge-lab parent/child pipeline on a live Bamboo: the same command, then `bam build show` of each build shows the chosen branch's commit of `repo-a`. This confirms the three unverified points of §2.
+2. Against the stub (`-child PROJ-CHILD`, whose builds name their repository `app`), after one plain run of PROJ-PARENT: `bam run PROJ-PARENT --repo-branch app=feature/PROJ-101 --repo-branch PROJ-CHILD:app=feature/PROJ-101-extra --watch` creates both plan branches, runs the parent's, and the tree shows the child's branch build.
+3. Against a forge-lab parent/child pipeline on a live Bamboo: the same command with its repository names, then `bam build show` of each build shows the chosen branch's commit of `repo-a`. This confirms the three unverified points of §2.
 
 ## 11. Out of scope
 

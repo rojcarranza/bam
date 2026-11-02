@@ -102,6 +102,19 @@ Make one preset per set, each pointing at the same plan:
     bam preset add deploy-qa      --plan PROJ-DEPLOY
     bam preset add deploy-staging --plan PROJ-DEPLOY
 
+### Build other repository branches
+
+`repo_branches` makes a preset build feature branches across a parent plan and its child plans, as `bam run --repo-branch` does. Key it by repository, or by plan and repository for one plan:
+
+    presets:
+      feature-101:
+        plan: PROJ-PARENT
+        repo_branches:
+          repo-a: feature/PROJ-101               # every plan of the run whose default repository is repo-a
+          PROJ-CHILD:repo-a: feature/PROJ-101-extra   # PROJ-CHILD only
+
+`bam run feature-101` then runs each of those plans on a plan branch named after the branch (`feature-PROJ-101`, from the entry for every plan), creating the plan branches it needs. A `--repo-branch` flag beats the entry with the same key. A preset with `repo_branches` cannot also set `branch:`, and only `bam run` applies it: a release train or the terminal UI's run form refuses it rather than run without the branches. `bam preset show` lists the entries under Repository branches.
+
 ### Move presets you already have
 
 Presets made with an older bam live in your machine config (`~/.config/bam/config.yaml` on Linux and WSL, `~/Library/Application Support/bam/config.yaml` on macOS), and the ones under a `repos:` entry only work inside that repository. Move them all into your presets file, `~/bam/presets.yaml`:

@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `bam run --repo-branch REPO=BRANCH` (repeatable, or `PLAN:REPO=BRANCH` for one plan) builds a repository branch on the plan and the child plans it triggers, through plan branches bam creates and reuses; presets hold the same under `repo_branches`, `--dry-run` shows the plan branches, and `--json` lists them under `repo_branches`.
 - Personal presets can live in `~/bam/presets/`, one file per Bamboo project: every `*.yaml` there is read alongside `~/bam/presets.yaml`, `bam preset list` shows each preset's file, and `bam preset add --file NAME` writes `~/bam/presets/NAME.yaml`.
 - `bam preset migrate` moves presets from your machine config (including ones under `repos:`) into `~/bam/presets.yaml`, so they work from any directory.
 - Personal presets live in `~/bam/presets.yaml` (or `BAM_PRESETS`) and work from any directory; in WSL, bam uses the presets file in your Windows home, so Git Bash and WSL share one file. Presets can write their variables under `variables:`.

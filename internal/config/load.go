@@ -22,7 +22,9 @@ const ProjectFileName = ".bam.yaml"
 
 // misnamedProjectFiles are names people give the project file by mistake.
 // bam reads none of them, so finding one is an error rather than silence.
-var misnamedProjectFiles = []string{".bam.yml", "bam.yaml", "bam.yml"}
+// Only the dotted .bam.yml is listed: an undotted bam.yaml or bam.yml is an
+// ordinary file other tools and projects may own, so bam ignores it.
+var misnamedProjectFiles = []string{".bam.yml"}
 
 // Env holds the BAM_* environment variables that affect server selection.
 type Env struct {

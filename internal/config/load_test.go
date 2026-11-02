@@ -49,8 +49,32 @@ func TestDiscoverWithoutGitStopsAtHome(t *testing.T) {
 	assert.Equal(t, filepath.Join(home, ".bam.yaml"), path)
 }
 
+// Bug: any bam.yaml or bam.yml in a repository stopped every command with
+// exit 3, though bam never reads those names and v0.2.1 ignored them.
+func TestDiscoverIgnoresUndottedBamYaml(t *testing.T) {
+	for _, name := range []string{"bam.yaml", "bam.yml"} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			repo := filepath.Join(home, "repo")
+			require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o755))
+			writeFile(t, filepath.Join(repo, name), "unrelated: true\n")
+			writeFile(t, filepath.Join(home, name), "unrelated: true\n")
+
+			path, root, err := Discover(repo, home)
+			require.NoError(t, err)
+			assert.Equal(t, "", path)
+			assert.Equal(t, repo, root)
+
+			// Outside a repository, in the home directory itself.
+			path, _, err = Discover(home, home)
+			require.NoError(t, err)
+			assert.Equal(t, "", path)
+		})
+	}
+}
+
 func TestDiscoverRejectsAMisnamedProjectFile(t *testing.T) {
-	for _, name := range []string{".bam.yml", "bam.yaml", "bam.yml"} {
+	for _, name := range []string{".bam.yml"} {
 		t.Run(name, func(t *testing.T) {
 			home := t.TempDir()
 			repo := filepath.Join(home, "repo")

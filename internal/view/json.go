@@ -116,6 +116,8 @@ type TargetDoc struct {
 	Watch     bool                `json:"watch"`
 	TimeoutMS int64               `json:"timeout_ms"`
 	DefinedIn []string            `json:"defined_in"`
+	// RepoBranches maps REPO or PLAN:REPO to a branch, as repo_branches does.
+	RepoBranches map[string]string `json:"repo_branches"`
 }
 
 type RunDoc struct {
@@ -220,7 +222,11 @@ func VarRowsJSON(res app.PlanVarsResult) []VariableDoc {
 
 func TargetJSON(t app.TargetInfo) TargetDoc {
 	d := TargetDoc{Name: t.Name, PlanKey: t.Plan, Server: t.Server, Branch: t.Branch, Defaults: map[string]string{},
-		Options: map[string][]string{}, Required: nonNil(t.Required), Watch: t.Watch, TimeoutMS: ms(t.Timeout), DefinedIn: nonNil(t.DefinedIn)}
+		Options: map[string][]string{}, Required: nonNil(t.Required), Watch: t.Watch, TimeoutMS: ms(t.Timeout), DefinedIn: nonNil(t.DefinedIn),
+		RepoBranches: map[string]string{}}
+	for _, r := range t.RepoBranches {
+		d.RepoBranches[r.Key()] = r.Branch
+	}
 	for _, v := range t.Defaults {
 		switch {
 		case v.EnvRef != "":

@@ -50,6 +50,9 @@ type PlanRef struct {
 	Branch       string // branch short name; empty for the default branch
 	Revision     string // commit to build, set by the caller for one run; ResolvePlan never sets it
 	RevisionFrom string // build key Revision was taken from; empty when it was typed
+	// RepoBranches is what the run does to each plan for its repository
+	// branches, set by UseRepoBranches; ResolvePlan never sets it.
+	RepoBranches []BranchPlan
 	Target       *config.ResolvedTarget
 }
 

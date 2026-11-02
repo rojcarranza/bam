@@ -56,7 +56,7 @@ type Provider struct {
 	Stopped      []string
 	Restarted    []string
 	Created      []CreatedBranch
-	getCalls    map[string]int
+	getCalls     map[string]int
 	listCalls    map[string]int
 	progressCall map[string]int
 	logCalls     map[string]int

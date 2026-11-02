@@ -27,6 +27,13 @@ const (
 // revision was asked for and Bamboo ignored it, the build (which runs the
 // newest commit) is stopped and Run fails.
 func (s *Service) Run(ctx context.Context, ref PlanRef, vs VarSet) (provider.Build, error) {
+	// Only bam run applies repo_branches. Every other way to run a preset
+	// (a set, the terminal UI) refuses it rather than build the wrong
+	// branches.
+	if t := ref.Target; t != nil && len(t.RepoBranches) > 0 && len(ref.RepoBranches) == 0 {
+		return provider.Build{}, errs.Usagef("preset %s sets repo_branches, which only bam run applies", t.Name).
+			WithTry("bam run " + t.Name)
+	}
 	b, err := s.P.Trigger(ctx, provider.TriggerRequest{PlanKey: ref.PlanKey, Variables: vs.Changed(), Secret: vs.Secret(), Revision: ref.Revision})
 	if err != nil {
 		if ref.Revision != "" && b.Key != "" && errors.Is(err, errs.ErrUnsupported) {

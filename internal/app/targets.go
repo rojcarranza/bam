@@ -41,6 +41,8 @@ type TargetInfo struct {
 	Watch     bool
 	Timeout   time.Duration
 	DefinedIn []string
+	// RepoBranches is the preset's repo_branches, sorted by key.
+	RepoBranches []config.RepoBranch
 }
 
 // DescribeTargets returns every merged target, sorted by name.
@@ -75,6 +77,7 @@ func describe(t config.ResolvedTarget, getenv func(string) string) TargetInfo {
 		info.Watch = *t.Watch
 	}
 	info.Defaults = targetVars(t.Defaults, getenv)
+	info.RepoBranches = t.RepoBranchList()
 	return info
 }
 
@@ -112,6 +115,13 @@ func (s *Service) RefFromTarget(ctx context.Context, t TargetInfo) (PlanRef, err
 		rt.Defaults = config.StringMap{}
 		for _, d := range t.Defaults {
 			rt.Defaults[d.Name] = d.Value
+		}
+	}
+	// Kept so that Run refuses the preset rather than ignore them.
+	if len(t.RepoBranches) > 0 {
+		rt.RepoBranches = config.StringMap{}
+		for _, r := range t.RepoBranches {
+			rt.RepoBranches[r.Key()] = r.Branch
 		}
 	}
 	ref := PlanRef{PlanKey: t.Plan, MasterKey: t.Plan, Target: &rt}

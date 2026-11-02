@@ -49,6 +49,7 @@ type TreeOptions struct {
 	Depth      int                // levels of builds below the root; 0 means all
 	OnProgress func(TreeProgress) // BuildTree reports how far it got; calls are serialized and end before it returns
 	Shared     bool               // start from the scan of another recent tree of the root's plan, and lend this one on
+	Plans      []string           // more plans to search for children, such as the plan branches of a run with repository branches
 	track      *treeTracker       // set by BuildTree and WatchTree
 }
 
@@ -163,7 +164,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	scan := prev
 	limit := treeRefresh
 	if scan == nil {
-		plans, projects, more, err := s.treeCandidates(ctx, tr, root.PlanKey, configured)
+		plans, projects, more, err := s.treeCandidates(ctx, tr, root.PlanKey, configured, o.Plans)
 		if err != nil {
 			return Tree{}, nil, err
 		}
@@ -217,9 +218,9 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 }
 
 // treeCandidates is every plan of the scoped projects and of the root's
-// project, and every plan the children map names, sorted. It also returns
-// the projects it listed.
-func (s *Service) treeCandidates(ctx context.Context, tr *treeTracker, rootPlan string, configured map[string][]string) ([]string, map[string]bool, []string, error) {
+// project, every plan the children map names, and extra, sorted. It also
+// returns the projects it listed.
+func (s *Service) treeCandidates(ctx context.Context, tr *treeTracker, rootPlan string, configured map[string][]string, extra []string) ([]string, map[string]bool, []string, error) {
 	set := map[string]bool{}
 	projects := slices.Clone(s.ProjectKeys())
 	if p, _, ok := strings.Cut(rootPlan, "-"); ok && !slices.Contains(projects, p) {
@@ -250,6 +251,9 @@ func (s *Service) treeCandidates(ctx context.Context, tr *treeTracker, rootPlan 
 		for _, v := range vs {
 			set[v] = true
 		}
+	}
+	for _, k := range extra {
+		set[k] = true
 	}
 	if len(set) == 0 && firstErr != nil {
 		return nil, nil, nil, firstErr

@@ -348,6 +348,17 @@ func TargetDetail(o Out, x app.TargetInfo) error {
 		for _, n := range names {
 			t.Rows = append(t.Rows, []string{n, strings.Join(x.Options[n], ", ")})
 		}
+		if err := RenderRows(o, t); err != nil {
+			return err
+		}
+	}
+	if len(x.RepoBranches) > 0 {
+		fmt.Fprintln(o.W)
+		fmt.Fprintln(o.W, "Repository branches")
+		t := Table{Indent: "  ", Headers: []string{"", ""}}
+		for _, r := range x.RepoBranches {
+			t.Rows = append(t.Rows, []string{r.Key(), r.Branch})
+		}
 		return RenderRows(o, t)
 	}
 	return nil

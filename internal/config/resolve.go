@@ -354,6 +354,16 @@ func mergeTarget(base, over Target) Target {
 	if over.Timeout != 0 {
 		base.Timeout = over.Timeout
 	}
+	if len(over.RepoBranches) > 0 {
+		merged := StringMap{}
+		for k, v := range base.RepoBranches {
+			merged[k] = v
+		}
+		for k, v := range over.RepoBranches {
+			merged[k] = v
+		}
+		base.RepoBranches = merged
+	}
 	return base
 }
 
@@ -377,6 +387,22 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 		if _, ok := servers[t.Server]; !ok {
 			return errs.Configf("preset %q uses unknown server %q", t.Name, t.Server).
 				WithTry(nearServerTry(t.Server, slices.Sorted(maps.Keys(servers))))
+		}
+	}
+	if t.Branch != "" && len(t.RepoBranches) > 0 {
+		return errs.Configf("preset %q sets both branch and repo_branches", t.Name).
+			WithWhy("defined in " + where + "; with repo_branches bam picks the plan branch").
+			WithTry("remove branch: under targets." + t.Name)
+	}
+	for _, key := range sortedKeys(t.RepoBranches) {
+		if _, ok := ParseRepoKey(key); !ok {
+			return errs.Configf("preset %q: repo_branches key %q is not REPO or PLAN:REPO", t.Name, key).
+				WithWhy("defined in " + where).
+				WithTry("key it by repository, repo-a, or by plan and repository, PROJ-CHILD:repo-a")
+		}
+		if strings.TrimSpace(t.RepoBranches[key]) == "" {
+			return errs.Configf("preset %q: repo_branches.%s has no branch", t.Name, key).
+				WithWhy("defined in " + where)
 		}
 	}
 	for _, name := range sortedKeys(t.Options) {

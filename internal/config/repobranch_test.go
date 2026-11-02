@@ -47,9 +47,9 @@ func TestRepoBranchesLoadFromAPresetsFile(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok)
 	assert.Equal(t, []RepoBranch{
-		{Plan: "PROJ-CHILD", Repository: "repo-a", Branch: "feature/PROJ-101-extra"},
 		{Repository: "repo-a", Branch: "feature/PROJ-101"},
-	}, got.RepoBranchList())
+		{Plan: "PROJ-CHILD", Repository: "repo-a", Branch: "feature/PROJ-101-extra"},
+	}, got.RepoBranchList(), "the entry for every plan comes first: it names the run's plan branch")
 }
 
 func TestRepoBranchesMergeAcrossLayers(t *testing.T) {

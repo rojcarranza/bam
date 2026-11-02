@@ -37,8 +37,10 @@ func ParseRepoKey(key string) (RepoBranch, bool) {
 	return r, true
 }
 
-// RepoBranchList is the target's repo_branches, sorted by key. Keys that do
-// not parse are left out; validation reports them.
+// RepoBranchList is the target's repo_branches: entries for every plan of
+// the run first, then entries for one plan, each sorted by key, so the first
+// names the run's plan branch. Keys that do not parse are left out;
+// validation reports them.
 func (t Target) RepoBranchList() []RepoBranch {
 	keys := make([]string, 0, len(t.RepoBranches))
 	for k := range t.RepoBranches {
@@ -54,5 +56,6 @@ func (t Target) RepoBranchList() []RepoBranch {
 		r.Branch = t.RepoBranches[k]
 		out = append(out, r)
 	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Plan == "" && out[j].Plan != "" })
 	return out
 }

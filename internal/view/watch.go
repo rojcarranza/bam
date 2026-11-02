@@ -14,13 +14,17 @@ import (
 // values are counted, not listed.
 func RunPlan(o Out, ref app.PlanRef, vs app.VarSet) {
 	plan := ref.MasterKey
-	if ref.Branch != "" {
+	switch {
+	case ref.Branch != "" && ref.PlanKey != ref.MasterKey:
 		plan += fmt.Sprintf("  (branch %s, %s)", ref.Branch, ref.PlanKey)
+	case ref.Branch != "":
+		plan += fmt.Sprintf("  (branch %s)", ref.Branch) // a plan branch bam has yet to create
 	}
 	fmt.Fprintf(o.W, "%-8s %s\n", "Plan", plan)
 	if ref.Revision != "" {
 		fmt.Fprintf(o.W, "%-8s %s\n", "Revision", ref.RevisionLabel())
 	}
+	repoBranches(o, ref)
 	var parts []string
 	defaults := 0
 	for _, v := range vs.Vars {
@@ -40,6 +44,58 @@ func RunPlan(o Out, ref app.PlanRef, vs app.VarSet) {
 		line = "none"
 	}
 	fmt.Fprintf(o.W, "%-8s %s\n", "Vars", line)
+}
+
+// repoBranches lists what a run with --repo-branch does to each plan: the
+// branch of its default repository and whether bam creates or reuses the
+// plan branch.
+func repoBranches(o Out, ref app.PlanRef) {
+	if len(ref.RepoBranches) == 0 {
+		return
+	}
+	n := len(ref.RepoBranches)
+	plans := "plans"
+	if n == 1 {
+		plans = "plan"
+	}
+	fmt.Fprintf(o.W, "%-8s %s on %d %s\n", "Branches", ref.Branch, n, plans)
+	t := Table{Indent: "  ", Headers: []string{"", "", "", ""}}
+	for _, bp := range ref.RepoBranches {
+		repo, branch := bp.Repository, bp.VCSBranch
+		if branch == "" {
+			repo, branch = "its own branch", ""
+		}
+		action := "create"
+		switch {
+		case bp.Existing:
+			action = "reuse " + bp.BranchKey
+		case bp.Created:
+			action = "created " + bp.BranchKey
+		}
+		t.Rows = append(t.Rows, []string{bp.PlanKey, repo, branch, action})
+	}
+	_ = RenderRows(o, t)
+}
+
+// RepoBranchesCreated follows the plan branches a run created: one line
+// each, then what changed in Bamboo and what did not.
+func RepoBranchesCreated(o Out, ref app.PlanRef) {
+	if len(ref.RepoBranches) == 0 {
+		return
+	}
+	children := false
+	for _, bp := range ref.RepoBranches {
+		if bp.Created {
+			fmt.Fprintf(o.W, "%s  %s   plan branch %s of %s\n", style.Colored(o.Style, provider.StateSuccess, "✓ Created"),
+				o.Key(bp.BranchKey, bp.URL), ref.Branch, bp.PlanKey)
+		}
+		children = children || bp.Parent != ""
+	}
+	fmt.Fprintln(o.W, "  bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.")
+	fmt.Fprintln(o.W, "  To remove one, delete it on its plan's Branches page in Bamboo.")
+	if children {
+		fmt.Fprintf(o.W, "  A child plan starts on %s only when its parent plan's dependencies are enabled for branches.\n", ref.Branch)
+	}
 }
 
 // Queued prints the line after a trigger succeeds. Without a watch it says

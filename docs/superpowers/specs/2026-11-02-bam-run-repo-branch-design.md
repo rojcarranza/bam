@@ -63,7 +63,7 @@ bam run <plan|preset> --repo-branch [PLAN:]REPO=BRANCH ... [--var k=v]... [--wat
 
 ### 4.1 The plan branch name
 
-All plans of the run use one plan branch name: the branch of the first override (flags in the order given, then the preset's entries by key), with every `/` replaced by `-`, as older Bamboo versions name branches. `feature/PROJ-101` gives `feature-PROJ-101`. A name without `/` keeps Bamboo's path free of encoded slashes.
+All plans of the run use one plan branch name: the branch of the first override (flags in the order given, then the preset's entries: those for every plan before those for one plan, each by key), with every `/` replaced by `-`, as older Bamboo versions name branches. `feature/PROJ-101` gives `feature-PROJ-101`. A name without `/` keeps Bamboo's path free of encoded slashes.
 
 ## 5. What a run does
 

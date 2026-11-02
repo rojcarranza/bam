@@ -129,6 +129,18 @@ type RunDoc struct {
 	RevisionFrom string            `json:"revision_from"`
 	Variables    map[string]string `json:"variables"`
 	Warnings     []string          `json:"warnings"`
+	// RepoBranches is what a run with --repo-branch does to each plan; [] without.
+	RepoBranches []RepoBranchDoc `json:"repo_branches"`
+}
+
+// RepoBranchDoc is one plan of a run with repository branches.
+type RepoBranchDoc struct {
+	PlanKey    string `json:"plan_key"`
+	BranchKey  string `json:"branch_key"` // "" on a dry run for a plan branch bam would create
+	Branch     string `json:"branch"`     // the plan branch name, the same on every plan
+	Repository string `json:"repository"` // "" when the plan keeps its own branch
+	VCSBranch  string `json:"vcs_branch"`
+	Existing   bool   `json:"existing"` // the plan branch was there before the run
 }
 
 type EventDoc struct {
@@ -244,7 +256,12 @@ func TargetJSON(t app.TargetInfo) TargetDoc {
 }
 
 func RunJSON(b provider.Build, ref app.PlanRef, vs app.VarSet) RunDoc {
-	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, RevisionFrom: ref.RevisionFrom, Variables: map[string]string{}, Warnings: nonNil(vs.Warnings)}
+	d := RunDoc{Key: b.Key, URL: b.URL, PlanKey: ref.PlanKey, Branch: ref.Branch, Revision: ref.Revision, RevisionFrom: ref.RevisionFrom, Variables: map[string]string{}, Warnings: nonNil(vs.Warnings),
+		RepoBranches: []RepoBranchDoc{}}
+	for _, bp := range ref.RepoBranches {
+		d.RepoBranches = append(d.RepoBranches, RepoBranchDoc{PlanKey: bp.PlanKey, BranchKey: bp.BranchKey, Branch: bp.Name,
+			Repository: bp.Repository, VCSBranch: bp.VCSBranch, Existing: bp.Existing})
+	}
 	changed := vs.Changed()
 	names := make([]string, 0, len(changed))
 	for n := range changed {

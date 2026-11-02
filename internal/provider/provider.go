@@ -11,6 +11,10 @@ type Provider interface {
 	ListPlans(ctx context.Context, project string) ([]Plan, error)
 	GetPlan(ctx context.Context, planKey string) (Plan, error)
 	ListBranches(ctx context.Context, planKey string) ([]Branch, error)
+	// CreateBranch creates an enabled plan branch of planKey called name.
+	// It builds vcsBranch of the plan's default repository; an empty
+	// vcsBranch keeps the branch the plan builds.
+	CreateBranch(ctx context.Context, planKey, name, vcsBranch string) (Branch, error)
 	ListVariables(ctx context.Context, planKey string) ([]Variable, error)
 	ListBuilds(ctx context.Context, planKey string, o ListOptions) ([]Build, error)
 	GetBuild(ctx context.Context, buildKey string) (Build, error)

@@ -1,0 +1,2 @@
+{"key": "PROJ-PARENT12", "name": "Example Project - Parent - feature-PROJ-101", "shortName": "feature-PROJ-101", "shortKey": "PARENT12", "enabled": true,
+ "link": {"href": "http://bamboo.example.com/rest/api/latest/plan/PROJ-PARENT12", "rel": "self"}}

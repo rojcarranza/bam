@@ -63,13 +63,22 @@ func RepoBranchOverrides(flags []string, t *config.ResolvedTarget) ([]config.Rep
 }
 
 // RepoBranchName is the plan branch name a run uses on every plan: the
-// first override's branch with each "/" replaced by "-", so the name needs
-// no encoded slash in Bamboo's REST paths.
+// branch of the first override for every plan, or of the first override
+// when all name one plan, with each "/" replaced by "-", so the name needs
+// no encoded slash in Bamboo's REST paths. A flag for one plan on top of a
+// preset therefore keeps the preset's name and its plan branches.
 func RepoBranchName(rbs []config.RepoBranch) string {
 	if len(rbs) == 0 {
 		return ""
 	}
-	return strings.ReplaceAll(rbs[0].Branch, "/", "-")
+	name := rbs[0].Branch
+	for _, r := range rbs {
+		if r.Plan == "" {
+			name = r.Branch
+			break
+		}
+	}
+	return strings.ReplaceAll(name, "/", "-")
 }
 
 // BranchPlan is what a run with repository branches does to one plan.
@@ -218,7 +227,7 @@ func (s *Service) PlanRepoBranches(ctx context.Context, ref PlanRef, rbs []confi
 		}
 	}
 	if len(reused) > 0 {
-		rp.Warnings = append(rp.Warnings, fmt.Sprintf("plan branch %s already exists on %s; bam reuses it as it is and cannot check which branch it builds",
+		rp.Warnings = append(rp.Warnings, fmt.Sprintf("plan branch %s already exists on %s; bam reuses it as it is and cannot check which branch it builds; to build another branch there, delete it in Bamboo first",
 			rp.Name, strings.Join(reused, ", ")))
 	}
 	return rp, nil

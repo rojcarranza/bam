@@ -125,7 +125,7 @@ func TestRepoBranchReusesAnExistingPlanBranch(t *testing.T) {
 		{PlanKey: "PROJ-CHILD", Parent: "PROJ-PARENT", Name: "feature-PROJ-101", BranchKey: "PROJ-CHILD4",
 			URL: "https://bamboo.example.com/browse/PROJ-CHILD4", Repository: "repo-a", VCSBranch: "feature/PROJ-101", Existing: true},
 	}, rp.Plans, "a child-only override still runs the parent on the shared name")
-	assert.Equal(t, []string{"plan branch feature-PROJ-101 already exists on PROJ-CHILD4; bam reuses it as it is and cannot check which branch it builds"}, rp.Warnings)
+	assert.Equal(t, []string{"plan branch feature-PROJ-101 already exists on PROJ-CHILD4; bam reuses it as it is and cannot check which branch it builds; to build another branch there, delete it in Bamboo first"}, rp.Warnings)
 
 	require.NoError(t, svc.CreateRepoBranches(ctx, &rp))
 	assert.Equal(t, []fake.CreatedBranch{{PlanKey: "PROJ-PARENT", Name: "feature-PROJ-101"}}, p.Created)
@@ -219,6 +219,21 @@ func TestRepoBranchOverridesFlagBeatsPreset(t *testing.T) {
 		{Plan: "PROJ-CHILD", Repository: "repo-a", Branch: "feature/PROJ-101-extra"},
 	}, got)
 	assert.Equal(t, "feature-PROJ-101", RepoBranchName(got), "the flag names the plan branch")
+}
+
+// Found on the forge-lab Bamboo after the captain asked for preset examples:
+// a flag for one plan on top of a preset named every plan branch after that
+// one plan's branch, so the run created new plan branches called "main".
+func TestRepoBranchNameComesFromAnOverrideForEveryPlan(t *testing.T) {
+	target := &config.ResolvedTarget{Name: "feature-101", Target: config.Target{Plan: "PROJ-PARENT",
+		RepoBranches: config.StringMap{"repo-a": "feature/PROJ-101"}}}
+	got, err := RepoBranchOverrides([]string{"PROJ-CHILD:repo-a=main"}, target)
+	require.NoError(t, err)
+	assert.Equal(t, "feature-PROJ-101", RepoBranchName(got), "the preset's entry for every plan names the plan branch")
+
+	only, err := RepoBranchOverrides([]string{"PROJ-CHILD:repo-a=feature/PROJ-101-extra"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "feature-PROJ-101-extra", RepoBranchName(only), "with only one-plan entries the first names it")
 }
 
 func TestParseRepoBranchFlag(t *testing.T) {

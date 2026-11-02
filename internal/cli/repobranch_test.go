@@ -84,7 +84,7 @@ func TestRunRepoBranchCreatesTheBranchesThenRunsTheParentsBranch(t *testing.T) {
 	var raw map[string]any
 	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &raw))
 	assert.Equal(t, "PROJ-PARENT1", raw["plan_key"])
-	assert.Contains(t, raw["warnings"], "plan branch feature-PROJ-101 already exists on PROJ-PARENT1, PROJ-CHILD1; bam reuses it as it is and cannot check which branch it builds")
+	assert.Contains(t, raw["warnings"], "plan branch feature-PROJ-101 already exists on PROJ-PARENT1, PROJ-CHILD1; bam reuses it as it is and cannot check which branch it builds; to build another branch there, delete it in Bamboo first")
 }
 
 func TestRunRepoBranchFlagBeatsThePreset(t *testing.T) {

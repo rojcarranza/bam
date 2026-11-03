@@ -232,3 +232,45 @@ func TestUIBellSettingRingsOnStdoutUnlessTurnedOff(t *testing.T) {
 	require.Equal(t, 0, off.run("ui"), off.stderr.String())
 	require.Nil(t, off.tuiRuns[0].Bell)
 }
+
+// TestUIRemovePresetRemovesWhatPresetRmRemoves is the UI's D key below the
+// model, on the harness's throwaway home: the preset leaves its file, the
+// closure names that file, and the table no longer lists it.
+func TestUIRemovePresetRemovesWhatPresetRmRemoves(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	require.Equal(t, 0, h.run())
+	d := h.tuiRuns[0]
+
+	before, err := d.Targets()
+	require.NoError(t, err)
+	var files []string
+	for _, tg := range before {
+		if tg.Name == "provision-lab" {
+			files = tg.Files
+		}
+	}
+	require.NotEmpty(t, files, "TargetInfo says which file holds the preset")
+
+	removed, err := d.RemovePreset("provision-lab")
+	require.NoError(t, err)
+	require.Equal(t, files, removed)
+	after, err := d.Targets()
+	require.NoError(t, err)
+	require.NotContains(t, targetNames(after), "provision-lab")
+
+	_, err = d.RemovePreset("provision-lab")
+	require.Error(t, err, "a preset that is gone is an error, as with preset rm")
+}
+
+// TestUIEditorCmdOpensTheFileInTheConfiguredEditor: E uses the editor bam run
+// --edit uses, and passes the preset's file as the last argument.
+func TestUIEditorCmdOpensTheFileInTheConfiguredEditor(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	h.vars["BAM_EDITOR"] = "myeditor --wait"
+	require.Equal(t, 0, h.run())
+	cmd, err := h.tuiRuns[0].EditorCmd("/home/jdoe/.config/bam/presets/proj.yaml")
+	require.NoError(t, err)
+	require.Equal(t, []string{"myeditor", "--wait", "/home/jdoe/.config/bam/presets/proj.yaml"}, cmd.Args)
+}

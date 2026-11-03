@@ -47,7 +47,9 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 | | `1` `2` `3` | focus Builds, Stages, Tree (on Home: open the plan screen there) |
 | | `enter` | drill in: a build's stages, expand a stage, open a triggered plan |
 | | `esc` | back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to Home; from a project's plans to `:projects` |
-| Home | `enter` | open the plan screen on the row's plan |
+| Home | `enter` | open the plan screen; on a preset, show what it sends |
+| | `E` | edit the selected preset's file |
+| | `D` | remove the selected preset (asks first) |
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :stats :project :server :sort :q |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |

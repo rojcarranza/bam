@@ -557,6 +557,15 @@ func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 			return next, cmd, true
 		}
 	}
+	if m.home.view == homePresets {
+		if next, cmd, handled := m.handlePresetsTableKey(msg); handled {
+			return next.(Model), cmd, true
+		}
+		if key.Matches(msg, keys.Enter) {
+			next, cmd := m.openPresetDetail()
+			return next.(Model), cmd, true
+		}
+	}
 	switch {
 	case key.Matches(msg, keys.Enter):
 		next, cmd := m.drillFromHome(focusBuilds)

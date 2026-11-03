@@ -11,11 +11,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The terminal UI rings the terminal bell once when a build or tree you are watching finishes; set `bell: false` in the machine config to turn it off.
 - The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.
 - In the terminal UI, `:stats` shows a plan's success rate, durations and failing jobs like `bam plan stats`, and `H` on a set lists its past runs like `bam set history`.
+- In `bam ui`, `enter` on a preset shows the variables it would send and the file that holds it, `E` opens that file in your editor, and `D` removes the preset from its files after asking. `enter` in that view still opens the plan; `1` `2` `3` open the plan screen straight from the table.
 
 ### Fixed
 
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.
 - On WSL, `bam open` and `o` in the terminal UI fall back to the Windows browser when no Linux opener such as `xdg-open` is installed.
+
 
 ## [0.3.0] - 2026-11-02
 

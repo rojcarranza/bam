@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"io"
+	"os/exec"
 	"runtime/debug"
 	"sort"
+	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -105,6 +107,23 @@ func (r *runtime) openUI(ctx context.Context) error {
 				return "", err
 			}
 			return r.writePreset(fresh, d, "", false)
+		},
+		// EditorCmd opens a preset file in the editor bam run --edit uses.
+		EditorCmd: func(path string) (*exec.Cmd, error) {
+			cfg, err := r.loadConfig()
+			if err != nil {
+				return nil, err
+			}
+			fields := strings.Fields(view.EditorCommand(r.env.Getenv, cfg.Machine.Editor, r.env.GOOS))
+			return exec.Command(fields[0], append(fields[1:], path)...), nil
+		},
+		// RemovePreset reads the files fresh, as preset rm does.
+		RemovePreset: func(name string) ([]string, error) {
+			fresh, err := r.loadConfig()
+			if err != nil {
+				return nil, err
+			}
+			return removePreset(fresh, name)
 		},
 		Open: r.env.OpenBrowser,
 		Bell: func() func() {

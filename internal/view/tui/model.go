@@ -69,6 +69,7 @@ const (
 	overlayDryRun
 	overlayConfirm
 	overlayInfo // :stats and H: read-only text under a title
+	overlayPreset
 )
 
 var tabOrder = []focus{focusBuilds, focusStages, focusTree}
@@ -433,6 +434,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case copiedMsg:
 		m.status = "copied to clipboard (osc 52)"
 		return m, nil
+	case presetEditedMsg:
+		if msg.Err != nil {
+			m.err = errs.Usagef("the editor exited with an error").WithWhy(msg.Err.Error())
+		} else {
+			m.status = "edited preset " + msg.Name
+		}
+		return m.presetsChanged()
+	case presetRemovedMsg:
+		m.status = "removed preset " + msg.Name + " from " + strings.Join(msg.Files, ", ")
+		return m.presetsChanged()
 	case presetSavedMsg:
 		m.status = "added preset " + msg.Name + " to " + msg.Path
 		if m.deps.Targets == nil {
@@ -901,6 +912,9 @@ func (m Model) openHelp() (tea.Model, tea.Cmd) {
 func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.overlay == overlayConfirm {
 		return m.handleConfirmKey(msg)
+	}
+	if m.overlay == overlayPreset {
+		return m.handlePresetKey(msg)
 	}
 	if m.overlay == overlayHelp || m.overlay == overlayInfo {
 		pane := &m.help

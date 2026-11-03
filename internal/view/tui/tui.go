@@ -6,6 +6,7 @@ package tui
 import (
 	"context"
 	"io"
+	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -32,7 +33,12 @@ type Deps struct {
 	// SavePreset writes build's variable values as preset name, as
 	// bam preset add NAME --from BUILD does, and returns the file it wrote.
 	SavePreset func(ctx context.Context, svc *app.Service, name, build string) (string, error)
-	Open       func(url string) error
+	// EditorCmd builds the command that opens path in the user's editor.
+	EditorCmd func(path string) (*exec.Cmd, error)
+	// RemovePreset removes preset name from every file that defines it, as
+	// bam preset rm does, and returns the files it changed.
+	RemovePreset func(name string) ([]string, error)
+	Open         func(url string) error
 	// Bell rings the terminal bell once; nil turns the bell off. The UI calls
 	// it when a build or tree it was watching finishes.
 	Bell   func()

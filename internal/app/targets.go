@@ -43,6 +43,9 @@ type TargetInfo struct {
 	Watch     bool
 	Timeout   time.Duration
 	DefinedIn []string
+	// Files are the paths of the files that define the preset, lowest
+	// precedence first; the last is the one E edits in the terminal UI.
+	Files []string
 	// RepoBranches is the preset's repo_branches, sorted by key.
 	RepoBranches []config.RepoBranch
 }
@@ -77,6 +80,9 @@ func describe(t config.ResolvedTarget, getenv func(string) string) TargetInfo {
 		Options: t.Options, Required: t.Required, Timeout: time.Duration(t.Timeout), DefinedIn: t.DefinedIn}
 	if t.Watch != nil {
 		info.Watch = *t.Watch
+	}
+	for _, l := range t.Layers {
+		info.Files = append(info.Files, l.Path)
 	}
 	info.Defaults = targetVars(t.Defaults, getenv)
 	info.RepoBranches = t.RepoBranchList()

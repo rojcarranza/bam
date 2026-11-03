@@ -29,6 +29,7 @@ type keyMap struct {
 	SavePreset                   key.Binding
 	Wrap, Pager                  key.Binding
 	History                      key.Binding
+	RemovePreset                 key.Binding
 }
 
 // helpRow is one line of the help overlay and of the README table.
@@ -76,25 +77,26 @@ func defaultKeys() keyMap {
 		Trigger:   b("ctrl+r", "ctrl-R", "run"),
 		DryRun:    b("d", "d", "dry-run"),
 		// space never opens a text field; it only steps an options field.
-		CycleOption: b("space", "space", "cycle an options field"),
-		Cancel:      b("C", "C", "cancel the build"),
-		Resume:      b("U", "U", "resume the set run"),
-		RerunFailed: b("F", "F", "rerun the failed runs"),
-		RemoveRow:   b("x", "x", "remove the variable row"),
-		Open:        b("o", "o", "open in the browser"),
-		Copy:        b("y", "y", "copy the URL"),
-		Server:      b("S", "S", "switch server"),
-		Project:     b("P", "P", "filter by project"),
-		Branch:      b("b", "b", "switch branch"),
-		Sort:        b("s", "s", "next sort column"),
-		Help:        b("?", "?", "help"),
-		Quit:        b("q ctrl+c", "q ctrl-c", "quit"),
-		Command:     b(":", ":", "command bar"),
-		Tree:        b("t", "t", "build tree"),
-		SavePreset:  b("p", "p", "save the build as a preset"),
-		Wrap:        b("w", "w", "wrap long log lines"),
-		Pager:       b("E", "E", "open the whole log in your pager"),
-		History:     b("H", "H", "past runs of the set"),
+		CycleOption:  b("space", "space", "cycle an options field"),
+		Cancel:       b("C", "C", "cancel the build"),
+		Resume:       b("U", "U", "resume the set run"),
+		RerunFailed:  b("F", "F", "rerun the failed runs"),
+		RemoveRow:    b("x", "x", "remove the variable row"),
+		Open:         b("o", "o", "open in the browser"),
+		Copy:         b("y", "y", "copy the URL"),
+		Server:       b("S", "S", "switch server"),
+		Project:      b("P", "P", "filter by project"),
+		Branch:       b("b", "b", "switch branch"),
+		Sort:         b("s", "s", "next sort column"),
+		Help:         b("?", "?", "help"),
+		Quit:         b("q ctrl+c", "q ctrl-c", "quit"),
+		Command:      b(":", ":", "command bar"),
+		Tree:         b("t", "t", "build tree"),
+		SavePreset:   b("p", "p", "save the build as a preset"),
+		RemovePreset: b("D", "D", "remove the preset"),
+		Wrap:         b("w", "w", "wrap long log lines"),
+		Pager:        b("E", "E", "open the whole log in your pager"),
+		History:      b("H", "H", "past runs of the set"),
 	}
 }
 
@@ -107,7 +109,7 @@ func allBindings(k keyMap) []key.Binding {
 		k.Logs, k.AllLogs, k.Follow, k.Filter, k.NextMatch, k.PrevMatch,
 		k.Refresh, k.ExpandErr, k.Open, k.Copy, k.Run, k.Trigger, k.DryRun,
 		k.CycleOption, k.Cancel, k.Resume, k.RerunFailed, k.RemoveRow, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
-		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager, k.History,
+		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager, k.History, k.RemovePreset,
 	}
 }
 
@@ -121,7 +123,9 @@ func (k keyMap) helpRows() []helpRow {
 		{"MOVE", "1 2 3", "focus Builds, Stages, Tree (on Home: open the plan screen there)"},
 		{"MOVE", "enter", "drill in: a build's stages, expand a stage, open a triggered plan"},
 		{"MOVE", "esc", "back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to Home; from a project's plans to :projects"},
-		{"HOME", "enter", "open the plan screen on the row's plan"},
+		{"HOME", "enter", "open the plan screen; on a preset, show what it sends"},
+		{"HOME", "E", "edit the selected preset's file"},
+		{"HOME", "D", "remove the selected preset (asks first)"},
 		{"HOME", "s", "next sort column"},
 		{"HOME", ":", "command bar: :plans :presets :sets :projects :tree :stats :project :server :sort :q"},
 		{"VIEW", "l", "logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live"},

@@ -291,7 +291,7 @@ func TestOpeningAnotherPlanStopsTheWatchAndClearsTheDetail(t *testing.T) {
 	require.Nil(t, m.watchCancel)
 }
 
-// TestOpeningAPresetStopsTheWatchToo: Enter on a preset in Home's presets view
+// TestOpeningAPresetStopsTheWatchToo: 1 on a preset in Home's presets view
 // ends the watch of the build the plan screen was showing.
 func TestOpeningAPresetStopsTheWatchToo(t *testing.T) {
 	m := presetModel()
@@ -300,7 +300,7 @@ func TestOpeningAPresetStopsTheWatchToo(t *testing.T) {
 	stopped := false
 	m.watchCancel = func() { stopped = true }
 
-	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, mkKey("1"))
 	require.Equal(t, screenPlan, m.screen)
 	require.True(t, stopped)
 	require.Nil(t, m.detail)
@@ -533,7 +533,7 @@ func TestAPresetResolutionFailureIsShown(t *testing.T) {
 		Targets: []app.TargetInfo{{Name: "gone", Plan: "PROJ-PROV", Branch: "no-such-branch"}}})
 	m.screen, m.focus, m.home.view = screenHome, focusPresets, homePresets
 
-	m, cmd := send(m, mkKey("enter"))
+	m, cmd := send(m, mkKey("1"))
 	require.NotNil(t, cmd)
 	msg, ok := cmd().(errMsg)
 	require.True(t, ok, "got %T", cmd())

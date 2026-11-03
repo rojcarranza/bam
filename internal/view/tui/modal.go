@@ -108,6 +108,8 @@ func (m Model) overlayTitle() string {
 		return "Would send"
 	case overlayConfirm:
 		return "Confirm"
+	case overlayPreset:
+		return "Preset"
 	}
 	return ""
 }
@@ -220,6 +222,8 @@ func (m Model) overlayView(base string) string {
 		body = m.dryRunBody(w - 2)
 	case overlayConfirm:
 		body = m.confirmBody(w - 2)
+	case overlayPreset:
+		body = m.presetBody(w - 2)
 	default:
 		body = m.pickerRows(w-2, m.height/2)
 	}

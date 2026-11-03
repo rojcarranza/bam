@@ -20,9 +20,8 @@ type GenerateOptions struct {
 	PlanKey string // optional when From is a full build key
 	From    string // build whose values fill the preset; default last, used only in comments
 	Branch  string // defaults to the branch of a From build key
-	// Full adds the commented branch, options and watch scaffolding. Every
-	// declared variable is written either way (spec §3.9).
-	Full bool
+	// Server is the alias shown in the commented server line of the preset.
+	Server string
 }
 
 // GenerateTarget reads the plan's declared variables (or, when unsupported,
@@ -80,7 +79,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if err != nil {
 		return config.TargetDraft{}, false, err
 	}
-	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch, Full: o.Full}
+	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch, Server: o.Server}
 	ref := PlanRef{PlanKey: o.PlanKey, MasterKey: o.PlanKey}
 	if o.Branch != "" {
 		key, err := s.ResolveBranch(ctx, o.PlanKey, o.Branch)

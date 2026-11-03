@@ -29,27 +29,26 @@ The preset lists every variable the plan declares, with the plan default filled 
     presets:
       deploy-qa:
         plan: PROJ-DEPLOY
+        # server: work  # server alias to run on; default is the one bam picks
         branch: "main"
+        # repo_branches: {repo-a: "feature/PROJ-101"}  # branch per repository; remove branch first
         variables:
           region: ""  # no plan default; last used "eu" in PROJ-DEPLOY-41
           target_env: "qa"  # plan default
           version: ""  # no plan default; last used "2.4.0" in PROJ-DEPLOY-41
           # deploy_token: "${DEPLOY_TOKEN}"  # masked by Bamboo; set env var DEPLOY_TOKEN
-        # required: [region, version]
+        # options:  # allowed values per variable; a run with another value is refused
+        #   target_env: ["qa"]
+        required: [region, version]  # a run with an empty value is refused
+        watch: true  # follow the build without --watch; --watch=false skips it
+        # timeout: 30m  # stop watching after this long
 
-- A variable with no plan default gets an empty value. The `# required:` line suggests making those required; uncomment it and bam refuses to run until they have a value.
+Every preset key is written each time, in this order, so you can see what a preset can do. `plan`, `variables`, `required` (when a variable has no plan default) and `watch: true` are active; `server`, `branch` (unless you pass `--branch`), `repo_branches`, `options` and `timeout` are commented examples to uncomment and edit. `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing.
+
+- A variable with no plan default gets an empty value, and `required` lists those variables: bam refuses to run until they have a value. Delete the line to drop the check.
+- `watch: true` makes `bam run deploy-qa` follow the build. Run `bam run deploy-qa --watch=false` to skip it for one run.
 - A secret the plan already stores is a commented line: Bamboo keeps sending the stored value. Uncomment it to override the value, and export the `${ENV_NAME}` environment variable; the value never lives in a file. A secret with no stored value is an active `${ENV_NAME}` reference.
 - `bam preset show deploy-qa` lists the variables written in the preset file. A run also sends the plan's own values for variables the preset does not set.
-
-Add `--full` to also write commented `# branch:`, `# options:` and `# watch: true` lines to fill in:
-
-        variables:
-          target_env: "qa"  # plan default
-          ...
-        # options:
-        #   target_env: ["qa"]
-        # required: [region, version]
-        # watch: true
 
 To start from the values a build already ran with, name it with `--from` (a number, a full build key, or `last`):
 

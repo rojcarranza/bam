@@ -217,7 +217,7 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 	if err := f.check(r, name); err != nil {
 		return err
 	}
-	o := app.GenerateOptions{Name: name, PlanKey: f.plan, From: f.from, Branch: f.branch, Full: f.full}
+	o := app.GenerateOptions{Name: name, PlanKey: f.plan, From: f.from, Branch: f.branch, Server: r.flags.server}
 	if err := app.CheckGenerate(o); err != nil {
 		return err
 	}
@@ -269,11 +269,11 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
 			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
 			"branch. The preset lists every variable the plan declares, with its plan default filled in; a secret\n" +
-			"the plan stores is a commented line. --full also adds commented branch, options and watch lines.",
+			"the plan stores is a commented line. It also writes every other preset key: watch: true, and commented\n" +
+			"server, branch, repo_branches, options, required (active for variables with no plan default) and timeout lines.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
 			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
-			"  bam preset add deploy-full --plan PROJ-DEPLOY --full\n" +
 			"  bam preset add deploy-package --plan PROJ-PKG --file custom-presets\n" +
 			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
 			"  bam run deploy-qa --dry-run",
@@ -290,7 +290,8 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&fl.file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
 	f.BoolVar(&fl.printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&fl.force, "force", false, "replace an existing preset")
-	f.BoolVar(&fl.full, "full", false, "also write commented branch, options and watch lines to fill in")
+	f.BoolVar(&fl.full, "full", false, "no effect; every preset key is always written")
+	_ = f.MarkHidden("full")
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }
@@ -616,7 +617,7 @@ func (f *initFlags) planOptions() ([]app.GenerateOptions, error) {
 	var opts []app.GenerateOptions
 	for _, p := range f.plans {
 		key, name, _ := strings.Cut(p, "=")
-		o := app.GenerateOptions{Name: name, PlanKey: key, Full: true}
+		o := app.GenerateOptions{Name: name, PlanKey: key}
 		if name == "" {
 			o.Name = defaultTargetName(key)
 		}
@@ -676,6 +677,7 @@ func initDrafts(ctx context.Context, r *runtime, known config.ResolvedServer, al
 	}
 	var drafts []config.TargetDraft
 	for _, o := range opts {
+		o.Server = alias
 		d, err := svc.GenerateTarget(ctx, o)
 		if err != nil {
 			return nil, err

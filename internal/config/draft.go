@@ -22,9 +22,10 @@ type TargetDraft struct {
 	Plan     string
 	Branch   string // written uncommented only when the user chose one
 	Vars     []DraftVar
-	Required []string // suggestion, written commented out
+	Required []string // variables with no plan default, written as an active required line
 	Note     string   // explanation when no variables could be read
-	Full     bool     // also write the commented branch, options and watch scaffolding
+	// Server is the alias shown in the commented server example; empty means "work".
+	Server string
 }
 
 var plainKeyRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
@@ -57,14 +58,20 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 	if d.Note != "" {
 		line(1, "# "+d.Note)
 	}
+	server := d.Server
+	if server == "" {
+		server = "work"
+	}
+	line(1, "# server: "+yamlKey(server)+"  # server alias to run on; default is the one bam picks")
 	if d.Branch != "" {
 		line(1, "branch: "+quote(d.Branch))
-	} else if d.Full {
-		line(1, "# branch: develop")
+	} else {
+		line(1, "# branch: develop  # plan branch to run; default is the main plan")
 	}
+	line(1, `# repo_branches: {repo-a: "feature/PROJ-101"}  # branch per repository; remove branch first`)
+	var options []string
 	if len(d.Vars) > 0 {
 		line(1, varsKey+":")
-		var options []string
 		for _, v := range d.Vars {
 			s := yamlKey(v.Name) + ": " + quote(v.Value)
 			if v.Commented {
@@ -78,19 +85,29 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 				options = append(options, "#   "+yamlKey(v.Name)+": ["+quote(v.Value)+"]")
 			}
 		}
-		if len(options) > 0 && d.Full {
-			line(1, "# options:")
-			for _, o := range options {
-				line(1, o)
-			}
+	}
+	line(1, "# options:  # allowed values per variable; a run with another value is refused")
+	if len(options) == 0 {
+		name := "NAME"
+		if len(d.Vars) > 0 {
+			name = yamlKey(d.Vars[0].Name)
 		}
+		options = []string{"#   " + name + `: ["a", "b"]`}
+	}
+	for _, o := range options {
+		line(1, o)
 	}
 	if len(d.Required) > 0 {
-		line(1, "# required: ["+strings.Join(d.Required, ", ")+"]")
+		line(1, "required: ["+strings.Join(d.Required, ", ")+"]  # a run with an empty value is refused")
+	} else {
+		name := "NAME"
+		if len(d.Vars) > 0 {
+			name = yamlKey(d.Vars[0].Name)
+		}
+		line(1, "# required: ["+name+"]  # refuse a run where these have no value")
 	}
-	if d.Full {
-		line(1, "# watch: true")
-	}
+	line(1, "watch: true  # follow the build without --watch; --watch=false skips it")
+	line(1, "# timeout: 30m  # stop watching after this long")
 	return b.String()
 }
 

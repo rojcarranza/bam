@@ -20,6 +20,7 @@ type treeScreen struct {
 	tree       app.Tree
 	have       bool
 	refreshing bool             // a tree is drawn (from the session cache, or before r or a rerun) and the watch has not sent a newer one
+	sawLive    bool             // this watch has seen the tree unfinished, so its end rings the bell
 	failed     bool             // the watch ended in an error; tree is the last one it had
 	progress   app.TreeProgress // how far the first refresh got, until have
 	cursor     int              // over build rows only
@@ -84,6 +85,7 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 func (m Model) watchTree(fresh bool) (tea.Model, tea.Cmd) {
 	m.stopTree()
 	m.buildTree.refreshing, m.buildTree.failed = m.buildTree.have, false
+	m.buildTree.sawLive = false
 	if m.svc == nil {
 		return m, nil
 	}
@@ -157,6 +159,12 @@ func (m Model) handleTreeEvent(msg treeEventMsg) (tea.Model, tea.Cmd) {
 			selected = n.Build.Key
 		}
 		m.buildTree.tree, m.buildTree.have, m.buildTree.refreshing = e.Tree, true, false
+		if !e.Tree.State.Finished() {
+			m.buildTree.sawLive = true
+		}
+		if e.Type == app.TreeDone && m.buildTree.sawLive {
+			m.ringBell()
+		}
 		m.keepTree(m.buildTree.root, e.Tree)
 		m.buildTree.cursor = 0
 		for i, l := range m.treeBuildRows() {

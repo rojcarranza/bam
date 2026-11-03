@@ -72,4 +72,6 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 | Meta | `?` | help |
 | | `q` `ctrl-c` | quit |
 
-`y` copies through the terminal (OSC 52), so it works over SSH and in WSL with Windows Terminal. `o` needs a browser opener; see "Open it in Bamboo" in the README for WSL.
+`y` copies through the terminal (OSC 52), so it works over SSH and in WSL with Windows Terminal. `o` needs a browser opener; on WSL it falls back to the Windows browser when no Linux opener is installed (see "Open it in Bamboo" in the README).
+
+When a build or tree you are watching finishes, the UI rings the terminal bell once. `bell: false` in the machine config turns it off.

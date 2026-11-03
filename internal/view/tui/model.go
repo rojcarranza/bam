@@ -145,6 +145,9 @@ type Model struct {
 	treePreviewGen               int
 	rerunGen                     int // the tree screen opened now; only opening or closing it moves on
 
+	// watchLive is true once the open watch has seen its build unfinished,
+	// so only a build that finished while watched rings the bell.
+	watchLive   bool
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
 	treeCancel  context.CancelFunc
@@ -1253,6 +1256,9 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 	if e.Build.Key != "" {
 		m.noteLive(e.Build)
 		b := e.Build
+		if !b.State.Finished() {
+			m.watchLive = true
+		}
 		m.detail = &b
 		// The Builds row of this build follows the watch, or a build that
 		// started as queued would read queued until the next list load.
@@ -1277,6 +1283,9 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		m.stopWatch()
 		return m, nil
 	case app.EventDone:
+		if m.watchLive {
+			m.ringBell()
+		}
 		if e.Build.Key == m.revisionRun.Key && m.revisionRun.Rev != "" && e.Build.State == provider.StateNotBuilt {
 			m.status = "Bamboo could not build revision " + m.revisionRun.Rev
 		}
@@ -1312,6 +1321,7 @@ func (m Model) startWatch(key string) (tea.Model, tea.Cmd) {
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.watchCancel = cancel
+	m.watchLive = false
 	m.watchCh = m.svc.Watch(ctx, key)
 	return m, watchCmd(m.watchCh, m.watchGen)
 }

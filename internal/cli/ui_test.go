@@ -212,3 +212,23 @@ func TestUISavePresetWritesWhatPresetAddWrites(t *testing.T) {
 	_, err = d.SavePreset(context.Background(), svc, "from-ui", "PROJ-PROV12-8")
 	require.Error(t, err, "an existing preset is never replaced from the UI")
 }
+
+// TestUIBellSettingRingsOnStdoutUnlessTurnedOff is piece 5 of SCR-54: the UI
+// rings the terminal bell by default and machine config `bell: false` turns
+// it off.
+func TestUIBellSettingRingsOnStdoutUnlessTurnedOff(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	require.Equal(t, 0, h.run("ui"))
+	require.NotNil(t, h.tuiRuns[0].Bell, "the bell is on by default")
+	h.stdout.Reset()
+	h.tuiRuns[0].Bell()
+	require.Equal(t, "\a", h.stdout.String())
+
+	off := newHarness(t)
+	off.tty = true
+	require.NoError(t, os.MkdirAll(filepath.Dir(off.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(off.env.Paths.MachineConfig, []byte("version: 1\nbell: false\n"), 0o644))
+	require.Equal(t, 0, off.run("ui"), off.stderr.String())
+	require.Nil(t, off.tuiRuns[0].Bell)
+}

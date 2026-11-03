@@ -6,13 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- The terminal UI rings the terminal bell once when a build or tree you are watching finishes; set `bell: false` in the machine config to turn it off.
+- The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.
+
 ### Fixed
 
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.
-
-### Added
-
-- The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.
+- On WSL, `bam open` and `o` in the terminal UI fall back to the Windows browser when no Linux opener such as `xdg-open` is installed.
 
 ## [0.3.0] - 2026-11-02
 

@@ -33,7 +33,10 @@ type Deps struct {
 	// bam preset add NAME --from BUILD does, and returns the file it wrote.
 	SavePreset func(ctx context.Context, svc *app.Service, name, build string) (string, error)
 	Open       func(url string) error
-	Getenv     func(name string) string // for ${ENV} references in a preset
+	// Bell rings the terminal bell once; nil turns the bell off. The UI calls
+	// it when a build or tree it was watching finishes.
+	Bell   func()
+	Getenv func(name string) string // for ${ENV} references in a preset
 	// Pager is the command E pipes the whole log through; empty means the
 	// pager is unavailable. RunPager runs it with the terminal handed over.
 	Pager     string
@@ -70,4 +73,11 @@ func Run(ctx context.Context, d Deps) error {
 	}
 	_, err := tea.NewProgram(m, opts...).Run()
 	return err
+}
+
+// ringBell rings the terminal bell once, unless the setting turned it off.
+func (m Model) ringBell() {
+	if m.deps.Bell != nil {
+		m.deps.Bell()
+	}
 }

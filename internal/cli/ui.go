@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"io"
 	"runtime/debug"
 	"sort"
 
@@ -105,7 +106,13 @@ func (r *runtime) openUI(ctx context.Context) error {
 			}
 			return r.writePreset(fresh, d, "", false)
 		},
-		Open:      r.env.OpenBrowser,
+		Open: r.env.OpenBrowser,
+		Bell: func() func() {
+			if cfg.Machine.Bell != nil && !*cfg.Machine.Bell {
+				return nil
+			}
+			return func() { _, _ = io.WriteString(r.env.Stdout, "\a") }
+		}(),
 		Getenv:    r.env.Getenv,
 		Pager:     view.PagerCommand(r.env.Getenv, cfg.Machine.Pager, r.env.GOOS),
 		RunPager:  r.env.RunPager,

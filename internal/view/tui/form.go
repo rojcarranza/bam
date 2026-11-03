@@ -296,10 +296,10 @@ func (m Model) formBody(width, height int) string {
 		if m.form.editing && here {
 			value = m.form.input.View()
 			if n := len(m.form.suggestions()); n > 0 {
-				note = fmt.Sprintf("up/down: pick from %d branches of Bamboo", n)
+				note = fmt.Sprintf("↑↓ pick from %d branches of Bamboo", n)
 			}
 		}
-		showErr := r.Err != "" && !(m.form.editing && here)
+		showErr := r.Err != "" && (!m.form.editing || !here)
 		if showErr {
 			note = r.Err
 		}
@@ -755,7 +755,7 @@ func (m Model) repoDryLines(width int) []string {
 	}
 	lines := []string{"", fmt.Sprintf("plan branch %s on %d plans", d.plan.Name, len(d.plan.Plans))}
 	for _, bp := range d.plan.Plans {
-		what := bp.Repository + "  " + bp.VCSBranch
+		what := bp.Repository + "=" + bp.VCSBranch
 		if bp.Repository == "" {
 			what = "its own branch"
 		}
@@ -763,7 +763,7 @@ func (m Model) repoDryLines(width int) []string {
 		if bp.Existing {
 			verb = "reuse " + bp.BranchKey
 		}
-		lines = append(lines, lipgloss.NewStyle().Width(width).Render(fmt.Sprintf("  %s  %s  %s", bp.PlanKey, what, verb)))
+		lines = append(lines, lipgloss.NewStyle().Width(width).Render(fmt.Sprintf("  %s  %s  %s", verb, bp.PlanKey, what)))
 	}
 	for _, w := range d.plan.Warnings {
 		lines = append(lines, "", dimStyle.Render(lipgloss.NewStyle().Width(width).Render(w)))

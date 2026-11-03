@@ -157,7 +157,7 @@ The plan branches are named after the entry for every plan (`feature/PROJ-101` g
 
 A plan branch keeps the repository branch bam created it with, and Bamboo does not let bam read it back. So to point an existing plan branch at another branch, such as after changing the `PROJ-CHILD:repo-a` entry, delete that plan branch first, on its plan's Branches page in Bamboo or with `DELETE /rest/api/latest/plan/PROJ-CHILD20`; bam then creates it again. bam warns whenever it reuses one.
 
-Only `bam run` applies `repo_branches`: a release train or the terminal UI's run form refuses such a preset rather than run it without the branches.
+`bam run` and the terminal UI's run form apply `repo_branches`; a release train refuses such a preset rather than run it without the branches. In the UI, `R` on the preset shows each entry as a row you can edit, `b` adds one (picking from Bamboo's branches), `d` lists the plan branches the run creates or reuses, and `ctrl-R` creates them. The UI never deletes plan branches; delete them as above.
 
 ### Move presets you already have
 

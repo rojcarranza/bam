@@ -134,8 +134,8 @@ func TestDListsEachPlanBranchItCreatesOrReusesAndTouchesNothing(t *testing.T) {
 
 	v := m.View()
 	require.Contains(t, v, "plan branch feature-PROJ-101 on 2 plans")
-	require.Contains(t, v, "PROJ-PARENT  repo-a  feature/PROJ-101  create")
-	require.Contains(t, v, "PROJ-CHILD  repo-a  feature/PROJ-101-extra  create")
+	require.Contains(t, v, "create  PROJ-PARENT  repo-a=feature/PROJ-101")
+	require.Contains(t, v, "create  PROJ-CHILD  repo-a=feature/PROJ-101-extra")
 	require.Contains(t, v, "never deletes plan branches")
 	require.Contains(t, v, "DELETE /rest/api/latest/plan/<branch key>")
 	require.Empty(t, f.Created)

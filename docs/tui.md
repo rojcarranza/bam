@@ -14,7 +14,7 @@ To open the UI on one project, pass `bam --project BAMCI` (or `bam ui --project 
 
 ## Nothing changes by accident
 
-No lowercase key changes anything on the server. `R` only opens the run form, `ctrl-R` inside that form is the only key that starts a build, and `C` always asks before it cancels one.
+No lowercase key changes anything on the server. `R` only opens the run form, `ctrl-R` inside that form is the only key that starts a build (and, with repository branches, creates the plan branches it needs), and `C` always asks before it cancels one. The UI never deletes a plan branch; `d` shows how to.
 
 Leaving the UI never stops a build: quitting, leaving a screen and switching server all cancel *watches*, and a watch is not a build. Only `C` in the UI, and `bam build cancel` on the command line, stop a build.
 
@@ -27,6 +27,18 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 `:sets` lists the run sets with their last run. `enter` opens a set: its stages and runs, live while it runs. `R` runs it (a prompt takes optional variables, `d` previews the dry run, `ctrl-R` starts it), `U` resumes an interrupted run, `F` reruns the failed runs; resume and rerun ask again for the variables the run was started with. The train keeps running while you browse, one per window; `q` asks first and leaves it interrupted, to continue with `U` or `bam set resume`. A set run by another bam is shown and re-read every few seconds.
 
 `H` on a set, in the sets table or on the set screen, lists its past runs, newest first, as `bam set history` does. `esc` closes it.
+
+## Feature branches in the run form
+
+A preset with `repo_branches` opens its rows in the run form, one per entry, between the variables and the revision: `repo-a` or `PROJ-CHILD:repo-a` on the left, the branch to build in the middle. `enter` edits a branch.
+
+`b` adds a row to any plan's form. Type `REPO` or `PLAN:REPO` and `enter`, then pick the branch with `↑` `↓` from the branches Bamboo lists for the plan, or type it; `REPO=BRANCH` in one go works too. `x` removes a row you added; a preset's rows stay.
+
+`d` reads Bamboo and lists each plan branch the run creates or reuses, with the warning bam run prints when it reuses one. `ctrl-R` creates the missing plan branches without asking, starts the root plan's branch and follows the child plans' branch builds in the plan screen and `t`. The same plans and rules apply as `bam run --repo-branch`: a repository that is not a plan's default repository, or a plan with no build, is refused with the same message.
+
+The UI never deletes plan branches, so the next run with the same name reuses them. To remove one, delete it on its plan's Branches page in Bamboo, or with `DELETE /rest/api/latest/plan/<branch key>`; `d` prints this too.
+
+The presets table shows the repository branch in its BRANCH column, such as `repo-a=feature/PROJ-101 +1`.
 
 ## Plan stats
 
@@ -64,20 +76,20 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 | | `e` | expand the current error |
 | | `H` | past runs of the set (sets table, set screen) |
 | Run | `R` | open the run form for the selection |
-| | `ctrl-R` | run (in the form) |
-| | `d` | dry-run: show what would be sent (in the form) |
+| | `ctrl-R` | run (in the form); creates the plan branches of repository branch rows |
+| | `d` | dry-run: show what would be sent, and the plan branches it creates or reuses (in the form) |
 | | `space` | cycle an options field (in the form) |
 | | `f` | use the build's revision (in the form, on the revision row) |
 | | `C` | cancel the selected build (asks first) |
 | | `p` | save the selected build's variables as a preset (asks for a name) |
 | | `U` | resume the set's interrupted run (set screen) |
 | | `F` | rerun the failed runs (set screen) or builds (tree screen) |
-| | `x` | remove an added variable row (run form, set vars prompt) |
+| | `x` | remove an added variable or repository branch (run form, set vars prompt) |
 | Go | `o` | open the selection's Bamboo URL in the browser |
 | | `y` | copy the selection's Bamboo URL |
 | | `S` | switch server |
 | | `P` | filter by project |
-| | `b` | switch plan branch |
+| | `b` | switch plan branch; in the run form, add a repository branch |
 | Meta | `?` | help |
 | | `q` `ctrl-c` | quit |
 

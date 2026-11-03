@@ -283,6 +283,8 @@ You pushed a branch and want the whole pipeline to build it: `BAMCI-BUILD` and t
 | do it without a preset | `bam run BAMCI-BUILD --repo-branch bam=fix/ignore-undotted-bam-yaml` |
 | point an existing plan branch at another branch | delete it in Bamboo first; bam then creates it again |
 
+In the terminal UI, `R` on the preset (or on a plan, then `b` and `repo-a=your/branch`) shows the same rows in the run form. `d` lists the plan branches it would create or reuse, `ctrl-R` creates them and follows the child plans. The UI never deletes plan branches; step 5 is still yours.
+
 More: [Build a commit or another branch](docs/branches.md), [Build other repository branches](docs/presets.md#build-other-repository-branches).
 
 ### Follow a build
@@ -497,6 +499,7 @@ Typing `bam` alone opens a full-screen view of your plans. You can browse, watch
 | You want to | Press |
 | --- | --- |
 | run the selected plan | `R`, set variables, then `ctrl-R` (`d` previews the dry run) |
+| build a feature branch across a pipeline | `R` on a preset with `repo_branches`, or `b` in any form to add `REPO = BRANCH`; `d` lists the plan branches, `ctrl-R` creates them |
 | read the failed log of a build | `l` |
 | see what a build triggered | `t` |
 | rerun the failed builds of a tree | `F` (asks first) |

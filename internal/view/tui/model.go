@@ -68,6 +68,7 @@ const (
 	overlayError
 	overlayDryRun
 	overlayConfirm
+	overlayInfo // :stats and H: read-only text under a title
 )
 
 var tabOrder = []focus{focusBuilds, focusStages, focusTree}
@@ -123,6 +124,7 @@ type Model struct {
 
 	confirm  confirmState
 	help     helpState
+	infoPane infoState
 	form     formState
 	logs     logState
 	input    textinput.Model
@@ -134,16 +136,16 @@ type Model struct {
 	// abandons every request already in flight on it, so a slow response for
 	// a server, project, branch, build or job the user has left cannot land
 	// on the one they are looking at now.
-	plansGen, buildsGen, logsGen int
-	watchGen, followGen, formGen int
-	connGen, detailGen           int
-	pickerGen, presetsGen        int
-	cancelGen                    int
-	setsGen, setGen              int
-	projectsGen                  int
-	treeGen                      int
-	treePreviewGen               int
-	rerunGen                     int // the tree screen opened now; only opening or closing it moves on
+	plansGen, buildsGen, logsGen   int
+	watchGen, followGen, formGen   int
+	connGen, detailGen             int
+	pickerGen, presetsGen, infoGen int
+	cancelGen                      int
+	setsGen, setGen                int
+	projectsGen                    int
+	treeGen                        int
+	treePreviewGen                 int
+	rerunGen                       int // the tree screen opened now; only opening or closing it moves on
 
 	// watchLive is true once the open watch has seen its build unfinished,
 	// so only a build that finished while watched rings the bell.
@@ -282,6 +284,8 @@ func (m Model) currentStream(s stream, gen int) bool {
 		return gen == m.setsGen
 	case streamProjects:
 		return gen == m.projectsGen
+	case streamInfo:
+		return gen == m.infoGen
 	}
 	return true
 }
@@ -572,6 +576,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleTreeRerun(msg)
 	case setLoadedMsg:
 		return m.handleSetLoaded(msg)
+	case infoLoadedMsg:
+		// The user left the overlay (or asked for another) while it loaded.
+		if msg.Gen != m.infoGen || m.overlay != overlayInfo {
+			return m, nil
+		}
+		return m.openInfo(msg.Title, msg.Body), nil
 	case watchEventMsg:
 		if msg.Gen != m.watchGen {
 			return m, nil
@@ -605,6 +615,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.Stream == streamSets {
 			m.sets.loading = false
+		}
+		if msg.Stream == streamInfo && m.overlay == overlayInfo {
+			m.overlay = overlayNone // the error shows in the status bar instead
 		}
 		if msg.Stream == streamRun && m.form.loading {
 			// loading stays true: with no fields, keys must stay locked.
@@ -889,21 +902,25 @@ func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.overlay == overlayConfirm {
 		return m.handleConfirmKey(msg)
 	}
-	if m.overlay == overlayHelp {
+	if m.overlay == overlayHelp || m.overlay == overlayInfo {
+		pane := &m.help
+		if m.overlay == overlayInfo {
+			pane = &m.infoPane.vp
+		}
 		switch {
 		case key.Matches(msg, keys.Back):
 			return m.back()
 		case key.Matches(msg, keys.Quit):
 			return m.quit()
 		case key.Matches(msg, keys.Top):
-			m.help.vp.GotoTop()
+			pane.vp.GotoTop()
 			return m, nil
 		case key.Matches(msg, keys.Bottom):
-			m.help.vp.GotoBottom()
+			pane.vp.GotoBottom()
 			return m, nil
 		}
 		var cmd tea.Cmd
-		m.help.vp, cmd = m.help.vp.Update(msg)
+		pane.vp, cmd = pane.vp.Update(msg)
 		return m, cmd
 	}
 	switch {

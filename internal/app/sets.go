@@ -919,6 +919,18 @@ func (s *Service) LatestSetRun(set string) (SetRecord, bool, error) {
 	return s.Sets.Latest(s.Cfg.RepoRoot, set, nil)
 }
 
+// SetHistory is this repository's newest runs of set, newest first, at most n.
+func (s *Service) SetHistory(set string, n int) ([]SetRecord, error) {
+	recs, err := s.Sets.History(s.Cfg.RepoRoot, set)
+	if err != nil {
+		return nil, err
+	}
+	if n > 0 && len(recs) > n {
+		recs = recs[:n]
+	}
+	return recs, nil
+}
+
 // runAgain is how to start a set over: by name, or from its train file.
 func runAgain(p SetPlan, set string) string {
 	if p.File != "" {

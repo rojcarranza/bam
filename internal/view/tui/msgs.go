@@ -70,6 +70,7 @@ const (
 	streamRun
 	streamCancel
 	streamProjects
+	streamInfo
 )
 
 // errMsg is a failure to show, never a failure to exit on. Where names the

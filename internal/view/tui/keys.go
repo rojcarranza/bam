@@ -28,6 +28,7 @@ type keyMap struct {
 	Tree                         key.Binding
 	SavePreset                   key.Binding
 	Wrap, Pager                  key.Binding
+	History                      key.Binding
 }
 
 // helpRow is one line of the help overlay and of the README table.
@@ -93,6 +94,7 @@ func defaultKeys() keyMap {
 		SavePreset:  b("p", "p", "save the build as a preset"),
 		Wrap:        b("w", "w", "wrap long log lines"),
 		Pager:       b("E", "E", "open the whole log in your pager"),
+		History:     b("H", "H", "past runs of the set"),
 	}
 }
 
@@ -105,7 +107,7 @@ func allBindings(k keyMap) []key.Binding {
 		k.Logs, k.AllLogs, k.Follow, k.Filter, k.NextMatch, k.PrevMatch,
 		k.Refresh, k.ExpandErr, k.Open, k.Copy, k.Run, k.Trigger, k.DryRun,
 		k.CycleOption, k.Cancel, k.Resume, k.RerunFailed, k.RemoveRow, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
-		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager,
+		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager, k.History,
 	}
 }
 
@@ -121,7 +123,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"MOVE", "esc", "back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to Home; from a project's plans to :projects"},
 		{"HOME", "enter", "open the plan screen on the row's plan"},
 		{"HOME", "s", "next sort column"},
-		{"HOME", ":", "command bar: :plans :presets :sets :projects :tree :project :server :sort :q"},
+		{"HOME", ":", "command bar: :plans :presets :sets :projects :tree :stats :project :server :sort :q"},
 		{"VIEW", "l", "logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live"},
 		{"VIEW", "a", "all logs, not only failed; in the run form or set vars prompt, add a variable"},
 		{"VIEW", "f", "follow the jobs on the log screen"},
@@ -132,6 +134,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"VIEW", "r", "refresh the focused panel"},
 		{"VIEW", "t", "the build tree of the selected build: every build it triggered"},
 		{"VIEW", "e", "expand the current error"},
+		{"VIEW", "H", "past runs of the set (sets table, set screen)"},
 		{"RUN", "R", "open the run form for the selection"},
 		{"RUN", "ctrl-R", "run (in the form)"},
 		{"RUN", "d", "dry-run: show what would be sent (in the form)"},

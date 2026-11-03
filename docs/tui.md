@@ -26,6 +26,12 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 
 `:sets` lists the run sets with their last run. `enter` opens a set: its stages and runs, live while it runs. `R` runs it (a prompt takes optional variables, `d` previews the dry run, `ctrl-R` starts it), `U` resumes an interrupted run, `F` reruns the failed runs; resume and rerun ask again for the variables the run was started with. The train keeps running while you browse, one per window; `q` asks first and leaves it interrupted, to continue with `U` or `bam set resume`. A set run by another bam is shown and re-read every few seconds.
 
+`H` on a set, in the sets table or on the set screen, lists its past runs, newest first, as `bam set history` does. `esc` closes it.
+
+## Plan stats
+
+`:stats` shows the success rate, durations and failing jobs over the last 20 builds of the plan or preset under the cursor, as `bam plan stats` does; `:stats PROJ-BUILD` or `:stats provision` names one. `esc` closes it.
+
 ## Build trees
 
 `t` on a build, or `:tree KEY` from the command bar, opens its tree: the build and every build it triggered, with their stages, live while they run. `enter` opens the selected build and `l` its logs, `esc` comes back. `F` lists the failed builds whose parents succeeded and asks before rerunning them, then keeps watching the tree.
@@ -43,7 +49,7 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 | | `esc` | back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to Home; from a project's plans to `:projects` |
 | Home | `enter` | open the plan screen on the row's plan |
 | | `s` | next sort column |
-| | `:` | command bar: :plans :presets :sets :projects :tree :project :server :sort :q |
+| | `:` | command bar: :plans :presets :sets :projects :tree :stats :project :server :sort :q |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |
 | | `a` | all logs, not only failed; in the run form or set vars prompt, add a variable |
 | | `f` | follow the jobs on the log screen |
@@ -54,6 +60,7 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 | | `r` | refresh the focused panel |
 | | `t` | the build tree of the selected build: every build it triggered |
 | | `e` | expand the current error |
+| | `H` | past runs of the set (sets table, set screen) |
 | Run | `R` | open the run form for the selection |
 | | `ctrl-R` | run (in the form) |
 | | `d` | dry-run: show what would be sent (in the form) |

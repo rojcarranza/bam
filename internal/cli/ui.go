@@ -7,6 +7,7 @@ import (
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/r0jjames/bam-cli/internal/view/tui"
 	"github.com/spf13/cobra"
 )
@@ -106,6 +107,8 @@ func (r *runtime) openUI(ctx context.Context) error {
 		},
 		Open:      r.env.OpenBrowser,
 		Getenv:    r.env.Getenv,
+		Pager:     view.PagerCommand(r.env.Getenv, cfg.Machine.Pager, r.env.GOOS),
+		RunPager:  r.env.RunPager,
 		Clipboard: r.env.Stdout,
 		Output:    r.env.Stdout,
 		Version:   resolveVersion(version, debug.ReadBuildInfo),

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // logState is the log screen. It keeps the raw lines as well as the viewport,
@@ -32,7 +34,9 @@ type logState struct {
 	match     int
 	line      int // the line search and next-failure last landed on
 	following bool
-	pinned    bool // the view stays at the bottom as lines arrive
+	pinned    bool  // the view stays at the bottom as lines arrive
+	wrap      bool  // long lines continue on the next row instead of being cut
+	starts    []int // wrapped: the viewport row each line begins on
 	ready     bool
 }
 
@@ -82,7 +86,62 @@ func (l *logState) refresh() {
 		l.vp.SetContent(dimStyle.Render(waitingLine))
 		return
 	}
-	l.vp.SetContent(strings.Join(l.rendered, "\n"))
+	if !l.wrap {
+		l.starts = nil
+		l.vp.SetContent(strings.Join(l.rendered, "\n"))
+		return
+	}
+	rows := make([]string, 0, len(l.rendered))
+	l.starts = make([]int, len(l.rendered))
+	for i, line := range l.rendered {
+		l.starts[i] = len(rows)
+		if l.vp.Width > 0 {
+			line = ansi.Hardwrap(line, l.vp.Width, true)
+		}
+		rows = append(rows, strings.Split(line, "\n")...)
+	}
+	l.vp.SetContent(strings.Join(rows, "\n"))
+}
+
+// row is the viewport row a line begins on.
+func (l *logState) row(line int) int {
+	if l.wrap && line >= 0 && line < len(l.starts) {
+		return l.starts[line]
+	}
+	return line
+}
+
+// lineAt is the line shown on a viewport row, the inverse of row.
+func (l *logState) lineAt(row int) int {
+	if !l.wrap || len(l.starts) == 0 {
+		return row
+	}
+	i := sort.SearchInts(l.starts, row+1) - 1
+	return max(i, 0)
+}
+
+// toggleWrap flips wrapping and keeps the reader on the same line.
+func (l *logState) toggleWrap() {
+	if !l.ready {
+		l.wrap = !l.wrap
+		return
+	}
+	top := l.lineAt(l.vp.YOffset)
+	l.wrap = !l.wrap
+	l.refresh()
+	if l.pinned {
+		l.vp.GotoBottom()
+		return
+	}
+	l.vp.SetYOffset(l.row(top))
+}
+
+// fullText is the whole log as plain text, one line per line, for the pager.
+func (l *logState) fullText() string {
+	if len(l.lines) == 0 {
+		return ""
+	}
+	return strings.Join(l.lines, "\n") + "\n"
 }
 
 // appendLines adds streamed lines, matches them against the search, and
@@ -108,6 +167,9 @@ func (m Model) logsView() string {
 		return ""
 	}
 	shown := m.logs.vp.YOffset + m.logs.vp.Height
+	if m.logs.wrap {
+		shown = m.logs.lineAt(shown-1) + 1
+	}
 	if shown > len(m.logs.lines) {
 		shown = len(m.logs.lines)
 	}
@@ -143,7 +205,7 @@ func (m Model) logsView() string {
 	if m.logs.query != "" {
 		nKey = "n next match"
 	}
-	keyLine := "esc back  / search  G end  f follow  " + nKey + "  o open"
+	keyLine := "esc back  / search  G end  f follow  " + nKey + "  o open  w wrap  E pager"
 	if m.logs.following {
 		keyLine = "following · " + keyLine
 	}
@@ -213,7 +275,7 @@ func (l *logState) jumpToMatch() {
 // unpins: the next chunk must not scroll the reader away from it.
 func (l *logState) goTo(i int) {
 	l.line = i
-	l.vp.SetYOffset(i)
+	l.vp.SetYOffset(l.row(i))
 	l.pinned = false
 }
 

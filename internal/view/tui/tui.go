@@ -34,9 +34,13 @@ type Deps struct {
 	SavePreset func(ctx context.Context, svc *app.Service, name, build string) (string, error)
 	Open       func(url string) error
 	Getenv     func(name string) string // for ${ENV} references in a preset
-	Clipboard  io.Writer
-	Output     io.Writer // the tea.Program's output; nil means os.Stdout
-	Version    string    // bam's own version, shown beside Bamboo's in the header
+	// Pager is the command E pipes the whole log through; empty means the
+	// pager is unavailable. RunPager runs it with the terminal handed over.
+	Pager     string
+	RunPager  func(cmd string, r io.Reader) error
+	Clipboard io.Writer
+	Output    io.Writer // the tea.Program's output; nil means os.Stdout
+	Version   string    // bam's own version, shown beside Bamboo's in the header
 }
 
 // Run opens the UI and returns when the user quits. Ending ctx closes the UI;

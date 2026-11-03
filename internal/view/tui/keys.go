@@ -27,6 +27,7 @@ type keyMap struct {
 	Command                      key.Binding
 	Tree                         key.Binding
 	SavePreset                   key.Binding
+	Wrap, Pager                  key.Binding
 }
 
 // helpRow is one line of the help overlay and of the README table.
@@ -90,6 +91,8 @@ func defaultKeys() keyMap {
 		Command:     b(":", ":", "command bar"),
 		Tree:        b("t", "t", "build tree"),
 		SavePreset:  b("p", "p", "save the build as a preset"),
+		Wrap:        b("w", "w", "wrap long log lines"),
+		Pager:       b("E", "E", "open the whole log in your pager"),
 	}
 }
 
@@ -102,7 +105,7 @@ func allBindings(k keyMap) []key.Binding {
 		k.Logs, k.AllLogs, k.Follow, k.Filter, k.NextMatch, k.PrevMatch,
 		k.Refresh, k.ExpandErr, k.Open, k.Copy, k.Run, k.Trigger, k.DryRun,
 		k.CycleOption, k.Cancel, k.Resume, k.RerunFailed, k.RemoveRow, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
-		k.Command, k.Tree, k.SavePreset,
+		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager,
 	}
 }
 
@@ -122,6 +125,8 @@ func (k keyMap) helpRows() []helpRow {
 		{"VIEW", "l", "logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live"},
 		{"VIEW", "a", "all logs, not only failed; in the run form or set vars prompt, add a variable"},
 		{"VIEW", "f", "follow the jobs on the log screen"},
+		{"VIEW", "w", "wrap long log lines; again to cut them"},
+		{"VIEW", "E", "open the whole log in your pager"},
 		{"VIEW", "/", "filter the focused list, or search the log"},
 		{"VIEW", "n N", "next / previous match, or next failure with no search"},
 		{"VIEW", "r", "refresh the focused panel"},

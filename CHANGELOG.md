@@ -10,6 +10,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.
 
+### Added
+
+- The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.
+
 ## [0.3.0] - 2026-11-02
 
 ### Added

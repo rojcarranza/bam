@@ -47,6 +47,8 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |
 | | `a` | all logs, not only failed; in the run form or set vars prompt, add a variable |
 | | `f` | follow the jobs on the log screen |
+| | `w` | wrap long log lines; again to cut them |
+| | `E` | open the whole log in your pager |
 | | `/` | filter the focused list, or search the log |
 | | `n` `N` | next / previous match, or next failure with no search |
 | | `r` | refresh the focused panel |

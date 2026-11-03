@@ -417,6 +417,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.picker.setItems(items)
 		m.picker.cursor = indexOf(items, m.buildsPlan)
 		return m, nil
+	case pagerDoneMsg:
+		if msg.Err != nil {
+			m.err = errs.Configf("the pager exited with an error").
+				WithWhy(msg.Err.Error()).WithTry("set BAM_PAGER or PAGER")
+		}
+		return m, nil
 	case copiedMsg:
 		m.status = "copied to clipboard (osc 52)"
 		return m, nil
@@ -1343,6 +1349,11 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openLogs("", true)
 	case key.Matches(msg, keys.Follow):
 		return m.toggleFollow()
+	case key.Matches(msg, keys.Wrap):
+		m.logs.toggleWrap()
+		return m, nil
+	case key.Matches(msg, keys.Pager):
+		return m.openPager()
 	case key.Matches(msg, keys.Filter):
 		return m.startInput()
 	case key.Matches(msg, keys.NextMatch):

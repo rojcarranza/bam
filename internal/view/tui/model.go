@@ -349,6 +349,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 	case homeTickMsg:
 		return m.homeTick(msg)
 	case connectedMsg:
@@ -1149,8 +1151,11 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 }
 
 // moveFocused moves exactly one cursor: the focused panel's.
-func (m *Model) moveFocused(delta int) {
-	switch m.focus {
+func (m *Model) moveFocused(delta int) { m.movePanel(m.focus, delta) }
+
+// movePanel moves panel f's cursor, whether or not f has focus.
+func (m *Model) movePanel(f focus, delta int) {
+	switch f {
 	case focusPlans:
 		m.plans.move(delta)
 	case focusBuilds:

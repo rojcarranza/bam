@@ -73,7 +73,7 @@ func Run(ctx context.Context, d Deps) error {
 		m = m.connected(msg)
 	}
 
-	opts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithContext(ctx)}
+	opts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithContext(ctx)}
 	if d.Output != nil {
 		opts = append(opts, tea.WithOutput(d.Output))
 	}

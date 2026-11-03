@@ -36,6 +36,10 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 
 `t` on a build, or `:tree KEY` from the command bar, opens its tree: the build and every build it triggered, with their stages, live while they run. `enter` opens the selected build and `l` its logs, `esc` comes back. `F` lists the failed builds whose parents succeeded and asks before rerunning them, then keeps watching the tree.
 
+## Mouse
+
+A left click selects the row under the pointer and focuses its panel, on Home's tables and the plan screen's Builds, Stages and Tree. It only selects: `enter` still opens. The wheel scrolls the panel under the pointer, three rows a notch, and scrolls the log screen. Prompts, overlays and the other screens ignore the mouse. The UI takes the mouse from your terminal, so select text with `shift` held (`option` in some macOS terminals).
+
 ## Keys
 
 | | Keys | Does |

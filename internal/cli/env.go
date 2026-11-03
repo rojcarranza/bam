@@ -35,6 +35,10 @@ type Paths struct {
 	State         string
 	Sets          string // directory of set run records and locks
 	Trees         string // directory of saved build trees, one file per server
+	// LegacyConfigDir is where bam kept its config before it used
+	// ~/.config/bam on every platform; Execute moves files from it. Empty
+	// means nothing to move.
+	LegacyConfigDir string
 }
 
 // Env is everything the CLI takes from the process. Tests build it by hand.
@@ -72,7 +76,12 @@ type Env struct {
 // SystemEnv returns the Env of the running process.
 func SystemEnv() Env {
 	wd, _ := os.Getwd()
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// Without a home directory, root bam's files at / so they never
+		// resolve against the working directory.
+		home = string(filepath.Separator)
+	}
 	dirs := config.LocateDirs(home, goruntime.GOOS, os.Getenv)
 	machine := os.Getenv("BAM_CONFIG")
 	if machine == "" {
@@ -101,12 +110,13 @@ func SystemEnv() Env {
 		Glob:        filepath.Glob,
 		WindowsHome: wslWindowsHome,
 		Paths: Paths{
-			MachineConfig: machine,
-			Credentials:   filepath.Join(dirs.Config, "credentials.yaml"),
-			Capabilities:  filepath.Join(dirs.Cache, "capabilities.json"),
-			State:         filepath.Join(dirs.State, "state.json"),
-			Sets:          filepath.Join(dirs.State, "sets"),
-			Trees:         filepath.Join(dirs.Cache, "tree"),
+			MachineConfig:   machine,
+			Credentials:     filepath.Join(dirs.Config, "credentials.yaml"),
+			Capabilities:    filepath.Join(dirs.Cache, "capabilities.json"),
+			State:           filepath.Join(dirs.State, "state.json"),
+			Sets:            filepath.Join(dirs.State, "sets"),
+			Trees:           filepath.Join(dirs.Cache, "tree"),
+			LegacyConfigDir: dirs.OldConfig,
 		},
 		Clock:   app.SystemClock{},
 		Keyring: credential.SystemKeyring{},

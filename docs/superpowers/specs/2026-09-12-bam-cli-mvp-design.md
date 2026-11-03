@@ -126,7 +126,7 @@ Generated data is kept out of files that people edit:
 - Capability results: `$XDG_CACHE_HOME/bam/capabilities.json`, keyed by server origin.
 - Last-build record: `$XDG_STATE_HOME/bam/state.json`, keyed by repository root.
 
-The XDG layout applies on every OS: with the variables unset, `~/.config`, `~/.cache` and `~/.local/state` (`config.LocateDirs`). Releases before this change used `~/Library/Application Support` and `~/Library/Caches` on macOS and `%LOCALAPPDATA%` on Windows; while the new directory does not exist and the old one does, bam keeps using the old one.
+The XDG layout applies on every OS: with the variables unset or not absolute, `~/.config`, `~/.cache` and `~/.local/state` (`config.LocateDirs`). Releases before 0.3.0 used `~/Library/Application Support` and `~/Library/Caches` on macOS and `%LOCALAPPDATA%` on Windows. On start, bam moves `config.yaml`, `credentials.yaml` and `fixture-denylist.txt` from the old config directory into the new one, unless a file of that name is already there, and prints one line per file it moved. A file that `BAM_CONFIG` or `BAM_FIXTURE_DENYLIST` names stays where it is. When a move fails, bam warns and reads the files it could not move from the old directory. `make record` does the same move before it reads the config, and also moves the Windows denylist from its older `os.UserConfigDir` location (`%AppData%\bam`). The fixture guard fails, rather than skipping its private-term check, while a denylist sits in one of those old directories and none exists at the current path. For cache and state, while the new directory does not exist and the old one does, bam keeps using the old one.
 
 ### 3.2 Project file discovery
 

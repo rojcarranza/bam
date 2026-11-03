@@ -38,7 +38,7 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 
 ## Mouse
 
-A left click selects the row under the pointer and focuses its panel, on Home's tables and the plan screen's Builds, Stages and Tree. It only selects: `enter` still opens. The wheel scrolls the panel under the pointer, three rows a notch, and scrolls the log screen. Prompts, overlays and the other screens ignore the mouse. The UI takes the mouse from your terminal, so select text with `shift` held (`option` in some macOS terminals).
+A left click selects the row under the pointer and focuses its panel, on Home's tables and the plan screen's Builds, Stages and Tree. It only selects: `enter` still opens. The wheel scrolls the panel under the pointer, three rows a notch, and scrolls the log screen. The wheel also scrolls the help and stats overlays while the pointer is over them. Prompts, other overlays and the other screens ignore the mouse. The UI takes the mouse from your terminal, so select text with `shift` held (`option` in some macOS terminals).
 
 ## Keys
 

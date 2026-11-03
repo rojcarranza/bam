@@ -223,3 +223,27 @@ func TestWheelScrollsWrappedLogsByRows(t *testing.T) {
 	require.Equal(t, bottom, m.logs.vp.YOffset)
 	require.True(t, m.logs.pinned)
 }
+
+// The stats overlay (and help) scroll with the wheel while the pointer is
+// over the box; a wheel beside it, or a click, leaves the screen behind alone.
+func TestWheelScrollsTheStatsOverlayUnderThePointer(t *testing.T) {
+	m := homeModel()
+	var body []string
+	for i := 0; i < 80; i++ {
+		body = append(body, "failing job "+strconv.Itoa(i))
+	}
+	m = m.openInfo("Stats · PROJ-BUILD", strings.Join(body, "\n"))
+	x, y := cellOf(t, m, "failing job 0")
+	require.Equal(t, 0, m.infoPane.vp.vp.YOffset)
+
+	m, _ = send(m, wheel(x, y, false))
+	require.Equal(t, 3, m.infoPane.vp.vp.YOffset)
+	m, _ = send(m, wheel(x, y, true))
+	require.Equal(t, 0, m.infoPane.vp.vp.YOffset)
+
+	m, _ = send(m, wheel(0, 0, false))
+	require.Equal(t, 0, m.infoPane.vp.vp.YOffset, "a wheel outside the box does nothing")
+	m, _ = send(m, click(x, y))
+	require.Equal(t, "OPS-NIGHTLY", selectedKey(m), "a click does not reach the table behind")
+	require.Equal(t, overlayInfo, m.overlay)
+}

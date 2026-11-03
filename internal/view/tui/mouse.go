@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // wheelRows is how many rows one wheel notch moves a panel's cursor. Every
@@ -21,7 +22,13 @@ type panelHit struct {
 // an overlay, the form and the other screens) ignores the mouse, so a click
 // never reaches through it to a table behind. The log screen takes the wheel.
 func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	if m.inputFor != inputNone || m.overlay != overlayNone {
+	if m.inputFor != inputNone {
+		return m, nil
+	}
+	if m.overlay == overlayHelp || m.overlay == overlayInfo {
+		return m.wheelOverlay(msg)
+	}
+	if m.overlay != overlayNone {
 		return m, nil
 	}
 	wheel := 0
@@ -67,6 +74,31 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 	rest := m.restCmd()
 	return m, rest
+}
+
+// wheelOverlay scrolls the help or stats overlay when the wheel is over its
+// box. A click, or a wheel outside the box, does nothing: the screen behind
+// stays out of reach, as it is for keys.
+func (m Model) wheelOverlay(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Action != tea.MouseActionPress ||
+		(msg.Button != tea.MouseButtonWheelUp && msg.Button != tea.MouseButtonWheelDown) {
+		return m, nil
+	}
+	pane := &m.help
+	if m.overlay == overlayInfo {
+		pane = &m.infoPane.vp
+	}
+	// The box is drawn centred by overlayView; find its rectangle the same way.
+	w := overlayWidth(m.width, helpMaxWidth)
+	box := overlayBox(m.overlayTitle(), w, pane.vp.View())
+	bw, bh := lipgloss.Width(box), lipgloss.Height(box)
+	x0, y0 := (m.width-bw+1)/2, (m.height-bh+1)/2
+	if msg.X < x0 || msg.X >= x0+bw || msg.Y < y0 || msg.Y >= y0+bh {
+		return m, nil
+	}
+	var cmd tea.Cmd
+	pane.vp, cmd = pane.vp.Update(msg)
+	return m, cmd
 }
 
 // panelAt finds the panel under cell (x, y), laid out as homeView and

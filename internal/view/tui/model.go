@@ -631,7 +631,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return next, tea.Batch(cmds...)
 	}
 	resume := m.noteKey()
+	before, errBefore := m.screen, m.err
 	next, cmd := m.dispatchKey(msg)
+	// An error belongs to the screen it happened on: moving to another
+	// screen leaves it behind. One the key itself raised stays.
+	if nm := next.(Model); nm.screen != before && nm.err != nil && nm.err == errBefore {
+		nm.err, nm.cmdErr = nil, false
+		next = nm
+	}
 	if resume == nil {
 		return next, cmd
 	}
@@ -1241,6 +1248,13 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		m.noteLive(e.Build)
 		b := e.Build
 		m.detail = &b
+		// The Builds row of this build follows the watch, or a build that
+		// started as queued would read queued until the next list load.
+		for i := range m.builds.items {
+			if m.builds.items[i].Key == b.Key && m.builds.items[i].State != b.State {
+				m.builds.items[i].State = b.State
+			}
+		}
 		m.progress = e.Progress
 		m.clampTree()
 		m.plan.stagesLoading = false
@@ -1723,6 +1737,8 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
 	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
 	m.form = formState{}
+	// Starting the run worked: an error from before it is no longer true.
+	m.err, m.cmdErr = nil, false
 	// Esc after a run returns to Home (§4.1), not to a set, a tree or a
 	// drilled plan the form was opened from.
 	m.fromSet, m.fromTree, m.logsFromTree = false, false, false

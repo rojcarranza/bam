@@ -355,6 +355,12 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 	next.logsFromTree = true
+	// A build still running has no failed jobs to show: l follows its
+	// current stage, as it does on the plan screen.
+	if !all && !b.State.Finished() {
+		after, logsCmd := next.openStageLogs("")
+		return after, tea.Batch(cmd, logsCmd)
+	}
 	after, logsCmd := next.openLogs("", all)
 	return after, tea.Batch(cmd, logsCmd)
 }

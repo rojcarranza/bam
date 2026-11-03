@@ -167,13 +167,16 @@ func TestGenerateTargetNotesPlanWithoutVariables(t *testing.T) {
 func TestGenerateTargetFromBranchKeyUsesMainPlanVariables(t *testing.T) {
 	p := fakeBamboo()
 	p.Plans["PROJ"] = append(p.Plans["PROJ"], provider.Plan{Key: "PROJ-PROV12", Name: "Provision lab - develop", ProjectKey: "PROJ", MasterKey: "PROJ-PROV"})
+	p.Branches = map[string][]provider.Branch{"PROJ-PROV": {{Key: "PROJ-PROV12", Name: "feature/custom-plan", PlanKey: "PROJ-PROV"}}}
 	s := newService(t, p)
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "dev", PlanKey: "PROJ-PROV12"})
 	require.NoError(t, err)
-	assert.Equal(t, "PROJ-PROV12", d.Plan)
+	// The captain asked (BAM-40 thread) that a custom plan branch land in the preset.
+	assert.Equal(t, "PROJ-PROV", d.Plan)
+	assert.Equal(t, "feature/custom-plan", d.Branch)
 	require.Len(t, d.Vars, 4)
 	assert.Equal(t, "cluster_type", d.Vars[0].Name)
-	assert.Contains(t, d.Note, "main plan PROJ-PROV")
+	assert.Empty(t, d.Note, "the main plan lists the variables itself")
 }
 
 func TestGenerateTargetWithVariablesHasNoNote(t *testing.T) {

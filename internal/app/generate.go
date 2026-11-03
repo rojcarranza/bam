@@ -79,6 +79,18 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if err != nil {
 		return config.TargetDraft{}, false, err
 	}
+	// A plan branch key as --plan becomes its main plan plus the branch
+	// name, so the preset carries the branch like --branch would.
+	if plan.MasterKey != "" && plan.MasterKey != o.PlanKey && o.Branch == "" {
+		if bs, berr := s.P.ListBranches(ctx, plan.MasterKey); berr == nil {
+			for _, b := range bs {
+				if b.Key == o.PlanKey && b.Name != "" {
+					o.PlanKey, o.Branch = plan.MasterKey, b.Name
+					break
+				}
+			}
+		}
+	}
 	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch, Server: o.Server}
 	ref := PlanRef{PlanKey: o.PlanKey, MasterKey: o.PlanKey}
 	if o.Branch != "" {

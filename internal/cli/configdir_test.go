@@ -56,3 +56,27 @@ func TestSystemEnvConfigPathsAreAbsoluteWithoutHome(t *testing.T) {
 	assert.True(t, filepath.IsAbs(env.Paths.MachineConfig), env.Paths.MachineConfig)
 	assert.True(t, filepath.IsAbs(env.Paths.Credentials), env.Paths.Credentials)
 }
+
+// Issue #126: an upgrade keeps its servers and token when the move fails;
+// bam warns and reads the files it could not move from the old directory.
+func TestExecuteReadsTheOldConfigWhenTheMoveFails(t *testing.T) {
+	h := newHarness(t)
+	legacy := filepath.Join(h.home, "Library", "Application Support", "bam")
+	h.env.Paths.LegacyConfigDir = legacy
+	require.NoError(t, os.MkdirAll(legacy, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(legacy, "config.yaml"), []byte(
+		"version: 1\nservers:\n  home:\n    url: http://bamboo.lab.example:8085\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(legacy, "credentials.yaml"), []byte(
+		"http://bamboo.lab.example:8085: tok-home\n"), 0o600))
+	// ~/.config is a file, so ~/.config/bam cannot be made.
+	require.NoError(t, os.WriteFile(filepath.Join(h.home, ".config"), nil, 0o644))
+
+	assert.Equal(t, 0, h.run("server", "list"))
+	assert.Regexp(t, `home\s+http://bamboo.lab.example:8085\s+machine\s+yes`, h.stdout.String())
+	stderr := h.stderr.String()
+	assert.Contains(t, stderr, "warning: could not move config from "+legacy+": ")
+	assert.Contains(t, stderr, "reading config.yaml from "+legacy+"\n")
+	assert.Contains(t, stderr, "reading credentials.yaml from "+legacy+"\n")
+	assert.FileExists(t, filepath.Join(legacy, "config.yaml"))
+	assert.FileExists(t, filepath.Join(legacy, "credentials.yaml"))
+}

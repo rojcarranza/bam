@@ -91,3 +91,22 @@ func TestMoveDirLeavesFilesAnOverrideNames(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(to, "config.yaml"))
 	assert.NoFileExists(t, filepath.Join(to, "fixture-denylist.txt"))
 }
+
+// Issue #126: the move must never take files from the working directory,
+// which a relative or empty old directory (no home) would point at.
+func TestMoveDirIgnoresARelativeSource(t *testing.T) {
+	wd, to := t.TempDir(), filepath.Join(t.TempDir(), "new")
+	t.Chdir(wd)
+	require.NoError(t, os.WriteFile("config.yaml", []byte("planted\n"), 0o644))
+	require.NoError(t, os.MkdirAll("bam", 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join("bam", "config.yaml"), []byte("planted\n"), 0o644))
+
+	for _, from := range []string{"", "bam"} {
+		moved, err := MoveDir(from, to)
+		require.NoError(t, err)
+		assert.Empty(t, moved, from)
+	}
+	assert.FileExists(t, filepath.Join(wd, "config.yaml"))
+	assert.FileExists(t, filepath.Join(wd, "bam", "config.yaml"))
+	assert.NoDirExists(t, to)
+}

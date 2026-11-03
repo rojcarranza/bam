@@ -17,11 +17,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The terminal UI takes the mouse: a click selects a row and the wheel scrolls the panel under the pointer.
 - In the terminal UI plan screen, Stages lists the failed test names, `i` shows each failed job's error lines and the likely cause like `bam build investigate`, and `F` on a failed build asks, then reruns its failed jobs.
 
+### Changed
+
+- On macOS and Windows, bam moves `config.yaml`, `credentials.yaml` and the fixture denylist from the old config directory (`~/Library/Application Support/bam`, `%LOCALAPPDATA%\bam`) into `~/.config/bam` on first run and prints one line per file, instead of reading the old directory for good; a file already in `~/.config/bam` is never replaced.
+
 ### Fixed
 
 - `bam preset add`, `p` in the terminal UI and `bam preset sync` write every variable the plan declares, plan defaults filled in, so the preset is ready to fill; a secret the plan stores is a commented line.
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.
 - On WSL, `bam open` and `o` in the terminal UI fall back to the Windows browser when no Linux opener such as `xdg-open` is installed.
+- With `HOME` unset, bam no longer reads or writes a `.config/bam` directory under the current directory.
 
 
 ## [0.3.0] - 2026-11-02

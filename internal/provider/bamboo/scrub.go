@@ -287,8 +287,8 @@ const denylistFile = "fixture-denylist.txt"
 
 // DenylistPath returns the path to the fixture denylist file.
 // Uses BAM_FIXTURE_DENYLIST env var if set, otherwise fixture-denylist.txt in
-// bam's config directory, $XDG_CONFIG_HOME/bam or ~/.config/bam (config.Dir,
-// which this package may not import).
+// bam's config directory, $XDG_CONFIG_HOME/bam or ~/.config/bam (as
+// config.LocateDirs has it; this package may not import config).
 func DenylistPath(getenv func(string) string) string {
 	if path := getenv("BAM_FIXTURE_DENYLIST"); path != "" {
 		return path

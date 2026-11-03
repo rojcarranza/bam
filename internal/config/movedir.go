@@ -16,9 +16,10 @@ var configFiles = []string{"config.yaml", "credentials.yaml", "fixture-denylist.
 // ~/Library/Application Support/bam, Windows %LOCALAPPDATA%\bam) into to, and
 // returns the names it moved. A file already in to is never replaced, and the
 // old copy stays where it is. So does a file that one of keep names, because
-// BAM_CONFIG or BAM_FIXTURE_DENYLIST points there.
+// BAM_CONFIG or BAM_FIXTURE_DENYLIST points there. A relative from moves
+// nothing, so files in the working directory are never taken.
 func MoveDir(from, to string, keep ...string) ([]string, error) {
-	if filepath.Clean(from) == filepath.Clean(to) {
+	if !filepath.IsAbs(from) || filepath.Clean(from) == filepath.Clean(to) {
 		return nil, nil
 	}
 	var moved []string

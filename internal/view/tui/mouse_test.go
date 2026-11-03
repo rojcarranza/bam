@@ -196,3 +196,30 @@ func TestClickInTheCompactPlanScreenHitsTheOnlyPanel(t *testing.T) {
 	b, _ := m.builds.selected()
 	require.Equal(t, "PROJ-BUILD-42", b.Key)
 }
+
+// With wrapping on, the viewport holds wrapped rows, so a wheel notch moves
+// rows of the wrapped text, and the pin follows where the reader ends up.
+func TestWheelScrollsWrappedLogsByRows(t *testing.T) {
+	m := testModel()
+	m.screen = screenLogs
+	long := strings.Repeat("abcdefghij ", 20) // 220 columns: three rows at width 80
+	var lines []string
+	for i := 0; i < 30; i++ {
+		lines = append(lines, strconv.Itoa(i)+" "+long)
+	}
+	m.logs.setLines(m.width, m.logHeight(), lines)
+	m.logs.toggleWrap()
+	require.True(t, m.logs.wrap)
+	m.logs.vp.GotoBottom()
+	m.logs.pinned = true
+	bottom := m.logs.vp.YOffset
+	require.Greater(t, bottom, len(lines), "the wrapped log is taller than its line count")
+
+	m, _ = send(m, wheel(10, 5, true))
+	require.Equal(t, bottom-3, m.logs.vp.YOffset, "a notch is three wrapped rows")
+	require.False(t, m.logs.pinned)
+	require.Equal(t, m.logs.lineAt(m.logs.vp.YOffset), m.logs.lineAt(bottom-3))
+	m, _ = send(m, wheel(10, 5, false))
+	require.Equal(t, bottom, m.logs.vp.YOffset)
+	require.True(t, m.logs.pinned)
+}

@@ -40,6 +40,7 @@ func repoFormService() (*app.Service, *fake.Provider) {
 			"PROJ-PARENT": {repoBuild("PROJ-PARENT-41", "Manual run by jdoe", 0, "repo-a")},
 			"PROJ-CHILD":  {repoBuild("PROJ-CHILD-7", "Child of PROJ-PARENT-41", 5, "repo-a")},
 		},
+		RepoBranches:  map[string][]string{"PROJ-PARENT": {"main", "feature/PROJ-100", "feature/PROJ-101"}},
 		TriggerResult: provider.Build{Key: "PROJ-PARENT1-1", PlanKey: "PROJ-PARENT1", Number: 1, State: provider.StateQueued},
 	}
 	svc.P = f
@@ -280,4 +281,32 @@ func TestThePresetsTableShowsTheRepositoryBranch(t *testing.T) {
 	plain := app.TargetInfo{Name: "smoke", Plan: "PROJ-BUILD", Branch: "develop"}
 	require.Equal(t, "develop", presetBranch(plain))
 	require.Equal(t, "default", presetBranch(app.TargetInfo{Name: "x", Plan: "PROJ-BUILD"}))
+}
+
+// BAM-23: b picks from the repository's branches in version control, with
+// the plan's own plan branches as extra suggestions, and falls back to
+// typing on a server without the list.
+func TestTheBranchPickerListsTheRepositorysBranches(t *testing.T) {
+	m, _ := openRepoForm(t)
+	require.Equal(t, []string{"main", "feature/PROJ-100", "feature/PROJ-101", "release/1.0"}, m.form.choices[""],
+		"Bamboo's repository branches first, then plan branches that are not among them")
+}
+
+func TestTheBranchPickerFallsBackToPlanBranchesAndThenTyping(t *testing.T) {
+	svc, f := repoFormService()
+	delete(f.RepoBranches, "PROJ-PARENT")
+	require.Equal(t, []string{"release/1.0", "feature/PROJ-100"}, branchNames(t.Context(), svc, "PROJ-PARENT"),
+		"no vcsBranches endpoint: the plan branches stay as suggestions")
+	delete(f.Branches, "PROJ-PARENT")
+	require.Empty(t, branchNames(t.Context(), svc, "PROJ-PARENT"), "nothing to pick: the branch is typed")
+
+	m := formModel()
+	m.svc = svc
+	m, _ = send(m, mkKey("b"))
+	m = typeText(m, "repo-a")
+	m, _ = send(m, mkKey("enter"))
+	require.True(t, m.form.editing)
+	m = typeText(m, "my/branch")
+	m, _ = send(m, mkKey("enter"))
+	require.Equal(t, "my/branch", m.form.repos[0].Branch)
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"context"
+	"slices"
 	"sort"
 	"sync"
 
@@ -419,19 +420,22 @@ type triggeredMsg struct {
 	Run app.RepoPlan
 }
 
-// branchNames are Bamboo's branches of a plan by name, empty when they
-// cannot be read: they only suggest what to type.
+// branchNames suggest a repository branch for a plan: the branches of its
+// default repository in version control (Bamboo's vcsBranches), then the
+// names of the plan's own plan branches that are not among them. A server
+// without the first still offers the second, and when neither can be read
+// the list is empty and the branch is typed.
 func branchNames(ctx context.Context, svc *app.Service, plan string) []string {
 	if plan == "" {
 		return nil
 	}
-	bs, err := svc.P.ListBranches(ctx, plan)
-	if err != nil {
-		return nil
-	}
-	var out []string
-	for _, b := range bs {
-		out = append(out, cmp.Or(b.Name, b.ShortName))
+	out, _ := svc.P.ListRepoBranches(ctx, plan)
+	if bs, err := svc.P.ListBranches(ctx, plan); err == nil {
+		for _, b := range bs {
+			if n := cmp.Or(b.Name, b.ShortName); !slices.Contains(out, n) {
+				out = append(out, n)
+			}
+		}
 	}
 	return out
 }

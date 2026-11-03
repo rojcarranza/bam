@@ -320,6 +320,7 @@ func run() error {
 		{"plan_variables.json", "/rest/api/latest/plan/" + plan + "/variables", nil},
 		{"plan_variable.json", "/rest/api/latest/plan/" + plan + "/variable", nil},
 		{"branches.json", "/rest/api/latest/plan/" + plan + "/branch", url.Values{"max-result": {"25"}}},
+		{"vcsBranches.json", "/rest/api/latest/plan/" + plan + "/vcsBranches", nil},
 		{"results.json", "/rest/api/latest/result/" + plan, url.Values{"expand": {"results.result"}, "max-result": {"5"}}},
 		{"result_detail.json", "/rest/api/latest/result/" + latest, url.Values{"expand": {"stages.stage.results.result,labels,vcsRevisions"}}},
 		{"result_variables.json", "/rest/api/latest/result/" + latest, url.Values{"expand": {"variables"}}},

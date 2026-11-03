@@ -21,6 +21,7 @@ type Provider struct {
 	Projects     []provider.Project
 	Plans        map[string][]provider.Plan     // by project key
 	Branches     map[string][]provider.Branch   // by master plan key; CreateBranch adds to it
+	RepoBranches map[string][]string            // by master plan key: ListRepoBranches; absent is unsupported
 	CreateErrs   map[string]error               // by plan key: CreateBranch fails with it
 	Variables    map[string][]provider.Variable // by plan key
 	VariablesErr error
@@ -95,6 +96,16 @@ func (f *Provider) ListBranches(_ context.Context, key string) ([]provider.Branc
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]provider.Branch(nil), f.Branches[key]...), nil
+}
+
+func (f *Provider) ListRepoBranches(_ context.Context, key string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	bs, ok := f.RepoBranches[key]
+	if !ok {
+		return nil, errs.Bamboof("repository branches are not available for %s", key).Wrap(errs.ErrUnsupported)
+	}
+	return append([]string(nil), bs...), nil
 }
 
 // CreatedBranch is one CreateBranch call.

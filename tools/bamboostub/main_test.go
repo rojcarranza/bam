@@ -153,6 +153,15 @@ func TestChildPlanRunsAfterItsParent(t *testing.T) {
 // creates a plan branch on the parent and the child, then runs the parent's;
 // the stub has to keep the branches and start the child's branch of the same
 // name, as Bamboo does, for bam run --watch to have that tree to follow.
+// TestRepositoryBranchesAreListed: the run form picks from this list.
+func TestRepositoryBranchesAreListed(t *testing.T) {
+	_, c := testStub(t)
+	got, err := c.ListRepoBranches(context.Background(), "PROJ-BUILD")
+	require.NoError(t, err)
+	assert.Contains(t, got, "feature/PROJ-101")
+	assert.Contains(t, got, "main")
+}
+
 func TestBranchBuildQueuesTheChildsBranch(t *testing.T) {
 	s, c := testStub(t)
 	s.child = "PROJ-OLD"

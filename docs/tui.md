@@ -32,7 +32,7 @@ Leaving the UI never stops a build: quitting, leaving a screen and switching ser
 
 A preset with `repo_branches` opens its rows in the run form, one per entry, between the variables and the revision: `repo-a` or `PROJ-CHILD:repo-a` on the left, the branch to build in the middle. `enter` edits a branch.
 
-`b` adds a row to any plan's form. Type `REPO` or `PLAN:REPO` and `enter`, then pick the branch with `↑` `↓` from the branches Bamboo lists for the plan, or type it; `REPO=BRANCH` in one go works too. `x` removes a row you added; a preset's rows stay.
+`b` adds a row to any plan's form. Type `REPO` or `PLAN:REPO` and `enter`, then pick the branch with `↑` `↓` from the repository's branches that Bamboo lists (`/plan/<plan>/vcsBranches`), or type it. The plan's existing plan branches follow as extra suggestions, and a server without the list leaves only those, or typing; `REPO=BRANCH` in one go works too. `x` removes a row you added; a preset's rows stay.
 
 `d` reads Bamboo and lists each plan branch the run creates or reuses, with the warning bam run prints when it reuses one. `ctrl-R` creates the missing plan branches without asking, starts the root plan's branch and follows the child plans' branch builds in the plan screen and `t`. The same plans and rules apply as `bam run --repo-branch`: a repository that is not a plan's default repository, or a plan with no build, is refused with the same message.
 

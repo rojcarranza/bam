@@ -1,0 +1,17 @@
+{
+  "branches": {
+    "branch": [
+      {"name": "main"},
+      {"name": "develop"},
+      {"name": "release/1.0"},
+      {"name": "feature/PROJ-100"},
+      {"name": "feature/PROJ-101"},
+      {"name": "feature/PROJ-101-extra"},
+      {"name": "fix/ignore-undotted-config"}
+    ],
+    "max-result": 7,
+    "size": 7,
+    "start-index": 0
+  },
+  "expand": "branches"
+}

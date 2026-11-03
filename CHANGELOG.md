@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- The terminal UI run form runs a preset with `repo_branches` and adds `REPO = BRANCH` or `PLAN:REPO = BRANCH` rows with `b`, picking from the repository's branches in Bamboo or typing; `d` lists the plan branches the run creates or reuses, `ctrl-R` creates them and follows the child plans, and the presets table shows the repository branch.
 - The terminal UI rings the terminal bell once when a build or tree you are watching finishes; set `bell: false` in the machine config to turn it off.
 - The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.
 - In the terminal UI, `:stats` shows a plan's success rate, durations and failing jobs like `bam plan stats`, and `H` on a set lists its past runs like `bam set history`.

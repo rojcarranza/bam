@@ -33,6 +33,10 @@ type branchDTO struct {
 	Enabled   *bool  `json:"enabled"`
 }
 
+type vcsBranchDTO struct {
+	Name string `json:"name"`
+}
+
 type resultPlanDTO struct {
 	Key       string `json:"key"`
 	ShortName string `json:"shortName"`

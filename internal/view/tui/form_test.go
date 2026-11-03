@@ -1403,7 +1403,7 @@ func TestALongFormErrorWraps(t *testing.T) {
 func TestTheStartedBuildsRowShowsRunningOnceItRuns(t *testing.T) {
 	m := planHome(t)
 	b := provider.Build{Key: "PROJ-BUILD-45", PlanKey: "PROJ-BUILD", Number: 45, State: provider.StateQueued}
-	next, _ := m.openTriggered(b)
+	next, _ := m.openTriggered(b, app.RepoPlan{})
 	m = next.(Model)
 	defer m.stopWatch()
 	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})

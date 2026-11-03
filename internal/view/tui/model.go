@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -165,6 +166,11 @@ type Model struct {
 	// revisionRun is the build the form last triggered with a revision, so a
 	// not-built result can say which revision Bamboo could not build.
 	revisionRun struct{ Key, Rev string }
+
+	// runChildren are the plan branch keys of the child plans of a run with
+	// repository branches, by the run's build key: the trees of that build
+	// search them for the builds it triggered.
+	runChildren map[string][]string
 
 	followCancel context.CancelFunc
 	followEvents <-chan app.LogEvent
@@ -494,6 +500,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.form.ref, m.form.target, m.form.base = msg.Ref, msg.Target, msg.Base
 		m.form.fromBuild, m.form.fromRevision = msg.FromBuild, msg.FromRevision
 		m.form.fields = buildFields(msg.Base, msg.Ref)
+		m.form.repos = presetRepoRows(msg.Ref)
+		m.form.choices = msg.Choices
 		m.form.cursor = 0
 		// A stray enter struck while loading (now ignored by handleFormKey,
 		// but a stale build or an older session could still reach here with
@@ -525,7 +533,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Gen != m.formGen {
 			return m, nil
 		}
-		return m.openTriggered(msg.Build)
+		return m.openTriggered(msg.Build, msg.Run)
+	case formBranchesMsg:
+		if msg.Gen == m.formGen && len(msg.Names) > 0 {
+			if m.form.choices == nil {
+				m.form.choices = map[string][]string{}
+			}
+			m.form.choices[msg.Plan] = msg.Names
+		}
+		return m, nil
+	case repoDryMsg:
+		if msg.Gen == m.formGen {
+			m.form.dry = repoDry{plan: msg.Plan, err: msg.Err}
+		}
+		return m, nil
 	case planRestMsg:
 		return m.planRest(msg)
 	case buildLoadedMsg:
@@ -1670,11 +1691,41 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case tea.KeyEsc:
 			naming := m.form.naming
 			m.form.cancelEdit()
-			if naming {
+			if naming || m.form.onRepo() {
 				m.revalidate()
 			}
 			return m, nil
+		case tea.KeyUp, tea.KeyDown:
+			if m.form.onRepo() && !m.form.naming {
+				if msg.Type == tea.KeyUp {
+					m.form.suggest(-1)
+				} else {
+					m.form.suggest(1)
+				}
+				return m, nil
+			}
 		case tea.KeyEnter:
+			if m.form.naming && m.form.namingRepo {
+				typeBranch, err := m.form.acceptRepo()
+				m.revalidate()
+				if err != nil {
+					m.form.err = err
+					return m, nil
+				}
+				if !m.form.onRepo() {
+					return m, nil
+				}
+				var load tea.Cmd
+				plan := m.form.repos[m.form.cursor-len(m.form.fields)].Plan
+				if _, have := m.form.choices[plan]; plan != "" && !have && m.svc != nil {
+					load = formBranchesCmd(m.baseCtx(), m.svc, plan, m.formGen)
+				}
+				if typeBranch {
+					m.form.startEditing()
+					return m, tea.Batch(textinput.Blink, load)
+				}
+				return m, load
+			}
 			if m.form.naming {
 				name := strings.TrimSpace(m.form.input.Value())
 				if strings.ContainsAny(name, "= \t") {
@@ -1710,11 +1761,18 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.trigger()
 	case key.Matches(msg, keys.DryRun):
 		m.overlay = overlayDryRun
+		if len(m.form.repos) > 0 && m.svc != nil {
+			m.form.dry = repoDry{loading: true}
+			return m, repoDryCmd(m.baseCtx(), m.svc, m.form.planRef(), m.form.repoFlags(), m.formGen)
+		}
 		return m, nil
 	case key.Matches(msg, keys.ExpandErr):
 		return m.expandErr()
 	case key.Matches(msg, keys.AllLogs): // a: add a variable the plan may not declare
 		m.form.startNaming()
+		return m, textinput.Blink
+	case key.Matches(msg, keys.Branch): // b: add a repository branch, REPO or PLAN:REPO
+		m.form.startNamingRepo()
 		return m, textinput.Blink
 	case key.Matches(msg, keys.RemoveRow):
 		if m.form.removeAdded() {
@@ -1729,7 +1787,7 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case key.Matches(msg, keys.Enter), key.Matches(msg, keys.CycleOption):
-		if !m.form.onRevision() && len(m.form.fields[m.form.cursor].Options) > 0 {
+		if m.form.onField() && len(m.form.fields[m.form.cursor].Options) > 0 {
 			m.form.cycle(1)
 			m.revalidate()
 			return m, nil
@@ -1762,6 +1820,9 @@ func (m Model) trigger() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	ref := m.form.planRef()
+	if len(m.form.repos) > 0 {
+		return m, runRepoCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.form.repoFlags(), m.formGen)
+	}
 	return m, runCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.formGen)
 }
 
@@ -1791,8 +1852,14 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 
 // openTriggered shows the build that was just started and watches it. It is
 // the drill-into-a-build path, so at most one watch still runs.
-func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
+func (m Model) openTriggered(b provider.Build, run app.RepoPlan) (tea.Model, tea.Cmd) {
 	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
+	if kids := run.ChildBranchKeys(); len(kids) > 0 {
+		if m.runChildren == nil {
+			m.runChildren = map[string][]string{}
+		}
+		m.runChildren[b.Key] = kids
+	}
 	m.form = formState{}
 	// Starting the run worked: an error from before it is no longer true.
 	m.err, m.cmdErr = nil, false
@@ -1804,6 +1871,17 @@ func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
 	// stopping the previous watch clears the marker.
 	m.noteLive(b)
 	m.status = "queued " + b.Key
+	if len(run.Plans) > 0 {
+		var made, reused []string
+		for _, bp := range run.Plans {
+			if bp.Created {
+				made = append(made, bp.BranchKey)
+			} else {
+				reused = append(reused, bp.BranchKey)
+			}
+		}
+		m.status += fmt.Sprintf(" on plan branch %s (created %d, reused %d)", run.Name, len(made), len(reused))
+	}
 	return m, cmd
 }
 

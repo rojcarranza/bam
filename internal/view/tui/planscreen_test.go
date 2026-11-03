@@ -548,7 +548,7 @@ func TestATriggeredBuildIsNotPinnedAsOlder(t *testing.T) {
 	queued := sampleBuild()
 	queued.Key, queued.Number, queued.State = "PROJ-BUILD-45", 45, provider.StateQueued
 	queued.Stages = nil
-	next, _ := m.openTriggered(queued)
+	next, _ := m.openTriggered(queued, app.RepoPlan{})
 	m = next.(Model)
 	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
 	rows := m.builds.rows()
@@ -966,7 +966,7 @@ func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	var result *treePreviewMsg
 	var prog *treePreviewProgressMsg
-	for _, msg := range runBatch(treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false)) {
+	for _, msg := range runBatch(treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false, nil)) {
 		switch v := msg.(type) {
 		case treePreviewMsg:
 			result = &v
@@ -986,7 +986,7 @@ func TestTreePreviewCmdDeliversItsResultAndProgress(t *testing.T) {
 // Bamboo, or it races whatever the screen does next (#93).
 func TestTreePreviewCmdReadsNothingUntilItRuns(t *testing.T) {
 	m, f := treeTUIModel(t)
-	cmd := treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false)
+	cmd := treePreviewCmd(context.Background(), m.svc, "PROJ-BUILD-44", 7, false, nil)
 	require.Zero(t, f.ListCalls("PROJ-PROV"), "built, not run")
 	require.Zero(t, f.GetCalls("PROJ-BUILD-44"), "built, not run")
 	batch, ok := cmd().(tea.BatchMsg)

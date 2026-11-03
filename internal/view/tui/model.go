@@ -1335,7 +1335,7 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		m.plan.stagesLoading = false
 		// "queued KEY" is news only while the build waits; after that the
 		// detail panel shows its state. Other notices are not the watch's.
-		if m.status == "queued "+b.Key && (b.State != provider.StateQueued || e.Type == app.EventDone) {
+		if isQueuedNotice(m.status, b.Key) && (b.State != provider.StateQueued || e.Type == app.EventDone) {
 			m.status = ""
 		}
 	}
@@ -1886,9 +1886,20 @@ func (m Model) openTriggered(b provider.Build, run app.RepoPlan) (tea.Model, tea
 				reused = append(reused, bp.BranchKey)
 			}
 		}
-		m.status += fmt.Sprintf(" on plan branch %s (created %d, reused %d)", run.Name, len(made), len(reused))
+		m.status += fmt.Sprintf(queuedOnPlanBranch+"%s (created %d, reused %d)", run.Name, len(made), len(reused))
 	}
 	return m, cmd
+}
+
+// queuedOnPlanBranch follows "queued KEY" when the run created or reused
+// plan branches.
+const queuedOnPlanBranch = " on plan branch "
+
+// isQueuedNotice says whether status is the notice openTriggered set for
+// key, with or without its plan branch part.
+func isQueuedNotice(status, key string) bool {
+	q := "queued " + key
+	return status == q || strings.HasPrefix(status, q+queuedOnPlanBranch)
 }
 
 // openForm opens the run form for whatever the cursor is on: a preset by its

@@ -108,6 +108,29 @@ func TestAPresetWithRepoBranchesRunsFromTheForm(t *testing.T) {
 	m.stopWatch()
 }
 
+// BAM-26: on the forge-lab Bamboo the status bar still read "queued
+// BAMCI-BUILD8-1 on plan branch fix-ignore-undotted-bam-yaml (created 3,
+// reused 0)" minutes after the build had finished. The notice of a run with
+// repository branches ends when the build leaves the queue, like the plain
+// "queued KEY" notice.
+func TestThePlanBranchQueuedNoticeEndsWhenTheBuildLeavesTheQueue(t *testing.T) {
+	m, _ := openRepoForm(t)
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	msg := cmd().(triggeredMsg)
+	m, _ = send(m, msg)
+	defer m.stopWatch()
+	b := msg.Build
+	require.Equal(t, "queued "+b.Key+" on plan branch feature-PROJ-101 (created 2, reused 0)", m.status)
+
+	m, _ = send(m, watchEventMsg{Gen: m.watchGen, Event: app.Event{Type: app.EventState, Build: b, State: b.State}})
+	require.Contains(t, m.status, "created 2, reused 0", "still queued")
+
+	b.State = provider.StateRunning
+	m, _ = send(m, watchEventMsg{Gen: m.watchGen, Event: app.Event{Type: app.EventState, Build: b, State: b.State}})
+	require.Empty(t, m.status)
+	require.NotContains(t, m.statusBar(100), "queued")
+}
+
 func TestRunningAgainReusesThePlanBranchesAndDeletesNothing(t *testing.T) {
 	m, f := openRepoForm(t)
 	_, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})

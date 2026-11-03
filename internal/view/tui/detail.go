@@ -106,10 +106,19 @@ func (m Model) stagesBody(width, height int) string {
 		}
 		lines = append(lines, m.cursorFor(focused, m.treeCursor == i)+line)
 	}
-	if n := len(b.FailedTests); n == 1 {
-		lines = append(lines, "", errorStyle.Render("1 failed test"))
-	} else if n > 1 {
-		lines = append(lines, "", errorStyle.Render(fmt.Sprintf("%d failed tests", n)))
+	if n := len(b.FailedTests); n > 0 {
+		head := "1 failed test"
+		if n > 1 {
+			head = fmt.Sprintf("%d failed tests", n)
+		}
+		lines = append(lines, "", errorStyle.Render(head))
+		shown := b.FailedTests[:shownTests(b)]
+		for _, name := range shown {
+			lines = append(lines, "  "+cut(name, width-2))
+		}
+		if more := n - len(shown); more > 0 {
+			lines = append(lines, dimStyle.Render(fmt.Sprintf("  +%d more", more)))
+		}
 	}
 	if len(lines) > height {
 		lines = lines[:height]
@@ -117,13 +126,25 @@ func (m Model) stagesBody(width, height int) string {
 	return strings.Join(lines, "\n")
 }
 
+// maxShownTests is how many failed test names the Stages panel lists; the
+// rest are counted, as bam build show does.
+const maxShownTests = 5
+
+// shownTests is how many of b's failed test names Stages lists.
+func shownTests(b provider.Build) int { return min(len(b.FailedTests), maxShownTests) }
+
 // failedTestLines is the room the failed-test footer needs, so the window
-// does not claim it.
+// does not claim it: the blank line, the count, the names and a "+N more".
 func failedTestLines(b provider.Build) int {
-	if len(b.FailedTests) > 0 {
-		return 2
+	n := len(b.FailedTests)
+	if n == 0 {
+		return 0
 	}
-	return 0
+	lines := 2 + shownTests(b)
+	if n > maxShownTests {
+		lines++
+	}
+	return lines
 }
 
 // treeWindow keeps the cursor inside the rows that are drawn.

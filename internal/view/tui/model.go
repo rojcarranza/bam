@@ -608,6 +608,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case treeRerunMsg:
 		return m.handleTreeRerun(msg)
+	case planRerunMsg:
+		return m.handlePlanRerun(msg)
 	case setLoadedMsg:
 		return m.handleSetLoaded(msg)
 	case infoLoadedMsg:
@@ -776,6 +778,10 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openForm()
 	case key.Matches(msg, keys.Cancel):
 		return m.askCancel()
+	case key.Matches(msg, keys.RerunFailed):
+		return m.askRerun()
+	case key.Matches(msg, keys.Investigate):
+		return m.openInvestigate()
 	case key.Matches(msg, keys.Open):
 		return m.openSelection()
 	case key.Matches(msg, keys.Copy):

@@ -216,7 +216,7 @@ func TestBWithNoPlanSelectedDoesNothing(t *testing.T) {
 }
 
 func TestHelpOverlayShowsEveryRowOfTheKeyMap(t *testing.T) {
-	m := goldenModel(120, 50)
+	m := goldenModel(120, 60)
 	m, _ = send(m, mkKey("?"))
 	require.Equal(t, overlayHelp, m.overlay)
 	v := m.View()
@@ -341,7 +341,7 @@ func TestHelpJumpsAndSaysWhereItIs(t *testing.T) {
 
 // TestHelpFitsWholeOnATallTerminal.
 func TestHelpFitsWholeOnATallTerminal(t *testing.T) {
-	m := goldenModel(120, 50)
+	m := goldenModel(120, 60)
 	m, _ = send(m, mkKey("?"))
 	v := m.View()
 	for _, row := range keys.helpRows() {

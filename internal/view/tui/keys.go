@@ -29,6 +29,7 @@ type keyMap struct {
 	SavePreset                   key.Binding
 	Wrap, Pager                  key.Binding
 	History                      key.Binding
+	Investigate                  key.Binding
 	RemovePreset                 key.Binding
 }
 
@@ -97,6 +98,7 @@ func defaultKeys() keyMap {
 		Wrap:         b("w", "w", "wrap long log lines"),
 		Pager:        b("E", "E", "open the whole log in your pager"),
 		History:      b("H", "H", "past runs of the set"),
+		Investigate:  b("i", "i", "why the build failed"),
 	}
 }
 
@@ -109,7 +111,7 @@ func allBindings(k keyMap) []key.Binding {
 		k.Logs, k.AllLogs, k.Follow, k.Filter, k.NextMatch, k.PrevMatch,
 		k.Refresh, k.ExpandErr, k.Open, k.Copy, k.Run, k.Trigger, k.DryRun,
 		k.CycleOption, k.Cancel, k.Resume, k.RerunFailed, k.RemoveRow, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
-		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager, k.History, k.RemovePreset,
+		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager, k.History, k.RemovePreset, k.Investigate,
 	}
 }
 
@@ -137,6 +139,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"VIEW", "n N", "next / previous match, or next failure with no search"},
 		{"VIEW", "r", "refresh the focused panel"},
 		{"VIEW", "t", "the build tree of the selected build: every build it triggered"},
+		{"VIEW", "i", "why the build failed: error lines, likely cause"},
 		{"VIEW", "e", "expand the current error"},
 		{"VIEW", "H", "past runs of the set (sets table, set screen)"},
 		{"RUN", "R", "open the run form for the selection"},
@@ -147,7 +150,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"RUN", "C", "cancel the selected build (asks first)"},
 		{"RUN", "p", "save the selected build's variables as a preset (asks for a name)"},
 		{"RUN", "U", "resume the set's interrupted run (set screen)"},
-		{"RUN", "F", "rerun the failed runs (set screen) or builds (tree screen)"},
+		{"RUN", "F", "rerun the failed runs (set, tree or plan screen)"},
 		{"RUN", "x", "remove an added variable or repository branch (run form, set vars)"},
 		{"GO", "o", "open the selection's Bamboo URL in the browser"},
 		{"GO", "y", "copy the selection's Bamboo URL"},

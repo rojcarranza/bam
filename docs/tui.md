@@ -77,6 +77,7 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `n` `N` | next / previous match, or next failure with no search |
 | | `r` | refresh the focused panel |
 | | `t` | the build tree of the selected build: every build it triggered |
+| | `i` | why the open build failed: each failed job's error lines and the likely cause, like `bam build investigate` (plan screen) |
 | | `e` | expand the current error |
 | | `H` | past runs of the set (sets table, set screen) |
 | Run | `R` | open the run form for the selection |
@@ -87,7 +88,7 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `C` | cancel the selected build (asks first) |
 | | `p` | save the selected build's variables as a preset (asks for a name) |
 | | `U` | resume the set's interrupted run (set screen) |
-| | `F` | rerun the failed runs (set screen) or builds (tree screen) |
+| | `F` | rerun the failed runs (set screen), builds (tree screen) or the open failed build's failed jobs (plan screen); asks first |
 | | `x` | remove an added variable or repository branch (run form, set vars prompt) |
 | Go | `o` | open the selection's Bamboo URL in the browser |
 | | `y` | copy the selection's Bamboo URL |

@@ -724,7 +724,7 @@ func (m Model) stagesPanel(width, height int) string {
 }
 
 // rightHeights splits the right column (§3.3): Stages gets its rows up to
-// 60%, at least 5; Tree the rest, at least 3; an empty tree takes 3.
+// 60% (more while failed tests are listed), at least 5; Tree the rest, at least 3; an empty tree takes 3.
 func (m Model) rightHeights(body int) (stages, tree int) {
 	if m.plan.tree.have && m.plan.tree.err == nil && len(m.treePreviewRows()) == 0 {
 		return body - 3, 3
@@ -733,7 +733,13 @@ func (m Model) rightHeights(body int) (stages, tree int) {
 	if m.detail != nil {
 		want += len(buildTree(*m.detail, m.expanded)) + failedTestLines(*m.detail)
 	}
-	stages = min(max(want, 5), body*3/5)
+	limit := body * 3 / 5
+	if m.detail != nil && len(m.detail.FailedTests) > 0 {
+		// The failed test names are why the user opened the build: let Stages
+		// grow past 60% for them, leaving Tree seven rows.
+		limit = max(limit, body-7)
+	}
+	stages = min(max(want, 5), limit)
 	tree = body - stages
 	if tree < 3 {
 		tree, stages = 3, body-3

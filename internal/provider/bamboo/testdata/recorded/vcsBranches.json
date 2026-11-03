@@ -1,0 +1,65 @@
+{
+  "branches": {
+    "branch": [
+      {
+        "name": "chore/release-v0.3.0"
+      },
+      {
+        "name": "claude/amazing-brown-abip26"
+      },
+      {
+        "name": "claude/presets-file"
+      },
+      {
+        "name": "docs/branch-naming"
+      },
+      {
+        "name": "docs/build-tree-watch"
+      },
+      {
+        "name": "feat/config-in-dot-config"
+      },
+      {
+        "name": "feat/preset-migrate"
+      },
+      {
+        "name": "feat/presets-dir"
+      },
+      {
+        "name": "feat/presets-file"
+      },
+      {
+        "name": "feat/presets-trees-investigate"
+      },
+      {
+        "name": "feat/run-watch-tree"
+      },
+      {
+        "name": "fix/cancel-stale-tree-reads"
+      },
+      {
+        "name": "fix/ignore-undotted-lab-repo-1-yaml"
+      },
+      {
+        "name": "fix/preset-show-variables-heading"
+      },
+      {
+        "name": "fix/tree-preview-lazy-read"
+      },
+      {
+        "name": "fix/tree-running-time"
+      },
+      {
+        "name": "main"
+      }
+    ],
+    "max-result": 17,
+    "size": 17,
+    "start-index": 0
+  },
+  "expand": "branches",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-BUILD/vcsBranches",
+    "rel": "self"
+  }
+}

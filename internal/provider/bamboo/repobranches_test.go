@@ -1,6 +1,7 @@
 package bamboo
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -45,15 +46,28 @@ func TestListRepoBranchesOnAServerWithoutTheEndpointIsUnsupported(t *testing.T) 
 }
 
 // TestRecordedVCSBranchesDecode runs a recording (make record) through the
-// same decoding. It skips until one is recorded.
+// same decoding. It skips until one is recorded. BAM-26: recorded from a
+// Bamboo 12.1 plan whose repository has 17 branches; every branch Bamboo
+// counts in its answer must reach the run form's picker.
 func TestRecordedVCSBranchesDecode(t *testing.T) {
-	if _, err := os.Stat(filepath.Join("testdata", "recorded", "vcsBranches.json")); err != nil {
+	raw, err := os.ReadFile(filepath.Join("testdata", "recorded", "vcsBranches.json"))
+	if err != nil {
 		t.Skip("recorded/vcsBranches.json not recorded")
 	}
+	var answer struct {
+		Branches struct {
+			Size int `json:"size"`
+		} `json:"branches"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &answer))
 	c, _ := newTestServer(t, map[string]*route{
 		"GET /rest/api/latest/plan/REC-PLAN/vcsBranches": {fixture: "recorded/vcsBranches.json"},
 	})
 	got, err := c.ListRepoBranches(ctx, "REC-PLAN")
 	require.NoError(t, err)
-	assert.NotEmpty(t, got)
+	require.NotZero(t, answer.Branches.Size, "the recording counts its branches")
+	assert.Len(t, got, answer.Branches.Size, "every branch Bamboo counted is decoded")
+	for _, name := range got {
+		assert.NotEmpty(t, name)
+	}
 }

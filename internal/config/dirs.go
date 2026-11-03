@@ -12,7 +12,7 @@ type Dirs struct {
 	State  string // state.json, set run records
 	// OldConfig is the config directory older releases used on macOS and
 	// Windows, which bam moves config files out of (MoveDir). It is empty
-	// on other systems and when XDG_CONFIG_HOME is set.
+	// on other systems and when XDG_CONFIG_HOME is an absolute path.
 	OldConfig string
 }
 

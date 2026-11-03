@@ -29,9 +29,10 @@ The preset lists every variable the plan declares, with the plan default filled 
     presets:
       deploy-qa:
         plan: PROJ-DEPLOY
-        # server: work  # server alias to run on; default is the one bam picks
+        server: work  # the server this preset runs on
         branch: "main"
-        # repo_branches: {repo-a: "feature/PROJ-101"}  # branch per repository; remove branch first
+        # repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first
+        #   repo-a: "feature/PROJ-101"
         variables:
           region: ""  # no plan default; last used "eu" in PROJ-DEPLOY-41
           target_env: "qa"  # plan default
@@ -41,9 +42,8 @@ The preset lists every variable the plan declares, with the plan default filled 
         #   target_env: ["qa"]
         required: [region, version]  # a run with an empty value is refused
         watch: true  # follow the build without --watch; --watch=false skips it
-        # timeout: 30m  # stop watching after this long
 
-Every preset key is written each time, in this order, so you can see what a preset can do. `plan`, `variables`, `required` (when a variable has no plan default) and `watch: true` are active; `server`, `branch` (unless you pass `--branch`), `repo_branches`, `options` and `timeout` are commented examples to uncomment and edit. `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing.
+Every preset key a run uses is written each time, in this order, so you can see what a preset can do. `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables, `required` (when a variable has no plan default) and `watch: true` are active. `branch` is active when the plan is a plan branch or you pass `--branch`, and `repo_branches` lists the default repository of the plan and of each child plan its last build triggered, as a commented block to uncomment and edit. `options` is a commented example. `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing.
 
 - A variable with no plan default gets an empty value, and `required` lists those variables: bam refuses to run until they have a value. Delete the line to drop the check.
 - `watch: true` makes `bam run deploy-qa` follow the build. Run `bam run deploy-qa --watch=false` to skip it for one run.

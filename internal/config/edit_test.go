@@ -23,7 +23,7 @@ func TestWriteTargetKeepsCommentsAndLoads(t *testing.T) {
 	assert.Contains(t, text, "# team presets")
 	assert.Contains(t, text, "projects: [PROJ]")
 	assert.Contains(t, text, "    watch: true")
-	assert.Contains(t, text, "# timeout: 30m")
+	assert.NotContains(t, text, "timeout")
 
 	cfg, err := Load(LoadOptions{WorkDir: dir, Home: dir, MachineFile: filepath.Join(dir, "m.yaml"), Getenv: noEnv})
 	require.NoError(t, err)
@@ -137,12 +137,12 @@ targets:
     plan: PROJ-PROV
     # server: work  # server alias to run on; default is the one bam picks
     # branch: develop  # plan branch to run; default is the main plan
-    # repo_branches: {repo-a: "feature/PROJ-101"}  # branch per repository; remove branch first
+    # repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first
+    #   repo-a: "feature/PROJ-101"
     # options:  # allowed values per variable; a run with another value is refused
     #   NAME: ["a", "b"]
     # required: [NAME]  # refuse a run where these have no value
     watch: true  # follow the build without --watch; --watch=false skips it
-    # timeout: 30m  # stop watching after this long
 `, string(data))
 
 	err := WriteInitFile(path, f, nil, false)

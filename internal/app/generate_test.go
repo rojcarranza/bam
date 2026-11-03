@@ -185,3 +185,13 @@ func TestGenerateTargetWithVariablesHasNoNote(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, d.Note)
 }
+
+// BAM-40 thread: repo_branches lists the default repositories of the plan and
+// of the child plans its last build triggered, and the preset names the server.
+func TestGenerateTargetListsDefaultRepositoriesOfPlanAndChildren(t *testing.T) {
+	s := newService(t, repoFake())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "p", PlanKey: "PROJ-PARENT", Server: "work"})
+	require.NoError(t, err)
+	assert.Equal(t, "work", d.Server)
+	assert.Equal(t, []string{"repo-a", "repo-m"}, d.Repos)
+}

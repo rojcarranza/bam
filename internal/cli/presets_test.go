@@ -76,7 +76,10 @@ func TestPresetAddWritesTheProjectFileInThePresetsDirectory(t *testing.T) {
 	project, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	assert.Equal(t, projectYAML, string(project), ".bam.yaml is untouched")
 
-	// The preset works from a directory outside the repository.
+	assert.Contains(t, string(data), "    server: work #", "the preset names the server it was added on")
+	// The preset works from a directory outside the repository, where the
+	// alias is not configured: only BAM_URL is, so drop the server pin.
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), "    server: work #", "    # server: work  #", 1)), 0o600))
 	h.env.WorkDir = t.TempDir()
 	h.vars["BAM_URL"] = workOrigin
 	h.vars["BAM_TOKEN"] = "tok"
@@ -618,7 +621,7 @@ func TestPresetAddWritesEveryPresetKey(t *testing.T) {
 	assert.Contains(t, out, `cluster_name: ""`)
 	assert.Contains(t, out, "\n    watch: true  #")
 	prev := -1
-	for _, k := range []string{"plan:", "# server:", "# branch:", "# repo_branches:", "variables:", "# options:", "required: [cluster_name]", "watch: true", "# timeout:"} {
+	for _, k := range []string{"plan:", "server: work", "# branch:", "# repo_branches:", "variables:", "# options:", "required: [cluster_name]", "watch: true"} {
 		at := strings.Index(out, k)
 		require.GreaterOrEqual(t, at, 0, k)
 		assert.Greater(t, at, prev, "%s is out of order", k)

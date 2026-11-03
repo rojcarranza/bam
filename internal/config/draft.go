@@ -24,8 +24,12 @@ type TargetDraft struct {
 	Vars     []DraftVar
 	Required []string // variables with no plan default, written as an active required line
 	Note     string   // explanation when no variables could be read
-	// Server is the alias shown in the commented server example; empty means "work".
+	// Server is the alias written as an active server line; empty writes a
+	// commented example instead.
 	Server string
+	// Repos are the repositories of the plan's last build, listed under a
+	// commented repo_branches; empty writes a placeholder.
+	Repos []string
 }
 
 var plainKeyRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
@@ -58,17 +62,24 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 	if d.Note != "" {
 		line(1, "# "+d.Note)
 	}
-	server := d.Server
-	if server == "" {
-		server = "work"
+	if d.Server != "" {
+		line(1, "server: "+yamlKey(d.Server)+"  # the server this preset runs on")
+	} else {
+		line(1, "# server: work  # server alias to run on; default is the one bam picks")
 	}
-	line(1, "# server: "+yamlKey(server)+"  # server alias to run on; default is the one bam picks")
 	if d.Branch != "" {
 		line(1, "branch: "+quote(d.Branch))
 	} else {
 		line(1, "# branch: develop  # plan branch to run; default is the main plan")
 	}
-	line(1, `# repo_branches: {repo-a: "feature/PROJ-101"}  # branch per repository; remove branch first`)
+	repos := d.Repos
+	if len(repos) == 0 {
+		repos = []string{"repo-a"}
+	}
+	line(1, "# repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first")
+	for _, r := range repos {
+		line(1, "#   "+yamlKey(r)+`: "feature/PROJ-101"`)
+	}
 	var options []string
 	if len(d.Vars) > 0 {
 		line(1, varsKey+":")
@@ -107,7 +118,6 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 		line(1, "# required: ["+name+"]  # refuse a run where these have no value")
 	}
 	line(1, "watch: true  # follow the build without --watch; --watch=false skips it")
-	line(1, "# timeout: 30m  # stop watching after this long")
 	return b.String()
 }
 

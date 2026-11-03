@@ -11,8 +11,8 @@ directory. --file NAME writes NAME.yaml in that directory instead, for presets t
 one project; --shared writes the repository's .bam.yaml. Edit the values under variables,
 then run it with bam run <name>. --from with a full build key implies --plan and the build's
 branch. The preset lists every variable the plan declares, with its plan default filled in; a secret
-the plan stores is a commented line. It also writes every other preset key: watch: true, and commented
-server, branch, repo_branches, options, required (active for variables with no plan default) and timeout lines.
+the plan stores is a commented line. It also writes the server you connected to, the plan branch,
+watch: true, required (for variables with no plan default) and commented repo_branches and options lines.
 
 ```
 bam preset add <name> --plan KEY [flags]

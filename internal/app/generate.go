@@ -20,7 +20,7 @@ type GenerateOptions struct {
 	PlanKey string // optional when From is a full build key
 	From    string // build whose values fill the preset; default last, used only in comments
 	Branch  string // defaults to the branch of a From build key
-	// Server is the alias shown in the commented server line of the preset.
+	// Server is the alias the preset's server line names.
 	Server string
 }
 
@@ -103,6 +103,17 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	used, usedKey, err := s.usedVars(ctx, ref, o.From)
 	if err != nil {
 		return d, false, err
+	}
+	// repo_branches can switch a plan's default repository, so list those of
+	// the plan and of the child plans its last build triggered.
+	if plans, perr := s.runPlans(ctx, o.PlanKey, nil); perr == nil {
+		keys := slices.Sorted(maps.Keys(plans))
+		keys = slices.DeleteFunc(keys, func(k string) bool { return k == o.PlanKey })
+		for _, k := range append([]string{o.PlanKey}, keys...) {
+			if repo := defaultRepo(plans[k].build); repo != "" && !slices.Contains(d.Repos, repo) {
+				d.Repos = append(d.Repos, repo)
+			}
+		}
 	}
 
 	declared, err := s.P.ListVariables(ctx, o.PlanKey)

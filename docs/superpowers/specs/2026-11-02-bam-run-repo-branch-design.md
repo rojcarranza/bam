@@ -1,6 +1,6 @@
 # bam: a repository's branch for a run and its child plans (`bam run --repo-branch`)
 
-**Status:** Implemented | **Date:** 2026-11-02
+**Status:** Implemented (terminal UI run form: §12) | **Date:** 2026-11-02
 **Issue:** #130
 **Builds on:** [`2026-09-12-bam-cli-mvp-design.md`](2026-09-12-bam-cli-mvp-design.md) (§7 JSON contract), [`2026-09-24-bam-v0.3-run-revision-design.md`](2026-09-24-bam-v0.3-run-revision-design.md) (per-run choices on `PlanRef`), [`2026-10-08-bam-build-tree-design.md`](2026-10-08-bam-build-tree-design.md) (finding a build's children)
 
@@ -38,7 +38,7 @@ Confirmed on the forge-lab parent/child pipeline (Bamboo 12.1.8, §10): `vcsBran
 | Temporary or persistent | The plan branches stay after the run and are reused by the next run with the same name | Deleting them would throw away their build history, and the next run would create them again; the plans themselves never change. bam says so, names the branches it created and how to delete one |
 | How a repository is named | By its name as a build shows it (`vcsRevisions[].repositoryName`), such as `repo-a` | The name the developer sees in Bamboo and in `bam build show` |
 | Which children | The plans in the tree of the root plan's newest build (`bam build tree`), the `children:` config, and any plan named in an override | Works with no setup; config and explicit names cover a child that never ran |
-| `bam run` only, or the terminal UI too | `bam run` and presets now; the terminal UI later | Smallest change; the UI refuses a preset with overrides instead of ignoring them (§5.3) |
+| `bam run` only, or the terminal UI too | `bam run` and presets first; the terminal UI run form in §12 | The UI refused a preset with overrides instead of ignoring them (§5.3) until §12 |
 
 ## 4. Command and presets
 
@@ -95,7 +95,7 @@ For each plan that gets the plan branch, bam lists its branches. One whose short
 
 Unless `--dry-run`, bam creates the missing plan branches, deepest plans first and the root last, with `enabled=true` and `vcsBranch` when the plan's branch changes. A failed creation stops the run with the Bamboo error, and its Why names the branches already created. Then bam triggers the root's plan branch, as `bam run --branch` does.
 
-`PlanRef` gains `RepoBranches []app.BranchPlan`: what the run does to each plan. `Service.Run` refuses a ref whose preset has `repo_branches` but whose `RepoBranches` is empty: `preset feature-101 sets repo_branches, which only bam run applies` / `bam run feature-101`. That covers the terminal UI's run form, which would otherwise ignore the overrides. A run set reports the same error while planning, as one of its problems, so no stage triggers.
+`PlanRef` gains `RepoBranches []app.BranchPlan`: what the run does to each plan. `Service.Run` refuses a ref whose preset has `repo_branches` but whose `RepoBranches` is empty: `preset feature-101 sets repo_branches, which only bam run applies` / `bam run feature-101`. That covers a caller that does not apply them; the terminal UI's run form does (§12). A run set reports the same error while planning, as one of its problems, so no stage triggers.
 
 `--watch` follows the tree as before, with each child's plan branch added to the plans searched for children (`TreeOptions.Plans`): the tree otherwise reads each plan's default branch only.
 
@@ -169,7 +169,18 @@ No test sleeps or touches the network.
 
 ## 11. Out of scope
 
-- The terminal UI run form.
 - Switching a repository that is not a plan's default repository.
-- Deleting plan branches; the run hint names `DELETE plan/{branch key}` instead.
+- Deleting plan branches, from `bam run` or the terminal UI; both name `DELETE plan/{branch key}` instead.
 - Following child plan branches in `bam build tree` and `bam watch` of an existing build.
+
+## 12. The terminal UI run form
+
+**Issue:** BAM-23 (terminal UI piece 2). The form applies §4 to the same service calls `bam run` uses (`PlanRepoBranches`, `CreateRepoBranches`, `UseRepoBranches`, `Run`), so the checks of §5.2 and the plan branch name of §4.1 are the same.
+
+- **Rows.** The form's rows are the variables, then the repository branches, then the revision. A preset's `repo_branches` entries arrive as rows keyed `REPO` or `PLAN:REPO` with the branch as the value. `b` adds a row on any plan's form: `REPO`, `PLAN:REPO` or `REPO=BRANCH`; a key already in the form moves the cursor to its row. The branch is typed or picked with `↑` `↓` from the repository's branches: `Provider.ListRepoBranches`, `GET plan/{key}/vcsBranches` (17 bam branches on the lab Bamboo 12.1.8), for the run's plan or the plan a `PLAN:REPO` row names. The plan's plan-branch names follow as extra suggestions. A server that answers 404 or 405 is `errs.ErrUnsupported` and leaves the plan branches, or typing. The hand-written fixture is `testdata/vcsBranches.json`. `recorded/vcsBranches.json` is that lab's answer, captured with `make record` (BAM-26): the wrapped `branches.branch` shape, and `TestRecordedVCSBranchesDecode` checks that every branch Bamboo counts in it is decoded. Only added rows are removed with `x`, as with variables. A row with no branch blocks `ctrl-R`.
+- **Dry run.** `d` calls `PlanRepoBranches` only, so it reads Bamboo and writes nothing, and shows what §6.1 prints: `create` or `reuse <branch key>` for each plan, the reuse warning, and how to delete a plan branch. A refusal of §5.2 is shown in place of the list.
+- **Run.** `ctrl-R` is the confirmation: it plans, creates the missing plan branches (deepest first), and triggers the root's plan branch, asking nothing more. The status bar reads `queued KEY on plan branch NAME (created N, reused M)` until the build leaves the queue, as the plain `queued KEY` does. A failure keeps the form open with the error, and the Why names the branches already created. Without repository rows, `ctrl-R` is unchanged.
+- **Following.** The keys of the children's plan branches (`RepoPlan.ChildBranchKeys`) are kept for the build the run started and passed as `TreeOptions.Plans` to the plan screen's Tree panel and the tree screen, which then also search the child plans' branches. The scan shared with other builds of the plan is not used for such a tree.
+- **Presets table.** The BRANCH column shows the plan branch, else the first repository branch as `REPO=BRANCH` with `+N` for more, else `default`.
+- **Deleting.** The UI never deletes plan branches. It shows how in `d`.
+- **Acceptance.** Form tests on the fake provider (`internal/view/tui/form_repo_test.go`); then on a live Bamboo: run the preset from the UI, run it again (the second run reuses all the plan branches), and delete the plan branches by hand. Done on the forge-lab Bamboo 12.1.8 (BAM-26): the first run created the plan branch on `BAMCI-BUILD`, `BAMCI-TEST` and `BAMCI-LINT`, the second reused all three, and all six builds passed.

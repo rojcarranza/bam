@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -68,6 +69,8 @@ const (
 	overlayError
 	overlayDryRun
 	overlayConfirm
+	overlayInfo // :stats and H: read-only text under a title
+	overlayPreset
 )
 
 var tabOrder = []focus{focusBuilds, focusStages, focusTree}
@@ -123,6 +126,7 @@ type Model struct {
 
 	confirm  confirmState
 	help     helpState
+	infoPane infoState
 	form     formState
 	logs     logState
 	input    textinput.Model
@@ -134,17 +138,20 @@ type Model struct {
 	// abandons every request already in flight on it, so a slow response for
 	// a server, project, branch, build or job the user has left cannot land
 	// on the one they are looking at now.
-	plansGen, buildsGen, logsGen int
-	watchGen, followGen, formGen int
-	connGen, detailGen           int
-	pickerGen, presetsGen        int
-	cancelGen                    int
-	setsGen, setGen              int
-	projectsGen                  int
-	treeGen                      int
-	treePreviewGen               int
-	rerunGen                     int // the tree screen opened now; only opening or closing it moves on
+	plansGen, buildsGen, logsGen   int
+	watchGen, followGen, formGen   int
+	connGen, detailGen             int
+	pickerGen, presetsGen, infoGen int
+	cancelGen                      int
+	setsGen, setGen                int
+	projectsGen                    int
+	treeGen                        int
+	treePreviewGen                 int
+	rerunGen                       int // the tree screen opened now; only opening or closing it moves on
 
+	// watchLive is true once the open watch has seen its build unfinished,
+	// so only a build that finished while watched rings the bell.
+	watchLive   bool
 	watchCancel context.CancelFunc
 	watchCh     <-chan app.Event
 	treeCancel  context.CancelFunc
@@ -159,6 +166,11 @@ type Model struct {
 	// revisionRun is the build the form last triggered with a revision, so a
 	// not-built result can say which revision Bamboo could not build.
 	revisionRun struct{ Key, Rev string }
+
+	// runChildren are the plan branch keys of the child plans of a run with
+	// repository branches, by the run's build key: the trees of that build
+	// search them for the builds it triggered.
+	runChildren map[string][]string
 
 	followCancel context.CancelFunc
 	followEvents <-chan app.LogEvent
@@ -279,6 +291,8 @@ func (m Model) currentStream(s stream, gen int) bool {
 		return gen == m.setsGen
 	case streamProjects:
 		return gen == m.projectsGen
+	case streamInfo:
+		return gen == m.infoGen
 	}
 	return true
 }
@@ -341,6 +355,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 	case homeTickMsg:
 		return m.homeTick(msg)
 	case connectedMsg:
@@ -417,9 +433,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.picker.setItems(items)
 		m.picker.cursor = indexOf(items, m.buildsPlan)
 		return m, nil
+	case pagerDoneMsg:
+		if msg.Err != nil {
+			m.err = errs.Configf("the pager exited with an error").
+				WithWhy(msg.Err.Error()).WithTry("set BAM_PAGER or PAGER")
+		}
+		return m, nil
 	case copiedMsg:
 		m.status = "copied to clipboard (osc 52)"
 		return m, nil
+	case presetEditedMsg:
+		if msg.Err != nil {
+			m.err = errs.Usagef("the editor exited with an error").WithWhy(msg.Err.Error())
+		} else {
+			m.status = "edited preset " + msg.Name
+		}
+		return m.presetsChanged()
+	case presetRemovedMsg:
+		m.status = "removed preset " + msg.Name + " from " + strings.Join(msg.Files, ", ")
+		return m.presetsChanged()
 	case presetSavedMsg:
 		m.status = "added preset " + msg.Name + " to " + msg.Path
 		if m.deps.Targets == nil {
@@ -468,6 +500,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.form.ref, m.form.target, m.form.base = msg.Ref, msg.Target, msg.Base
 		m.form.fromBuild, m.form.fromRevision = msg.FromBuild, msg.FromRevision
 		m.form.fields = buildFields(msg.Base, msg.Ref)
+		m.form.repos = presetRepoRows(msg.Ref)
+		m.form.choices = msg.Choices
 		m.form.cursor = 0
 		// A stray enter struck while loading (now ignored by handleFormKey,
 		// but a stale build or an older session could still reach here with
@@ -499,7 +533,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Gen != m.formGen {
 			return m, nil
 		}
-		return m.openTriggered(msg.Build)
+		return m.openTriggered(msg.Build, msg.Run)
+	case formBranchesMsg:
+		if msg.Gen == m.formGen && len(msg.Names) > 0 {
+			if m.form.choices == nil {
+				m.form.choices = map[string][]string{}
+			}
+			m.form.choices[msg.Plan] = msg.Names
+		}
+		return m, nil
+	case repoDryMsg:
+		if msg.Gen == m.formGen {
+			m.form.dry = repoDry{plan: msg.Plan, err: msg.Err}
+		}
+		return m, nil
 	case planRestMsg:
 		return m.planRest(msg)
 	case buildLoadedMsg:
@@ -561,8 +608,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case treeRerunMsg:
 		return m.handleTreeRerun(msg)
+	case planRerunMsg:
+		return m.handlePlanRerun(msg)
 	case setLoadedMsg:
 		return m.handleSetLoaded(msg)
+	case infoLoadedMsg:
+		// The user left the overlay (or asked for another) while it loaded.
+		if msg.Gen != m.infoGen || m.overlay != overlayInfo {
+			return m, nil
+		}
+		return m.openInfo(msg.Title, msg.Body), nil
 	case watchEventMsg:
 		if msg.Gen != m.watchGen {
 			return m, nil
@@ -596,6 +651,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.Stream == streamSets {
 			m.sets.loading = false
+		}
+		if msg.Stream == streamInfo && m.overlay == overlayInfo {
+			m.overlay = overlayNone // the error shows in the status bar instead
 		}
 		if msg.Stream == streamRun && m.form.loading {
 			// loading stays true: with no fields, keys must stay locked.
@@ -631,7 +689,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return next, tea.Batch(cmds...)
 	}
 	resume := m.noteKey()
+	before, errBefore := m.screen, m.err
 	next, cmd := m.dispatchKey(msg)
+	// An error belongs to the screen it happened on: moving to another
+	// screen leaves it behind. One the key itself raised stays.
+	if nm := next.(Model); nm.screen != before && nm.err != nil && nm.err == errBefore {
+		nm.err, nm.cmdErr = nil, false
+		next = nm
+	}
 	if resume == nil {
 		return next, cmd
 	}
@@ -713,6 +778,10 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openForm()
 	case key.Matches(msg, keys.Cancel):
 		return m.askCancel()
+	case key.Matches(msg, keys.RerunFailed):
+		return m.askRerun()
+	case key.Matches(msg, keys.Investigate):
+		return m.openInvestigate()
 	case key.Matches(msg, keys.Open):
 		return m.openSelection()
 	case key.Matches(msg, keys.Copy):
@@ -873,21 +942,28 @@ func (m Model) handleOverlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.overlay == overlayConfirm {
 		return m.handleConfirmKey(msg)
 	}
-	if m.overlay == overlayHelp {
+	if m.overlay == overlayPreset {
+		return m.handlePresetKey(msg)
+	}
+	if m.overlay == overlayHelp || m.overlay == overlayInfo {
+		pane := &m.help
+		if m.overlay == overlayInfo {
+			pane = &m.infoPane.vp
+		}
 		switch {
 		case key.Matches(msg, keys.Back):
 			return m.back()
 		case key.Matches(msg, keys.Quit):
 			return m.quit()
 		case key.Matches(msg, keys.Top):
-			m.help.vp.GotoTop()
+			pane.vp.GotoTop()
 			return m, nil
 		case key.Matches(msg, keys.Bottom):
-			m.help.vp.GotoBottom()
+			pane.vp.GotoBottom()
 			return m, nil
 		}
 		var cmd tea.Cmd
-		m.help.vp, cmd = m.help.vp.Update(msg)
+		pane.vp, cmd = pane.vp.Update(msg)
 		return m, cmd
 	}
 	switch {
@@ -1102,8 +1178,11 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 }
 
 // moveFocused moves exactly one cursor: the focused panel's.
-func (m *Model) moveFocused(delta int) {
-	switch m.focus {
+func (m *Model) moveFocused(delta int) { m.movePanel(m.focus, delta) }
+
+// movePanel moves panel f's cursor, whether or not f has focus.
+func (m *Model) movePanel(f focus, delta int) {
+	switch f {
 	case focusPlans:
 		m.plans.move(delta)
 	case focusBuilds:
@@ -1240,13 +1319,23 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 	if e.Build.Key != "" {
 		m.noteLive(e.Build)
 		b := e.Build
+		if !b.State.Finished() {
+			m.watchLive = true
+		}
 		m.detail = &b
+		// The Builds row of this build follows the watch, or a build that
+		// started as queued would read queued until the next list load.
+		for i := range m.builds.items {
+			if m.builds.items[i].Key == b.Key && m.builds.items[i].State != b.State {
+				m.builds.items[i].State = b.State
+			}
+		}
 		m.progress = e.Progress
 		m.clampTree()
 		m.plan.stagesLoading = false
 		// "queued KEY" is news only while the build waits; after that the
 		// detail panel shows its state. Other notices are not the watch's.
-		if m.status == "queued "+b.Key && (b.State != provider.StateQueued || e.Type == app.EventDone) {
+		if isQueuedNotice(m.status, b.Key) && (b.State != provider.StateQueued || e.Type == app.EventDone) {
 			m.status = ""
 		}
 	}
@@ -1257,6 +1346,9 @@ func (m Model) handleWatchEvent(e app.Event) (tea.Model, tea.Cmd) {
 		m.stopWatch()
 		return m, nil
 	case app.EventDone:
+		if m.watchLive {
+			m.ringBell()
+		}
 		if e.Build.Key == m.revisionRun.Key && m.revisionRun.Rev != "" && e.Build.State == provider.StateNotBuilt {
 			m.status = "Bamboo could not build revision " + m.revisionRun.Rev
 		}
@@ -1292,6 +1384,7 @@ func (m Model) startWatch(key string) (tea.Model, tea.Cmd) {
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.watchCancel = cancel
+	m.watchLive = false
 	m.watchCh = m.svc.Watch(ctx, key)
 	return m, watchCmd(m.watchCh, m.watchGen)
 }
@@ -1329,6 +1422,11 @@ func (m Model) handleLogKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openLogs("", true)
 	case key.Matches(msg, keys.Follow):
 		return m.toggleFollow()
+	case key.Matches(msg, keys.Wrap):
+		m.logs.toggleWrap()
+		return m, nil
+	case key.Matches(msg, keys.Pager):
+		return m.openPager()
 	case key.Matches(msg, keys.Filter):
 		return m.startInput()
 	case key.Matches(msg, keys.NextMatch):
@@ -1599,11 +1697,41 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case tea.KeyEsc:
 			naming := m.form.naming
 			m.form.cancelEdit()
-			if naming {
+			if naming || m.form.onRepo() {
 				m.revalidate()
 			}
 			return m, nil
+		case tea.KeyUp, tea.KeyDown:
+			if m.form.onRepo() && !m.form.naming {
+				if msg.Type == tea.KeyUp {
+					m.form.suggest(-1)
+				} else {
+					m.form.suggest(1)
+				}
+				return m, nil
+			}
 		case tea.KeyEnter:
+			if m.form.naming && m.form.namingRepo {
+				typeBranch, err := m.form.acceptRepo()
+				m.revalidate()
+				if err != nil {
+					m.form.err = err
+					return m, nil
+				}
+				if !m.form.onRepo() {
+					return m, nil
+				}
+				var load tea.Cmd
+				plan := m.form.repos[m.form.cursor-len(m.form.fields)].Plan
+				if _, have := m.form.choices[plan]; plan != "" && !have && m.svc != nil {
+					load = formBranchesCmd(m.baseCtx(), m.svc, plan, m.formGen)
+				}
+				if typeBranch {
+					m.form.startEditing()
+					return m, tea.Batch(textinput.Blink, load)
+				}
+				return m, load
+			}
 			if m.form.naming {
 				name := strings.TrimSpace(m.form.input.Value())
 				if strings.ContainsAny(name, "= \t") {
@@ -1639,11 +1767,18 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.trigger()
 	case key.Matches(msg, keys.DryRun):
 		m.overlay = overlayDryRun
+		if len(m.form.repos) > 0 && m.svc != nil {
+			m.form.dry = repoDry{loading: true}
+			return m, repoDryCmd(m.baseCtx(), m.svc, m.form.planRef(), m.form.repoFlags(), m.formGen)
+		}
 		return m, nil
 	case key.Matches(msg, keys.ExpandErr):
 		return m.expandErr()
 	case key.Matches(msg, keys.AllLogs): // a: add a variable the plan may not declare
 		m.form.startNaming()
+		return m, textinput.Blink
+	case key.Matches(msg, keys.Branch): // b: add a repository branch, REPO or PLAN:REPO
+		m.form.startNamingRepo()
 		return m, textinput.Blink
 	case key.Matches(msg, keys.RemoveRow):
 		if m.form.removeAdded() {
@@ -1658,7 +1793,7 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case key.Matches(msg, keys.Enter), key.Matches(msg, keys.CycleOption):
-		if !m.form.onRevision() && len(m.form.fields[m.form.cursor].Options) > 0 {
+		if m.form.onField() && len(m.form.fields[m.form.cursor].Options) > 0 {
 			m.form.cycle(1)
 			m.revalidate()
 			return m, nil
@@ -1691,6 +1826,9 @@ func (m Model) trigger() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	ref := m.form.planRef()
+	if len(m.form.repos) > 0 {
+		return m, runRepoCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.form.repoFlags(), m.formGen)
+	}
 	return m, runCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.formGen)
 }
 
@@ -1720,9 +1858,17 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 
 // openTriggered shows the build that was just started and watches it. It is
 // the drill-into-a-build path, so at most one watch still runs.
-func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
+func (m Model) openTriggered(b provider.Build, run app.RepoPlan) (tea.Model, tea.Cmd) {
 	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
+	if kids := run.ChildBranchKeys(); len(kids) > 0 {
+		if m.runChildren == nil {
+			m.runChildren = map[string][]string{}
+		}
+		m.runChildren[b.Key] = kids
+	}
 	m.form = formState{}
+	// Starting the run worked: an error from before it is no longer true.
+	m.err, m.cmdErr = nil, false
 	// Esc after a run returns to Home (§4.1), not to a set, a tree or a
 	// drilled plan the form was opened from.
 	m.fromSet, m.fromTree, m.logsFromTree = false, false, false
@@ -1731,7 +1877,29 @@ func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
 	// stopping the previous watch clears the marker.
 	m.noteLive(b)
 	m.status = "queued " + b.Key
+	if len(run.Plans) > 0 {
+		var made, reused []string
+		for _, bp := range run.Plans {
+			if bp.Created {
+				made = append(made, bp.BranchKey)
+			} else {
+				reused = append(reused, bp.BranchKey)
+			}
+		}
+		m.status += fmt.Sprintf(queuedOnPlanBranch+"%s (created %d, reused %d)", run.Name, len(made), len(reused))
+	}
 	return m, cmd
+}
+
+// queuedOnPlanBranch follows "queued KEY" when the run created or reused
+// plan branches.
+const queuedOnPlanBranch = " on plan branch "
+
+// isQueuedNotice says whether status is the notice openTriggered set for
+// key, with or without its plan branch part.
+func isQueuedNotice(status, key string) bool {
+	q := "queued " + key
+	return status == q || strings.HasPrefix(status, q+queuedOnPlanBranch)
 }
 
 // openForm opens the run form for whatever the cursor is on: a preset by its

@@ -21,4 +21,4 @@ PROJ-BUILD-44 · Deploy · running · match 1/1                                 
                                                                                 
                                                                                 
                                                                                 
-esc back  / search  G end  f follow  n next match  o open
+esc back  / search  G end  f follow  n next match  o open  w wrap  E pager

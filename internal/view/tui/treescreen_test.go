@@ -377,3 +377,32 @@ func TestTreeScreenKeepsACachedTreeWhenItsRefreshFails(t *testing.T) {
 	m, _ = send(m, mkKey("r"))
 	require.Contains(t, m.View(), "PROJ-BUILD-44 · ✗ failed · refreshing…", "r tries again")
 }
+
+// BAM-17: l on a running build in the tree opens its live stage, the way l
+// does on the plan screen. It used to open the failed-jobs view, which a
+// build still running has none of.
+func TestLOnARunningTreeBuildOpensItsLiveStage(t *testing.T) {
+	m, f := treeTUIModel(t)
+	child := &f.History["PROJ-PROV"][0]
+	child.State = provider.StateRunning
+	child.Stages[0].State = provider.StateRunning
+	child.Stages[0].Jobs[0].State = provider.StateRunning
+	m = firstTree(t, m)
+	m, _ = send(m, mkKey("j"))
+	n, _ := m.treeSelected()
+	require.Equal(t, "PROJ-PROV-7", n.Build.Key)
+
+	m, cmd := send(m, mkKey("l"))
+	require.Equal(t, screenLogs, m.screen)
+	require.NotNil(t, cmd)
+	var loaded logsLoadedMsg
+	var ok bool
+	for _, msg := range runBatch(cmd) {
+		if l, is := msg.(logsLoadedMsg); is {
+			loaded, ok = l, true
+		}
+	}
+	require.True(t, ok, "the stage's logs load")
+	require.True(t, loaded.Live, "and follow the running build")
+	require.Equal(t, "Apply", loaded.Stage, "the current stage")
+}

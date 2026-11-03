@@ -117,9 +117,11 @@ func SystemEnv() Env {
 			}
 			return c, nil
 		},
-		OpenBrowser: browser.OpenURL,
-		RunPager:    runPager,
-		RunEditor:   runEditor,
+		OpenBrowser: func(u string) error {
+			return openURL(u, browser.OpenURL, config.IsWSL(os.Getenv), runWindowsOpener)
+		},
+		RunPager:  runPager,
+		RunEditor: runEditor,
 		ReadSecret: func() (string, error) {
 			b, err := term.ReadPassword(int(os.Stdin.Fd()))
 			return string(b), err

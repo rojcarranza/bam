@@ -35,6 +35,9 @@ type MachineFile struct {
 	Color         string              `yaml:"color,omitempty"`
 	Pager         string              `yaml:"pager,omitempty"`
 	Editor        string              `yaml:"editor,omitempty"`
+	// Bell is false to silence the terminal UI's bell when a watched build
+	// or tree finishes; unset means it rings.
+	Bell *bool `yaml:"bell,omitempty"`
 }
 
 type Server struct {

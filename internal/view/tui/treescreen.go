@@ -20,6 +20,7 @@ type treeScreen struct {
 	tree       app.Tree
 	have       bool
 	refreshing bool             // a tree is drawn (from the session cache, or before r or a rerun) and the watch has not sent a newer one
+	sawLive    bool             // this watch has seen the tree unfinished, so its end rings the bell
 	failed     bool             // the watch ended in an error; tree is the last one it had
 	progress   app.TreeProgress // how far the first refresh got, until have
 	cursor     int              // over build rows only
@@ -84,12 +85,13 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 func (m Model) watchTree(fresh bool) (tea.Model, tea.Cmd) {
 	m.stopTree()
 	m.buildTree.refreshing, m.buildTree.failed = m.buildTree.have, false
+	m.buildTree.sawLive = false
 	if m.svc == nil {
 		return m, nil
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.treeCancel = cancel
-	m.treeCh = m.svc.WatchTree(ctx, m.buildTree.root, app.TreeOptions{Shared: !fresh})
+	m.treeCh = m.svc.WatchTree(ctx, m.buildTree.root, app.TreeOptions{Shared: !fresh && len(m.runChildren[m.buildTree.root]) == 0, Plans: m.runChildren[m.buildTree.root]})
 	return m, treeCmd(m.treeCh, m.treeGen)
 }
 
@@ -157,6 +159,12 @@ func (m Model) handleTreeEvent(msg treeEventMsg) (tea.Model, tea.Cmd) {
 			selected = n.Build.Key
 		}
 		m.buildTree.tree, m.buildTree.have, m.buildTree.refreshing = e.Tree, true, false
+		if !e.Tree.State.Finished() {
+			m.buildTree.sawLive = true
+		}
+		if e.Type == app.TreeDone && m.buildTree.sawLive {
+			m.ringBell()
+		}
 		m.keepTree(m.buildTree.root, e.Tree)
 		m.buildTree.cursor = 0
 		for i, l := range m.treeBuildRows() {
@@ -355,6 +363,12 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 		return next, cmd
 	}
 	next.logsFromTree = true
+	// A build still running has no failed jobs to show: l follows its
+	// current stage, as it does on the plan screen.
+	if !all && !b.State.Finished() {
+		after, logsCmd := next.openStageLogs("")
+		return after, tea.Batch(cmd, logsCmd)
+	}
 	after, logsCmd := next.openLogs("", all)
 	return after, tea.Batch(cmd, logsCmd)
 }

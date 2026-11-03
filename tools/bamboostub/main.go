@@ -510,6 +510,8 @@ func (s *stub) handlePlan(w http.ResponseWriter, r *http.Request) {
 		s.serve(w, "plan.json", fixturePlan, key)
 	case "branch":
 		s.serveBranches(w, key)
+	case "vcsBranches":
+		s.serve(w, "vcsBranches.json", "", "")
 	case "variables":
 		s.serve(w, "plan_variables.json", "", "")
 	default:

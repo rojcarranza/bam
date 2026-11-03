@@ -177,6 +177,8 @@ func (m Model) handleSetKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.RerunFailed) && rerun:
 			return m.openSetVars(setActionRerun)
 		}
+	case key.Matches(msg, keys.History):
+		return m.openSetHistory(m.setView.info.Name)
 	case key.Matches(msg, keys.Server):
 		return m.openServerPicker()
 	case key.Matches(msg, keys.Help):

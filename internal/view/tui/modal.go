@@ -100,12 +100,16 @@ func (m Model) overlayTitle() string {
 			return fmt.Sprintf("Keys · %d-%d of %d · j k g G scroll", m.help.vp.YOffset+1, last, total)
 		}
 		return "Keys"
+	case overlayInfo:
+		return m.infoPane.title
 	case overlayError:
 		return "Error"
 	case overlayDryRun:
 		return "Would send"
 	case overlayConfirm:
 		return "Confirm"
+	case overlayPreset:
+		return "Preset"
 	}
 	return ""
 }
@@ -201,7 +205,7 @@ func (m Model) overlayView(base string) string {
 		return base
 	}
 	maxW := pickerMaxWidth
-	if m.overlay == overlayHelp {
+	if m.overlay == overlayHelp || m.overlay == overlayInfo {
 		maxW = helpMaxWidth
 	}
 	w := overlayWidth(m.width, maxW)
@@ -210,12 +214,16 @@ func (m Model) overlayView(base string) string {
 	switch m.overlay {
 	case overlayHelp:
 		body = m.helpView(w - 2)
+	case overlayInfo:
+		body = m.infoPane.vp.vp.View()
 	case overlayError:
 		body = m.errorBody(w - 2)
 	case overlayDryRun:
 		body = m.dryRunBody(w - 2)
 	case overlayConfirm:
 		body = m.confirmBody(w - 2)
+	case overlayPreset:
+		body = m.presetBody(w - 2)
 	default:
 		body = m.pickerRows(w-2, m.height/2)
 	}

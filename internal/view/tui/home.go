@@ -487,7 +487,7 @@ func presetColumns(width int, rows []app.TargetInfo) []tableCol {
 	for _, t := range rows {
 		nameW = max(nameW, lipgloss.Width(t.Name))
 		planW = max(planW, lipgloss.Width(t.Plan))
-		branchW = max(branchW, lipgloss.Width(cmp.Or(t.Branch, "default")))
+		branchW = max(branchW, lipgloss.Width(presetBranch(t)))
 	}
 	cols := []tableCol{
 		{title: "PRESET", width: min(nameW, 24)},
@@ -504,14 +504,29 @@ func presetColumns(width int, rows []app.TargetInfo) []tableCol {
 	return cols
 }
 
+// presetBranch is what the BRANCH column shows: the plan branch the preset
+// runs, else the repository branches it builds as REPO=BRANCH (more as +N),
+// else "default".
+func presetBranch(t app.TargetInfo) string {
+	switch {
+	case t.Branch != "":
+		return t.Branch
+	case len(t.RepoBranches) > 0:
+		r := t.RepoBranches[0]
+		s := r.Key() + "=" + r.Branch
+		if n := len(t.RepoBranches) - 1; n > 0 {
+			s += fmt.Sprintf(" +%d", n)
+		}
+		return s
+	}
+	return "default"
+}
+
 // presetCells is one presets-table row. The state is the preset's plan's
 // (its master plan, not its branch).
 func presetCells(cols []tableCol, t app.TargetInfo, last *provider.BuildSummary, live *provider.Build, now time.Time) []string {
 	state, num, age, _ := buildCells(last, live, now)
-	branch := t.Branch
-	if branch == "" {
-		branch = "default"
-	}
+	branch := presetBranch(t)
 	out := make([]string, len(cols))
 	for i, c := range cols {
 		switch c.title {
@@ -555,6 +570,15 @@ func (m Model) handleHomeKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 	if m.home.view == homeSets {
 		if next, cmd, handled := m.handleSetsKey(msg); handled {
 			return next, cmd, true
+		}
+	}
+	if m.home.view == homePresets {
+		if next, cmd, handled := m.handlePresetsTableKey(msg); handled {
+			return next.(Model), cmd, true
+		}
+		if key.Matches(msg, keys.Enter) {
+			next, cmd := m.openPresetDetail()
+			return next.(Model), cmd, true
 		}
 	}
 	switch {

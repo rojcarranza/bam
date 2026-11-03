@@ -2,11 +2,15 @@ package cli
 
 import (
 	"context"
+	"io"
+	"os/exec"
 	"runtime/debug"
 	"sort"
+	"strings"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/r0jjames/bam-cli/internal/view"
 	"github.com/r0jjames/bam-cli/internal/view/tui"
 	"github.com/spf13/cobra"
 )
@@ -104,8 +108,33 @@ func (r *runtime) openUI(ctx context.Context) error {
 			}
 			return r.writePreset(fresh, d, "", false)
 		},
-		Open:      r.env.OpenBrowser,
+		// EditorCmd opens a preset file in the editor bam run --edit uses.
+		EditorCmd: func(path string) (*exec.Cmd, error) {
+			cfg, err := r.loadConfig()
+			if err != nil {
+				return nil, err
+			}
+			fields := strings.Fields(view.EditorCommand(r.env.Getenv, cfg.Machine.Editor, r.env.GOOS))
+			return exec.Command(fields[0], append(fields[1:], path)...), nil
+		},
+		// RemovePreset reads the files fresh, as preset rm does.
+		RemovePreset: func(name string) ([]string, error) {
+			fresh, err := r.loadConfig()
+			if err != nil {
+				return nil, err
+			}
+			return removePreset(fresh, name)
+		},
+		Open: r.env.OpenBrowser,
+		Bell: func() func() {
+			if cfg.Machine.Bell != nil && !*cfg.Machine.Bell {
+				return nil
+			}
+			return func() { _, _ = io.WriteString(r.env.Stdout, "\a") }
+		}(),
 		Getenv:    r.env.Getenv,
+		Pager:     view.PagerCommand(r.env.Getenv, cfg.Machine.Pager, r.env.GOOS),
+		RunPager:  r.env.RunPager,
 		Clipboard: r.env.Stdout,
 		Output:    r.env.Stdout,
 		Version:   resolveVersion(version, debug.ReadBuildInfo),

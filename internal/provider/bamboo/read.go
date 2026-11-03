@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
@@ -167,6 +168,44 @@ func (c *Client) ListBranches(ctx context.Context, key string) ([]provider.Branc
 	for _, b := range items {
 		out = append(out, provider.Branch{Key: b.Key, Name: b.Name, ShortName: b.ShortName, PlanKey: key, URL: c.URL(b.Key),
 			Disabled: b.Enabled != nil && !*b.Enabled})
+	}
+	return out, nil
+}
+
+// ListRepoBranches reads GET plan/{key}/vcsBranches: the branches of the
+// plan's default repository. The collection is read from a "branches" array,
+// or the "branch" array of a "branches" object, as Bamboo wraps its lists.
+// A server without the resource answers 404 or 405, which is
+// errs.ErrUnsupported here, so callers fall back to typing a name.
+func (c *Client) ListRepoBranches(ctx context.Context, key string) ([]string, error) {
+	var doc struct {
+		Branches json.RawMessage `json:"branches"`
+		Branch   []vcsBranchDTO  `json:"branch"`
+	}
+	err := c.getJSON(ctx, api+"/plan/"+url.PathEscape(key)+"/vcsBranches", url.Values{"max-result": {"1000"}}, &doc)
+	if err != nil {
+		if errors.Is(err, errs.ErrNotFound) || statusOf(err) == http.StatusMethodNotAllowed {
+			return nil, errs.Bamboof("this Bamboo does not list repository branches").Wrap(errs.ErrUnsupported)
+		}
+		return nil, err
+	}
+	items := doc.Branch
+	if len(doc.Branches) > 0 {
+		var list []vcsBranchDTO
+		var wrapped struct {
+			Branch []vcsBranchDTO `json:"branch"`
+		}
+		if json.Unmarshal(doc.Branches, &list) == nil {
+			items = list
+		} else if json.Unmarshal(doc.Branches, &wrapped) == nil {
+			items = wrapped.Branch
+		}
+	}
+	out := make([]string, 0, len(items))
+	for _, b := range items {
+		if b.Name != "" {
+			out = append(out, b.Name)
+		}
 	}
 	return out, nil
 }

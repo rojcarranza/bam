@@ -32,7 +32,8 @@ type SyncEdit struct {
 // longer declares are kept and marked in every layer that holds them.
 func (s *Service) PlanSync(ctx context.Context, t config.ResolvedTarget) (SyncPlan, error) {
 	p := SyncPlan{Name: t.Name, Plan: t.Plan, Stale: []string{}}
-	// Lean, like preset add: a name the plan already sends a value for is not added.
+	// A stored secret is written commented by preset add; sync does not add it,
+	// since the plan already sends it.
 	d, declared, err := s.generate(ctx, GenerateOptions{Name: t.Name, PlanKey: t.Plan, Branch: t.Branch})
 	if err != nil {
 		return p, err
@@ -52,7 +53,7 @@ func (s *Service) PlanSync(ctx context.Context, t config.ResolvedTarget) (SyncPl
 		names[v.Name] = true
 	}
 	for _, v := range d.Vars {
-		if _, ok := t.Defaults[v.Name]; !ok {
+		if _, ok := t.Defaults[v.Name]; !ok && !v.Commented {
 			p.Added = append(p.Added, v)
 		}
 	}

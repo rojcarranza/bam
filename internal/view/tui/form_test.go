@@ -1397,3 +1397,40 @@ func TestALongFormErrorWraps(t *testing.T) {
 	}
 	require.Contains(t, strings.Join(strings.Fields(ansi.Strip(body)), " "), "disabled by an administrator")
 }
+
+// BAM-17: the Builds row of a started build follows the watch, so it reads
+// running once Bamboo runs it rather than queued until the next list load.
+func TestTheStartedBuildsRowShowsRunningOnceItRuns(t *testing.T) {
+	m := planHome(t)
+	b := provider.Build{Key: "PROJ-BUILD-45", PlanKey: "PROJ-BUILD", Number: 45, State: provider.StateQueued}
+	next, _ := m.openTriggered(b, app.RepoPlan{})
+	m = next.(Model)
+	defer m.stopWatch()
+	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
+	require.Equal(t, provider.StateQueued, m.builds.rows()[0].State)
+
+	b.State = provider.StateRunning
+	m, _ = send(m, watchEventMsg{Gen: m.watchGen, Event: app.Event{Type: app.EventState, Build: b, State: b.State}})
+	require.Equal(t, "PROJ-BUILD-45", m.builds.rows()[0].Key)
+	require.Equal(t, provider.StateRunning, m.builds.rows()[0].State)
+}
+
+// BAM-17: an error belongs to the screen it happened on. Leaving that screen
+// takes it along, and a run that starts successfully clears one left over.
+func TestAnErrorLeavesWithItsScreen(t *testing.T) {
+	m := formModel()
+	m.formFrom = screenPlan
+	m.err = errs.Bamboof("Bamboo refused")
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenPlan, m.screen)
+	require.NoError(t, m.err)
+}
+
+func TestASuccessfulRunClearsAnEarlierError(t *testing.T) {
+	m := formModel()
+	m.err = errs.Bamboof("Bamboo refused")
+	b := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateQueued}
+	m, _ = send(m, triggeredMsg{Gen: m.formGen, Build: b})
+	defer m.stopWatch()
+	require.NoError(t, m.err)
+}

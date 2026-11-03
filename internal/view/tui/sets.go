@@ -218,6 +218,10 @@ func (m Model) handleSetsKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		return next.(Model), tea.Batch(load, cmd), true
 	case key.Matches(msg, keys.Refresh):
 		return m, m.loadSets(), true
+	case key.Matches(msg, keys.History):
+		it, _ := m.sets.selected()
+		next, cmd := m.openSetHistory(it.Info.Name)
+		return next.(Model), cmd, true
 	case key.Matches(msg, keys.Panel1), key.Matches(msg, keys.Panel2), key.Matches(msg, keys.Panel3),
 		key.Matches(msg, keys.NextPanel), key.Matches(msg, keys.PrevPanel):
 		return m, nil, true

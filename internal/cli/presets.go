@@ -268,8 +268,8 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no\n" +
 			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
 			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
-			"branch. The preset lists only variables that differ from the plan defaults or have no default;\n" +
-			"--full also lists the rest, with commented branch, options and watch lines to fill in.",
+			"branch. The preset lists every variable the plan declares, with its plan default filled in; a secret\n" +
+			"the plan stores is a commented line. --full also adds commented branch, options and watch lines.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
 			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
@@ -290,7 +290,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&fl.file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
 	f.BoolVar(&fl.printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&fl.force, "force", false, "replace an existing preset")
-	f.BoolVar(&fl.full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
+	f.BoolVar(&fl.full, "full", false, "also write commented branch, options and watch lines to fill in")
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }
@@ -308,42 +308,53 @@ func newPresetRmCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			t, ok, err := cfg.Target(args[0])
-			if err != nil {
-				return err
+			removed, err := removePreset(cfg, args[0])
+			for _, l := range removed {
+				fmt.Fprintf(r.env.Stdout, "removed preset %s from %s\n", args[0], l)
 			}
-			if !ok {
-				if all, _ := cfg.Targets(); len(all) == 0 && len(cfg.OtherRepoTargets()) == 0 {
-					// UnknownTarget's hint would be to create the preset, which is wrong for rm.
-					return errs.Usagef("unknown preset %q", args[0]).WithWhy("no presets are configured, so there is nothing to remove")
-				}
-				return app.UnknownTarget(cfg, args[0])
-			}
-			// A set naming the preset would fail every set command once it is gone.
-			sets, err := cfg.Sets()
-			if err != nil {
-				return err
-			}
-			for _, name := range slices.Sorted(maps.Keys(sets)) {
-				for _, st := range sets[name].Stages {
-					for _, run := range st {
-						if run.Target == t.Name {
-							return errs.Usagef("preset %q is used by set %q", t.Name, name).
-								WithWhy("defined in " + sets[name].DefinedIn[len(sets[name].DefinedIn)-1]).
-								WithTry("remove it from the set first")
-						}
-					}
-				}
-			}
-			for _, l := range t.Layers {
-				if err := config.RemoveTarget(l.Path, l.KeyPath, t.Name); err != nil {
-					return err
-				}
-				fmt.Fprintf(r.env.Stdout, "removed preset %s from %s\n", t.Name, l.Path)
-			}
-			return nil
+			return err
 		}),
 	}
+}
+
+// removePreset deletes the preset name from every file that defines it and
+// returns the files it changed. preset rm and the UI's D share it.
+func removePreset(cfg *config.Config, name string) ([]string, error) {
+	t, ok, err := cfg.Target(name)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		if all, _ := cfg.Targets(); len(all) == 0 && len(cfg.OtherRepoTargets()) == 0 {
+			// UnknownTarget's hint would be to create the preset, which is wrong for rm.
+			return nil, errs.Usagef("unknown preset %q", name).WithWhy("no presets are configured, so there is nothing to remove")
+		}
+		return nil, app.UnknownTarget(cfg, name)
+	}
+	// A set naming the preset would fail every set command once it is gone.
+	sets, err := cfg.Sets()
+	if err != nil {
+		return nil, err
+	}
+	for _, setName := range slices.Sorted(maps.Keys(sets)) {
+		for _, st := range sets[setName].Stages {
+			for _, run := range st {
+				if run.Target == t.Name {
+					return nil, errs.Usagef("preset %q is used by set %q", t.Name, setName).
+						WithWhy("defined in " + sets[setName].DefinedIn[len(sets[setName].DefinedIn)-1]).
+						WithTry("remove it from the set first")
+				}
+			}
+		}
+	}
+	var removed []string
+	for _, l := range t.Layers {
+		if err := config.RemoveTarget(l.Path, l.KeyPath, t.Name); err != nil {
+			return removed, err
+		}
+		removed = append(removed, l.Path)
+	}
+	return removed, nil
 }
 
 // writePreset adds d to file in the presets directory, by default the plan's

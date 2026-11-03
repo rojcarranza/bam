@@ -21,4 +21,4 @@ PROJ-BUILD-INT-44 · logs · failed                                            4
                                                                                 
                                                                                 
                                                                                 
-esc back  / search  G end  f follow  n next failure  o open
+esc back  / search  G end  f follow  n next failure  o open  w wrap  E pager

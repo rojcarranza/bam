@@ -6,6 +6,7 @@ package tui
 import (
 	"context"
 	"io"
+	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/r0jjames/bam-cli/internal/app"
@@ -32,11 +33,23 @@ type Deps struct {
 	// SavePreset writes build's variable values as preset name, as
 	// bam preset add NAME --from BUILD does, and returns the file it wrote.
 	SavePreset func(ctx context.Context, svc *app.Service, name, build string) (string, error)
-	Open       func(url string) error
-	Getenv     func(name string) string // for ${ENV} references in a preset
-	Clipboard  io.Writer
-	Output     io.Writer // the tea.Program's output; nil means os.Stdout
-	Version    string    // bam's own version, shown beside Bamboo's in the header
+	// EditorCmd builds the command that opens path in the user's editor.
+	EditorCmd func(path string) (*exec.Cmd, error)
+	// RemovePreset removes preset name from every file that defines it, as
+	// bam preset rm does, and returns the files it changed.
+	RemovePreset func(name string) ([]string, error)
+	Open         func(url string) error
+	// Bell rings the terminal bell once; nil turns the bell off. The UI calls
+	// it when a build or tree it was watching finishes.
+	Bell   func()
+	Getenv func(name string) string // for ${ENV} references in a preset
+	// Pager is the command E pipes the whole log through; empty means the
+	// pager is unavailable. RunPager runs it with the terminal handed over.
+	Pager     string
+	RunPager  func(cmd string, r io.Reader) error
+	Clipboard io.Writer
+	Output    io.Writer // the tea.Program's output; nil means os.Stdout
+	Version   string    // bam's own version, shown beside Bamboo's in the header
 }
 
 // Run opens the UI and returns when the user quits. Ending ctx closes the UI;
@@ -60,10 +73,17 @@ func Run(ctx context.Context, d Deps) error {
 		m = m.connected(msg)
 	}
 
-	opts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithContext(ctx)}
+	opts := []tea.ProgramOption{tea.WithAltScreen(), tea.WithMouseCellMotion(), tea.WithContext(ctx)}
 	if d.Output != nil {
 		opts = append(opts, tea.WithOutput(d.Output))
 	}
 	_, err := tea.NewProgram(m, opts...).Run()
 	return err
+}
+
+// ringBell rings the terminal bell once, unless the setting turned it off.
+func (m Model) ringBell() {
+	if m.deps.Bell != nil {
+		m.deps.Bell()
+	}
 }

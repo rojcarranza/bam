@@ -20,7 +20,7 @@ func TestGenerateTargetFromDeclaredVariables(t *testing.T) {
 			{Name: "cluster_type", Value: "k8s", Comment: "plan default"},
 			{Name: "compute_nodes", Value: "1", Comment: "plan default"},
 			{Name: "cluster_name", Value: "", Comment: `no plan default; last used "beta" in PROJ-PROV12-8`},
-			{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD"},
+			{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD", Commented: true},
 		},
 		Required: []string{"cluster_name"},
 	}, d)
@@ -64,6 +64,7 @@ func TestGenerateTargetFillsValuesFromNamedBuild(t *testing.T) {
 		{Name: "cluster_type", Value: "dcos", Comment: "from PROJ-PROV12-8"},
 		{Name: "compute_nodes", Value: "3", Comment: "from PROJ-PROV12-8"},
 		{Name: "cluster_name", Value: "beta", Comment: "from PROJ-PROV12-8"},
+		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD", Commented: true},
 		{Name: "global_flag", Value: "x", Comment: "from PROJ-PROV12-8; not declared by the plan"},
 	}, d.Vars)
 	assert.Empty(t, d.Required)
@@ -117,7 +118,7 @@ func TestGenerateTargetFromBuildKeyImpliesPlanAndBranch(t *testing.T) {
 	assert.Contains(t, err.Error(), "PROJ-PROV12-8 is a build of PROJ-PROV, not of PROJ-BUILD")
 }
 
-func TestGenerateTargetLeanKeepsDifferingValues(t *testing.T) {
+func TestGenerateTargetKeepsEveryDeclaredVariable(t *testing.T) {
 	p := fakeBamboo()
 	p.BuildVars["PROJ-PROV12-8"]["cluster_type"] = "k8s"
 	s := newService(t, p)
@@ -127,13 +128,15 @@ func TestGenerateTargetLeanKeepsDifferingValues(t *testing.T) {
 	for _, v := range d.Vars {
 		names = append(names, v.Name)
 	}
-	assert.NotContains(t, names, "cluster_type", "equal to the plan default")
+	assert.Contains(t, names, "cluster_type", "equal to the plan default, still written")
 	assert.Contains(t, names, "compute_nodes")
-	assert.NotContains(t, names, "db_password", "a secret the plan stores is sent by the plan")
-	assert.Contains(t, names, "global_flag", "undeclared variables are always kept")
+	assert.Contains(t, names, "db_password")
+	assert.Contains(t, names, "global_flag", "undeclared variables are kept")
 }
 
-func TestGenerateTargetLeanByDefault(t *testing.T) {
+// Reported: bam preset add left the plan's declared variables out of the
+// preset, so the user had nothing to fill in (BAM-31).
+func TestGenerateTargetWritesEveryDeclaredVariableByDefault(t *testing.T) {
 	p := fakeBamboo()
 	p.Variables["PROJ-PROV"] = append(p.Variables["PROJ-PROV"], provider.Variable{Name: "api_secret", Masked: true})
 	s := newService(t, p)
@@ -141,7 +144,10 @@ func TestGenerateTargetLeanByDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, d.Full)
 	assert.Equal(t, []config.DraftVar{
+		{Name: "cluster_type", Value: "k8s", Comment: "plan default"},
+		{Name: "compute_nodes", Value: "1", Comment: "plan default"},
 		{Name: "cluster_name", Value: "", Comment: "no plan default"},
+		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD", Commented: true},
 		{Name: "api_secret", Value: "${API_SECRET}", Comment: "masked by Bamboo; set env var API_SECRET"},
-	}, d.Vars, "plan defaults and stored secrets are left out; empty variables stay")
+	}, d.Vars, "every declared variable; a stored secret is commented, an empty one is active")
 }

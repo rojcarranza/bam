@@ -390,9 +390,9 @@ func TestPresetRowTakesItsPlansState(t *testing.T) {
 	require.Contains(t, cells, "–")
 }
 
-func TestEnterOnAPresetOpensThePanels(t *testing.T) {
+func TestOneOnAPresetOpensThePanels(t *testing.T) {
 	m := presetModel()
-	m, cmd := send(m, mkKey("enter"))
+	m, cmd := send(m, mkKey("1"))
 	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, focusBuilds, m.focus)
 	require.NotNil(t, cmd)
@@ -400,7 +400,7 @@ func TestEnterOnAPresetOpensThePanels(t *testing.T) {
 
 func TestEscFromPanelsReturnsToThePresetsTable(t *testing.T) {
 	m := presetModel()
-	m, _ = send(m, mkKey("enter"))
+	m, _ = send(m, mkKey("1"))
 	m, _ = send(m, mkKey("esc"))
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenHome, m.screen)

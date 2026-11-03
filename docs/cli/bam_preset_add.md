@@ -10,8 +10,8 @@ PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work i
 directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no
 one project; --shared writes the repository's .bam.yaml. Edit the values under variables,
 then run it with bam run <name>. --from with a full build key implies --plan and the build's
-branch. The preset lists only variables that differ from the plan defaults or have no default;
---full also lists the rest, with commented branch, options and watch lines to fill in.
+branch. The preset lists every variable the plan declares, with its plan default filled in; a secret
+the plan stores is a commented line. --full also adds commented branch, options and watch lines.
 
 ```
 bam preset add <name> --plan KEY [flags]
@@ -36,7 +36,7 @@ bam preset add <name> --plan KEY [flags]
       --file string     write NAME.yaml in your presets directory instead of the plan's project file
       --force           replace an existing preset
       --from string     build whose variable values fill the preset: number, key or last
-      --full            also write variables equal to the plan default and commented branch, options and watch lines
+      --full            also write commented branch, options and watch lines to fill in
   -h, --help            help for add
       --plan string     plan key or plan page link to generate from; optional when --from is a build key
       --print           print the YAML and write nothing

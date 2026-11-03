@@ -46,6 +46,7 @@ func commands() []command {
 		{name: "server", arg: "server", desc: "switch server", run: Model.commandServer},
 		{name: "sort", arg: "column", desc: "sort the table; -column reverses", run: Model.commandSort},
 		{name: "tree", arg: "build", optional: true, desc: "the build tree of a build, or of the selected build", run: Model.commandTree},
+		{name: "stats", arg: "plan", optional: true, desc: "success rate, durations and failing jobs of a plan or preset (or the selected one)", run: Model.commandStats},
 		{name: "quit", desc: "quit", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
 			next, cmd := m.quit()
 			return next, cmd, nil

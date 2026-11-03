@@ -20,9 +20,8 @@ type GenerateOptions struct {
 	PlanKey string // optional when From is a full build key
 	From    string // build whose values fill the preset; default last, used only in comments
 	Branch  string // defaults to the branch of a From build key
-	// Full adds the commented branch, options and watch scaffolding. Every
-	// declared variable is written either way (spec §3.9).
-	Full bool
+	// Server is the alias the preset's server line names.
+	Server string
 }
 
 // GenerateTarget reads the plan's declared variables (or, when unsupported,
@@ -80,7 +79,19 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if err != nil {
 		return config.TargetDraft{}, false, err
 	}
-	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch, Full: o.Full}
+	// A plan branch key as --plan becomes its main plan plus the branch
+	// name, so the preset carries the branch like --branch would.
+	if plan.MasterKey != "" && plan.MasterKey != o.PlanKey && o.Branch == "" {
+		if bs, berr := s.P.ListBranches(ctx, plan.MasterKey); berr == nil {
+			for _, b := range bs {
+				if b.Key == o.PlanKey && b.Name != "" {
+					o.PlanKey, o.Branch = plan.MasterKey, b.Name
+					break
+				}
+			}
+		}
+	}
+	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch, Server: o.Server}
 	ref := PlanRef{PlanKey: o.PlanKey, MasterKey: o.PlanKey}
 	if o.Branch != "" {
 		key, err := s.ResolveBranch(ctx, o.PlanKey, o.Branch)
@@ -92,6 +103,17 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	used, usedKey, err := s.usedVars(ctx, ref, o.From)
 	if err != nil {
 		return d, false, err
+	}
+	// repo_branches can switch a plan's default repository, so list those of
+	// the plan and of the child plans its last build triggered.
+	if plans, perr := s.runPlans(ctx, o.PlanKey, nil); perr == nil {
+		keys := slices.Sorted(maps.Keys(plans))
+		keys = slices.DeleteFunc(keys, func(k string) bool { return k == o.PlanKey })
+		for _, k := range append([]string{o.PlanKey}, keys...) {
+			if repo := defaultRepo(plans[k].build); repo != "" && !slices.Contains(d.Repos, repo) {
+				d.Repos = append(d.Repos, repo)
+			}
+		}
 	}
 
 	declared, err := s.P.ListVariables(ctx, o.PlanKey)

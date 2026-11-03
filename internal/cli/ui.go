@@ -98,7 +98,7 @@ func (r *runtime) openUI(ctx context.Context) error {
 		// SavePreset writes what preset add --from BUILD writes, reading the
 		// files fresh so a preset added since start-up still counts as taken.
 		SavePreset: func(ctx context.Context, svc *app.Service, name, build string) (string, error) {
-			d, err := svc.GenerateTarget(ctx, app.GenerateOptions{Name: name, From: build})
+			d, err := svc.GenerateTarget(ctx, app.GenerateOptions{Name: name, From: build, Server: r.presetServer("")})
 			if err != nil {
 				return "", err
 			}

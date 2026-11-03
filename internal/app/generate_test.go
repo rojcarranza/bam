@@ -12,10 +12,10 @@ import (
 
 func TestGenerateTargetFromDeclaredVariables(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "provision-lab", PlanKey: "PROJ-PROV", Branch: "develop", Full: true})
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "provision-lab", PlanKey: "PROJ-PROV", Branch: "develop"})
 	require.NoError(t, err)
 	assert.Equal(t, config.TargetDraft{
-		Name: "provision-lab", Plan: "PROJ-PROV", Branch: "develop", Full: true,
+		Name: "provision-lab", Plan: "PROJ-PROV", Branch: "develop",
 		Vars: []config.DraftVar{
 			{Name: "cluster_type", Value: "k8s", Comment: "plan default"},
 			{Name: "compute_nodes", Value: "1", Comment: "plan default"},
@@ -74,7 +74,7 @@ func TestGenerateTargetFromBuildKeepsPlanDefaultComment(t *testing.T) {
 	p := fakeBamboo()
 	p.BuildVars["PROJ-PROV12-8"]["cluster_type"] = "k8s"
 	s := newService(t, p)
-	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8", Full: true})
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
 	require.NoError(t, err)
 	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "k8s", Comment: "plan default"}, d.Vars[0])
 }
@@ -142,7 +142,6 @@ func TestGenerateTargetWritesEveryDeclaredVariableByDefault(t *testing.T) {
 	s := newService(t, p)
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV"})
 	require.NoError(t, err)
-	assert.False(t, d.Full)
 	assert.Equal(t, []config.DraftVar{
 		{Name: "cluster_type", Value: "k8s", Comment: "plan default"},
 		{Name: "compute_nodes", Value: "1", Comment: "plan default"},
@@ -168,13 +167,16 @@ func TestGenerateTargetNotesPlanWithoutVariables(t *testing.T) {
 func TestGenerateTargetFromBranchKeyUsesMainPlanVariables(t *testing.T) {
 	p := fakeBamboo()
 	p.Plans["PROJ"] = append(p.Plans["PROJ"], provider.Plan{Key: "PROJ-PROV12", Name: "Provision lab - develop", ProjectKey: "PROJ", MasterKey: "PROJ-PROV"})
+	p.Branches = map[string][]provider.Branch{"PROJ-PROV": {{Key: "PROJ-PROV12", Name: "feature/custom-plan", PlanKey: "PROJ-PROV"}}}
 	s := newService(t, p)
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "dev", PlanKey: "PROJ-PROV12"})
 	require.NoError(t, err)
-	assert.Equal(t, "PROJ-PROV12", d.Plan)
+	// The captain asked (BAM-40 thread) that a custom plan branch land in the preset.
+	assert.Equal(t, "PROJ-PROV", d.Plan)
+	assert.Equal(t, "feature/custom-plan", d.Branch)
 	require.Len(t, d.Vars, 4)
 	assert.Equal(t, "cluster_type", d.Vars[0].Name)
-	assert.Contains(t, d.Note, "main plan PROJ-PROV")
+	assert.Empty(t, d.Note, "the main plan lists the variables itself")
 }
 
 func TestGenerateTargetWithVariablesHasNoNote(t *testing.T) {
@@ -182,4 +184,14 @@ func TestGenerateTargetWithVariablesHasNoNote(t *testing.T) {
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV"})
 	require.NoError(t, err)
 	assert.Empty(t, d.Note)
+}
+
+// BAM-40 thread: repo_branches lists the default repositories of the plan and
+// of the child plans its last build triggered, and the preset names the server.
+func TestGenerateTargetListsDefaultRepositoriesOfPlanAndChildren(t *testing.T) {
+	s := newService(t, repoFake())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "p", PlanKey: "PROJ-PARENT", Server: "work"})
+	require.NoError(t, err)
+	assert.Equal(t, "work", d.Server)
+	assert.Equal(t, []string{"repo-a", "repo-m"}, d.Repos)
 }

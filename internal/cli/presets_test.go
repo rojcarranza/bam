@@ -76,7 +76,10 @@ func TestPresetAddWritesTheProjectFileInThePresetsDirectory(t *testing.T) {
 	project, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	assert.Equal(t, projectYAML, string(project), ".bam.yaml is untouched")
 
-	// The preset works from a directory outside the repository.
+	assert.Contains(t, string(data), "    server: work #", "the preset names the server it was added on")
+	// The preset works from a directory outside the repository, where the
+	// alias is not configured: only BAM_URL is, so drop the server pin.
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), "    server: work #", "    # server: work  #", 1)), 0o600))
 	h.env.WorkDir = t.TempDir()
 	h.vars["BAM_URL"] = workOrigin
 	h.vars["BAM_TOKEN"] = "tok"
@@ -609,13 +612,21 @@ func TestPresetAddMistypedKeysAndNamesGetHints(t *testing.T) {
 
 // Reported (BAM-31): preset add must write the plan's declared variables
 // so they can be filled in; a stored secret stays a comment.
-func TestPresetAddFullAddsScaffoldingToEveryVariable(t *testing.T) {
+// BAM-40: it also writes every other preset key, whether or not --full is given.
+func TestPresetAddWritesEveryPresetKey(t *testing.T) {
 	h := newHarness(t)
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
-	lean := h.stdout.String()
-	assert.Contains(t, lean, `cluster_type: "k8s"  # plan default`)
-	assert.Contains(t, lean, `cluster_name: ""`)
-	assert.NotContains(t, lean, "# watch: true")
+	out := h.stdout.String()
+	assert.Contains(t, out, `cluster_type: "k8s"  # plan default`)
+	assert.Contains(t, out, `cluster_name: ""`)
+	assert.Contains(t, out, "\n    watch: true  #")
+	prev := -1
+	for _, k := range []string{"plan:", "server: work", "# branch:", "# repo_branches:", "variables:", "# options:", "required: [cluster_name]", "watch: true"} {
+		at := strings.Index(out, k)
+		require.GreaterOrEqual(t, at, 0, k)
+		assert.Greater(t, at, prev, "%s is out of order", k)
+		prev = at
+	}
 	h.fake.Variables["PROJ-PROV"] = append(h.fake.Variables["PROJ-PROV"], provider.Variable{Name: "db_password", Value: "********", Masked: true})
 	h.stdout.Reset()
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
@@ -623,12 +634,19 @@ func TestPresetAddFullAddsScaffoldingToEveryVariable(t *testing.T) {
 	assert.Contains(t, withSecret, `# db_password: "${DB_PASSWORD}"`)
 	assert.NotContains(t, withSecret, "\n      db_password:", "a stored secret is not an active line")
 	h.stdout.Reset()
-	h.stdout.Reset()
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--full", "--print"), h.stderr.String())
-	full := h.stdout.String()
-	assert.Contains(t, full, "# plan default")
-	assert.Contains(t, full, "# branch: develop")
-	assert.Contains(t, full, "# watch: true")
+	assert.Equal(t, withSecret, h.stdout.String(), "--full is accepted and changes nothing")
+}
+
+// BAM-40: the file preset add writes loads, shows Watch yes and follows the build.
+func TestPresetAddWrittenFileWatchesByDefault(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-BUILD"), h.stderr.String())
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "show", "x"), h.stderr.String())
+	assert.Regexp(t, `(?i)watch\s+yes`, h.stdout.String())
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("run", "x", "--dry-run"), h.stderr.String())
 }
 
 func TestPresetAddWithNothingCopiedSkipsTheReviewHint(t *testing.T) {

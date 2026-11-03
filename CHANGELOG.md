@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `bam preset add`, `bam init --plan` and the terminal UI's save-as-preset write the server, the plan branch, `watch: true` and `required` (for variables with no plan default) as active lines, and list the plan's and its child plans' repositories under a commented `repo_branches`. A plan branch key given as `--plan` is written as its main plan plus the branch. `--full` no longer does anything.
 - The terminal UI run form runs a preset with `repo_branches` and adds `REPO = BRANCH` or `PLAN:REPO = BRANCH` rows with `b`, picking from the repository's branches in Bamboo or typing; `d` lists the plan branches the run creates or reuses, `ctrl-R` creates them and follows the child plans, and the presets table shows the repository branch.
 - The terminal UI rings the terminal bell once when a build or tree you are watching finishes; set `bell: false` in the machine config to turn it off.
 - The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.

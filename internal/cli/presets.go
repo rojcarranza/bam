@@ -268,8 +268,8 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no\n" +
 			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
 			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
-			"branch. The preset lists only variables that differ from the plan defaults or have no default;\n" +
-			"--full also lists the rest, with commented branch, options and watch lines to fill in.",
+			"branch. The preset lists every variable the plan declares, with its plan default filled in; a secret\n" +
+			"the plan stores is a commented line. --full also adds commented branch, options and watch lines.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
 			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
@@ -290,7 +290,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f.StringVar(&fl.file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
 	f.BoolVar(&fl.printOnly, "print", false, "print the YAML and write nothing")
 	f.BoolVar(&fl.force, "force", false, "replace an existing preset")
-	f.BoolVar(&fl.full, "full", false, "also write variables equal to the plan default and commented branch, options and watch lines")
+	f.BoolVar(&fl.full, "full", false, "also write commented branch, options and watch lines to fill in")
 	_ = cmd.RegisterFlagCompletionFunc("plan", r.completePlans)
 	return cmd
 }

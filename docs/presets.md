@@ -24,7 +24,7 @@ The server is chosen the usual way (`--server`, or your only configured server; 
 
 ### What bam writes
 
-The preset is lean: it lists only the variables you need to look at, with a comment saying where the value came from. A variable that keeps its plan default is left out, since bam already sends the plan's value when the preset does not set one:
+The preset lists every variable the plan declares, with the plan default filled in and a comment saying where the value came from, so you only edit the ones you want to change:
 
     presets:
       deploy-qa:
@@ -32,14 +32,16 @@ The preset is lean: it lists only the variables you need to look at, with a comm
         branch: "main"
         variables:
           region: ""  # no plan default; last used "eu" in PROJ-DEPLOY-41
+          target_env: "qa"  # plan default
           version: ""  # no plan default; last used "2.4.0" in PROJ-DEPLOY-41
+          # deploy_token: "${DEPLOY_TOKEN}"  # masked by Bamboo; set env var DEPLOY_TOKEN
         # required: [region, version]
 
 - A variable with no plan default gets an empty value. The `# required:` line suggests making those required; uncomment it and bam refuses to run until they have a value.
-- A secret the plan already stores is left out too: Bamboo sends the stored value. A secret with no stored value, or any secret under `--full`, becomes a `${ENV_NAME}` reference, such as `deploy_token: "${DEPLOY_TOKEN}"  # masked by Bamboo; set env var DEPLOY_TOKEN`. Export that environment variable; the value never lives in a file.
-- `bam preset show deploy-qa` lists the full set a run would send, plan defaults included.
+- A secret the plan already stores is a commented line: Bamboo keeps sending the stored value. Uncomment it to override the value, and export the `${ENV_NAME}` environment variable; the value never lives in a file. A secret with no stored value is an active `${ENV_NAME}` reference.
+- `bam preset show deploy-qa` lists the variables written in the preset file. A run also sends the plan's own values for variables the preset does not set.
 
-Add `--full` to also list every plan default (commented `# plan default`) and commented `# branch:`, `# options:` and `# watch: true` lines to fill in:
+Add `--full` to also write commented `# branch:`, `# options:` and `# watch: true` lines to fill in:
 
         variables:
           target_env: "qa"  # plan default
@@ -53,7 +55,7 @@ To start from the values a build already ran with, name it with `--from` (a numb
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --from 41
 
-Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. Secrets become `${ENV_NAME}` references only when the plan stores none or with `--full`, since bam cannot read the value a build used. Without `--from`, the last build's values appear only in the comments. A variable whose build value equals the plan default is left out unless you add `--full`.
+Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. A secret the plan stores stays a commented line, since bam cannot read the value a build used; one with no stored value becomes a `${ENV_NAME}` reference. Without `--from`, the last build's values appear only in the comments.
 
 A full build key names the plan too, so `--plan` can go; a branch build also sets the preset's `branch:` unless `--branch` says otherwise:
 

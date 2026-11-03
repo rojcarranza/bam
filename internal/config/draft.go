@@ -11,6 +11,9 @@ type DraftVar struct {
 	Name    string
 	Value   string // literal value or ${ENV} reference
 	Comment string // trailing comment explaining where the value came from
+	// Commented writes the line as a YAML comment, for a secret the plan
+	// already stores: uncommenting it overrides the stored value.
+	Commented bool
 }
 
 // TargetDraft is a generated target, rendered with comments for a human to review.
@@ -64,6 +67,9 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 		var options []string
 		for _, v := range d.Vars {
 			s := yamlKey(v.Name) + ": " + quote(v.Value)
+			if v.Commented {
+				s = "# " + s
+			}
 			if v.Comment != "" {
 				s += "  # " + v.Comment
 			}

@@ -20,8 +20,8 @@ type GenerateOptions struct {
 	PlanKey string // optional when From is a full build key
 	From    string // build whose values fill the preset; default last, used only in comments
 	Branch  string // defaults to the branch of a From build key
-	// Full keeps declared variables equal to the plan default and the
-	// commented scaffolding; the default is a lean preset (spec §3.9).
+	// Full adds the commented branch, options and watch scaffolding. Every
+	// declared variable is written either way (spec §3.9).
 	Full bool
 }
 
@@ -181,10 +181,10 @@ func declaredDrafts(d *config.TargetDraft, declared []provider.Variable, used ma
 		if value == "" && v.Value == "" && !isSecretDraft(dv) {
 			d.Required = append(d.Required, v.Name)
 		}
-		// A secret the plan stores is left out too: the plan already sends it.
-		if !o.Full && value == v.Value && value != "" {
-			continue
-		}
+		// A secret the plan stores is written commented: the plan already
+		// sends it, and an active ${ENV} line would make a run need the
+		// variable. Uncommenting it overrides the stored value.
+		dv.Commented = isSecretDraft(dv) && value == v.Value && value != ""
 		d.Vars = append(d.Vars, dv)
 	}
 	if o.From == "" {

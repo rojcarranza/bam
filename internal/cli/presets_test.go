@@ -607,12 +607,22 @@ func TestPresetAddMistypedKeysAndNamesGetHints(t *testing.T) {
 	}
 }
 
-func TestPresetAddFullKeepsPlanDefaultsAndScaffolding(t *testing.T) {
+// Reported (BAM-31): preset add must write the plan's declared variables
+// so they can be filled in; a stored secret stays a comment.
+func TestPresetAddFullAddsScaffoldingToEveryVariable(t *testing.T) {
 	h := newHarness(t)
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
 	lean := h.stdout.String()
-	assert.NotContains(t, lean, "# plan default")
+	assert.Contains(t, lean, `cluster_type: "k8s"  # plan default`)
+	assert.Contains(t, lean, `cluster_name: ""`)
 	assert.NotContains(t, lean, "# watch: true")
+	h.fake.Variables["PROJ-PROV"] = append(h.fake.Variables["PROJ-PROV"], provider.Variable{Name: "db_password", Value: "********", Masked: true})
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
+	withSecret := h.stdout.String()
+	assert.Contains(t, withSecret, `# db_password: "${DB_PASSWORD}"`)
+	assert.NotContains(t, withSecret, "\n      db_password:", "a stored secret is not an active line")
+	h.stdout.Reset()
 	h.stdout.Reset()
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--full", "--print"), h.stderr.String())
 	full := h.stdout.String()

@@ -79,14 +79,18 @@ func TestPlanSyncMasksNewSecrets(t *testing.T) {
 }
 
 // A lean preset leaves out what the plan already sends; sync must not copy it back.
-func TestPlanSyncKeepsALeanPresetLean(t *testing.T) {
+func TestPlanSyncAddsMissingVariablesButNotStoredSecrets(t *testing.T) {
 	s := newService(t, fakeBamboo())
 	lab := s.Cfg.Project.Targets["provision-lab"]
 	lab.Defaults = config.StringMap{"cluster_name": "x"}
 	s.Cfg.Project.Targets["provision-lab"] = lab
 	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
 	require.NoError(t, err)
-	assert.Empty(t, p.Added, "plan defaults and the stored db_password are not added")
+	var added []string
+	for _, v := range p.Added {
+		added = append(added, v.Name)
+	}
+	assert.Equal(t, []string{"cluster_type", "compute_nodes"}, added, "the stored db_password is sent by the plan, so it is not added")
 	assert.Empty(t, p.Stale)
 }
 

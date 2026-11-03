@@ -358,7 +358,7 @@ func (m Model) loadTreePreview(key string, fresh bool) (Model, tea.Cmd) {
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.treePreviewCancel = cancel
-	return m, treePreviewCmd(ctx, m.svc, key, m.treePreviewGen, fresh)
+	return m, treePreviewCmd(ctx, m.svc, key, m.treePreviewGen, fresh, m.runChildren[key])
 }
 
 // stopTreePreview moves the Tree panel on: a read in flight is cancelled,

@@ -151,3 +151,35 @@ func TestGenerateTargetWritesEveryDeclaredVariableByDefault(t *testing.T) {
 		{Name: "api_secret", Value: "${API_SECRET}", Comment: "masked by Bamboo; set env var API_SECRET"},
 	}, d.Vars, "every declared variable; a stored secret is commented, an empty one is active")
 }
+
+// BAM-37: preset add wrote only name and plan, silently, for a plan that lists
+// no variables (they are global or deployment variables, which bam does not read).
+func TestGenerateTargetNotesPlanWithoutVariables(t *testing.T) {
+	p := fakeBamboo()
+	p.Plans["PROJ"] = append(p.Plans["PROJ"], provider.Plan{Key: "PROJ-GLOB", Name: "Globals only", ProjectKey: "PROJ"})
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "glob", PlanKey: "PROJ-GLOB"})
+	require.NoError(t, err)
+	assert.Empty(t, d.Vars)
+	assert.Contains(t, d.Note, "PROJ-GLOB lists no variables of its own")
+	assert.Contains(t, d.Note, "global and deployment variables are not read")
+}
+
+func TestGenerateTargetFromBranchKeyUsesMainPlanVariables(t *testing.T) {
+	p := fakeBamboo()
+	p.Plans["PROJ"] = append(p.Plans["PROJ"], provider.Plan{Key: "PROJ-PROV12", Name: "Provision lab - develop", ProjectKey: "PROJ", MasterKey: "PROJ-PROV"})
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "dev", PlanKey: "PROJ-PROV12"})
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV12", d.Plan)
+	require.Len(t, d.Vars, 4)
+	assert.Equal(t, "cluster_type", d.Vars[0].Name)
+	assert.Contains(t, d.Note, "main plan PROJ-PROV")
+}
+
+func TestGenerateTargetWithVariablesHasNoNote(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV"})
+	require.NoError(t, err)
+	assert.Empty(t, d.Note)
+}

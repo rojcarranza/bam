@@ -1,0 +1,1 @@
+{"projectKey":"PROJ","shortName":"Build and test - develop","key":"PROJ-BUILD12","type":"chain_branch","enabled":true,"master":{"shortName":"Build and test","type":"chain","enabled":true,"key":"PROJ-BUILD","name":"Example Project - Build and test"}}

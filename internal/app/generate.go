@@ -76,7 +76,8 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if err != nil {
 		return config.TargetDraft{}, false, err
 	}
-	if _, err := s.P.GetPlan(ctx, o.PlanKey); err != nil {
+	plan, err := s.P.GetPlan(ctx, o.PlanKey)
+	if err != nil {
 		return config.TargetDraft{}, false, err
 	}
 	d := config.TargetDraft{Name: o.Name, Plan: o.PlanKey, Branch: o.Branch, Full: o.Full}
@@ -96,7 +97,19 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	declared, err := s.P.ListVariables(ctx, o.PlanKey)
 	switch {
 	case err == nil:
+		// A plan branch lists only the variables it overrides, so a branch
+		// key given as --plan reads its main plan's variables instead.
+		if len(declared) == 0 && plan.MasterKey != "" && plan.MasterKey != o.PlanKey {
+			master, merr := s.P.ListVariables(ctx, plan.MasterKey)
+			if merr == nil && len(master) > 0 {
+				d.Note = fmt.Sprintf("%s is a plan branch with no variables of its own; used the variables of its main plan %s", o.PlanKey, plan.MasterKey)
+				declared = master
+			}
+		}
 		declaredDrafts(&d, declared, used, usedKey, o)
+		if len(declared) == 0 {
+			d.Note = fmt.Sprintf("%s lists no variables of its own; global and deployment variables are not read, so add any the run needs under defaults", o.PlanKey)
+		}
 		return d, true, nil
 	case errors.Is(err, errs.ErrUnsupported):
 		if used == nil {

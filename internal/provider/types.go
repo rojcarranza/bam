@@ -62,7 +62,8 @@ type Plan struct {
 	ProjectKey string
 	URL        string
 	LastBuild  *BuildSummary
-	Disabled   bool // Bamboo will not build it until it is enabled again
+	Disabled   bool   // Bamboo will not build it until it is enabled again
+	MasterKey  string // set when Key is a plan branch: the plan it belongs to
 }
 
 type Branch struct {

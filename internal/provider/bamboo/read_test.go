@@ -237,3 +237,17 @@ func TestCurrentUserNotFoundPointsAtTheURL(t *testing.T) {
 	assert.Equal(t, "no Bamboo REST API at "+strings.TrimSuffix(c.URL(""), "/browse/"), e.What)
 	assert.Contains(t, e.Try, "context path")
 }
+
+// BAM-37: a plan branch answers with its main plan, so preset add can read that plan's variables.
+func TestGetPlanReportsMasterOfBranch(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/plan/PROJ-BUILD12": {fixture: "plan_branch.json"},
+		"GET /rest/api/latest/plan/PROJ-BUILD":   {fixture: "plan.json"},
+	})
+	b, err := c.GetPlan(ctx, "PROJ-BUILD12")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BUILD", b.MasterKey)
+	m, err := c.GetPlan(ctx, "PROJ-BUILD")
+	require.NoError(t, err)
+	assert.Empty(t, m.MasterKey)
+}

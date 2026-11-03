@@ -155,8 +155,12 @@ func (c *Client) GetPlan(ctx context.Context, key string) (provider.Plan, error)
 	if name == "" {
 		name = p.Name
 	}
-	return provider.Plan{Key: p.Key, Name: name, ProjectKey: p.ProjectKey, URL: c.URL(p.Key),
-		Disabled: p.Enabled != nil && !*p.Enabled}, nil
+	plan := provider.Plan{Key: p.Key, Name: name, ProjectKey: p.ProjectKey, URL: c.URL(p.Key),
+		Disabled: p.Enabled != nil && !*p.Enabled}
+	if p.Master != nil {
+		plan.MasterKey = p.Master.Key
+	}
+	return plan, nil
 }
 
 func (c *Client) ListBranches(ctx context.Context, key string) ([]provider.Branch, error) {

@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- `bam preset add`, `bam init --plan` and the terminal UI's save-as-preset write the server, the plan branch, `watch: true` and `required` (for variables with no plan default) as active lines, and list the plan branch's repositories under `repositories:`. A plan branch key given as `--plan` is written as its main plan plus the branch. `--full` no longer does anything.
+- `bam preset add`, `bam init --plan` and the terminal UI's save-as-preset write the server, the plan branch and `watch: true` as active lines, and list the plan branch's repositories under `repositories:`. A plan branch key given as `--plan` is written as its main plan plus the branch. `--full` no longer does anything.
 - `repositories:` in a preset and `--repository NAME=BRANCH` on `bam run`: bam checks which branch each repository built in the plan branch's newest finished job, opens the Repositories tab link when one differs, waits for Enter, then triggers. `bam preset add` writes the current branches. `--json` gains `repositories`.
 - The terminal UI rings the terminal bell once when a build or tree you are watching finishes; set `bell: false` in the machine config to turn it off.
 - The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.
@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- `bam preset add`, `bam init --plan`, `p` in the terminal UI and `bam preset sync` write presets without per-line comments, except `# not declared by the plan`, and no longer write `required` or commented example keys; `bam preset add` then prints a box of up to three values the plan's last 10 builds ran with, for each variable that varied.
 - **Breaking:** `repo_branches` and `--repo-branch` are removed, with plan-branch creation and the TUI repository-branch rows. A preset that still sets `repo_branches` fails with `unknown field`. `--json` keeps `repo_branches` as an empty list.
 - On macOS and Windows, bam moves `config.yaml`, `credentials.yaml` and the fixture denylist from the old config directory (`~/Library/Application Support/bam`, `%LOCALAPPDATA%\bam`) into `~/.config/bam` on first run and prints one line per file, instead of reading the old directory for good; a file already in `~/.config/bam` is never replaced.
 

@@ -88,7 +88,7 @@ When the plan's variables change later, bring the preset up to date:
     bam preset sync provision-lab     # add new plan variables, mark removed ones
     bam preset sync --all --dry-run   # show what every preset would gain, write nothing
 
-Sync appends new variables to `variables` (or `defaults`, whichever the preset uses) with the same values and comments as `preset add`. A variable the plan no longer declares is kept, because it may override a Bamboo global, and marked `# not declared on PROJ-PROV`; the marker goes away if the plan declares it again. Existing values, `options` and `required` are never changed.
+Sync appends new variables to `variables` (or `defaults`, whichever the preset uses) with the same values as `preset add`. A variable the plan no longer declares is kept, because it may override a Bamboo global, and marked `# not declared on PROJ-PROV`; the marker goes away if the plan declares it again. Existing values, `options` and `required` are never changed.
 
 Variable precedence, lowest to highest: plan values, target `defaults`, `--from <build>`, `--var name=value`, then what you change in the editor with `bam run --edit`.
 

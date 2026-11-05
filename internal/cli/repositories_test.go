@@ -169,12 +169,12 @@ func TestPresetAddWritesTheBranchesTheRepositoriesBuildNow(t *testing.T) {
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--branch", "develop", "--print"), h.stderr.String())
 	out := h.stdout.String()
 	assert.Contains(t, out, "    branch: \"develop\"")
-	assert.Contains(t, out, "    repositories:  #")
+	assert.Contains(t, out, "    repositories:\n")
 	assert.Contains(t, out, "      infra-scripts: \"feature/cli-tools\"")
 	assert.Contains(t, out, "      infra-base: \"develop\"")
 
 	require.Equal(t, 0, h.run("preset", "add", "y", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
-	assert.Contains(t, h.stdout.String(), "    # repositories:  #", "without --branch the lines are commented")
+	assert.NotContains(t, h.stdout.String(), "repositories", "without --branch no repositories are written")
 }
 
 // A set checks every preset before its first stage: a preset on another

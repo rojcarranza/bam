@@ -30,7 +30,7 @@ func TestPlanSyncAddsAndMarks(t *testing.T) {
 	assert.Equal(t, "provision-lab", p.Name)
 	assert.Equal(t, "PROJ-PROV", p.Plan)
 	assert.Equal(t, s.Cfg.ProjectPath, p.File)
-	assert.Equal(t, []config.DraftVar{{Name: "cluster_name", Value: "", Comment: `no plan default; last used "beta" in PROJ-PROV12-8`}}, p.Added)
+	assert.Equal(t, []config.DraftVar{{Name: "cluster_name", Value: ""}}, p.Added)
 	assert.Equal(t, []string{"old_flag"}, p.Stale)
 	require.Len(t, p.Edits, 1)
 	assert.Equal(t, SyncEdit{Path: s.Cfg.ProjectPath, KeyPath: []string{"targets"}, Edit: config.TargetEdit{
@@ -75,7 +75,7 @@ func TestPlanSyncMasksNewSecrets(t *testing.T) {
 	s := newService(t, f)
 	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
 	require.NoError(t, err)
-	assert.Contains(t, p.Added, config.DraftVar{Name: "api_secret", Value: "${API_SECRET}", Comment: "masked by Bamboo; set env var API_SECRET"})
+	assert.Contains(t, p.Added, config.DraftVar{Name: "api_secret", Value: "${API_SECRET}"})
 }
 
 // A lean preset leaves out what the plan already sends; sync must not copy it back.

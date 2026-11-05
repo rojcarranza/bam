@@ -104,6 +104,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 		}
 		ref.PlanKey, ref.Branch = key, o.Branch
 	}
+	d.BuildPlan = ref.PlanKey
 	used, usedKey, err := s.usedVars(ctx, ref, o.From)
 	if err != nil {
 		return d, false, err
@@ -134,7 +135,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 		}
 		d.Note = "plan variables are not readable on this server; names come from " + usedKey
 		for _, name := range slices.Sorted(maps.Keys(used)) {
-			d.Vars = append(d.Vars, draftVar(name, used[name], false, used, usedKey, false))
+			d.Vars = append(d.Vars, draftVar(name, used[name], false, used))
 		}
 		return d, false, nil
 	default:
@@ -203,13 +204,7 @@ func declaredDrafts(d *config.TargetDraft, declared []provider.Variable, used ma
 		if bv, ok := used[v.Name]; ok && o.From != "" {
 			value = bv
 		}
-		dv := draftVar(v.Name, value, v.Masked, used, usedKey, true)
-		if value != v.Value && !isSecretDraft(dv) {
-			dv.Comment = "from " + usedKey
-		}
-		if value == "" && v.Value == "" && !isSecretDraft(dv) {
-			d.Required = append(d.Required, v.Name)
-		}
+		dv := draftVar(v.Name, value, v.Masked, used)
 		// A secret the plan stores is written commented: the plan already
 		// sends it, and an active ${ENV} line would make a run need the
 		// variable. Uncommenting it overrides the stored value.
@@ -221,9 +216,9 @@ func declaredDrafts(d *config.TargetDraft, declared []provider.Variable, used ma
 	}
 	for _, name := range slices.Sorted(maps.Keys(used)) {
 		if !names[name] {
-			dv := draftVar(name, used[name], false, used, usedKey, false)
+			dv := draftVar(name, used[name], false, used)
 			if !isSecretDraft(dv) {
-				dv.Comment += "; not declared by the plan"
+				dv.Comment = "not declared by the plan"
 			}
 			d.Vars = append(d.Vars, dv)
 		}
@@ -235,22 +230,12 @@ func isSecretDraft(v config.DraftVar) bool {
 	return ok
 }
 
-func draftVar(name, value string, masked bool, used map[string]string, usedKey string, declared bool) config.DraftVar {
+func draftVar(name, value string, masked bool, used map[string]string) config.DraftVar {
 	if masked || value == MaskedDisplay || used[name] == MaskedDisplay || config.IsMaskedName(name) {
 		env := config.EnvNameFor(name)
-		return config.DraftVar{Name: name, Value: "${" + env + "}", Comment: "masked by Bamboo; set env var " + env}
+		return config.DraftVar{Name: name, Value: "${" + env + "}"}
 	}
-	if !declared {
-		return config.DraftVar{Name: name, Value: value, Comment: "from " + usedKey}
-	}
-	if value != "" {
-		return config.DraftVar{Name: name, Value: value, Comment: "plan default"}
-	}
-	comment := "no plan default"
-	if last := used[name]; last != "" {
-		comment += fmt.Sprintf("; last used %q in %s", last, usedKey)
-	}
-	return config.DraftVar{Name: name, Value: "", Comment: comment}
+	return config.DraftVar{Name: name, Value: value}
 }
 
 // draftRepos lists the repositories of ref with the branch each builds now,
@@ -295,6 +280,60 @@ func repoNames(b provider.Build) []string {
 		if !slices.Contains(out, r.Repository) {
 			out = append(out, r.Repository)
 		}
+	}
+	return out
+}
+
+// RecentLimit is how many of the newest builds RecentValues reads, and
+// RecentShown how many values it keeps per variable.
+const (
+	RecentLimit = 10
+	RecentShown = 3
+)
+
+// RecentVar is a variable that ran with more than one value lately.
+type RecentVar struct {
+	Name   string
+	Values []string // newest first, at most RecentShown
+}
+
+// RecentValues returns, for each variable of d that the last RecentLimit
+// builds of its plan ran with more than one value, up to RecentShown of those
+// values, newest first. Secrets are never listed. A build whose variables
+// cannot be read is skipped; a server that cannot read them gives nothing.
+func (s *Service) RecentValues(ctx context.Context, d config.TargetDraft) []RecentVar {
+	if d.BuildPlan == "" || len(d.Vars) == 0 {
+		return nil
+	}
+	bs, err := s.P.ListBuilds(ctx, d.BuildPlan, provider.ListOptions{Limit: RecentLimit})
+	if err != nil {
+		return nil
+	}
+	if len(bs) > RecentLimit {
+		bs = bs[:RecentLimit]
+	}
+	seen := map[string][]string{}
+	for _, b := range bs {
+		bv, err := s.P.BuildVariables(ctx, b.Key)
+		if errors.Is(err, errs.ErrUnsupported) {
+			return nil
+		}
+		if err != nil {
+			continue
+		}
+		for name, v := range bv {
+			if v != MaskedDisplay && !slices.Contains(seen[name], v) {
+				seen[name] = append(seen[name], v)
+			}
+		}
+	}
+	var out []RecentVar
+	for _, v := range d.Vars {
+		vals := seen[v.Name]
+		if isSecretDraft(v) || len(vals) < 2 {
+			continue
+		}
+		out = append(out, RecentVar{Name: v.Name, Values: vals[:min(len(vals), RecentShown)]})
 	}
 	return out
 }

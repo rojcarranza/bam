@@ -24,28 +24,27 @@ The server is chosen the usual way (`--server`, or your only configured server; 
 
 ### What bam writes
 
-The preset lists every variable the plan declares, with the plan default filled in and a comment saying where the value came from, so you only edit the ones you want to change:
+The preset lists every variable the plan declares, with the plan default filled in, so you only edit the ones you want to change. It carries no per-line comments:
 
     presets:
       deploy-qa:
         plan: PROJ-DEPLOY
-        server: work  # the server this preset runs on
+        server: work
         branch: "main"
-        repositories:  # branch each repository of the plan branch builds; needs branch:
+        repositories:
           repo-a: "feature/PROJ-101"
         variables:
-          region: ""  # no plan default; last used "eu" in PROJ-DEPLOY-41
-          target_env: "qa"  # plan default
-          version: ""  # no plan default; last used "2.4.0" in PROJ-DEPLOY-41
-          # deploy_token: "${DEPLOY_TOKEN}"  # masked by Bamboo; set env var DEPLOY_TOKEN
-        # options:  # allowed values per variable; a run with another value is refused
-        #   target_env: ["qa"]
-        required: [region, version]  # a run with an empty value is refused
-        watch: true  # follow the build without --watch; --watch=false skips it
+          region: ""
+          target_env: "qa"
+          version: ""
+          # deploy_token: "${DEPLOY_TOKEN}"
+        watch: true
 
-Every preset key a run uses is written each time, in this order, so you can see what a preset can do. `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables, `required` (when a variable has no plan default) and `watch: true` are active. `branch` is active when the plan is a plan branch or you pass `--branch`, and `repositories` lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build), and is commented, with no branch, when bam cannot read them. `options` is a commented example. `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing.
+bam writes only keys it has a value for: `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables and `watch: true`. `branch` is written when the plan is a plan branch or you pass `--branch`, and `repositories` then lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build); when bam cannot read a repository's branch, the repositories are written commented. bam never writes `required` or `options`; add them yourself (see below). `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing. Two comments can appear: `# not declared by the plan` on a variable the plan does not declare, and a note when bam cannot read the plan's variables.
 
-- A variable with no plan default gets an empty value, and `required` lists those variables: bam refuses to run until they have a value. Delete the line to drop the check.
+When it finishes, `preset add` also prints a box, in the terminal only, of values to choose from: for each variable that ran with more than one value in the last 10 builds of the plan (or plan branch), up to three values, newest first. Secrets are never listed. Nothing is printed when no variable varied or the server cannot read build variables.
+
+- A variable with no plan default gets an empty value, which bam sends as empty. Add `required` yourself to refuse a run until it has a value.
 - `watch: true` makes `bam run deploy-qa` follow the build. Run `bam run deploy-qa --watch=false` to skip it for one run.
 - A secret the plan already stores is a commented line: Bamboo keeps sending the stored value. Uncomment it to override the value, and export the `${ENV_NAME}` environment variable; the value never lives in a file. A secret with no stored value is an active `${ENV_NAME}` reference.
 - `bam preset show deploy-qa` lists the variables written in the preset file. A run also sends the plan's own values for variables the preset does not set.
@@ -54,7 +53,7 @@ To start from the values a build already ran with, name it with `--from` (a numb
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --from 41
 
-Each variable then takes build #41's value, commented `# from PROJ-DEPLOY-41` when it differs from the plan default. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. A secret the plan stores stays a commented line, since bam cannot read the value a build used; one with no stored value becomes a `${ENV_NAME}` reference. Without `--from`, the last build's values appear only in the comments.
+Each variable then takes build #41's value. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. A secret the plan stores stays a commented line, since bam cannot read the value a build used; one with no stored value becomes a `${ENV_NAME}` reference.
 
 A full build key names the plan too, so `--plan` can go; a branch build also sets the preset's `branch:` unless `--branch` says otherwise:
 
@@ -64,7 +63,7 @@ In `bam ui`, press `p` on a build in the plan screen to do the same: it asks for
 
 ### Set the values
 
-Edit the file and fill in `variables`. Delete variables you never change, so they keep the plan's value. Uncomment `required` and `options` if you want bam to check values before it triggers:
+Edit the file and fill in `variables`. Delete variables you never change, so they keep the plan's value. Add `required` and `options` if you want bam to check values before it triggers:
 
     variables:
       target_env: "qa"

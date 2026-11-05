@@ -207,7 +207,7 @@ func TestUISavePresetWritesWhatPresetAddWrites(t *testing.T) {
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Contains(t, string(data), `branch: "develop"`)
-	require.Contains(t, string(data), `cluster_type: "dcos" # from PROJ-PROV12-8`)
+	require.Contains(t, string(data), `cluster_type: "dcos"`)
 
 	_, err = d.SavePreset(context.Background(), svc, "from-ui", "PROJ-PROV12-8")
 	require.Error(t, err, "an existing preset is never replaced from the UI")

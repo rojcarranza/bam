@@ -45,7 +45,7 @@ func TestTargetAddWritesProjectFile(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "prov2:")
-	assert.Contains(t, string(data), `no plan default; last used "beta" in PROJ-PROV12-8`)
+	assert.NotContains(t, string(data), "last used", "preset add writes no per-variable comments")
 
 	assert.Equal(t, 0, h.run("preset", "show", "prov2"), "the written file loads")
 	assert.Equal(t, 2, h.run("preset", "add", "build", "--plan", "PROJ-BUILD", "--shared"), "exists without --force")
@@ -76,10 +76,10 @@ func TestPresetAddWritesTheProjectFileInThePresetsDirectory(t *testing.T) {
 	project, _ := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
 	assert.Equal(t, projectYAML, string(project), ".bam.yaml is untouched")
 
-	assert.Contains(t, string(data), "    server: work #", "the preset names the server it was added on")
+	assert.Contains(t, string(data), "    server: work\n", "the preset names the server it was added on")
 	// The preset works from a directory outside the repository, where the
 	// alias is not configured: only BAM_URL is, so drop the server pin.
-	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), "    server: work #", "    # server: work  #", 1)), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte(strings.Replace(string(data), "    server: work\n", "", 1)), 0o600))
 	h.env.WorkDir = t.TempDir()
 	h.vars["BAM_URL"] = workOrigin
 	h.vars["BAM_TOKEN"] = "tok"
@@ -310,11 +310,11 @@ func TestTargetSyncAddsThenUpToDate(t *testing.T) {
 	path := filepath.Join(h.root, ".bam.yaml")
 	assert.Equal(t, 0, h.run("preset", "sync", "provision-lab"))
 	assert.Contains(t, h.stdout.String(), "provision-lab  PROJ-PROV  .bam.yaml\n")
-	assert.Regexp(t, `\+\s+cluster_name\s+""\s+no plan default; last used "beta" in PROJ-PROV12-8`, h.stdout.String())
+	assert.Regexp(t, `\+\s+cluster_name\s+""`, h.stdout.String())
 	assert.Contains(t, h.stderr.String(), "review before commit: values copied from Bamboo")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
-	assert.Contains(t, string(data), "      cluster_type: k8s\n      cluster_name: \"\" # no plan default; last used \"beta\" in PROJ-PROV12-8\n")
+	assert.Contains(t, string(data), "      cluster_type: k8s\n      cluster_name: \"\"\n")
 	assert.Contains(t, string(data), "    required: [cluster_name]\n", "required is untouched")
 
 	assert.Equal(t, 0, h.run("preset", "sync", "provision-lab"))
@@ -575,7 +575,7 @@ func TestPresetAddFromBuildKeyNeedsNoPlan(t *testing.T) {
 	out := h.stdout.String()
 	assert.Contains(t, out, "    plan: PROJ-PROV\n")
 	assert.Contains(t, out, `    branch: "develop"`)
-	assert.Contains(t, out, `cluster_type: "dcos"  # from PROJ-PROV12-8`)
+	assert.Contains(t, out, `cluster_type: "dcos"`)
 	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", workOrigin+"/browse/PROJ-PROV12-8", "--print"), h.stderr.String())
 	assert.Equal(t, out, h.stdout.String(), "a build page link works like its key")
 	assert.Equal(t, 2, h.run("preset", "add", "x", "--from", "last"), "--from last still needs --plan")
@@ -617,11 +617,15 @@ func TestPresetAddWritesEveryPresetKey(t *testing.T) {
 	h := newHarness(t)
 	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--print"), h.stderr.String())
 	out := h.stdout.String()
-	assert.Contains(t, out, `cluster_type: "k8s"  # plan default`)
+	assert.Contains(t, out, `cluster_type: "k8s"`+"\n")
 	assert.Contains(t, out, `cluster_name: ""`)
-	assert.Contains(t, out, "\n    watch: true  #")
+	assert.Contains(t, out, "\n    watch: true\n")
+	assert.NotContains(t, out, "#", "a plain preset carries no comments")
+	for _, gone := range []string{"required", "options"} {
+		assert.NotContains(t, out, gone)
+	}
 	prev := -1
-	for _, k := range []string{"plan:", "server: work", "# branch:", "# repositories:", "variables:", "# options:", "required: [cluster_name]", "watch: true"} {
+	for _, k := range []string{"plan:", "server: work", "variables:", "watch: true"} {
 		at := strings.Index(out, k)
 		require.GreaterOrEqual(t, at, 0, k)
 		assert.Greater(t, at, prev, "%s is out of order", k)
@@ -670,4 +674,25 @@ func TestPresetAddWithNothingCopiedSkipsTheReviewHint(t *testing.T) {
 	assert.Equal(t, 0, h.run("preset", "add", "b2", "--plan", "PROJ-BUILD"))
 	assert.Contains(t, h.stdout.String(), "added preset b2 to ")
 	assert.NotContains(t, h.stderr.String(), "review before commit", "a preset with no variables copied nothing from Bamboo")
+}
+
+// When preset add finishes it prints a box of values the last builds
+// ran with, for variables that varied; a plan whose builds never varied gets none.
+func TestPresetAddPrintsBoxOfRecentValues(t *testing.T) {
+	h := newHarness(t)
+	h.fake.History["PROJ-PROV12"] = []provider.Build{{Key: "PROJ-PROV12-9", Number: 9}, {Key: "PROJ-PROV12-8", Number: 8}}
+	h.fake.BuildVars["PROJ-PROV12-9"] = map[string]string{"cluster_type": "k8s", "cluster_name": "beta"}
+	require.Equal(t, 0, h.run("preset", "add", "x", "--plan", "PROJ-PROV", "--branch", "develop"), h.stderr.String())
+	out := h.stdout.String()
+	assert.Contains(t, out, "values to choose from: recent builds of PROJ-PROV12")
+	assert.Contains(t, out, `cluster_type  "k8s"  "dcos"`)
+	assert.NotContains(t, out, "cluster_name", "a variable that never varied is not listed")
+	data, err := os.ReadFile(filepath.Join(h.root, ".bam.yaml"))
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "values to choose from", "the box is not written to the file")
+
+	h.stdout.Reset()
+	h.fake.BuildVars["PROJ-PROV12-9"] = h.fake.BuildVars["PROJ-PROV12-8"]
+	require.Equal(t, 0, h.run("preset", "add", "y", "--plan", "PROJ-PROV", "--branch", "develop"), h.stderr.String())
+	assert.NotContains(t, h.stdout.String(), "values to choose from")
 }

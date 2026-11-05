@@ -1,6 +1,6 @@
 # bam: a repository's branch for a run and its child plans (`bam run --repo-branch`)
 
-**Status:** Implemented (terminal UI run form: §12) | **Date:** 2026-11-02
+**Status:** Superseded: `repo_branches`, `--repo-branch` and plan-branch creation were removed in favour of `repositories:` and `--repository`, which check the plan branch's repositories and let you switch them in Bamboo (see [Presets](../../presets.md#build-other-repository-branches)). Kept as history. | **Date:** 2026-11-02
 **Issue:** #130
 **Builds on:** [`2026-09-12-bam-cli-mvp-design.md`](2026-09-12-bam-cli-mvp-design.md) (§7 JSON contract), [`2026-09-24-bam-v0.3-run-revision-design.md`](2026-09-24-bam-v0.3-run-revision-design.md) (per-run choices on `PlanRef`), [`2026-10-08-bam-build-tree-design.md`](2026-10-08-bam-build-tree-design.md) (finding a build's children)
 

@@ -46,7 +46,7 @@ A running build carries the server's duration estimate as well:
 
 `key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked. `warnings` repeats the warnings printed to stderr (an undeclared `--var`, or on a dry run a plan disabled in Bamboo), `[]` when there are none.
 
-`repositories` is the branch each repository of the plan branch must build for this run (the preset's entries with `--repository` laid over), `{}` without any.
+`repositories` is the branch each repository of the plan branch must build for this run (the preset's entries with `--repository` laid over), `{}` without any. `repo_branches` is always empty (`[]`); the field stays so existing readers keep working.
 
 When the plan branch does not build the wanted branches and the output is JSON, bam stops before triggering and prints the Repositories tab link in the error.
 

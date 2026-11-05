@@ -10,20 +10,22 @@ import (
 type DraftVar struct {
 	Name    string
 	Value   string // literal value or ${ENV} reference
-	Comment string // trailing comment explaining where the value came from
+	Comment string // trailing warning, only "not declared by the plan"
 	// Commented writes the line as a YAML comment, for a secret the plan
 	// already stores: uncommenting it overrides the stored value.
 	Commented bool
 }
 
-// TargetDraft is a generated target, rendered with comments for a human to review.
+// TargetDraft is a generated target, rendered for a human to review.
 type TargetDraft struct {
-	Name     string
-	Plan     string
-	Branch   string // written uncommented only when the user chose one
-	Vars     []DraftVar
-	Required []string // variables with no plan default, written as an active required line
-	Note     string   // explanation when no variables could be read
+	Name   string
+	Plan   string
+	Branch string // written uncommented only when the user chose one
+	Vars   []DraftVar
+	// BuildPlan is the plan or plan branch key whose builds the preset runs;
+	// it is not rendered.
+	BuildPlan string
+	Note      string // explanation when no variables could be read
 	// Server is the alias written as an active server line; empty writes a
 	// commented example instead.
 	Server string
@@ -70,38 +72,31 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 		line(1, "# "+d.Note)
 	}
 	if d.Server != "" {
-		line(1, "server: "+yamlKey(d.Server)+"  # the server this preset runs on")
-	} else {
-		line(1, "# server: work  # server alias to run on; default is the one bam picks")
+		line(1, "server: "+yamlKey(d.Server))
 	}
 	if d.Branch != "" {
 		line(1, "branch: "+quote(d.Branch))
-	} else {
-		line(1, "# branch: develop  # plan branch to run; default is the main plan")
 	}
-	repos := d.Repos
-	if len(repos) == 0 {
-		repos = []DraftRepo{{Name: "repo-a"}}
-	}
-	active := d.Branch != "" && len(d.Repos) > 0
-	for _, r := range repos {
-		active = active && r.Branch != ""
-	}
-	prefix, depth := "#   ", 1
-	if active {
-		line(1, "repositories:  # branch each repository of the plan branch builds; bam asks you to switch it when the last build differs")
-		prefix, depth = "", 2
-	} else {
-		line(1, "# repositories:  # branch each repository of the plan branch builds; needs branch:")
-	}
-	for _, r := range repos {
-		branch := r.Branch
-		if branch == "" {
-			branch = "BRANCH"
+	// Repositories are written only with a plan branch. When bam cannot read
+	// a repository's branch they are commented, so the names are not lost.
+	if len(d.Repos) > 0 && d.Branch != "" {
+		active := true
+		for _, r := range d.Repos {
+			active = active && r.Branch != ""
 		}
-		line(depth, prefix+yamlKey(r.Name)+": "+quote(branch))
+		prefix, depth := "# ", 1
+		if active {
+			prefix, depth = "", 2
+		}
+		line(1, prefix+"repositories:")
+		for _, r := range d.Repos {
+			branch := r.Branch
+			if branch == "" {
+				branch = "BRANCH"
+			}
+			line(depth, prefix+yamlKey(r.Name)+": "+quote(branch))
+		}
 	}
-	var options []string
 	if len(d.Vars) > 0 {
 		line(1, varsKey+":")
 		for _, v := range d.Vars {
@@ -113,32 +108,9 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 				s += "  # " + v.Comment
 			}
 			line(2, s)
-			if _, ref := EnvRef(v.Value); !ref && v.Value != "" {
-				options = append(options, "#   "+yamlKey(v.Name)+": ["+quote(v.Value)+"]")
-			}
 		}
 	}
-	line(1, "# options:  # allowed values per variable; a run with another value is refused")
-	if len(options) == 0 {
-		name := "NAME"
-		if len(d.Vars) > 0 {
-			name = yamlKey(d.Vars[0].Name)
-		}
-		options = []string{"#   " + name + `: ["a", "b"]`}
-	}
-	for _, o := range options {
-		line(1, o)
-	}
-	if len(d.Required) > 0 {
-		line(1, "required: ["+strings.Join(d.Required, ", ")+"]  # a run with an empty value is refused")
-	} else {
-		name := "NAME"
-		if len(d.Vars) > 0 {
-			name = yamlKey(d.Vars[0].Name)
-		}
-		line(1, "# required: ["+name+"]  # refuse a run where these have no value")
-	}
-	line(1, "watch: true  # follow the build without --watch; --watch=false skips it")
+	line(1, "watch: true")
 	return b.String()
 }
 

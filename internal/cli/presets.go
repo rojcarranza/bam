@@ -3,10 +3,13 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"maps"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
@@ -263,8 +266,11 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 		if f.shared {
 			key = "targets"
 		}
-		_, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d))
-		return err
+		if _, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d)); err != nil {
+			return err
+		}
+		printRecentBox(r.env.Stderr, d.BuildPlan, svc.RecentValues(cmd.Context(), d))
+		return nil
 	}
 	path, err := f.save(r, d)
 	if err != nil {
@@ -277,7 +283,38 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 	if len(d.Vars) > 0 {
 		fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
 	}
+	printRecentBox(r.env.Stdout, d.BuildPlan, svc.RecentValues(cmd.Context(), d))
 	return nil
+}
+
+// printRecentBox lists the values recent builds of plan ran with, for the
+// variables that varied, so a person can pick one when editing the preset.
+// It prints nothing when no variable varied.
+func printRecentBox(w io.Writer, plan string, vars []app.RecentVar) {
+	if len(vars) == 0 {
+		return
+	}
+	width := 0
+	for _, v := range vars {
+		width = max(width, len(v.Name))
+	}
+	rows := make([]string, len(vars))
+	inner := 0
+	for i, v := range vars {
+		q := make([]string, len(v.Values))
+		for j, val := range v.Values {
+			q[j] = strconv.Quote(val)
+		}
+		rows[i] = fmt.Sprintf("%-*s  %s", width, v.Name, strings.Join(q, "  "))
+		inner = max(inner, utf8.RuneCountInString(rows[i]))
+	}
+	title := fmt.Sprintf("values to choose from: recent builds of %s", plan)
+	inner = max(inner, utf8.RuneCountInString(title)+1)
+	fmt.Fprintf(w, "┌─ %s %s┐\n", title, strings.Repeat("─", inner-utf8.RuneCountInString(title)-1))
+	for _, row := range rows {
+		fmt.Fprintf(w, "│ %s%s │\n", row, strings.Repeat(" ", inner-utf8.RuneCountInString(row)))
+	}
+	fmt.Fprintf(w, "└─%s┘\n", strings.Repeat("─", inner+1))
 }
 
 func newTargetAddCmd(r *runtime) *cobra.Command {
@@ -294,7 +331,9 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
 			"branch. The preset lists every variable the plan declares, with its plan default filled in; a secret\n" +
 			"the plan stores is a commented line. It also writes the server you connected to, the plan branch,\n" +
-			"watch: true, required (for variables with no plan default) and commented options lines.",
+			"and watch: true, with no per-line comments except one on a variable the plan does not declare.\n" +
+			"When it finishes it prints a box, in the terminal only, with up to three values the last 10\n" +
+			"builds ran with, for each variable that varied.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
 			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
@@ -428,7 +467,7 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 		Use:               "sync <name> | --all",
 		Short:             "Add new plan variables to a preset and mark removed ones",
 		Example:           "  bam preset sync provision --dry-run\n  bam preset sync provision\n  bam preset sync --all",
-		Long:              "sync compares a preset with its plan's declared variables. New variables that preset add\nwould write (no plan default, or an empty secret) are added to the preset's variables (or\ndefaults, if the preset uses that older key) with the same values and comments. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
+		Long:              "sync compares a preset with its plan's declared variables. New variables that preset add\nwould write (no plan default, or an empty secret) are added to the preset's variables (or\ndefaults, if the preset uses that older key) with the same values as preset add. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE:              r.wrap(s.run),

@@ -17,12 +17,12 @@ func TestGenerateTargetFromDeclaredVariables(t *testing.T) {
 	assert.Equal(t, config.TargetDraft{
 		Name: "provision-lab", Plan: "PROJ-PROV", Branch: "develop",
 		Vars: []config.DraftVar{
-			{Name: "cluster_type", Value: "k8s", Comment: "plan default"},
-			{Name: "compute_nodes", Value: "1", Comment: "plan default"},
-			{Name: "cluster_name", Value: "", Comment: `no plan default; last used "beta" in PROJ-PROV12-8`},
-			{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD", Commented: true},
+			{Name: "cluster_type", Value: "k8s"},
+			{Name: "compute_nodes", Value: "1"},
+			{Name: "cluster_name", Value: ""},
+			{Name: "db_password", Value: "${DB_PASSWORD}", Commented: true},
 		},
-		Required: []string{"cluster_name"},
+		BuildPlan: "PROJ-PROV12",
 	}, d)
 }
 
@@ -34,7 +34,7 @@ func TestGenerateTargetWithoutDeclaredList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, d.Note, "names come from PROJ-PROV12-8")
 	assert.Len(t, d.Vars, 5)
-	assert.Equal(t, config.DraftVar{Name: "cluster_name", Value: "beta", Comment: "from PROJ-PROV12-8"}, d.Vars[0])
+	assert.Equal(t, config.DraftVar{Name: "cluster_name", Value: "beta"}, d.Vars[0])
 }
 
 func TestGenerateTargetWithNothingReadable(t *testing.T) {
@@ -61,32 +61,30 @@ func TestGenerateTargetFillsValuesFromNamedBuild(t *testing.T) {
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
 	require.NoError(t, err)
 	assert.Equal(t, []config.DraftVar{
-		{Name: "cluster_type", Value: "dcos", Comment: "from PROJ-PROV12-8"},
-		{Name: "compute_nodes", Value: "3", Comment: "from PROJ-PROV12-8"},
-		{Name: "cluster_name", Value: "beta", Comment: "from PROJ-PROV12-8"},
-		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD", Commented: true},
-		{Name: "global_flag", Value: "x", Comment: "from PROJ-PROV12-8; not declared by the plan"},
+		{Name: "cluster_type", Value: "dcos"},
+		{Name: "compute_nodes", Value: "3"},
+		{Name: "cluster_name", Value: "beta"},
+		{Name: "db_password", Value: "${DB_PASSWORD}", Commented: true},
+		{Name: "global_flag", Value: "x", Comment: "not declared by the plan"},
 	}, d.Vars)
-	assert.Empty(t, d.Required)
 }
 
-func TestGenerateTargetFromBuildKeepsPlanDefaultComment(t *testing.T) {
+func TestGenerateTargetFromBuildKeepsPlanDefault(t *testing.T) {
 	p := fakeBamboo()
 	p.BuildVars["PROJ-PROV12-8"]["cluster_type"] = "k8s"
 	s := newService(t, p)
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
 	require.NoError(t, err)
-	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "k8s", Comment: "plan default"}, d.Vars[0])
+	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "k8s"}, d.Vars[0])
 }
 
-func TestGenerateTargetFromBuildEmptyValueOverPlanDefaultIsNotRequired(t *testing.T) {
+func TestGenerateTargetFromBuildEmptyValueOverPlanDefault(t *testing.T) {
 	p := fakeBamboo()
 	p.BuildVars["PROJ-PROV12-8"]["compute_nodes"] = ""
 	s := newService(t, p)
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
 	require.NoError(t, err)
-	assert.Contains(t, d.Vars, config.DraftVar{Name: "compute_nodes", Value: "", Comment: "from PROJ-PROV12-8"})
-	assert.NotContains(t, d.Required, "compute_nodes", "the build ran with it empty on purpose")
+	assert.Contains(t, d.Vars, config.DraftVar{Name: "compute_nodes", Value: ""})
 }
 
 func TestGenerateTargetFromBuildNeedsReadableVariables(t *testing.T) {
@@ -107,7 +105,7 @@ func TestGenerateTargetFromBuildKeyImpliesPlanAndBranch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-PROV", d.Plan)
 	assert.Equal(t, "develop", d.Branch)
-	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "dcos", Comment: "from PROJ-PROV12-8"}, d.Vars[0])
+	assert.Equal(t, config.DraftVar{Name: "cluster_type", Value: "dcos"}, d.Vars[0])
 
 	d, err = s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "feat/foo", From: "PROJ-PROV12-8"})
 	require.NoError(t, err)
@@ -143,11 +141,11 @@ func TestGenerateTargetWritesEveryDeclaredVariableByDefault(t *testing.T) {
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV"})
 	require.NoError(t, err)
 	assert.Equal(t, []config.DraftVar{
-		{Name: "cluster_type", Value: "k8s", Comment: "plan default"},
-		{Name: "compute_nodes", Value: "1", Comment: "plan default"},
-		{Name: "cluster_name", Value: "", Comment: "no plan default"},
-		{Name: "db_password", Value: "${DB_PASSWORD}", Comment: "masked by Bamboo; set env var DB_PASSWORD", Commented: true},
-		{Name: "api_secret", Value: "${API_SECRET}", Comment: "masked by Bamboo; set env var API_SECRET"},
+		{Name: "cluster_type", Value: "k8s"},
+		{Name: "compute_nodes", Value: "1"},
+		{Name: "cluster_name", Value: ""},
+		{Name: "db_password", Value: "${DB_PASSWORD}", Commented: true},
+		{Name: "api_secret", Value: "${API_SECRET}"},
 	}, d.Vars, "every declared variable; a stored secret is commented, an empty one is active")
 }
 
@@ -217,4 +215,36 @@ func TestGenerateTargetFallsBackToTheNamesOfTheNewestBuild(t *testing.T) {
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "p", PlanKey: "PROJ-PARENT", Branch: "tst"})
 	require.NoError(t, err)
 	assert.Equal(t, []config.DraftRepo{{Name: "app"}, {Name: "scripts"}}, d.Repos)
+}
+
+// The box lists values of a variable that varied across the last
+// builds, newest first, at most three, and never a secret or a constant one.
+func TestRecentValuesListsVariedVariablesNewestFirst(t *testing.T) {
+	p := fakeBamboo()
+	p.History["PROJ-PROV12"] = []provider.Build{
+		{Key: "PROJ-PROV12-12", Number: 12}, {Key: "PROJ-PROV12-11", Number: 11},
+		{Key: "PROJ-PROV12-10", Number: 10}, {Key: "PROJ-PROV12-9", Number: 9},
+	}
+	p.BuildVars = map[string]map[string]string{
+		"PROJ-PROV12-12": {"cluster_type": "k8s", "compute_nodes": "1", "db_password": "********", "cluster_name": "a"},
+		"PROJ-PROV12-11": {"cluster_type": "dcos", "compute_nodes": "1", "db_password": "********", "cluster_name": "a"},
+		"PROJ-PROV12-10": {"cluster_type": "k8s", "compute_nodes": "1", "db_password": "********", "cluster_name": "b"},
+		"PROJ-PROV12-9":  {"cluster_type": "nomad", "compute_nodes": "1", "db_password": "********", "cluster_name": "c"},
+	}
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "x", PlanKey: "PROJ-PROV", Branch: "develop"})
+	require.NoError(t, err)
+	assert.Equal(t, []RecentVar{
+		{Name: "cluster_type", Values: []string{"k8s", "dcos", "nomad"}},
+		{Name: "cluster_name", Values: []string{"a", "b", "c"}},
+	}, s.RecentValues(bg, d))
+}
+
+func TestRecentValuesEmptyWhenServerCannotReadBuildVariables(t *testing.T) {
+	p := fakeBamboo()
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "x", PlanKey: "PROJ-PROV", Branch: "develop"})
+	require.NoError(t, err)
+	p.BuildVarsErr = errs.Bamboof("no").Wrap(errs.ErrUnsupported)
+	assert.Empty(t, s.RecentValues(bg, d))
 }

@@ -131,7 +131,7 @@ A preset is a plan plus the variable values you run it with, under a name you ch
     $ bam preset add ci --plan BAMCI-BUILD
     added preset ci to ~/bam/presets/bamci.yaml
 
-bam writes only `plan:` and the variables that have no plan default, here an empty `cluster_config`. Open the file, set the values, and add the keys you want. Filled in, the two files look like this; only `plan` is required.
+bam writes `plan:`, the server you added it on, every variable the plan declares with its plan default filled in, and `watch: true`, with no per-line comments. When a variable ran with different values in the plan's last 10 builds, `preset add` also prints a box in the terminal listing up to three of them, newest first, so you can pick one. Open the file, set the values, and add the keys you want, such as `options` and `required`. Filled in, the two files look like this; only `plan` is required.
 
 `~/bam/presets/forge.yaml`:
 

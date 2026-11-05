@@ -135,14 +135,7 @@ projects: [PROJ, OPS]
 targets:
   prov:
     plan: PROJ-PROV
-    # server: work  # server alias to run on; default is the one bam picks
-    # branch: develop  # plan branch to run; default is the main plan
-    # repositories:  # branch each repository of the plan branch builds; needs branch:
-    #   repo-a: "BRANCH"
-    # options:  # allowed values per variable; a run with another value is refused
-    #   NAME: ["a", "b"]
-    # required: [NAME]  # refuse a run where these have no value
-    watch: true  # follow the build without --watch; --watch=false skips it
+    watch: true
 `, string(data))
 
 	err := WriteInitFile(path, f, nil, false)

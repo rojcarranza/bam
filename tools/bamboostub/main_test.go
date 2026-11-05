@@ -149,57 +149,36 @@ func TestChildPlanRunsAfterItsParent(t *testing.T) {
 	require.Len(t, children(), 1, "the child plan has no child of its own")
 }
 
-// TestBranchBuildQueuesTheChildsBranch: bam run --repo-branch (issue #130)
-// creates a plan branch on the parent and the child, then runs the parent's;
-// the stub has to keep the branches and start the child's branch of the same
-// name, as Bamboo does, for bam run --watch to have that tree to follow.
-// TestRepositoryBranchesAreListed: the run form picks from this list.
-func TestRepositoryBranchesAreListed(t *testing.T) {
-	_, c := testStub(t)
-	got, err := c.ListRepoBranches(context.Background(), "PROJ-BUILD")
-	require.NoError(t, err)
-	assert.Contains(t, got, "feature/PROJ-101")
-	assert.Contains(t, got, "main")
-}
-
-func TestBranchBuildQueuesTheChildsBranch(t *testing.T) {
+// TestFinishedJobsRecordTheRepoFlagsBranch: with -repo, a finished job's
+// metadata names the repository and branch it built, as Bamboo does, so bam
+// run can compare it with a preset's repositories. A queued build has none.
+func TestFinishedJobsRecordTheRepoFlagsBranch(t *testing.T) {
 	s, c := testStub(t)
-	s.child = "PROJ-OLD"
+	s.repoName, s.repoBranch = "app", "feature/cli-tools"
 	ctx := context.Background()
 
-	child, err := c.CreateBranch(ctx, "PROJ-OLD", "feature-PROJ-101", "feature/PROJ-101")
+	done, err := c.GetBuild(ctx, "PROJ-BUILD-482")
 	require.NoError(t, err)
-	assert.Equal(t, "PROJ-OLD20", child.Key)
-	parent, err := c.CreateBranch(ctx, "PROJ-BUILD", "feature-PROJ-101", "feature/PROJ-101")
-	require.NoError(t, err)
-	assert.Equal(t, "PROJ-BUILD20", parent.Key)
-	assert.Equal(t, "feature-PROJ-101", parent.ShortName)
+	var seen int
+	for _, st := range done.Stages {
+		for _, j := range st.Jobs {
+			if j.State.Finished() {
+				seen++
+				assert.Equal(t, map[string]string{"app": "feature/cli-tools"}, j.Branches, j.Key)
+			}
+		}
+	}
+	require.NotZero(t, seen)
 
-	branches, err := c.ListBranches(ctx, "PROJ-BUILD")
+	run, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
 	require.NoError(t, err)
-	require.Len(t, branches, 3, "the fixture's two, then the one created")
-	assert.Equal(t, provider.Branch{Key: "PROJ-BUILD20", Name: "Example Project - Build and test - feature-PROJ-101",
-		ShortName: "feature-PROJ-101", PlanKey: "PROJ-BUILD", URL: c.URL("PROJ-BUILD20")}, branches[2])
-
-	_, err = c.CreateBranch(ctx, "PROJ-BUILD", "feature-PROJ-101", "feature/PROJ-101")
-	require.Error(t, err, "a plan branch name is unique per plan")
-
-	run, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD20"})
+	queued, err := c.GetBuild(ctx, run.Key)
 	require.NoError(t, err)
+	assert.Nil(t, queued.Stages[0].Jobs[0].Branches, "an unfinished job has no recorded branch")
 	advance(s, s.queued+s.running)
-	kids, err := c.ListBuilds(ctx, "PROJ-OLD20", provider.ListOptions{Limit: 1, Unfinished: true})
+	finished, err := c.GetBuild(ctx, run.Key)
 	require.NoError(t, err)
-	require.Len(t, kids, 1, "the parent's branch build queued the child's branch")
-	assert.Equal(t, "Child of "+run.Key, kids[0].Reason)
-	got, err := c.GetBuild(ctx, kids[0].Key)
-	require.NoError(t, err)
-	require.Len(t, got.Revisions, 1, "bam reads which repository a build built")
-	assert.Equal(t, "app", got.Revisions[0].Repository)
-	assert.Equal(t, got.Revision, got.Revisions[0].Revision, "app is the default repository")
-
-	master, err := c.ListBuilds(ctx, "PROJ-OLD", provider.ListOptions{Limit: 1, Unfinished: true})
-	require.NoError(t, err)
-	assert.NotEqual(t, "Child of "+run.Key, master[0].Reason, "the child's master plan does not run")
+	assert.Equal(t, map[string]string{"app": "feature/cli-tools"}, finished.Stages[0].Jobs[0].Branches)
 }
 
 // TestTriggerWithARevisionReportsCustomRevisionBuild: bam.Client.Trigger

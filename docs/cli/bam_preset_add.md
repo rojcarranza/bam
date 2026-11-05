@@ -12,7 +12,7 @@ one project; --shared writes the repository's .bam.yaml. Edit the values under v
 then run it with bam run <name>. --from with a full build key implies --plan and the build's
 branch. The preset lists every variable the plan declares, with its plan default filled in; a secret
 the plan stores is a commented line. It also writes the server you connected to, the plan branch,
-watch: true, required (for variables with no plan default) and commented repo_branches and options lines.
+watch: true, required (for variables with no plan default) and commented options lines.
 
 ```
 bam preset add <name> --plan KEY [flags]

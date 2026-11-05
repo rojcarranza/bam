@@ -121,7 +121,7 @@ func TestWatchClosedStopsQuietly(t *testing.T) {
 func TestANotBuiltRevisionRunSaysSo(t *testing.T) {
 	m := formModel()
 	m.form.revision = "abc1234"
-	next, _ := m.openTriggered(provider.Build{Key: "PROJ-PROV12-9", State: provider.StateQueued}, app.RepoPlan{})
+	next, _ := m.openTriggered(provider.Build{Key: "PROJ-PROV12-9", State: provider.StateQueued})
 	m = next.(Model)
 	next, _ = m.handleWatchEvent(app.Event{Type: app.EventDone, Build: provider.Build{Key: "PROJ-PROV12-9", State: provider.StateNotBuilt}})
 	m = next.(Model)
@@ -144,7 +144,7 @@ func TestANotBuiltBuildWithNoRevisionRunLeavesStatusAlone(t *testing.T) {
 func TestANotBuiltBuildForAnotherKeyLeavesStatusAlone(t *testing.T) {
 	m := formModel()
 	m.form.revision = "abc1234"
-	next, _ := m.openTriggered(provider.Build{Key: "PROJ-PROV12-9", State: provider.StateQueued}, app.RepoPlan{})
+	next, _ := m.openTriggered(provider.Build{Key: "PROJ-PROV12-9", State: provider.StateQueued})
 	m = next.(Model)
 	m.status = "before"
 	next, _ = m.handleWatchEvent(app.Event{Type: app.EventDone, Build: provider.Build{Key: "PROJ-PROV12-99", State: provider.StateNotBuilt}})

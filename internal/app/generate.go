@@ -84,8 +84,12 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if plan.MasterKey != "" && plan.MasterKey != o.PlanKey && o.Branch == "" {
 		if bs, berr := s.P.ListBranches(ctx, plan.MasterKey); berr == nil {
 			for _, b := range bs {
-				if b.Key == o.PlanKey && b.Name != "" {
-					o.PlanKey, o.Branch = plan.MasterKey, b.Name
+				name := b.ShortName
+				if name == "" {
+					name = b.Name
+				}
+				if b.Key == o.PlanKey && name != "" {
+					o.PlanKey, o.Branch = plan.MasterKey, name
 					break
 				}
 			}
@@ -104,17 +108,7 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 	if err != nil {
 		return d, false, err
 	}
-	// repo_branches can switch a plan's default repository, so list those of
-	// the plan and of the child plans its last build triggered.
-	if plans, perr := s.runPlans(ctx, o.PlanKey, nil); perr == nil {
-		keys := slices.Sorted(maps.Keys(plans))
-		keys = slices.DeleteFunc(keys, func(k string) bool { return k == o.PlanKey })
-		for _, k := range append([]string{o.PlanKey}, keys...) {
-			if repo := defaultRepo(plans[k].build); repo != "" && !slices.Contains(d.Repos, repo) {
-				d.Repos = append(d.Repos, repo)
-			}
-		}
-	}
+	d.Repos = s.draftRepos(ctx, ref, o.From)
 
 	declared, err := s.P.ListVariables(ctx, o.PlanKey)
 	switch {
@@ -257,4 +251,50 @@ func draftVar(name, value string, masked bool, used map[string]string, usedKey s
 		comment += fmt.Sprintf("; last used %q in %s", last, usedKey)
 	}
 	return config.DraftVar{Name: name, Value: "", Comment: comment}
+}
+
+// draftRepos lists the repositories of ref with the branch each builds now,
+// read from the --from build or the newest finished job of ref. With no
+// finished job it lists the names of the newest build's revisions and no
+// branch. A failed read lists nothing: the preset is drafted without them.
+func (s *Service) draftRepos(ctx context.Context, ref PlanRef, from string) []config.DraftRepo {
+	var built map[string]string
+	if from != "" {
+		if key, err := s.ResolveFrom(ctx, ref, from); err == nil {
+			if b, err := s.P.GetBuild(ctx, key); err == nil {
+				built = firstJobBranches(b)
+			}
+		}
+	} else {
+		built, _, _ = s.BuiltRepositories(ctx, ref.PlanKey)
+	}
+	var out []config.DraftRepo
+	if built != nil {
+		for _, name := range slices.Sorted(maps.Keys(built)) {
+			out = append(out, config.DraftRepo{Name: name, Branch: built[name]})
+		}
+		return out
+	}
+	bs, err := s.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: 1})
+	if err != nil || len(bs) == 0 {
+		return nil
+	}
+	b, err := s.P.GetBuild(ctx, bs[0].Key)
+	if err != nil {
+		return nil
+	}
+	for _, name := range repoNames(b) {
+		out = append(out, config.DraftRepo{Name: name})
+	}
+	return out
+}
+
+func repoNames(b provider.Build) []string {
+	var out []string
+	for _, r := range b.Revisions {
+		if !slices.Contains(out, r.Repository) {
+			out = append(out, r.Repository)
+		}
+	}
+	return out
 }

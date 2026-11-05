@@ -46,8 +46,8 @@ type TargetInfo struct {
 	// Files are the paths of the files that define the preset, lowest
 	// precedence first; the last is the one E edits in the terminal UI.
 	Files []string
-	// RepoBranches is the preset's repo_branches, sorted by key.
-	RepoBranches []config.RepoBranch
+	// Repositories is the branch each repository of the plan branch builds.
+	Repositories map[string]string
 }
 
 // DescribeTargets returns every merged target, sorted by name.
@@ -85,7 +85,7 @@ func describe(t config.ResolvedTarget, getenv func(string) string) TargetInfo {
 		info.Files = append(info.Files, l.Path)
 	}
 	info.Defaults = targetVars(t.Defaults, getenv)
-	info.RepoBranches = t.RepoBranchList()
+	info.Repositories = t.Repositories
 	return info
 }
 
@@ -125,14 +125,10 @@ func (s *Service) RefFromTarget(ctx context.Context, t TargetInfo) (PlanRef, err
 			rt.Defaults[d.Name] = d.Value
 		}
 	}
-	// Kept so that Run refuses the preset rather than ignore them.
-	if len(t.RepoBranches) > 0 {
-		rt.RepoBranches = config.StringMap{}
-		for _, r := range t.RepoBranches {
-			rt.RepoBranches[r.Key()] = r.Branch
-		}
+	if len(t.Repositories) > 0 {
+		rt.Repositories = config.StringMap(t.Repositories)
 	}
-	ref := PlanRef{PlanKey: t.Plan, MasterKey: t.Plan, Target: &rt}
+	ref := PlanRef{PlanKey: t.Plan, MasterKey: t.Plan, Target: &rt, Repositories: maps.Clone(rt.Repositories)}
 	if t.Branch == "" {
 		return ref, nil
 	}

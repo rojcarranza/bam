@@ -44,7 +44,7 @@ const revisionFromBuild = "from"
 
 // runFlags holds bam run's flags; its methods are the steps of the command.
 type runFlags struct {
-	vars, repoBranches     []string
+	vars, repositories     []string
 	from, branch, revision string
 	watch, dryRun, edit    bool
 	timeout                time.Duration
@@ -134,20 +134,15 @@ func newRunCmd(r *runtime) *cobra.Command {
 			"  bam run PROJ-BUILD --branch develop --var cluster_type=k8s\n" +
 			"  bam run deploy-qa --from last --dry-run\n" +
 			"  bam run PROJ-BUILD --from 482 --revision from\n" +
-			"  bam run PROJ-PARENT --repo-branch repo-a=feature/PROJ-101 --repo-branch PROJ-CHILD:repo-a=feature/PROJ-101-extra",
+			"  bam run deploy-qa --repository repo-a=feature/PROJ-101",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if err := rf.check(r, cmd, args[0]); err != nil {
 				return err
 			}
-			if _, err := app.RepoBranchOverrides(rf.repoBranches, nil); err != nil {
+			if _, err := app.RepositoryWants(rf.repositories, nil); err != nil {
 				return err
-			}
-			if rf.branch != "" && len(rf.repoBranches) > 0 {
-				return errs.Usagef("--repo-branch cannot be combined with --branch").
-					WithWhy("bam runs every plan of the run on a plan branch named after the repository branch").
-					WithTry("drop --branch")
 			}
 			ctx := cmd.Context()
 			svc, arg, err := r.resolvePlanArg(ctx, args[0])
@@ -166,20 +161,12 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rbs, err := app.RepoBranchOverrides(rf.repoBranches, ref.Target)
-			if err != nil {
+			if ref.Repositories, err = app.RepositoryWants(rf.repositories, ref.Target); err != nil {
 				return err
 			}
-			var rp app.RepoPlan
-			if len(rbs) > 0 {
-				if !r.flags.json {
-					r.note("finding the plans "+ref.MasterKey+" triggers, for their repository branches", "")
-				}
-				if rp, err = svc.PlanRepoBranches(ctx, ref, rbs); err != nil {
-					return err
-				}
-				vs.Warnings = append(vs.Warnings, rp.Warnings...)
-				ref.UseRepoBranches(rp)
+			check, err := svc.CheckRepositories(ctx, ref, ref.Repositories)
+			if err != nil {
+				return err
 			}
 			if rf.dryRun {
 				if w := svc.DisabledWarning(ctx, ref.PlanKey); w != "" {
@@ -197,6 +184,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 					return err
 				}
 				view.RunPlan(o, ref, vs)
+				view.RepoCheck(o, check)
 			}
 			if rf.dryRun {
 				if r.flags.json {
@@ -205,14 +193,8 @@ func newRunCmd(r *runtime) *cobra.Command {
 				r.note("dry run: nothing triggered", "")
 				return nil
 			}
-			if len(rp.Plans) > 0 {
-				if err := svc.CreateRepoBranches(ctx, &rp); err != nil {
-					return err
-				}
-				ref.UseRepoBranches(rp)
-				if !r.flags.json {
-					view.RepoBranchesCreated(o, ref)
-				}
+			if err := r.switchRepositories(ctx, check); err != nil {
+				return err
 			}
 			b, err := svc.Run(ctx, ref, vs)
 			if err != nil {
@@ -228,14 +210,16 @@ func newRunCmd(r *runtime) *cobra.Command {
 				return r.watchLoop(ctx, svc, b.Key, limit)
 			}
 			view.Queued(o, b, true, ref.RevisionShort())
-			return r.treeLoop(ctx, svc, b.Key, app.TreeOptions{Plans: rp.ChildBranchKeys()}, false, limit, "bam watch "+b.Key, ref.RevisionShort())
+			err = r.treeLoop(ctx, svc, b.Key, app.TreeOptions{}, false, limit, "bam watch "+b.Key, ref.RevisionShort())
+			r.confirmRepositories(ctx, svc, b.Key, ref.Repositories)
+			return err
 		}),
 	}
 	f := cmd.Flags()
 	f.StringArrayVar(&rf.vars, "var", nil, "variable name=value (repeatable)")
 	f.StringVar(&rf.from, "from", "", "reuse variables of a build: number, key or last")
 	f.StringVar(&rf.branch, "branch", "", "plan branch to run")
-	f.StringArrayVar(&rf.repoBranches, "repo-branch", nil, "build BRANCH of a repository: REPO=BRANCH on every plan of the run whose default repository it is, PLAN:REPO=BRANCH on one plan; bam runs each plan on a plan branch (repeatable)")
+	f.StringArrayVar(&rf.repositories, "repository", nil, "branch NAME=BRANCH a repository of the plan branch must build for this run, over the preset's repositories (repeatable)")
 	f.StringVar(&rf.revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
 	f.BoolVar(&rf.watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	f.DurationVar(&rf.timeout, "timeout", 0, "stop watching after this long (the build keeps running)")

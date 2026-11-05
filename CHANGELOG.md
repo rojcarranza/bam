@@ -8,8 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- `bam preset add`, `bam init --plan` and the terminal UI's save-as-preset write the server, the plan branch, `watch: true` and `required` (for variables with no plan default) as active lines, and list the plan's and its child plans' repositories under a commented `repo_branches`. A plan branch key given as `--plan` is written as its main plan plus the branch. `--full` no longer does anything.
-- The terminal UI run form runs a preset with `repo_branches` and adds `REPO = BRANCH` or `PLAN:REPO = BRANCH` rows with `b`, picking from the repository's branches in Bamboo or typing; `d` lists the plan branches the run creates or reuses, `ctrl-R` creates them and follows the child plans, and the presets table shows the repository branch.
+- `bam preset add`, `bam init --plan` and the terminal UI's save-as-preset write the server, the plan branch, `watch: true` and `required` (for variables with no plan default) as active lines, and list the plan branch's repositories under `repositories:`. A plan branch key given as `--plan` is written as its main plan plus the branch. `--full` no longer does anything.
+- `repositories:` in a preset and `--repository NAME=BRANCH` on `bam run`: bam checks which branch each repository built in the plan branch's newest finished job, opens the Repositories tab link when one differs, waits for Enter, then triggers. `bam preset add` writes the current branches. `--json` gains `repositories`.
 - The terminal UI rings the terminal bell once when a build or tree you are watching finishes; set `bell: false` in the machine config to turn it off.
 - The terminal UI log screen wraps long lines with `w` and opens the whole log in your pager with `E`.
 - In the terminal UI, `:stats` shows a plan's success rate, durations and failing jobs like `bam plan stats`, and `H` on a set lists its past runs like `bam set history`.
@@ -19,6 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- **Breaking:** `repo_branches` and `--repo-branch` are removed, with plan-branch creation and the TUI repository-branch rows. A preset that still sets `repo_branches` fails with `unknown field`. `--json` keeps `repo_branches` as an empty list.
 - On macOS and Windows, bam moves `config.yaml`, `credentials.yaml` and the fixture denylist from the old config directory (`~/Library/Application Support/bam`, `%LOCALAPPDATA%\bam`) into `~/.config/bam` on first run and prints one line per file, instead of reading the old directory for good; a file already in `~/.config/bam` is never replaced.
 
 ### Fixed

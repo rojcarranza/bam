@@ -31,8 +31,8 @@ The preset lists every variable the plan declares, with the plan default filled 
         plan: PROJ-DEPLOY
         server: work  # the server this preset runs on
         branch: "main"
-        # repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first
-        #   repo-a: "feature/PROJ-101"
+        repositories:  # branch each repository of the plan branch builds; needs branch:
+          repo-a: "feature/PROJ-101"
         variables:
           region: ""  # no plan default; last used "eu" in PROJ-DEPLOY-41
           target_env: "qa"  # plan default
@@ -43,7 +43,7 @@ The preset lists every variable the plan declares, with the plan default filled 
         required: [region, version]  # a run with an empty value is refused
         watch: true  # follow the build without --watch; --watch=false skips it
 
-Every preset key a run uses is written each time, in this order, so you can see what a preset can do. `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables, `required` (when a variable has no plan default) and `watch: true` are active. `branch` is active when the plan is a plan branch or you pass `--branch`, and `repo_branches` lists the default repository of the plan and of each child plan its last build triggered, as a commented block to uncomment and edit. `options` is a commented example. `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing.
+Every preset key a run uses is written each time, in this order, so you can see what a preset can do. `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables, `required` (when a variable has no plan default) and `watch: true` are active. `branch` is active when the plan is a plan branch or you pass `--branch`, and `repositories` lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build), and is commented, with no branch, when bam cannot read them. `options` is a commented example. `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing.
 
 - A variable with no plan default gets an empty value, and `required` lists those variables: bam refuses to run until they have a value. Delete the line to drop the check.
 - `watch: true` makes `bam run deploy-qa` follow the build. Run `bam run deploy-qa --watch=false` to skip it for one run.
@@ -105,60 +105,31 @@ Make one preset per set, each pointing at the same plan:
 
 ### Build other repository branches
 
-`repo_branches` makes a preset run a parent plan and the child plans it triggers on other branches of their repositories, as `bam run --repo-branch` does. Keep one preset per feature you test, and `bam run` does the rest.
-
-**1. Find the repository's name** as Bamboo names it on the plan's builds, under Revisions:
-
-    bam build show PROJ-PARENT
-    ...
-    Revisions   repo-a 9b30b9a
-
-bam can switch only a plan's default repository; the dry run in step 3 says when an entry names another one.
-
-**2. Add the preset** to `~/bam/presets.yaml`, or to the plan's project file in `~/bam/presets/`. Key each branch by repository, for every plan of the run whose default repository it is, or by plan and repository, for one plan:
+`repositories:` names the branch each repository of the preset's plan branch must build. Bamboo does not let bam change that setting, so you change it in your browser and bam checks it. It needs `branch:` in the same preset; without it the preset fails to load.
 
     presets:
       feature-101:
         plan: PROJ-PARENT
-        repo_branches:
-          repo-a: feature/PROJ-101                    # PROJ-PARENT and every child plan that builds repo-a
-          PROJ-CHILD:repo-a: feature/PROJ-101-extra   # PROJ-CHILD builds its own branch
-        variables:
-          cluster_type: dcos
+        branch: "feature-PROJ-101"
+        repositories:
+          repo-a: "feature/PROJ-101"
 
-`variables`, `options`, `required` and `watch` work as in any preset. The same `repo_branches` key works under `targets:` in a shared `.bam.yaml` and in your machine config, and the layers merge per key as `variables` do. A preset with `repo_branches` cannot also set `branch:`.
+`bam preset add feature-101 --plan PROJ-PARENT --branch feature-PROJ-101` writes this block for you, with the branch each repository built in the plan branch's newest finished job. Without `--branch` the lines are commented. With no finished job it lists the names from the newest build's revisions, commented and without a branch.
 
-**3. Check it.** `bam preset show feature-101` lists the entries under Repository branches. A dry run finds the child plans from the parent's newest build and your `children:` config, and shows what bam would do to each:
+**Run it.** `bam run feature-101` reads the newest finished job of the plan branch and compares:
 
-    bam run feature-101 --dry-run
+- Every repository already builds the wanted branch: bam triggers with no question.
+- One differs, or no job has finished: bam prints the plan branch's Repositories tab link (`<server>/branch/admin/config/configureChainBranchRepositories.action?planKey=...`), opens it, and waits. Change the branches there, save, and press Enter. bam then triggers.
+- With `--json` or no terminal, bam stops before triggering and prints the link. `--dry-run` opens and triggers nothing.
+- A repository name the plan does not build fails before anything is triggered.
 
-    Plan     PROJ-PARENT  (branch feature-PROJ-101)
-    Branches feature-PROJ-101 on 2 plans
-      PROJ-PARENT  repo-a  feature/PROJ-101        create
-      PROJ-CHILD   repo-a  feature/PROJ-101-extra  create
-    Vars     cluster_type=dcos (preset)  +2 plan defaults
-    dry run: nothing triggered
+While following the build (`--watch`), bam compares again after the first job finishes and says whether the build used the wanted branches. It never stops the build; `--watch=false` skips it.
 
-A repository that no plan of the run builds, or that is not a plan's default repository, is an error here, before anything changes.
+**One run.** `--repository NAME=BRANCH` applies to one run and beats the preset's entry:
 
-**4. Run it.** `bam run feature-101 --watch` creates the plan branches it needs, child plans first, runs `PROJ-PARENT`'s, and follows the child plans' branch builds:
+    bam run feature-101 --repository repo-a=feature/PROJ-102
 
-    ✓ Created  PROJ-PARENT20   plan branch feature-PROJ-101 of PROJ-PARENT
-    ✓ Created  PROJ-CHILD20    plan branch feature-PROJ-101 of PROJ-CHILD
-      bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.
-      To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>.
-      A child plan starts on feature-PROJ-101 only when its parent plan's dependencies are enabled for branches.
-    ✓ Queued   PROJ-PARENT20-903   https://bamboo.example.com/browse/PROJ-PARENT20-903
-
-The plan branches are named after the entry for every plan (`feature/PROJ-101` gives `feature-PROJ-101`). The next run of the preset reuses them and creates nothing. Bamboo starts a child plan's branch only when the parent plan's dependencies are enabled for branches, in the parent plan's configuration.
-
-**5. Change a branch for one run** with a flag, which beats the preset's entry with the same key:
-
-    bam run feature-101 --repo-branch repo-a=feature/PROJ-102 --dry-run   # plan branches feature-PROJ-102
-
-A plan branch keeps the repository branch bam created it with, and Bamboo does not let bam read it back. So to point an existing plan branch at another branch, such as after changing the `PROJ-CHILD:repo-a` entry, delete that plan branch first, on its plan's Branches page in Bamboo or with `DELETE /rest/api/latest/plan/PROJ-CHILD20`; bam then creates it again. bam warns whenever it reuses one.
-
-`bam run` and the terminal UI's run form apply `repo_branches`; a release train refuses such a preset rather than run it without the branches. In the UI, `R` on the preset shows each entry as a row you can edit, `b` adds one (picking from Bamboo's branches), `d` lists the plan branches the run creates or reuses, and `ctrl-R` creates them. The UI never deletes plan branches; delete them as above.
+bam never saves the Repositories tab, edits the linked repository or restores the old branch; the branch stays as you left it. `bam set run` checks every preset before its first stage. In `bam ui`, the run form shows the repositories as read-only rows and asks in a dialog when a branch differs.
 
 ### Move presets you already have
 

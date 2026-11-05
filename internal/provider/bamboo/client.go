@@ -93,6 +93,11 @@ func New(o Options) (*Client, error) {
 // URL returns the browse URL of any Bamboo key.
 func (c *Client) URL(key string) string { return c.base.String() + "/browse/" + key }
 
+// RepositoriesURL is the Repositories tab of a plan branch's configuration.
+func (c *Client) RepositoriesURL(planKey string) string {
+	return c.base.String() + "/branch/admin/config/configureChainBranchRepositories.action?planKey=" + url.QueryEscape(planKey)
+}
+
 // crossOriginRedirectError reports a redirect to a different scheme://host:port.
 // Go's http.Client keeps the Authorization header on same-host redirects, so
 // following a cross-origin one would leak the bearer token to that host.

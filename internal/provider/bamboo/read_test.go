@@ -251,3 +251,24 @@ func TestGetPlanReportsMasterOfBranch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, m.MasterKey)
 }
+
+// BAW-7: a finished job records the branch each repository built in its
+// metadata (planRepository.N.name and .branch, seen on Bamboo 12.1.8); a job
+// still running has none, so it reads as unknown, not as a branch.
+func TestGetBuildReadsTheBranchEachRepositoryBuilt(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/PROJ-BRANCH-7": {fixture: "result_job_repositories.json"},
+	})
+	b, err := c.GetBuild(ctx, "PROJ-BRANCH-7")
+	require.NoError(t, err)
+	require.Len(t, b.Stages, 2)
+	assert.Equal(t, map[string]string{"app": "develop", "scripts": "feature/cli-tools"}, b.Stages[0].Jobs[0].Branches)
+	assert.Nil(t, b.Stages[1].Jobs[0].Branches)
+	assert.Contains(t, rec.all()[0].URL.Query().Get("expand"), "stages.stage.results.result.metadata")
+}
+
+func TestRepositoriesURLIsTheBranchRepositoriesTab(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{})
+	assert.Equal(t, c.URL("")[:len(c.URL(""))-len("/browse/")]+"/branch/admin/config/configureChainBranchRepositories.action?planKey=PROJ-BRANCH1",
+		c.RepositoriesURL("PROJ-BRANCH1"))
+}

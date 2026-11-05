@@ -13,22 +13,22 @@ bam run <plan|preset> [flags]
   bam run PROJ-BUILD --branch develop --var cluster_type=k8s
   bam run deploy-qa --from last --dry-run
   bam run PROJ-BUILD --from 482 --revision from
-  bam run PROJ-PARENT --repo-branch repo-a=feature/PROJ-101 --repo-branch PROJ-CHILD:repo-a=feature/PROJ-101-extra
+  bam run deploy-qa --repository repo-a=feature/PROJ-101
 ```
 
 ### Options
 
 ```
-      --branch string             plan branch to run
-      --dry-run                   resolve and validate variables, trigger nothing
-      --edit                      review and change the variables in $EDITOR before running
-      --from string               reuse variables of a build: number, key or last
-  -h, --help                      help for run
-      --repo-branch stringArray   build BRANCH of a repository: REPO=BRANCH on every plan of the run whose default repository it is, PLAN:REPO=BRANCH on one plan; bam runs each plan on a plan branch (repeatable)
-      --revision string           commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository
-      --timeout duration          stop watching after this long (the build keeps running)
-      --var stringArray           variable name=value (repeatable)
-      --watch                     follow the build and the builds it triggers until they finish
+      --branch string            plan branch to run
+      --dry-run                  resolve and validate variables, trigger nothing
+      --edit                     review and change the variables in $EDITOR before running
+      --from string              reuse variables of a build: number, key or last
+  -h, --help                     help for run
+      --repository stringArray   branch NAME=BRANCH a repository of the plan branch must build for this run, over the preset's repositories (repeatable)
+      --revision string          commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository
+      --timeout duration         stop watching after this long (the build keeps running)
+      --var stringArray          variable name=value (repeatable)
+      --watch                    follow the build and the builds it triggers until they finish
 ```
 
 ### Options inherited from parent commands

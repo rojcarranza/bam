@@ -11,14 +11,6 @@ type Provider interface {
 	ListPlans(ctx context.Context, project string) ([]Plan, error)
 	GetPlan(ctx context.Context, planKey string) (Plan, error)
 	ListBranches(ctx context.Context, planKey string) ([]Branch, error)
-	// ListRepoBranches lists the branches of the plan's default repository
-	// in its version control, for choosing one to build. A server without
-	// the call answers an error wrapping errs.ErrUnsupported.
-	ListRepoBranches(ctx context.Context, planKey string) ([]string, error)
-	// CreateBranch creates an enabled plan branch of planKey called name.
-	// It builds vcsBranch of the plan's default repository; an empty
-	// vcsBranch keeps the branch the plan builds.
-	CreateBranch(ctx context.Context, planKey, name, vcsBranch string) (Branch, error)
 	ListVariables(ctx context.Context, planKey string) ([]Variable, error)
 	ListBuilds(ctx context.Context, planKey string, o ListOptions) ([]Build, error)
 	GetBuild(ctx context.Context, buildKey string) (Build, error)
@@ -31,6 +23,9 @@ type Provider interface {
 	RestartBuild(ctx context.Context, buildKey string) (Build, error)
 	FetchLog(ctx context.Context, jobResultKey string, o LogOptions) (LogChunk, error)
 	URL(key string) string
+	// RepositoriesURL is the page where a person sets which branch each
+	// repository of the plan (branch) builds.
+	RepositoriesURL(planKey string) string
 }
 
 // RestartChecker is an optional Provider extension. CannotRestart reports

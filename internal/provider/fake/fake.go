@@ -3,7 +3,6 @@ package fake
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -20,9 +19,7 @@ type Provider struct {
 	Info         provider.ServerInfo
 	Projects     []provider.Project
 	Plans        map[string][]provider.Plan     // by project key
-	Branches     map[string][]provider.Branch   // by master plan key; CreateBranch adds to it
-	RepoBranches map[string][]string            // by master plan key: ListRepoBranches; absent is unsupported
-	CreateErrs   map[string]error               // by plan key: CreateBranch fails with it
+	Branches     map[string][]provider.Branch   // by master plan key
 	Variables    map[string][]provider.Variable // by plan key
 	VariablesErr error
 	History      map[string][]provider.Build // by plan key, newest first
@@ -56,7 +53,6 @@ type Provider struct {
 	Triggered    []provider.TriggerRequest
 	Stopped      []string
 	Restarted    []string
-	Created      []CreatedBranch
 	getCalls     map[string]int
 	listCalls    map[string]int
 	progressCall map[string]int
@@ -96,39 +92,6 @@ func (f *Provider) ListBranches(_ context.Context, key string) ([]provider.Branc
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]provider.Branch(nil), f.Branches[key]...), nil
-}
-
-func (f *Provider) ListRepoBranches(_ context.Context, key string) ([]string, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	bs, ok := f.RepoBranches[key]
-	if !ok {
-		return nil, errs.Bamboof("repository branches are not available for %s", key).Wrap(errs.ErrUnsupported)
-	}
-	return append([]string(nil), bs...), nil
-}
-
-// CreatedBranch is one CreateBranch call.
-type CreatedBranch struct {
-	PlanKey, Name, VCSBranch string
-}
-
-// CreateBranch records the call and adds an enabled branch to Branches,
-// keyed as Bamboo keys them: the plan key and a number.
-func (f *Provider) CreateBranch(_ context.Context, key, name, vcsBranch string) (provider.Branch, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.Created = append(f.Created, CreatedBranch{PlanKey: key, Name: name, VCSBranch: vcsBranch})
-	if err, ok := f.CreateErrs[key]; ok {
-		return provider.Branch{}, err
-	}
-	if f.Branches == nil {
-		f.Branches = map[string][]provider.Branch{}
-	}
-	bkey := fmt.Sprintf("%s%d", key, len(f.Branches[key])+1)
-	b := provider.Branch{Key: bkey, Name: name, ShortName: name, PlanKey: key, URL: f.BaseURL + "/browse/" + bkey}
-	f.Branches[key] = append(f.Branches[key], b)
-	return b, nil
 }
 
 func (f *Provider) ListVariables(_ context.Context, key string) ([]provider.Variable, error) {
@@ -336,3 +299,7 @@ func (f *Provider) LogCalls(key string) int {
 }
 
 func (f *Provider) URL(key string) string { return f.BaseURL + "/browse/" + key }
+
+func (f *Provider) RepositoriesURL(planKey string) string {
+	return f.BaseURL + "/branch/admin/config/configureChainBranchRepositories.action?planKey=" + planKey
+}

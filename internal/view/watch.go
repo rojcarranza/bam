@@ -2,6 +2,9 @@ package view
 
 import (
 	"fmt"
+	"io"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -24,7 +27,6 @@ func RunPlan(o Out, ref app.PlanRef, vs app.VarSet) {
 	if ref.Revision != "" {
 		fmt.Fprintf(o.W, "%-8s %s\n", "Revision", ref.RevisionLabel())
 	}
-	repoBranches(o, ref)
 	var parts []string
 	defaults := 0
 	for _, v := range vs.Vars {
@@ -46,61 +48,47 @@ func RunPlan(o Out, ref app.PlanRef, vs app.VarSet) {
 	fmt.Fprintf(o.W, "%-8s %s\n", "Vars", line)
 }
 
-// repoBranches lists what a run with --repo-branch does to each plan: the
-// branch of its default repository and whether bam creates or reuses the
-// plan branch.
-func repoBranches(o Out, ref app.PlanRef) {
-	if len(ref.RepoBranches) == 0 {
+// RepoCheck prints what the person must switch on the plan branch's
+// Repositories tab before the run: each repository's last built branch next
+// to the wanted one, and the tab's link.
+func RepoCheck(o Out, c app.RepoCheck) {
+	if !c.Needed() {
 		return
 	}
-	n := len(ref.RepoBranches)
-	plans := "plans"
-	if n == 1 {
-		plans = "plan"
+	if c.Known() {
+		fmt.Fprintf(o.W, "%-8s %s built these branches in %s; this run wants:\n", "Repos", c.PlanKey, c.BuildKey)
+	} else {
+		fmt.Fprintf(o.W, "%-8s %s has no finished job, so bam cannot tell what it builds; this run wants:\n", "Repos", c.PlanKey)
 	}
-	fmt.Fprintf(o.W, "%-8s %s on %d %s\n", "Branches", ref.Branch, n, plans)
-	t := Table{Indent: "  ", Headers: []string{"", "", "", ""}}
-	for _, bp := range ref.RepoBranches {
-		repo, branch := bp.Repository, bp.VCSBranch
-		if branch == "" {
-			repo, branch = "its own branch", ""
+	t := Table{Indent: "  ", Headers: []string{"", ""}}
+	for _, ch := range c.Changes {
+		built := ch.Built
+		if built == "" {
+			built = "?"
 		}
-		action := "create"
-		switch {
-		case bp.Existing:
-			action = "reuse " + bp.BranchKey
-		case bp.Created:
-			action = "created " + bp.BranchKey
-		}
-		t.Rows = append(t.Rows, []string{bp.PlanKey, repo, branch, action})
+		t.Rows = append(t.Rows, []string{ch.Name, built + " → " + ch.Want})
 	}
 	_ = RenderRows(o, t)
+	fmt.Fprintf(o.W, "  Repositories tab: %s\n", o.Key(c.URL, c.URL))
 }
 
-// RepoBranchesCreated follows the plan branches a run created: one line
-// each, then what changed in Bamboo and what did not.
-func RepoBranchesCreated(o Out, ref app.PlanRef) {
-	if len(ref.RepoBranches) == 0 {
+// RepoConfirm reports, after the first job of a build finished, the branch
+// each wanted repository built: a line when it matches, a warning when not.
+func RepoConfirm(w io.Writer, want map[string]string, changes []app.RepoChange, ok bool) {
+	if !ok {
+		fmt.Fprintln(w, "no job finished, so bam could not confirm which branches the repositories built")
 		return
 	}
-	width := 0
-	for _, bp := range ref.RepoBranches {
-		if bp.Created {
-			width = max(width, len(bp.BranchKey))
-		}
+	differs := map[string]app.RepoChange{}
+	for _, c := range changes {
+		differs[c.Name] = c
 	}
-	children := false
-	for _, bp := range ref.RepoBranches {
-		if bp.Created {
-			fmt.Fprintf(o.W, "%s  %s%s   plan branch %s of %s\n", style.Colored(o.Style, provider.StateSuccess, "✓ Created"),
-				o.Key(bp.BranchKey, bp.URL), strings.Repeat(" ", width-len(bp.BranchKey)), ref.Branch, bp.PlanKey)
+	for _, name := range slices.Sorted(maps.Keys(want)) {
+		if c, bad := differs[name]; bad {
+			fmt.Fprintf(w, "warning: %s built %s, not %s; the Repositories tab changed after bam checked\n", name, c.Built, c.Want)
+		} else {
+			fmt.Fprintf(w, "%s built %s\n", name, want[name])
 		}
-		children = children || bp.Parent != ""
-	}
-	fmt.Fprintln(o.W, "  bam changed no plan, so nothing needs restoring; the plan branches stay for the next run.")
-	fmt.Fprintln(o.W, "  To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>.")
-	if children {
-		fmt.Fprintf(o.W, "  A child plan starts on %s only when its parent plan's dependencies are enabled for branches.\n", ref.Branch)
 	}
 }
 

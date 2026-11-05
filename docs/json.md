@@ -46,14 +46,11 @@ A running build carries the server's duration estimate as well:
 
 `key` and `url` are `""` on a dry run. `revision` is the commit sent to Bamboo, `""` for the newest. `revision_from` is the build whose commit `--revision from` reused, `""` otherwise. `variables` holds the changed variables only, secrets masked. `warnings` repeats the warnings printed to stderr (an undeclared `--var`, or on a dry run a plan disabled in Bamboo), `[]` when there are none.
 
-`repo_branches` lists what `--repo-branch` (or a preset's `repo_branches`) does to each plan of the run, `[]` without it:
+`repositories` is the branch each repository of the plan branch must build for this run (the preset's entries with `--repository` laid over), `{}` without any. `repo_branches` is always empty (`[]`); the field stays so existing readers keep working.
 
-    "repo_branches":[{"plan_key":"PROJ-PARENT","branch_key":"PROJ-PARENT20","branch":"feature-PROJ-101","repository":"repo-a","vcs_branch":"feature/PROJ-101","existing":false},
-                     {"plan_key":"PROJ-CHILD","branch_key":"PROJ-CHILD20","branch":"feature-PROJ-101","repository":"repo-a","vcs_branch":"feature/PROJ-101-extra","existing":false}]
+When the plan branch does not build the wanted branches and the output is JSON, bam stops before triggering and prints the Repositories tab link in the error.
 
-`plan_key` is the plan, `branch` the plan branch name the whole run uses, and `branch_key` that plan branch's key (`""` on a dry run when bam would create it). `repository` and `vcs_branch` are the repository whose branch changes and the branch it builds, both `""` for a plan that only passes the run on to a child and builds its own branch. `existing` is `true` when the plan branch was already there and bam reused it. With repository branches, `plan_key` at the top is the root's plan branch and `branch` its name.
-
-`preset list --json` and `preset show --json` give each preset a `repo_branches` object, keyed `REPO` or `PLAN:REPO` as in the presets file, `{}` when it has none.
+`preset list --json` and `preset show --json` give each preset a `repositories` object, keyed by repository name, `{}` when it has none.
 
 ## Cancel and rerun
 

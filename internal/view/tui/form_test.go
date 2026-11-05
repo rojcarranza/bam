@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-
 	"github.com/r0jjames/bam-cli/internal/app"
 	"github.com/r0jjames/bam-cli/internal/config"
 	"github.com/r0jjames/bam-cli/internal/errs"
@@ -1403,7 +1402,7 @@ func TestALongFormErrorWraps(t *testing.T) {
 func TestTheStartedBuildsRowShowsRunningOnceItRuns(t *testing.T) {
 	m := planHome(t)
 	b := provider.Build{Key: "PROJ-BUILD-45", PlanKey: "PROJ-BUILD", Number: 45, State: provider.StateQueued}
-	next, _ := m.openTriggered(b, app.RepoPlan{})
+	next, _ := m.openTriggered(b)
 	m = next.(Model)
 	defer m.stopWatch()
 	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})

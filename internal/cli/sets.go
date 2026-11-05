@@ -169,7 +169,13 @@ with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 			}
 			view.PrintWarnings(r.env.Stderr, p.Warnings)
 			if dryRun {
+				if err := r.checkSetRepositories(ctx, svc, p, true); err != nil {
+					return err
+				}
 				return r.show(view.SetPlanJSON(p), func(o view.Out) error { return view.SetDryRun(o, p) })
+			}
+			if err := r.checkSetRepositories(ctx, svc, p, false); err != nil {
+				return err
 			}
 			id, events, err := svc.RunSet(ctx, p, app.SetLockOptions{Force: force})
 			if err != nil {

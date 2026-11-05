@@ -137,8 +137,8 @@ targets:
     plan: PROJ-PROV
     # server: work  # server alias to run on; default is the one bam picks
     # branch: develop  # plan branch to run; default is the main plan
-    # repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first
-    #   repo-a: "feature/PROJ-101"
+    # repositories:  # branch each repository of the plan branch builds; needs branch:
+    #   repo-a: "BRANCH"
     # options:  # allowed values per variable; a run with another value is refused
     #   NAME: ["a", "b"]
     # required: [NAME]  # refuse a run where these have no value

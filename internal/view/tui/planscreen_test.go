@@ -548,7 +548,7 @@ func TestATriggeredBuildIsNotPinnedAsOlder(t *testing.T) {
 	queued := sampleBuild()
 	queued.Key, queued.Number, queued.State = "PROJ-BUILD-45", 45, provider.StateQueued
 	queued.Stages = nil
-	next, _ := m.openTriggered(queued, app.RepoPlan{})
+	next, _ := m.openTriggered(queued)
 	m = next.(Model)
 	m, _ = send(m, buildsLoadedMsg{Gen: m.buildsGen, PlanKey: "PROJ-BUILD", Builds: threeBuilds()})
 	rows := m.builds.rows()

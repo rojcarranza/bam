@@ -91,7 +91,7 @@ func (m Model) watchTree(fresh bool) (tea.Model, tea.Cmd) {
 	}
 	ctx, cancel := context.WithCancel(m.baseCtx())
 	m.treeCancel = cancel
-	m.treeCh = m.svc.WatchTree(ctx, m.buildTree.root, app.TreeOptions{Shared: !fresh && len(m.runChildren[m.buildTree.root]) == 0, Plans: m.runChildren[m.buildTree.root]})
+	m.treeCh = m.svc.WatchTree(ctx, m.buildTree.root, app.TreeOptions{Shared: !fresh})
 	return m, treeCmd(m.treeCh, m.treeGen)
 }
 

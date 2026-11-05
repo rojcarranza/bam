@@ -186,12 +186,35 @@ func TestGenerateTargetWithVariablesHasNoNote(t *testing.T) {
 	assert.Empty(t, d.Note)
 }
 
-// BAM-40 thread: repo_branches lists the default repositories of the plan and
-// of the child plans its last build triggered, and the preset names the server.
-func TestGenerateTargetListsDefaultRepositoriesOfPlanAndChildren(t *testing.T) {
-	s := newService(t, repoFake())
-	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "p", PlanKey: "PROJ-PARENT", Server: "work"})
+// BAW-7 answer 8: preset add writes every repository of the plan branch with
+// the branch it builds now, read from the newest finished job of --branch.
+func TestGenerateTargetWritesTheBranchEachRepositoryBuildsNow(t *testing.T) {
+	s := newService(t, repoBuilds())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "p", PlanKey: "PROJ-PARENT", Branch: "tst", Server: "work"})
 	require.NoError(t, err)
 	assert.Equal(t, "work", d.Server)
-	assert.Equal(t, []string{"repo-a", "repo-m"}, d.Repos)
+	assert.Equal(t, []config.DraftRepo{{Name: "app", Branch: "develop"}, {Name: "scripts", Branch: "feature/cli-tools"}}, d.Repos)
+}
+
+// Without --branch the main plan's newest finished job is read; the draft
+// then comments the lines because repositories: needs branch:.
+func TestGenerateTargetReadsTheMainPlanWithoutABranch(t *testing.T) {
+	s := newService(t, repoBuilds())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "p", PlanKey: "PROJ-PARENT"})
+	require.NoError(t, err)
+	assert.Empty(t, d.Branch)
+	assert.Equal(t, []config.DraftRepo{{Name: "app", Branch: "main"}}, d.Repos)
+}
+
+// With no finished job on the plan branch bam falls back to the names in the
+// newest build's revisions and writes no branch.
+func TestGenerateTargetFallsBackToTheNamesOfTheNewestBuild(t *testing.T) {
+	p := repoBuilds()
+	p.History["PROJ-PARENT1"] = []provider.Build{{Key: "PROJ-PARENT1-2", PlanKey: "PROJ-PARENT1", Number: 2, State: provider.StateSuccess,
+		Revisions: []provider.Revision{{Repository: "app", Revision: "a1"}, {Repository: "scripts", Revision: "b2"}},
+		Stages:    []provider.Stage{{Jobs: []provider.Job{{Key: "PROJ-PARENT1-JOB1-2"}}}}}}
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "p", PlanKey: "PROJ-PARENT", Branch: "tst"})
+	require.NoError(t, err)
+	assert.Equal(t, []config.DraftRepo{{Name: "app"}, {Name: "scripts"}}, d.Repos)
 }

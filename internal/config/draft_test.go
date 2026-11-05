@@ -29,8 +29,8 @@ func TestRenderDraftWritesAllNineKeys(t *testing.T) {
   plan: PROJ-PROV
   # server: work  # server alias to run on; default is the one bam picks
   # branch: develop  # plan branch to run; default is the main plan
-  # repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first
-  #   repo-a: "feature/PROJ-101"
+  # repositories:  # branch each repository of the plan branch builds; needs branch:
+  #   repo-a: "BRANCH"
   defaults:
     cluster_type: "k8s"  # plan default
     cluster_name: ""  # no plan default; last used "beta" in PROJ-PROV-97
@@ -50,8 +50,8 @@ func TestRenderDraftWithBranchServerAndNote(t *testing.T) {
   # plan variables are not readable on this server; add them under defaults
   server: lab  # the server this preset runs on
   branch: "develop"
-  # repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first
-  #   repo-a: "feature/PROJ-101"
+  # repositories:  # branch each repository of the plan branch builds; needs branch:
+  #   repo-a: "BRANCH"
   # options:  # allowed values per variable; a run with another value is refused
   #   NAME: ["a", "b"]
   # required: [NAME]  # refuse a run where these have no value
@@ -88,27 +88,30 @@ func TestRenderDraftEveryLineUncommentedStillParses(t *testing.T) {
 		}
 		require.NoError(t, yaml.Unmarshal([]byte(strings.Join(lines, "\n")), &f), c)
 	}
-	// repo_branches is a commented block; uncomment it with its entries.
-	d := sampleDraft()
-	d.Repos = []string{"repo-a", "repo-b"}
+}
+
+// BAW-7: a preset with a branch and the branch each repository builds now
+// writes repositories active; the file loads and keeps every entry.
+func TestRenderDraftWritesCurrentRepositoryBranches(t *testing.T) {
+	d := TargetDraft{Name: "b", Plan: "PROJ-B", Branch: "tst", Repos: []DraftRepo{
+		{Name: "app", Branch: "develop"}, {Name: "infra-scripts", Branch: "feature/cli-tools"}}}
+	out := DraftYAML("presets", d)
+	assert.Contains(t, out, "    repositories:  #")
 	var f PresetsFile
-	var kept []string
-	in := false
-	for _, l := range strings.Split(DraftYAML("presets", d), "\n") {
-		t := strings.TrimSpace(l)
-		switch {
-		case strings.HasPrefix(t, "# repo_branches:"):
-			in = true
-			kept = append(kept, "    repo_branches:")
-		case in && strings.HasPrefix(t, "#   repo-"):
-			kept = append(kept, "      "+strings.TrimPrefix(t, "#   "))
-		default:
-			in = false
-			kept = append(kept, l)
-		}
-	}
-	require.NoError(t, yaml.Unmarshal([]byte(strings.Join(kept, "\n")), &f))
-	assert.Equal(t, StringMap{"repo-a": "feature/PROJ-101", "repo-b": "feature/PROJ-101"}, f.Presets["provision-lab"].RepoBranches)
+	require.NoError(t, yaml.Unmarshal([]byte(out), &f))
+	assert.Equal(t, StringMap{"app": "develop", "infra-scripts": "feature/cli-tools"}, f.Presets["b"].Repositories)
+}
+
+// BAW-7: without a plan branch repositories would not load, so the lines are
+// commented even when the branches are known; with a repository whose branch
+// is unknown they are commented too.
+func TestRenderDraftCommentsRepositoriesWithoutBranchOrBuild(t *testing.T) {
+	known := TargetDraft{Name: "b", Plan: "PROJ-B", Repos: []DraftRepo{{Name: "app", Branch: "develop"}}}
+	assert.Contains(t, known.Render(""), "  # repositories:  #")
+	assert.Contains(t, known.Render(""), "  #   app: \"develop\"\n")
+	unknown := TargetDraft{Name: "b", Plan: "PROJ-B", Branch: "tst", Repos: []DraftRepo{{Name: "app"}}}
+	assert.Contains(t, unknown.Render(""), "  # repositories:  #")
+	assert.Contains(t, unknown.Render(""), "  #   app: \"BRANCH\"\n")
 }
 
 func TestDraftYAMLIsStandaloneDocument(t *testing.T) {

@@ -87,6 +87,9 @@ type Job struct {
 	State    State
 	Duration time.Duration
 	URL      string
+	// Branches is the branch each repository built, by repository name, as
+	// the finished job recorded it; nil while the job has not finished.
+	Branches map[string]string
 }
 
 type Stage struct {

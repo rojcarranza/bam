@@ -467,7 +467,7 @@ func newTargetSyncCmd(r *runtime) *cobra.Command {
 		Use:               "sync <name> | --all",
 		Short:             "Add new plan variables to a preset and mark removed ones",
 		Example:           "  bam preset sync provision --dry-run\n  bam preset sync provision\n  bam preset sync --all",
-		Long:              "sync compares a preset with its plan's declared variables. New variables that preset add\nwould write (no plan default, or an empty secret) are added to the preset's variables (or\ndefaults, if the preset uses that older key) with the same values and comments. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
+		Long:              "sync compares a preset with its plan's declared variables. New variables that preset add\nwould write (no plan default, or an empty secret) are added to the preset's variables (or\ndefaults, if the preset uses that older key) with the same values as preset add. Variables the plan no longer declares are kept and marked\n\"not declared on PLAN\". Existing values are never changed.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE:              r.wrap(s.run),

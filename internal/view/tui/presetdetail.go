@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -58,10 +60,8 @@ func (m Model) presetBody(width int) string {
 		line("plan   ", t.Plan),
 		line("branch ", branch),
 	}
-	if len(t.RepoBranches) > 0 {
-		for _, r := range t.RepoBranches {
-			lines = append(lines, line("repo   ", r.Key()+" on "+r.Branch))
-		}
+	for _, name := range slices.Sorted(maps.Keys(t.Repositories)) {
+		lines = append(lines, line("repo   ", name+" → "+t.Repositories[name]))
 	}
 	lines = append(lines, "")
 	if len(t.Defaults) == 0 {

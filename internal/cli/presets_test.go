@@ -621,7 +621,7 @@ func TestPresetAddWritesEveryPresetKey(t *testing.T) {
 	assert.Contains(t, out, `cluster_name: ""`)
 	assert.Contains(t, out, "\n    watch: true  #")
 	prev := -1
-	for _, k := range []string{"plan:", "server: work", "# branch:", "# repo_branches:", "variables:", "# options:", "required: [cluster_name]", "watch: true"} {
+	for _, k := range []string{"plan:", "server: work", "# branch:", "# repositories:", "variables:", "# options:", "required: [cluster_name]", "watch: true"} {
 		at := strings.Index(out, k)
 		require.GreaterOrEqual(t, at, 0, k)
 		assert.Greater(t, at, prev, "%s is out of order", k)
@@ -647,6 +647,22 @@ func TestPresetAddWrittenFileWatchesByDefault(t *testing.T) {
 	assert.Regexp(t, `(?i)watch\s+yes`, h.stdout.String())
 	h.stdout.Reset()
 	assert.Equal(t, 0, h.run("run", "x", "--dry-run"), h.stderr.String())
+}
+
+func TestPresetAddFromBranchKeyUsesShortName(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Plans["PROJ"] = append(h.fake.Plans["PROJ"], provider.Plan{
+		Key: "PROJ-PROV12", Name: "Provision lab - develop", ProjectKey: "PROJ", MasterKey: "PROJ-PROV",
+	})
+	h.fake.Branches["PROJ-PROV"] = []provider.Branch{{
+		Key: "PROJ-PROV12", Name: "Example Project - Provision lab - develop", ShortName: "develop", PlanKey: "PROJ-PROV",
+	}}
+	require.Equal(t, 0, h.run("preset", "add", "dev", "--plan", "PROJ-PROV12"), h.stderr.String())
+	data, err := os.ReadFile(filepath.Join(h.home, "bam", "presets", "proj.yaml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "plan: PROJ-PROV\n")
+	assert.Contains(t, string(data), `branch: "develop"`)
+	assert.NotContains(t, string(data), "Example Project - Provision lab - develop")
 }
 
 func TestPresetAddWithNothingCopiedSkipsTheReviewHint(t *testing.T) {

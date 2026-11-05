@@ -1,0 +1,30 @@
+{
+  "key": "PROJ-BRANCH-7",
+  "buildResultKey": "PROJ-BRANCH-7",
+  "buildNumber": 7,
+  "state": "Successful",
+  "lifeCycleState": "Finished",
+  "plan": {"key": "PROJ-BRANCH", "shortName": "tst"},
+  "stages": {"size": 2, "stage": [
+    {"name": "Build", "state": "Successful", "lifeCycleState": "Finished", "results": {"size": 1, "result": [
+      {"buildResultKey": "PROJ-BRANCH-JOB1-7", "state": "Successful", "lifeCycleState": "Finished",
+       "plan": {"key": "PROJ-BRANCH-JOB1", "shortName": "Build"},
+       "metadata": {"size": 6, "item": [
+         {"key": "planRepository.1.name", "value": "app"},
+         {"key": "planRepository.1.branch", "value": "develop"},
+         {"key": "planRepository.2.name", "value": "scripts"},
+         {"key": "planRepository.2.branch", "value": "feature/cli-tools"},
+         {"key": "planRepository.2.revision", "value": "58060701"},
+         {"key": "repository.589830.branch.name", "value": "feature/cli-tools"}
+       ]}}
+    ]}},
+    {"name": "Test", "state": "Unknown", "lifeCycleState": "InProgress", "results": {"size": 1, "result": [
+      {"buildResultKey": "PROJ-BRANCH-JOB2-7", "state": "Unknown", "lifeCycleState": "InProgress",
+       "plan": {"key": "PROJ-BRANCH-JOB2", "shortName": "Test"},
+       "metadata": {"size": 2, "item": [
+         {"key": "ManualBuildTriggerReason.userName", "value": "jdoe"},
+         {"key": "plan.storageTag", "value": "1"}
+       ]}}
+    ]}}
+  ]}
+}

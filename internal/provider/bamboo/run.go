@@ -85,41 +85,6 @@ func (c *Client) Trigger(ctx context.Context, req provider.TriggerRequest) (prov
 	return b, nil
 }
 
-// CreateBranch creates an enabled plan branch. Bamboo builds vcsBranch of
-// the plan's default repository on it; without vcsBranch it keeps the plan's
-// own. Bamboo has no REST call that changes a plan's repositories, so a plan
-// branch is how a run builds another branch.
-func (c *Client) CreateBranch(ctx context.Context, planKey, name, vcsBranch string) (provider.Branch, error) {
-	query := url.Values{"enabled": {"true"}}
-	if vcsBranch != "" {
-		query.Set("vcsBranch", vcsBranch)
-	}
-	body, err := c.do(ctx, request{
-		method: http.MethodPut,
-		path:   api + "/plan/" + url.PathEscape(planKey) + "/branch/" + url.PathEscape(name),
-		query:  query,
-	})
-	if err != nil {
-		if errors.Is(err, errs.ErrNotFound) {
-			return provider.Branch{}, c.notFoundAs(err, "plan", planKey, "bam plan list")
-		}
-		var e *errs.Error
-		if errors.As(err, &e) && e.Kind == errs.KindBamboo {
-			e.What = "could not create plan branch " + name + " of " + planKey
-		}
-		return provider.Branch{}, err
-	}
-	var b branchDTO
-	if err := json.Unmarshal(body, &b); err != nil || b.Key == "" {
-		return provider.Branch{}, errs.Bamboof("unexpected response when creating plan branch %s of %s", name, planKey).Wrap(err)
-	}
-	short := b.ShortName
-	if short == "" {
-		short = name
-	}
-	return provider.Branch{Key: b.Key, Name: b.Name, ShortName: short, PlanKey: planKey, URL: c.URL(b.Key)}, nil
-}
-
 // StopBuild stops a queued or running build.
 func (c *Client) StopBuild(ctx context.Context, key string) error {
 	caps := c.fresh(ctx)

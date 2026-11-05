@@ -84,7 +84,7 @@ flowchart LR
         s5["5 · Check it<br/>bam run lab1 --dry-run"] --> s6["6 · Run and follow<br/>bam run ci"]
     end
     subgraph feature ["Per feature branch"]
-        s7["7 · Name the repository<br/>bam build show BAMCI-BUILD"] --> s8["8 · Add repo_branches<br/>to a preset"] --> s9["9 · Check it, then run it<br/>bam run my-feature"] --> s10["10 · Delete the<br/>plan branches"]
+        s7["7 · Name the repository<br/>bam build show BAMCI-BUILD"] --> s8["8 · Add repositories<br/>to a preset"] --> s9["9 · Run it<br/>bam run my-feature<br/>switch the branch if bam asks"]
     end
     subgraph fails ["When a build fails"]
         s11["11 · Read why<br/>bam build investigate --last<br/>bam logs --last --failed"]
@@ -159,10 +159,10 @@ bam writes only `plan:` and the variables that have no plan default, here an emp
         watch: true             # follow the build, as --watch does
 
       my-feature:                                # bam run my-feature
-        plan: BAMCI-BUILD                        # the parent plan; bam finds the child plans it triggers
-        repo_branches:                           # REPO: BRANCH, instead of branch:
-          bam: fix/ignore-undotted-bam-yaml      # every plan of the run that builds repository bam
-          # BAMCI-TEST:bam: fix/my-test-change   # optional: one plan builds its own branch
+        plan: BAMCI-BUILD                        # the parent plan
+        branch: develop                          # an existing plan branch; repositories: needs it
+        repositories:                            # the branch each repository of that plan branch must build
+          bam: fix/ignore-undotted-bam-yaml
         watch: true
 
 Check it with a dry run, which resolves and checks every value and starts nothing. A value outside `options` is refused before anything runs:
@@ -221,12 +221,12 @@ On a terminal the tree redraws while the builds run. bam exits 0 when every buil
 | change them in your editor first | `bam run FORGE-PROV --from last --edit` |
 | run an existing plan branch | `bam run BAMCI-BUILD --branch fix-cancel-stale-tree-reads` |
 | build one commit | `bam run BAMCI-BUILD --revision 41d06ce` |
-| test a pushed branch on the parent and both children | `bam run BAMCI-BUILD --repo-branch bam=fix/cancel-stale-tree-reads --dry-run` (see Test a feature branch) |
+| test a pushed branch on a plan branch | `bam run BAMCI-BUILD --branch develop --repository bam=fix/cancel-stale-tree-reads --dry-run` (see Test a feature branch) |
 | run a saved preset | `bam run lab1` (see Save it as a preset) |
 
 ### Test a feature branch
 
-You pushed a branch and want the whole pipeline to build it: `BAMCI-BUILD` and the two plans it triggers. Bamboo cannot switch a plan's repository over its REST API, so bam runs each plan on a plan branch named after your branch, and creates the plan branches the first time.
+You pushed a branch and want a plan branch to build it. Bamboo does not let bam change which branch a plan branch's repository builds, so you switch it in your browser and bam checks it before it triggers. bam never saves that page and never puts the old branch back.
 
 1. Find the repository's name, under Revisions:
 
@@ -234,58 +234,59 @@ You pushed a branch and want the whole pipeline to build it: `BAMCI-BUILD` and t
        ...
        Revisions   bam 7ec79b3
 
-2. Add a preset, then give it the branch. `bam preset add my-feature --plan BAMCI-BUILD` writes the plan line; add `repo_branches` under it in `~/bam/presets/bamci.yaml`:
+2. Add a preset on the plan branch, then give it the branch. `bam preset add my-feature --plan BAMCI-BUILD --branch develop` writes the plan, the branch and every repository of `develop` with the branch it built last; edit the one you want in `~/bam/presets/bamci.yaml`:
 
        my-feature:
          plan: BAMCI-BUILD
-         repo_branches:
-           bam: fix/ignore-undotted-bam-yaml
+         branch: "develop"
+         repositories:
+           bam: "fix/ignore-undotted-bam-yaml"
          watch: true
 
-   `bam: BRANCH` applies to every plan of the run that builds `bam`. `BAMCI-TEST:bam: BRANCH` gives one plan its own branch.
+   `repositories:` needs `branch:` in the same preset. It covers that plan branch only, not the child plans it triggers.
 
-3. Check what bam would create:
-
-       $ bam run my-feature --dry-run
-       finding the plans BAMCI-BUILD triggers, for their repository branches
-       Plan     BAMCI-BUILD  (branch fix-ignore-undotted-bam-yaml)
-       Branches fix-ignore-undotted-bam-yaml on 3 plans
-         BAMCI-BUILD  bam  fix/ignore-undotted-bam-yaml  create
-         BAMCI-LINT   bam  fix/ignore-undotted-bam-yaml  create
-         BAMCI-TEST   bam  fix/ignore-undotted-bam-yaml  create
-       Vars     none
-       dry run: nothing triggered
-
-4. Run it:
+3. Run it. bam reads the branch `bam` built in the newest finished job of `develop`. When it already builds the wanted branch, bam triggers with no question. When it differs, or no job has finished, bam prints the Repositories tab link, opens it and waits:
 
        $ bam run my-feature
+       Plan     BAMCI-BUILD  (branch develop, BAMCI-BUILD7)
+       Repos    BAMCI-BUILD7 built these branches in BAMCI-BUILD7-4; this run wants:
+         bam  main → fix/ignore-undotted-bam-yaml
+         Repositories tab: https://bamboo.example.com/branch/admin/config/configureChainBranchRepositories.action?planKey=BAMCI-BUILD7
+       Switch the branches on the Repositories tab, save, then press Enter to trigger (Ctrl-C stops):
+       ✓ Queued   BAMCI-BUILD7-5   https://bamboo.example.com/browse/BAMCI-BUILD7-5
        ...
-       ✓ Created  BAMCI-BUILD7   plan branch fix-ignore-undotted-bam-yaml of BAMCI-BUILD
-       ✓ Created  BAMCI-LINT7    plan branch fix-ignore-undotted-bam-yaml of BAMCI-LINT
-       ✓ Created  BAMCI-TEST7    plan branch fix-ignore-undotted-bam-yaml of BAMCI-TEST
-       ...
-       ✓ Queued   BAMCI-BUILD7-1   https://bamboo.example.com/browse/BAMCI-BUILD7-1
-       BAMCI-BUILD7-1 (Build · fix-ignore-undotted-bam-yaml)   ✓ success  5s
-       ├─ stage Build                                          ✓ success  5s
-       ├─ BAMCI-LINT7-1 (Lint · fix-ignore-undotted-bam-yaml)  ✓ success  6s
-       │  └─ stage Lint                                        ✓ success  6s
-       └─ BAMCI-TEST7-1 (Test · fix-ignore-undotted-bam-yaml)  ✓ success  17s
-          └─ stage Test                                        ✓ success  11s
+       bam built fix/ignore-undotted-bam-yaml
 
-   The next `bam run my-feature` reuses the three plan branches. A child plan starts on the branch only when the parent plan's dependencies are enabled for branches.
+   With `--json` or no terminal, bam stops before triggering and prints the link. `--dry-run` opens and triggers nothing. When the followed build is over, bam compares again and warns if it used another branch; it never stops the build.
 
-5. When you are done with the branch, delete the plan branches: on each plan's Branches page in Bamboo, or with `DELETE /rest/api/latest/plan/BAMCI-BUILD7` (and `BAMCI-LINT7`, `BAMCI-TEST7`). `bam plan branches BAMCI-BUILD` lists the keys.
+The branch stays as you left it, so the next run of a preset that names another branch asks you to switch back.
 
 | You want to | Type |
 | --- | --- |
-| try another branch once | `bam run my-feature --repo-branch bam=fix/other-branch --dry-run` |
-| give one child its own branch for one run | `bam run my-feature --repo-branch BAMCI-TEST:bam=fix/my-test-change` |
-| do it without a preset | `bam run BAMCI-BUILD --repo-branch bam=fix/ignore-undotted-bam-yaml` |
-| point an existing plan branch at another branch | delete it in Bamboo first; bam then creates it again |
+| try another branch once | `bam run my-feature --repository bam=fix/other-branch --dry-run` |
+| do it without a preset | `bam run BAMCI-BUILD --branch develop --repository bam=fix/ignore-undotted-bam-yaml` |
+| skip the check after the build | `bam run my-feature --watch=false` |
 
-In the terminal UI, `R` on the preset (or on a plan, then `b` and `repo-a=your/branch`) shows the same rows in the run form. `d` lists the plan branches it would create or reuse, `ctrl-R` creates them and follows the child plans. The UI never deletes plan branches; step 5 is still yours.
+In the terminal UI, `R` on the preset shows the repositories as read-only rows in the run form and asks in a dialog when a branch differs.
 
-More: [Build a commit or another branch](docs/branches.md), [Build other repository branches](docs/presets.md#build-other-repository-branches).
+More: [Build other repository branches](docs/presets.md#build-other-repository-branches).
+
+### Keep your presets in your dotfiles
+
+Presets are plain files, so they live well in a dotfiles repository. A layout that works:
+
+    dotfiles/
+    └── bam/
+        ├── presets.yaml            # presets without a project file
+        └── presets/
+            ├── bamci.yaml          # BAMCI-* plans: ci, my-feature
+            └── forge.yaml          # FORGE-* plans: lab1
+
+One file per Bamboo project, named after the project key, each starting with `presets:`. Point bam at the folder on every machine, and give the server the same alias everywhere so a preset's `server:` resolves:
+
+    export BAM_PRESETS="$HOME/dotfiles/bam/presets.yaml"   # also reads dotfiles/bam/presets/
+
+Keep out of the dotfiles: tokens (`bam login` stores them in the keychain or `~/.config/bam/credentials.yaml`) and secret values (use `${ENV}` references). Team presets stay in each repository's `.bam.yaml`, not in your dotfiles. Machine paths for WSL and Git Bash: [Presets](docs/presets.md#one-presets-directory-for-git-bash-wsl-and-macos).
 
 ### Follow a build
 
@@ -499,7 +500,7 @@ Typing `bam` alone opens a full-screen view of your plans. You can browse, watch
 | You want to | Press |
 | --- | --- |
 | run the selected plan | `R`, set variables, then `ctrl-R` (`d` previews the dry run) |
-| build a feature branch across a pipeline | `R` on a preset with `repo_branches`, or `b` in any form to add `REPO = BRANCH`; `d` lists the plan branches, `ctrl-R` creates them |
+| build a feature branch on a plan branch | `R` on a preset with `repositories:`; the form shows them read-only and asks in a dialog when a branch differs |
 | read the failed log of a build | `l` |
 | see what a build triggered | `t` |
 | rerun the failed builds of a tree | `F` (asks first) |
@@ -515,7 +516,6 @@ Nothing changes on the server by accident. No lowercase key starts or stops a bu
 
 - [Configuration and presets](docs/configuration.md)
 - [Presets and re-running with other variables](docs/presets.md)
-- [Build a commit or another branch](docs/branches.md)
 - [Terminal UI keys](docs/tui.md)
 - [Authentication](docs/authentication.md)
 - [Using bam in CI](docs/ci.md)

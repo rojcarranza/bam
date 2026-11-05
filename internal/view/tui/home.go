@@ -505,19 +505,10 @@ func presetColumns(width int, rows []app.TargetInfo) []tableCol {
 }
 
 // presetBranch is what the BRANCH column shows: the plan branch the preset
-// runs, else the repository branches it builds as REPO=BRANCH (more as +N),
-// else "default".
+// runs, else "default".
 func presetBranch(t app.TargetInfo) string {
-	switch {
-	case t.Branch != "":
+	if t.Branch != "" {
 		return t.Branch
-	case len(t.RepoBranches) > 0:
-		r := t.RepoBranches[0]
-		s := r.Key() + "=" + r.Branch
-		if n := len(t.RepoBranches) - 1; n > 0 {
-			s += fmt.Sprintf(" +%d", n)
-		}
-		return s
 	}
 	return "default"
 }

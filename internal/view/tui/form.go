@@ -2,13 +2,14 @@ package tui
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/errs"
 	"github.com/r0jjames/bam-cli/internal/provider"
 )
 
@@ -25,30 +26,11 @@ type formField struct {
 	Err      string   // from ValidateVars, shown against this field
 }
 
-// repoRow is one repository branch of the run, the form's --repo-branch: a
-// preset's repo_branches entry or a row added with b.
+// repoRow is one repository of the plan branch with the branch it must
+// build. The rows are read-only: the run checks them and asks in a dialog.
 type repoRow struct {
-	Plan   string // "" applies to every plan of the run whose default repository is Repo
-	Repo   string
+	Name   string
 	Branch string
-	Added  bool   // added in the form with b; only these can be removed
-	Err    string // shown against this row
-}
-
-// Key is the row as repo_branches and --repo-branch write it.
-func (r repoRow) Key() string {
-	if r.Plan == "" {
-		return r.Repo
-	}
-	return r.Plan + ":" + r.Repo
-}
-
-// repoDry is what d shows for the repository branches: the plan branches the
-// run would create or reuse, read from Bamboo and nothing written.
-type repoDry struct {
-	loading bool
-	plan    app.RepoPlan
-	err     error
 }
 
 // formState is the run form: what was fetched once, and what the user has
@@ -58,17 +40,13 @@ type formState struct {
 	target       string // the preset's name; empty for a bare plan
 	base         app.VarSet
 	fields       []formField
-	revision     string              // commit to build; empty builds the newest. Not a variable.
-	fromBuild    string              // build the form was prefilled from; empty for none
-	fromRevision string              // its commit, offered on the Revision row by f
-	repos        []repoRow           // the repository branches, after the variables
-	choices      map[string][]string // Bamboo's branches by plan key; "" is the run's plan
-	pick         int                 // the suggestion the last up or down put in the input
-	dry          repoDry
+	revision     string    // commit to build; empty builds the newest. Not a variable.
+	fromBuild    string    // build the form was prefilled from; empty for none
+	fromRevision string    // its commit, offered on the Revision row by f
+	repos        []repoRow // the preset's repositories, shown after the variables; not editable
 	cursor       int
 	editing      bool
 	naming       bool // the input holds a new row's name, not a value
-	namingRepo   bool // the name being typed is a repository branch's, REPO or PLAN:REPO
 	input        textinput.Model
 	err          error // a form-level error that ctrl-R refuses on
 	loading      bool
@@ -134,49 +112,39 @@ func buildFields(base app.VarSet, ref app.PlanRef) []formField {
 
 // onRevision says whether the cursor is on the Revision row, the last stop
 // after the variables.
-func (f formState) onRevision() bool { return f.cursor == len(f.fields)+len(f.repos) }
+func (f formState) onRevision() bool { return f.cursor == len(f.fields) }
 
-// onField says whether the cursor is on a variable; onRepo, on a repository
-// branch, which sit between the variables and the Revision row.
+// onField says whether the cursor is on a variable.
 func (f formState) onField() bool { return f.cursor < len(f.fields) }
-func (f formState) onRepo() bool {
-	return f.cursor >= len(f.fields) && f.cursor < len(f.fields)+len(f.repos)
-}
 
-// repoFlags is the rows in --repo-branch shape, which is how the run reads
-// them: the entries for every plan first, as a preset lists them, so the
-// first names the plan branches.
-func (f formState) repoFlags() []string {
-	var all, one []string
-	for _, r := range f.repos {
-		if r.Plan == "" {
-			all = append(all, r.Key()+"="+r.Branch)
-		} else {
-			one = append(one, r.Key()+"="+r.Branch)
-		}
-	}
-	return append(all, one...)
-}
-
-// suggestions are Bamboo's branches for the row under the cursor: those of
-// the plan it names, else of the run's plan.
-func (f formState) suggestions() []string {
-	if !f.onRepo() {
-		return nil
-	}
-	return f.choices[f.repos[f.cursor-len(f.fields)].Plan]
-}
-
-// presetRepoRows are a preset's repo_branches as form rows.
+// presetRepoRows are a preset's repositories as read-only form rows.
 func presetRepoRows(ref app.PlanRef) []repoRow {
-	if ref.Target == nil {
-		return nil
-	}
 	var out []repoRow
-	for _, r := range ref.Target.RepoBranchList() {
-		out = append(out, repoRow{Plan: r.Plan, Repo: r.Repository, Branch: r.Branch})
+	for _, name := range slices.Sorted(maps.Keys(ref.Repositories)) {
+		out = append(out, repoRow{Name: name, Branch: ref.Repositories[name]})
 	}
 	return out
+}
+
+// repoPrompt is the dialog before a run whose repositories are not on the
+// wanted branches: the Repositories tab is open in the browser, and bam goes
+// on once the person has switched and saved it.
+func repoPrompt(c app.RepoCheck) string {
+	var b strings.Builder
+	if c.Known() {
+		fmt.Fprintf(&b, "%s built other branches than this run wants:\n", c.PlanKey)
+	} else {
+		fmt.Fprintf(&b, "%s has no finished job, so bam cannot tell which branches it builds:\n", c.PlanKey)
+	}
+	for _, ch := range c.Changes {
+		built := ch.Built
+		if built == "" {
+			built = "?"
+		}
+		fmt.Fprintf(&b, "  %s  %s → %s\n", ch.Name, built, ch.Want)
+	}
+	fmt.Fprintf(&b, "Switch them on the Repositories tab (opened in your browser), save, then confirm to run.\n%s", c.URL)
+	return b.String()
 }
 
 // flags is what the form hands ValidateVars, in --var shape.
@@ -286,38 +254,14 @@ func (m Model) formBody(width, height int) string {
 			m.fieldNote(f, width-nameW-valueW-4)
 		lines = append(lines, strings.TrimRight(line, " "))
 	}
-	for i, r := range m.form.repos {
-		here := m.form.cursor == len(m.form.fields)+i && !m.form.naming
-		value := r.Branch
-		if value == "" {
-			value = dimStyle.Render(strings.Repeat("_", min(valueW, 12)))
-		}
-		note := "repository branch, " + map[bool]string{false: "preset", true: "added"}[r.Added]
-		if m.form.editing && here {
-			value = m.form.input.View()
-			if n := len(m.form.suggestions()); n > 0 {
-				note = fmt.Sprintf("↑↓ pick from %d branches of Bamboo", n)
-			}
-		}
-		showErr := r.Err != "" && (!m.form.editing || !here)
-		if showErr {
-			note = r.Err
-		}
-		line := m.cursorFor(true, here) +
-			lipgloss.NewStyle().Width(nameW).Render(truncate(r.Key(), nameW)) +
-			lipgloss.NewStyle().Width(valueW).Render(truncate(value, valueW))
-		if showErr {
-			line += errorStyle.Render(truncate(note, width-nameW-valueW-4))
-		} else {
-			line += dimStyle.Render(truncate(note, width-nameW-valueW-4))
-		}
+	for _, r := range m.form.repos {
+		line := "  " + lipgloss.NewStyle().Width(nameW).Render(truncate(r.Name, nameW)) +
+			lipgloss.NewStyle().Width(valueW).Render(truncate(r.Branch, valueW)) +
+			dimStyle.Render(truncate("repository branch, checked when you run", width-nameW-valueW-4))
 		lines = append(lines, strings.TrimRight(line, " "))
 	}
 	if m.form.naming {
 		hint := "name of the variable to add"
-		if m.form.namingRepo {
-			hint = "REPO, PLAN:REPO or REPO=BRANCH"
-		}
 		line := m.cursorFor(true, true) +
 			lipgloss.NewStyle().Width(nameW).Render(m.form.input.View()) +
 			dimStyle.Render(truncate(hint, width-nameW-4))
@@ -347,7 +291,7 @@ func (m Model) formBody(width, height int) string {
 
 	count := fmt.Sprintf("%d of %d changed from the plan's values", m.changedCount(), len(m.form.fields))
 	if n := len(m.form.repos); n > 0 {
-		count += fmt.Sprintf(" · %d repository branches", n)
+		count += fmt.Sprintf(" · %d repositories", n)
 	}
 	lines = append(lines, "", dimStyle.Render(count))
 	if m.form.err != nil {
@@ -420,7 +364,7 @@ func (f *formState) cycle(delta int) {
 
 // move walks the variables and the Revision row after them, and wraps.
 func (f *formState) move(delta int) {
-	rows := len(f.fields) + len(f.repos) + 1
+	rows := len(f.fields) + 1
 	f.cursor = (f.cursor + delta + rows) % rows
 }
 
@@ -433,14 +377,6 @@ func (f *formState) startEditing() {
 		f.input.SetValue(f.revision)
 		f.input.CursorEnd()
 		f.input.Focus()
-		f.editing = true
-		return
-	}
-	if f.onRepo() {
-		f.input.SetValue(f.repos[f.cursor-len(f.fields)].Branch)
-		f.input.CursorEnd()
-		f.input.Focus()
-		f.pick = -1
 		f.editing = true
 		return
 	}
@@ -463,8 +399,6 @@ func (f *formState) acceptEdit() {
 	switch {
 	case f.onRevision():
 		f.revision = f.input.Value()
-	case f.onRepo():
-		f.repos[f.cursor-len(f.fields)].Branch = strings.TrimSpace(f.input.Value())
 	default:
 		f.fields[f.cursor].Value = f.input.Value()
 		f.fields[f.cursor].Touched = true
@@ -474,7 +408,7 @@ func (f *formState) acceptEdit() {
 }
 
 func (f *formState) cancelEdit() {
-	f.editing, f.naming, f.namingRepo = false, false, false
+	f.editing, f.naming = false, false
 	f.input.Blur()
 }
 
@@ -485,59 +419,6 @@ func (f *formState) startNaming() {
 	f.input.Prompt = ""
 	f.input.Focus()
 	f.editing, f.naming = true, true
-}
-
-// startNamingRepo opens the input for a repository branch: REPO or
-// PLAN:REPO, or REPO=BRANCH to give the branch at once.
-func (f *formState) startNamingRepo() {
-	f.startNaming()
-	f.namingRepo = true
-}
-
-// acceptRepo ends naming a repository branch. A key already in the form
-// moves the cursor to its row; a new one adds a row after the others. It
-// says whether the branch should be typed next, which it is unless
-// REPO=BRANCH gave it.
-func (f *formState) acceptRepo() (typeBranch bool, err error) {
-	text := strings.TrimSpace(f.input.Value())
-	f.cancelEdit()
-	if text == "" {
-		return false, nil
-	}
-	key, branch, _ := strings.Cut(text, "=")
-	rk, perr := app.ParseRepoBranchFlag(strings.TrimSpace(key) + "=x")
-	if perr != nil || strings.ContainsAny(rk.Repository, " \t") {
-		return false, errs.Usagef("%q is not REPO or PLAN:REPO", text).
-			WithWhy("a repository is named as a build of the plan shows it").
-			WithTry("repo-a, or PROJ-CHILD:repo-a for one plan")
-	}
-	at := -1
-	for i, r := range f.repos {
-		if r.Plan == rk.Plan && r.Repo == rk.Repository {
-			at = i
-		}
-	}
-	if at < 0 {
-		f.repos = append(f.repos, repoRow{Plan: rk.Plan, Repo: rk.Repository, Added: true})
-		at = len(f.repos) - 1
-	}
-	if b := strings.TrimSpace(branch); b != "" {
-		f.repos[at].Branch = b
-	}
-	f.cursor = len(f.fields) + at
-	return strings.TrimSpace(branch) == "", nil
-}
-
-// suggest puts the next (or previous) of Bamboo's branches in the input, so
-// a branch is picked with up and down instead of typed.
-func (f *formState) suggest(delta int) {
-	s := f.suggestions()
-	if len(s) == 0 {
-		return
-	}
-	f.pick = (f.pick + delta + len(s)) % len(s)
-	f.input.SetValue(s[f.pick])
-	f.input.CursorEnd()
 }
 
 // acceptName ends naming. A declared or already added name moves the cursor
@@ -570,14 +451,6 @@ func (f *formState) acceptName() bool {
 // removeAdded drops the row under the cursor if the form added it. A
 // declared variable stays: removing it would not unset it on Bamboo.
 func (f *formState) removeAdded() bool {
-	if f.onRepo() {
-		at := f.cursor - len(f.fields)
-		if !f.repos[at].Added {
-			return false
-		}
-		f.repos = append(f.repos[:at], f.repos[at+1:]...)
-		return true
-	}
 	if !f.onField() || !f.fields[f.cursor].Added {
 		return false
 	}
@@ -594,12 +467,6 @@ func (m *Model) revalidate() {
 		m.form.fields[i].Err = ""
 	}
 	m.form.err = nil
-	for i := range m.form.repos {
-		m.form.repos[i].Err = ""
-		if m.form.repos[i].Branch == "" {
-			m.form.repos[i].Err = "branch required"
-		}
-	}
 
 	getenv := m.deps.Getenv
 	if getenv == nil {
@@ -653,11 +520,6 @@ func (m Model) canRun() bool {
 	}
 	for _, f := range m.form.fields {
 		if f.Err != "" {
-			return false
-		}
-	}
-	for _, r := range m.form.repos {
-		if r.Err != "" {
 			return false
 		}
 	}
@@ -737,37 +599,15 @@ func (m Model) dryRunBody(width int) string {
 	return strings.Join(append(lines, m.repoDryLines(width)...), "\n")
 }
 
-// repoDryLines is the dry-run's repository branches: each plan branch the
-// run would create or reuse, as bam run --dry-run lists them, then how to
-// delete one, since the UI never does.
+// repoDryLines is the dry-run's repositories: the branches the run needs,
+// which bam checks against the last build and nothing is changed or opened.
 func (m Model) repoDryLines(width int) []string {
 	if len(m.form.repos) == 0 {
 		return nil
 	}
-	d := m.form.dry
-	switch {
-	case d.loading:
-		return []string{"", dimStyle.Render("finding the plans " + m.form.ref.MasterKey + " triggers…")}
-	case d.err != nil:
-		return []string{"", errorStyle.Render(lipgloss.NewStyle().Width(width).Render(errorWhat(d.err)))}
-	case len(d.plan.Plans) == 0:
-		return nil
+	lines := []string{"", "repositories checked before a run"}
+	for _, r := range m.form.repos {
+		lines = append(lines, truncate("  "+r.Name+" → "+r.Branch, width))
 	}
-	lines := []string{"", fmt.Sprintf("plan branch %s on %d plans", d.plan.Name, len(d.plan.Plans))}
-	for _, bp := range d.plan.Plans {
-		what := bp.Repository + "=" + bp.VCSBranch
-		if bp.Repository == "" {
-			what = "its own branch"
-		}
-		verb := "create"
-		if bp.Existing {
-			verb = "reuse " + bp.BranchKey
-		}
-		lines = append(lines, lipgloss.NewStyle().Width(width).Render(fmt.Sprintf("  %s  %s  %s", verb, bp.PlanKey, what)))
-	}
-	for _, w := range d.plan.Warnings {
-		lines = append(lines, "", dimStyle.Render(lipgloss.NewStyle().Width(width).Render(w)))
-	}
-	note := "bam changes no plan and never deletes plan branches. To remove one, delete it on its plan's Branches page in Bamboo, or with DELETE /rest/api/latest/plan/<branch key>."
-	return append(lines, "", dimStyle.Render(lipgloss.NewStyle().Width(width).Render(note)))
+	return lines
 }

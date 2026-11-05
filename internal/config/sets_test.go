@@ -232,3 +232,28 @@ func TestVariableWithSeveralValuesPointsAtOptions(t *testing.T) {
 		require.Contains(t, errWhyTry(err), "options: {env: [a, b]} and must-set names under required: [env]", yml)
 	}
 }
+
+// BAW-7 answer 4: repo_branches is gone with no special wording, so an old
+// preset fails with the ordinary unknown field message.
+func TestRepoBranchesIsAnUnknownField(t *testing.T) {
+	_, err := loadYAML(t, "version: 1\ntargets:\n  d:\n    plan: PROJ-D\n    repo_branches: {app: feature/x}\n", "")
+	require.Error(t, err)
+	require.Contains(t, errWhyTry(err), `line 5: unknown field "repo_branches" in a preset`)
+}
+
+// BAW-7 answer 2: repositories covers the preset's plan branch only, so it
+// needs branch:; with one it loads.
+func TestRepositoriesNeedABranch(t *testing.T) {
+	c, err := loadYAML(t, "version: 1\ntargets:\n  d:\n    plan: PROJ-D\n    repositories: {app: feature/x}\n", "")
+	require.NoError(t, err)
+	_, _, err = c.Target("d")
+	require.Error(t, err)
+	require.Contains(t, errWhyTry(err), `repositories covers the preset's plan branch only`)
+
+	c, err = loadYAML(t, "version: 1\ntargets:\n  d:\n    plan: PROJ-D\n    branch: tst\n    repositories: {app: feature/x}\n", "")
+	require.NoError(t, err)
+	d, ok, err := c.Target("d")
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, StringMap{"app": "feature/x"}, d.Repositories)
+}

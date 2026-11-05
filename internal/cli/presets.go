@@ -294,7 +294,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
 			"branch. The preset lists every variable the plan declares, with its plan default filled in; a secret\n" +
 			"the plan stores is a commented line. It also writes the server you connected to, the plan branch,\n" +
-			"watch: true, required (for variables with no plan default) and commented repo_branches and options lines.",
+			"watch: true, required (for variables with no plan default) and commented options lines.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
 			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +

@@ -27,9 +27,16 @@ type TargetDraft struct {
 	// Server is the alias written as an active server line; empty writes a
 	// commented example instead.
 	Server string
-	// Repos are the repositories of the plan's last build, listed under a
-	// commented repo_branches; empty writes a placeholder.
-	Repos []string
+	// Repos are the repositories of the plan branch with the branch each
+	// builds now. They are written active only when Branch is set and every
+	// repository has a branch; otherwise commented. Empty writes a placeholder.
+	Repos []DraftRepo
+}
+
+// DraftRepo is one repository of a generated target.
+type DraftRepo struct {
+	Name   string
+	Branch string // empty when bam could not read it
 }
 
 var plainKeyRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
@@ -74,11 +81,25 @@ func (d TargetDraft) RenderAs(indent, varsKey string) string {
 	}
 	repos := d.Repos
 	if len(repos) == 0 {
-		repos = []string{"repo-a"}
+		repos = []DraftRepo{{Name: "repo-a"}}
 	}
-	line(1, "# repo_branches:  # branch per repository, also built on the child plans that follow; remove branch first")
+	active := d.Branch != "" && len(d.Repos) > 0
 	for _, r := range repos {
-		line(1, "#   "+yamlKey(r)+`: "feature/PROJ-101"`)
+		active = active && r.Branch != ""
+	}
+	prefix, depth := "#   ", 1
+	if active {
+		line(1, "repositories:  # branch each repository of the plan branch builds; bam asks you to switch it when the last build differs")
+		prefix, depth = "", 2
+	} else {
+		line(1, "# repositories:  # branch each repository of the plan branch builds; needs branch:")
+	}
+	for _, r := range repos {
+		branch := r.Branch
+		if branch == "" {
+			branch = "BRANCH"
+		}
+		line(depth, prefix+yamlKey(r.Name)+": "+quote(branch))
 	}
 	var options []string
 	if len(d.Vars) > 0 {

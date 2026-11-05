@@ -50,9 +50,9 @@ type PlanRef struct {
 	Branch       string // branch short name; empty for the default branch
 	Revision     string // commit to build, set by the caller for one run; ResolvePlan never sets it
 	RevisionFrom string // build key Revision was taken from; empty when it was typed
-	// RepoBranches is what the run does to each plan for its repository
-	// branches, set by UseRepoBranches; ResolvePlan never sets it.
-	RepoBranches []BranchPlan
+	// Repositories is the branch each repository of the plan branch must
+	// build: the preset's, with --repository laid over by bam run.
+	Repositories map[string]string
 	Target       *config.ResolvedTarget
 }
 
@@ -92,7 +92,7 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 		if !ok {
 			return PlanRef{}, UnknownTarget(s.Cfg, arg)
 		}
-		ref = PlanRef{PlanKey: t.Plan, MasterKey: t.Plan, Target: &t}
+		ref = PlanRef{PlanKey: t.Plan, MasterKey: t.Plan, Target: &t, Repositories: maps.Clone(t.Repositories)}
 		if branch == "" {
 			branch = t.Branch
 		}

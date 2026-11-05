@@ -13,10 +13,7 @@
 // triggered build is simulated: it stays queued, then runs, then succeeds,
 // and bam build cancel stops it. With -child, its end queues a build of the
 // child plan, as Bamboo does, so bam build tree and bam run --watch have a
-// tree to follow. Plan branches bam run --repo-branch creates are kept for
-// the life of the process, and a build of one queues its child on the
-// child's plan branch of the same name, as Bamboo does when the parent's
-// dependencies are enabled for branches. Any bearer token is accepted.
+// tree to follow. Any bearer token is accepted.
 //
 // Flags:
 //
@@ -26,6 +23,7 @@
 //	-running DURATION how long it then runs (default 10s)
 //	-child PLAN       plan a triggered build queues a child build of when it ends
 //	-child-fails      that child build fails
+//	-repo NAME=BRANCH the repository and branch every finished job records, as Bamboo does in its metadata
 //	-no-estimate DURATION  how long a running build reports no valid estimate, as Bamboo does at first
 package main
 
@@ -65,22 +63,14 @@ type stub struct {
 	child      string // plan of the build a triggered build queues when it ends; "" for none
 	childFails bool
 	noEstimate time.Duration
+	repoName   string // -repo NAME=BRANCH: the repository finished jobs report
+	repoBranch string
 	now        func() time.Time
 
-	mu       sync.Mutex
-	live     map[string]*build
-	lastN    int
-	branches map[string][]branch // plan branches created in this process, by master plan key
+	mu    sync.Mutex
+	live  map[string]*build
+	lastN int
 }
-
-// branch is a plan branch created in this process.
-type branch struct {
-	key, master, name, vcsBranch string
-}
-
-// firstBranch numbers the plan branches the stub creates past the fixture's,
-// PROJ-BUILD7 and PROJ-BUILD12.
-const firstBranch = 20
 
 // build is one simulated build: what was triggered in this process, as
 // opposed to the finished builds the fixtures describe.
@@ -105,7 +95,6 @@ func newStub(fixtures string) *stub {
 		now:      time.Now,
 		live:     map[string]*build{},
 		lastN:    900,
-		branches: map[string][]branch{},
 	}
 }
 
@@ -183,7 +172,9 @@ const liveRevision = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
 // liveDetail renders a simulated build the way Bamboo's result detail reads,
 // down to the one stage and one job bam needs to draw its panels.
 func (s *stub) liveDetail(key string, b *build) []byte {
-	out, err := json.Marshal(s.liveDoc(key, b))
+	doc := s.liveDoc(key, b)
+	s.addRepoMetadata(doc)
+	out, err := json.Marshal(doc)
 	if err != nil { // the document is built here, so this cannot happen
 		log.Printf("live detail %s: %v", key, err)
 	}
@@ -204,8 +195,7 @@ func (s *stub) liveDoc(key string, b *build) map[string]any {
 		"buildDuration":    elapsed,
 		"buildReason":      reason,
 		"plan":             map[string]any{"key": b.planKey, "shortName": "Build and test"},
-		// The fixture build's one repository, so bam run --repo-branch
-		// can tell which repository a simulated build built.
+		// The fixture build's one repository.
 		"vcsRevisionKey": liveRevision,
 		"vcsRevisions": map[string]any{"size": 1, "vcsRevision": []any{
 			map[string]any{"repositoryName": "app", "vcsRevisionKey": liveRevision},
@@ -307,8 +297,41 @@ func (s *stub) handleResult(w http.ResponseWriter, r *http.Request) {
 // and job keys become the asked-for ones, and only the recorded branch plan
 // keeps its branch, so PROJ-BUILD-482 reads as build #482 of PROJ-BUILD.
 func (s *stub) serveDetail(w http.ResponseWriter, key string) {
-	if text, ok := s.detail(w, key); ok {
+	text, ok := s.detail(w, key)
+	if !ok {
+		return
+	}
+	var doc map[string]any
+	if s.repoName == "" || json.Unmarshal([]byte(text), &doc) != nil {
 		writeJSON(w, []byte(text))
+		return
+	}
+	s.addRepoMetadata(doc)
+	out, _ := json.Marshal(doc)
+	writeJSON(w, out)
+}
+
+// addRepoMetadata records the -repo repository and branch in the metadata of
+// every finished job of a build document, as Bamboo does when a job ends.
+func (s *stub) addRepoMetadata(doc map[string]any) {
+	if s.repoName == "" {
+		return
+	}
+	stages, _ := doc["stages"].(map[string]any)
+	list, _ := stages["stage"].([]any)
+	for _, st := range list {
+		results, _ := st.(map[string]any)["results"].(map[string]any)
+		jobs, _ := results["result"].([]any)
+		for _, j := range jobs {
+			job, _ := j.(map[string]any)
+			if job["lifeCycleState"] != "Finished" {
+				continue
+			}
+			job["metadata"] = map[string]any{"item": []any{
+				map[string]any{"key": "planRepository.1.name", "value": s.repoName},
+				map[string]any{"key": "planRepository.1.branch", "value": s.repoBranch},
+			}}
+		}
 	}
 }
 
@@ -429,7 +452,7 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 		num := s.lastN
 		resultKey := fmt.Sprintf("%s-%d", key, num)
 		s.live[resultKey] = &build{planKey: key, number: num, started: s.now()}
-		if child := s.childOf(key); child != "" {
+		if child := s.child; child != "" && key != child {
 			s.lastN++
 			s.live[fmt.Sprintf("%s-%d", child, s.lastN)] = &build{planKey: child, number: s.lastN,
 				started: s.now().Add(s.queued + s.running), parent: resultKey, fails: s.childFails}
@@ -473,45 +496,14 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// childOf is the plan a build of key queues a build of when it ends: the
-// -child plan, or, for a plan branch, the -child plan's branch of the same
-// name when it has one. Callers hold s.mu.
-func (s *stub) childOf(key string) string {
-	if s.child == "" || key == s.child {
-		return ""
-	}
-	for _, bs := range s.branches {
-		for _, b := range bs {
-			if b.key != key {
-				continue
-			}
-			if b.master == s.child {
-				return ""
-			}
-			for _, c := range s.branches[s.child] {
-				if c.name == b.name {
-					return c.key
-				}
-			}
-		}
-	}
-	return s.child
-}
-
 func (s *stub) handlePlan(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, api+"/plan/")
 	key, sub, _ := strings.Cut(rest, "/")
-	if name, ok := strings.CutPrefix(sub, "branch/"); ok && r.Method == http.MethodPut {
-		s.createBranch(w, key, name, r.URL.Query().Get("vcsBranch"))
-		return
-	}
 	switch sub {
 	case "":
 		s.serve(w, "plan.json", fixturePlan, key)
 	case "branch":
 		s.serveBranches(w, key)
-	case "vcsBranches":
-		s.serve(w, "vcsBranches.json", "", "")
 	case "variables":
 		s.serve(w, "plan_variables.json", "", "")
 	default:
@@ -521,37 +513,7 @@ func (s *stub) handlePlan(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// createBranch answers Bamboo's PUT plan/{key}/branch/{name}: an enabled
-// plan branch called name, keyed after the plan as Bamboo keys them. A name
-// the plan already has is refused with the answer Bamboo 12.1.8 gives.
-func (s *stub) createBranch(w http.ResponseWriter, key, name, vcsBranch string) {
-	s.mu.Lock()
-	for _, b := range s.branches[key] {
-		if b.name == name {
-			s.mu.Unlock()
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = fmt.Fprint(w, `{"message":"This name is already used in a branch or plan.","status-code":400}`)
-			return
-		}
-	}
-	b := branch{key: fmt.Sprintf("%s%d", key, firstBranch+len(s.branches[key])), master: key, name: name, vcsBranch: vcsBranch}
-	s.branches[key] = append(s.branches[key], b)
-	s.mu.Unlock()
-	log.Printf("create plan branch %s of %s building %q", b.key, key, vcsBranch)
-	writeJSON(w, s.branchJSON(b))
-}
-
-func (s *stub) branchJSON(b branch) []byte {
-	out, _ := json.Marshal(map[string]any{
-		"key": b.key, "name": "Example Project - Build and test - " + b.name, "shortName": b.name,
-		"shortKey": strings.TrimPrefix(b.key, fixtureProj+"-"), "enabled": true,
-	})
-	return out
-}
-
-// serveBranches lists the fixture's plan branches, retargeted, then those
-// created in this process.
+// serveBranches lists the fixture's plan branches, retargeted.
 func (s *stub) serveBranches(w http.ResponseWriter, key string) {
 	body := s.fixture(w, "branches.json")
 	if body == nil {
@@ -566,14 +528,6 @@ func (s *stub) serveBranches(w http.ResponseWriter, key string) {
 		http.Error(w, "fixture unavailable", http.StatusInternalServerError)
 		return
 	}
-	list, _ := doc.Branches["branch"].([]any)
-	s.mu.Lock()
-	for _, b := range s.branches[key] {
-		list = append(list, json.RawMessage(s.branchJSON(b)))
-	}
-	s.mu.Unlock()
-	doc.Branches["branch"] = list
-	doc.Branches["size"] = len(list)
 	out, err := json.Marshal(doc)
 	if err != nil { // decoded from JSON a moment ago, so this cannot happen
 		log.Printf("branches for %s: %v", key, err)
@@ -632,6 +586,14 @@ func main() {
 	flag.DurationVar(&s.running, "running", s.running, "how long a triggered build then runs")
 	flag.StringVar(&s.child, "child", "", "plan a triggered build queues a child build of when it ends")
 	flag.BoolVar(&s.childFails, "child-fails", false, "that child build fails")
+	flag.Func("repo", "NAME=BRANCH the repository and branch every finished job records", func(v string) error {
+		name, branch, ok := strings.Cut(v, "=")
+		if !ok || name == "" || branch == "" {
+			return fmt.Errorf("-repo %q is not NAME=BRANCH", v)
+		}
+		s.repoName, s.repoBranch = name, branch
+		return nil
+	})
 	flag.DurationVar(&s.noEstimate, "no-estimate", 0, "how long a running build reports no valid estimate, as Bamboo does at first")
 	flag.Parse()
 	s.fixtures = *fixtures

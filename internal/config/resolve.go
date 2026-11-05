@@ -346,15 +346,11 @@ func mergeTarget(base, over Target) Target {
 	if over.Timeout != 0 {
 		base.Timeout = over.Timeout
 	}
-	if len(over.RepoBranches) > 0 {
+	if len(over.Repositories) > 0 {
 		merged := StringMap{}
-		for k, v := range base.RepoBranches {
-			merged[k] = v
-		}
-		for k, v := range over.RepoBranches {
-			merged[k] = v
-		}
-		base.RepoBranches = merged
+		maps.Copy(merged, base.Repositories)
+		maps.Copy(merged, over.Repositories)
+		base.Repositories = merged
 	}
 	return base
 }
@@ -381,19 +377,14 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 				WithTry(nearServerTry(t.Server, slices.Sorted(maps.Keys(servers))))
 		}
 	}
-	if t.Branch != "" && len(t.RepoBranches) > 0 {
-		return errs.Configf("preset %q sets both branch and repo_branches", t.Name).
-			WithWhy("defined in " + where + "; with repo_branches bam picks the plan branch").
-			WithTry("remove branch: under targets." + t.Name)
+	if len(t.Repositories) > 0 && t.Branch == "" {
+		return errs.Configf("preset %q sets repositories without a branch", t.Name).
+			WithWhy("defined in " + where + "; repositories covers the preset's plan branch only").
+			WithTry("add branch: to preset " + t.Name)
 	}
-	for _, key := range slices.Sorted(maps.Keys(t.RepoBranches)) {
-		if _, ok := ParseRepoKey(key); !ok {
-			return errs.Configf("preset %q: repo_branches key %q is not REPO or PLAN:REPO", t.Name, key).
-				WithWhy("defined in " + where).
-				WithTry("key it by repository, repo-a, or by plan and repository, PROJ-CHILD:repo-a")
-		}
-		if strings.TrimSpace(t.RepoBranches[key]) == "" {
-			return errs.Configf("preset %q: repo_branches.%s has no branch", t.Name, key).
+	for _, name := range slices.Sorted(maps.Keys(t.Repositories)) {
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(t.Repositories[name]) == "" {
+			return errs.Configf("preset %q: repositories.%s has no branch", t.Name, name).
 				WithWhy("defined in " + where)
 		}
 	}

@@ -2,6 +2,8 @@ package view
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -352,12 +354,12 @@ func TargetDetail(o Out, x app.TargetInfo) error {
 			return err
 		}
 	}
-	if len(x.RepoBranches) > 0 {
+	if len(x.Repositories) > 0 {
 		fmt.Fprintln(o.W)
-		fmt.Fprintln(o.W, "Repository branches")
+		fmt.Fprintln(o.W, "Repositories")
 		t := Table{Indent: "  ", Headers: []string{"", ""}}
-		for _, r := range x.RepoBranches {
-			t.Rows = append(t.Rows, []string{r.Key(), r.Branch})
+		for _, name := range slices.Sorted(maps.Keys(x.Repositories)) {
+			t.Rows = append(t.Rows, []string{name, "→ " + x.Repositories[name]})
 		}
 		return RenderRows(o, t)
 	}

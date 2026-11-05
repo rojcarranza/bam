@@ -14,7 +14,10 @@ import (
 // buildExpand is what GetBuild asks for.
 // metadata carries the parent of a child build, which a restart drops from
 // its reason ("Rebuilt by ...").
-const buildExpand = "stages.stage.results.result,labels,vcsRevisions,metadata"
+//
+// The job metadata holds the branch each repository built (planRepository.N.name
+// and planRepository.N.branch) once the job has finished.
+const buildExpand = "stages.stage.results.result,labels,vcsRevisions,metadata,stages.stage.results.result.metadata"
 
 var (
 	tagRe   = regexp.MustCompile(`<[^>]*>`)
@@ -162,6 +165,7 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 				Duration: durationOf(j),
 				URL:      c.URL(resultKey(j)),
 			}
+			job.Branches = repositoryBranches(j)
 			if job.Duration > st.Duration {
 				st.Duration = job.Duration
 			}
@@ -182,4 +186,31 @@ func (c *Client) notFoundAs(err error, what, key, try string) error {
 		_ = e.WithTry(try)
 	}
 	return e
+}
+
+var planRepositoryRe = regexp.MustCompile(`^planRepository\.(\d+)\.(name|branch)$`)
+
+// repositoryBranches reads the branch each repository built from a job's
+// metadata: planRepository.N.name and planRepository.N.branch. Nil without any.
+func repositoryBranches(j resultDTO) map[string]string {
+	names, branches := map[string]string{}, map[string]string{}
+	for _, m := range j.Metadata.Item {
+		if g := planRepositoryRe.FindStringSubmatch(m.Key); g != nil {
+			if g[2] == "name" {
+				names[g[1]] = m.Value
+			} else {
+				branches[g[1]] = m.Value
+			}
+		}
+	}
+	var out map[string]string
+	for n, name := range names {
+		if b, ok := branches[n]; ok {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[name] = b
+		}
+	}
+	return out
 }

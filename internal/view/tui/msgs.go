@@ -1,9 +1,7 @@
 package tui
 
 import (
-	"cmp"
 	"context"
-	"slices"
 	"sort"
 	"sync"
 
@@ -339,9 +337,6 @@ type formLoadedMsg struct {
 	Base         app.VarSet
 	FromBuild    string // the build the variables came from; empty for none
 	FromRevision string // that build's commit, offered on the Revision row; empty for none
-	// Choices are Bamboo's branches of the run's plan, offered when a
-	// repository branch is typed; empty when they could not be read.
-	Choices map[string][]string
 }
 
 // openFormCmd resolves what the cursor is on into a plan reference and
@@ -383,9 +378,7 @@ func openFormCmd(ctx context.Context, svc *app.Service, planKey string, target *
 		if base.FromBuild != "" {
 			rev, _ = svc.BuildRevision(ctx, base.FromBuild)
 		}
-		// The branches are offered, never required, like the revision.
-		choices := map[string][]string{"": branchNames(ctx, svc, ref.MasterKey)}
-		return formLoadedMsg{Gen: gen, Ref: ref, Target: name, Base: base, FromBuild: base.FromBuild, FromRevision: rev, Choices: choices}
+		return formLoadedMsg{Gen: gen, Ref: ref, Target: name, Base: base, FromBuild: base.FromBuild, FromRevision: rev}
 	}
 }
 
@@ -415,89 +408,30 @@ func cancelCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.C
 type triggeredMsg struct {
 	Gen   int
 	Build provider.Build
-	// Run is what a run with repository branches did to each plan; its
-	// children's plan branches are searched for the builds the run triggers.
-	Run app.RepoPlan
 }
 
-// branchNames suggest a repository branch for a plan: the branches of its
-// default repository in version control (Bamboo's vcsBranches), then the
-// names of the plan's own plan branches that are not among them. A server
-// without the first still offers the second, and when neither can be read
-// the list is empty and the branch is typed.
-func branchNames(ctx context.Context, svc *app.Service, plan string) []string {
-	if plan == "" {
-		return nil
-	}
-	out, _ := svc.P.ListRepoBranches(ctx, plan)
-	if bs, err := svc.P.ListBranches(ctx, plan); err == nil {
-		for _, b := range bs {
-			if n := cmp.Or(b.Name, b.ShortName); !slices.Contains(out, n) {
-				out = append(out, n)
-			}
-		}
-	}
-	return out
-}
-
-// formBranchesMsg brings Bamboo's branches of a plan named by a repository
-// branch row.
-type formBranchesMsg struct {
+// repoCheckedMsg is the answer of the repositories check made before a run.
+type repoCheckedMsg struct {
 	Gen   int
-	Plan  string
-	Names []string
+	Ref   app.PlanRef
+	VS    app.VarSet
+	Check app.RepoCheck
 }
 
-func formBranchesCmd(ctx context.Context, svc *app.Service, plan string, gen int) tea.Cmd {
+// checkRepoCmd compares the branches the preset's repositories must build
+// with those of the last build. When the person has to switch some, it opens
+// the Repositories tab in the browser; the dialog then asks to go on. bam
+// never changes the tab.
+func checkRepoCmd(ctx context.Context, svc *app.Service, ref app.PlanRef, vs app.VarSet, open func(string) error, gen int) tea.Cmd {
 	return func() tea.Msg {
-		return formBranchesMsg{Gen: gen, Plan: plan, Names: branchNames(ctx, svc, plan)}
-	}
-}
-
-// repoDryMsg is what a run would do to the plan branches.
-type repoDryMsg struct {
-	Gen  int
-	Plan app.RepoPlan
-	Err  error
-}
-
-// repoDryCmd works out the plan branches a run would create or reuse. It
-// reads Bamboo and writes nothing, like bam run --dry-run.
-func repoDryCmd(ctx context.Context, svc *app.Service, ref app.PlanRef, flags []string, gen int) tea.Cmd {
-	return func() tea.Msg {
-		rbs, err := app.RepoBranchOverrides(flags, nil)
+		c, err := svc.CheckRepositories(ctx, ref, ref.Repositories)
 		if err != nil {
-			return repoDryMsg{Gen: gen, Err: err}
+			return errMsg{Err: err, Where: "run", Stream: streamRun, Gen: gen}
 		}
-		rp, err := svc.PlanRepoBranches(ctx, ref, rbs)
-		return repoDryMsg{Gen: gen, Plan: rp, Err: err}
-	}
-}
-
-// runRepoCmd runs with repository branches as bam run does: it finds the
-// plans, creates the plan branches that are missing, and triggers the root's
-// plan branch. ctrl-R is the confirmation, so nothing asks again. It never
-// deletes a plan branch.
-func runRepoCmd(ctx context.Context, svc *app.Service, ref app.PlanRef, vs app.VarSet, flags []string, gen int) tea.Cmd {
-	return func() tea.Msg {
-		fail := func(err error) tea.Msg { return errMsg{Err: err, Where: "run", Stream: streamRun, Gen: gen} }
-		rbs, err := app.RepoBranchOverrides(flags, nil)
-		if err != nil {
-			return fail(err)
+		if c.Needed() && open != nil {
+			_ = open(c.URL)
 		}
-		rp, err := svc.PlanRepoBranches(ctx, ref, rbs)
-		if err != nil {
-			return fail(err)
-		}
-		if err := svc.CreateRepoBranches(ctx, &rp); err != nil {
-			return fail(err)
-		}
-		ref.UseRepoBranches(rp)
-		b, err := svc.Run(ctx, ref, vs)
-		if err != nil {
-			return fail(err)
-		}
-		return triggeredMsg{Gen: gen, Build: b, Run: rp}
+		return repoCheckedMsg{Gen: gen, Ref: ref, VS: vs, Check: c}
 	}
 }
 

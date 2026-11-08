@@ -7,11 +7,11 @@ All hostnames, project keys, plan keys and user names in this repository are pla
 
 ## 1. Vision
 
-Bam is a terminal remote control for Atlassian Bamboo: trigger, watch and diagnose builds without the browser, and get the Bamboo link the moment the browser is needed.
+Bam is the command line for Atlassian Bamboo: trigger, watch and diagnose builds without the browser, and get the Bamboo link the moment the browser is needed. It turns intent ("build my branch", "why did it fail") into the right REST calls, readable output and stable exit codes.
 
 Bam is a native developer tool, not a REST API wrapper. It is organised around what a user intends ("run my pipeline", "why did it fail"), not around Bamboo's endpoints.
 
-Bam has two faces over one core. Typing `bam` alone opens a terminal UI (a k9s-style plans table with a plan screen for each pipeline) to navigate servers, projects, plans, builds, stages and logs, and to run presets with a keystroke. Typing `bam <command>` gives scriptable commands for speed, scripts and CI. Both call the same use cases, so they cannot disagree.
+Bam has two faces over one core. Typing `bam` alone opens a terminal UI (a k9s-style plans table with a plan screen for each pipeline) to navigate servers, projects, plans, builds, stages and logs, and to run presets with a keystroke. Typing `bam <command>` gives scriptable commands for speed, scripts and CI. Both call the same use cases, so they cannot disagree. See [`VISION.md`](../VISION.md) for refined scope, including plan creation and editing, Bamboo agents and a web dashboard as coming features.
 
 ## 2. Problem
 
@@ -92,10 +92,10 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 
 ### Explicitly out of scope
 
-**Note:** [`VISION.md`](../VISION.md) widens this list: plan creation and editing, Bamboo agents and a web dashboard are coming into scope. Where the two disagree, VISION.md wins.
+**Note:** [`VISION.md`](../VISION.md) is the authoritative scope. Plan creation, editing, Bamboo agents and a web dashboard are coming into scope (see VISION.md). The list below reflects what remains out of scope; for the full authoritative boundary, see VISION.md.
 
 - Replacing the Bamboo web UI, or exposing every REST endpoint.
-- Bamboo administration, plan creation or plan editing. Bamboo Specs stay in each project's own repository.
+- Bamboo administration. Bamboo Specs stay in each project's own repository.
 - Bamboo deployment projects (environments and releases).
 - `run --verbose` (verbose build logs). Bamboo's REST build queue has no verbose-logs parameter; only the deployment queue has `verboseLogging` (confirmed on Bamboo 12.1.8), and deployments are out of scope.
 - Running builds locally, or running Terraform, Ansible, Helm or kubectl directly.

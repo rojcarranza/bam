@@ -1,6 +1,6 @@
 # bam
 
-A terminal remote control for Atlassian Bamboo: run a plan, follow the build, read why it failed and open it in Bamboo, without the browser.
+The command line for Atlassian Bamboo: run a plan, follow the build, read why it failed and open it in Bamboo, without the browser. See [`VISION.md`](VISION.md) for what bam is and is not.
 
     bam run BAMCI-BUILD --watch
     bam logs --last --failed

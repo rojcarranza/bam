@@ -92,6 +92,8 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 
 ### Explicitly out of scope
 
+**Note:** [`VISION.md`](../VISION.md) widens this list: plan creation and editing, Bamboo agents and a web dashboard are coming into scope. Where the two disagree, VISION.md wins.
+
 - Replacing the Bamboo web UI, or exposing every REST endpoint.
 - Bamboo administration, plan creation or plan editing. Bamboo Specs stay in each project's own repository.
 - Bamboo deployment projects (environments and releases).

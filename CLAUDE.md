@@ -12,6 +12,7 @@ Source of truth, read before changing behaviour:
 - `docs/superpowers/specs/2026-09-12-bam-cli-mvp-design.md` - the v0.1 design: commands, config, exit codes, JSON contract, architecture
 - `docs/superpowers/plans/2026-09-12-bam-v0.1-part{1..4}-*.md` - the task-by-task implementation plan (29 tasks), executed in order
 - `SETUP.md` - toolchain install for macOS and Linux
+- `VISION.md` - what bam accepts and resists; judge a change against it before the PRD's older scope lists
 
 If code and spec disagree, the spec wins unless the change to the spec is deliberate and made in the same branch.
 

@@ -93,13 +93,14 @@ func TestResolvePlanErrors(t *testing.T) {
 	_, err = s.ResolvePlan(bg, "PROJ-PROV", "devlop")
 	require.Error(t, err)
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
-	assert.Contains(t, err.Error(), `branch "devlop" not found on PROJ-PROV`)
+	assert.Contains(t, err.Error(), `PROJ-PROV has no plan branch for "devlop"`)
 	require.ErrorAs(t, err, &e)
-	assert.Equal(t, "did you mean develop? bam plan branches PROJ-PROV lists them all", e.Try)
+	assert.Equal(t, "the closest plan branch is develop", e.Why)
 
 	_, err = s.ResolvePlan(bg, "PROJ-PROV", "zzzzzz")
 	require.ErrorAs(t, err, &e)
-	assert.Equal(t, "bam plan branches PROJ-PROV (omit --branch for the default branch)", e.Try)
+	assert.Empty(t, e.Why, "nothing is close")
+	assert.Contains(t, e.Try, "chain/admin/createPlanBranch!doDefault.action?buildKey=PROJ-PROV")
 }
 
 func TestResolveBuild(t *testing.T) {

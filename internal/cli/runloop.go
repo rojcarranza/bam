@@ -164,6 +164,9 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if ref.Repositories, err = app.RepositoryWants(rf.repositories, ref.Target); err != nil {
 				return err
 			}
+			if ref.Repositories, err = svc.ExpandRepositories(ref.Repositories); err != nil {
+				return err
+			}
 			check, err := svc.CheckRepositories(ctx, ref, ref.Repositories)
 			if err != nil {
 				return err
@@ -218,8 +221,8 @@ func newRunCmd(r *runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringArrayVar(&rf.vars, "var", nil, "variable name=value (repeatable)")
 	f.StringVar(&rf.from, "from", "", "reuse variables of a build: number, key or last")
-	f.StringVar(&rf.branch, "branch", "", "plan branch to run")
-	f.StringArrayVar(&rf.repositories, "repository", nil, "branch NAME=BRANCH a repository of the plan branch must build for this run, over the preset's repositories (repeatable)")
+	f.StringVar(&rf.branch, "branch", "", `plan branch to run; @ is the branch checked out here`)
+	f.StringArrayVar(&rf.repositories, "repository", nil, "branch NAME=BRANCH a repository of the plan branch must build for this run, over the preset's repositories; BRANCH @ is the branch checked out here (repeatable)")
 	f.StringVar(&rf.revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
 	f.BoolVar(&rf.watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	f.DurationVar(&rf.timeout, "timeout", 0, "stop watching after this long (the build keeps running)")

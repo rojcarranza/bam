@@ -36,6 +36,9 @@ type Service struct {
 	Sets   *SetStore
 	Trees  *TreeStore // finished trees seen before; nil keeps none
 	Getenv func(string) string
+	// Checkout returns the branch checked out in the working directory; nil
+	// when bam has no repository to ask. "@" in a branch means this branch.
+	Checkout func() (string, error)
 
 	estimates estimateCache // medians of plan histories, for servers without progress
 	scans     scanCache     // the newest tree scan of each plan, for TreeOptions.Shared

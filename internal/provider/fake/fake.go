@@ -300,6 +300,10 @@ func (f *Provider) LogCalls(key string) int {
 
 func (f *Provider) URL(key string) string { return f.BaseURL + "/browse/" + key }
 
+func (f *Provider) CreateBranchURL(planKey string) string {
+	return f.BaseURL + "/chain/admin/createPlanBranch!doDefault.action?buildKey=" + planKey
+}
+
 func (f *Provider) RepositoriesURL(planKey string) string {
 	return f.BaseURL + "/branch/admin/config/configureChainBranchRepositories.action?planKey=" + planKey
 }

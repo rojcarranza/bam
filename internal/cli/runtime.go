@@ -170,7 +170,8 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 		return nil, nil, err
 	}
 	svc := &app.Service{P: backend, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
-		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv}
+		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv,
+		Checkout: r.checkedOutBranch}
 	return svc, backend, nil
 }
 

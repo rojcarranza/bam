@@ -7,7 +7,7 @@ Set two variables; no config file is needed:
 
     bam run PROJ-DEPLOY --var env=staging --watch --timeout 30m
 
-`bam` never prompts in CI. On a pipe it prints one timestamped line per state change and no colors. `--watch` follows the build and every build it triggers, then prints the tree with a `failed:` line and link for each build that did not succeed.
+`bam` never prompts in CI. On a pipe it prints one timestamped line per state change and no colors. `--watch` follows the build and every build it triggers, then prints the tree with a `failed:` line and link for each build that did not succeed, and a `cause:` line under the first five failed builds that shows what went wrong.
 
 ## Exit codes
 

@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
+
 ### Added
 
 - `bam preset add`, `bam init --plan` and the terminal UI's save-as-preset write the server, the plan branch and `watch: true` as active lines, and list the plan branch's repositories under `repositories:`. A plan branch key given as `--plan` is written as its main plan plus the branch. `--full` no longer does anything.
@@ -122,6 +126,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 [Unreleased]: https://github.com/rojcarranza/bam/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/rojcarranza/bam/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/r0jjames/bam-cli/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/r0jjames/bam-cli/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/r0jjames/bam-cli/releases/tag/v0.1.0
+[0.2.1]: https://github.com/rojcarranza/bam/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/rojcarranza/bam/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/rojcarranza/bam/releases/tag/v0.1.0

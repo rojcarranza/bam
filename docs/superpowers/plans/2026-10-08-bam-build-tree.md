@@ -52,7 +52,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -125,7 +125,7 @@ package config
 import (
 	"regexp"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // childPlanKeyRe is a plan key, PROJ-PLAN.
@@ -218,9 +218,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/provider/fake"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -506,7 +506,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // treeWindow is how many recent builds of each candidate plan are searched
@@ -851,7 +851,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1092,8 +1092,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1210,9 +1210,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view/style"
 )
 
 // treeBad reports whether a node failed, was stopped or did not run.
@@ -1404,8 +1404,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1587,7 +1587,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1676,10 +1676,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/view"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view"
 	"github.com/spf13/cobra"
 )
 

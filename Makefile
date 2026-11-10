@@ -1,5 +1,5 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -X github.com/r0jjames/bam-cli/internal/cli.version=$(VERSION)
+LDFLAGS := -X github.com/rojcarranza/bam/internal/cli.version=$(VERSION)
 
 .PHONY: build install test lint e2e record check-fixtures docs stub release
 

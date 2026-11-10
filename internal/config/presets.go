@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // PresetsEnv names the variable that overrides the presets file's path.

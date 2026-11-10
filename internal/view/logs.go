@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/view/style"
 )
 
 // PrintLogs writes job logs; with several jobs each gets a tail-style header.

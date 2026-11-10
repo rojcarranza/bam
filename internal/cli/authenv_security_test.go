@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
+	"github.com/rojcarranza/bam/internal/provider/bamboo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

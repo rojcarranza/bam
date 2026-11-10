@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/view"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view"
 )
 
 // panel draws one bordered box with its title set into the top border, the

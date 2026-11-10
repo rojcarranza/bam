@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // historySample is how many successful builds a local estimate's median is

@@ -676,7 +676,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 

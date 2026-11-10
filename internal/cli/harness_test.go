@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
-	"github.com/r0jjames/bam-cli/internal/provider/fake"
-	"github.com/r0jjames/bam-cli/internal/view/tui"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/bamboo"
+	"github.com/rojcarranza/bam/internal/provider/fake"
+	"github.com/rojcarranza/bam/internal/view/tui"
 	"github.com/stretchr/testify/require"
 	"github.com/zalando/go-keyring"
 )

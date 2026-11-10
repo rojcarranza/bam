@@ -9,7 +9,7 @@ You need Go 1.26 or newer, `git`, `make`, and two terminals.
 
 ## 1. Get the code and install `bam`
 
-    git clone https://github.com/r0jjames/bam-cli.git
+    git clone https://github.com/rojcarranza/bam.git
     cd bam-cli
     make install
 

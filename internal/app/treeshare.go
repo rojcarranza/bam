@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // treeShareAge is how long a scan is lent to another build of its plan: a

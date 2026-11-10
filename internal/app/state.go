@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/atomicfile"
+	"github.com/rojcarranza/bam/internal/atomicfile"
 )
 
 // LastRecord is the last build bam triggered from one repository. It holds no

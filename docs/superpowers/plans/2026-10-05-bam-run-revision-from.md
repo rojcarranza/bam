@@ -566,7 +566,7 @@ func TestRunEditHeaderNamesAReusedRevision(t *testing.T) {
 }
 ```
 
-(If `runedit_test.go` does not import `app`, add `"github.com/r0jjames/bam-cli/internal/app"`. Read the harness's `History["PROJ-PROV12"]` first: if it is empty, set it to `[]provider.Build{{Key: "PROJ-PROV12-8", Number: 8, Revision: "9b30…"}}` instead.)
+(If `runedit_test.go` does not import `app`, add `"github.com/rojcarranza/bam/internal/app"`. Read the harness's `History["PROJ-PROV12"]` first: if it is empty, set it to `[]provider.Build{{Key: "PROJ-PROV12-8", Number: 8, Revision: "9b30…"}}` instead.)
 
 - [ ] **Step 3: Run to verify they fail**
 
@@ -793,7 +793,7 @@ func TestFormLoadedCarriesTheHintAndReopeningClearsIt(t *testing.T) {
 }
 ```
 
-(Imports needed in `form_test.go`: `provider` — add `"github.com/r0jjames/bam-cli/internal/provider"` if missing.)
+(Imports needed in `form_test.go`: `provider` — add `"github.com/rojcarranza/bam/internal/provider"` if missing.)
 
 - [ ] **Step 2: Run to verify they fail**
 

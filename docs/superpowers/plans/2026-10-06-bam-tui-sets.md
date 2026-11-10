@@ -69,8 +69,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -159,7 +159,7 @@ package app
 import (
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // SetBoardRow is one run of a set as a display knows it.
@@ -438,8 +438,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -563,8 +563,8 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // setItem is one row of the sets table: a configured set and this
@@ -771,8 +771,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -870,8 +870,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // setScreen is the set screen's state: the set, its newest record, the
@@ -1198,10 +1198,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/provider/fake"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/config"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/fake"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1366,9 +1366,9 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 type setAction int

@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // MaskedValue is what Bamboo returns in place of a secret variable's value.

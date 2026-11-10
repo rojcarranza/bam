@@ -6,7 +6,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/config"
+	"github.com/rojcarranza/bam/internal/config"
 )
 
 // TargetVar is one default of a target, safe to display.

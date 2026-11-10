@@ -17,7 +17,7 @@ WSL runs Linux, so install the Linux build there, not the Windows one. Pick the 
     curl -fsSL "https://github.com/rojcarranza/bam/releases/download/v${v}/bam_${v}_linux_amd64.tar.gz" | tar -xz -C ~/.local/bin bam
     bam version
 
-If `bam` is not found, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` and open a new terminal. With Go 1.26 or newer, `go install github.com/r0jjames/bam-cli/cmd/bam@latest` works too (it installs into `~/go/bin`).
+If `bam` is not found, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` and open a new terminal. With Go 1.26 or newer, `go install github.com/rojcarranza/bam/cmd/bam@latest` works too (it installs into `~/go/bin`).
 
 On WSL, `bam open` needs a way to reach the Windows browser:
 
@@ -319,13 +319,13 @@ Start from the failed build. `bam build investigate` picks out the error and the
     Reason: Manual run by Admin
 
     Test / Test (TEST)  first error at line 10
-            7  ok  	github.com/r0jjames/bam-cli/internal/cli	(cached)
-            8  ok  	github.com/r0jjames/bam-cli/internal/config	(cached)
-            9  ok  	github.com/r0jjames/bam-cli/internal/credential	(cached)
+            7  ok  	github.com/rojcarranza/bam/internal/cli	(cached)
+            8  ok  	github.com/rojcarranza/bam/internal/config	(cached)
+            9  ok  	github.com/rojcarranza/bam/internal/credential	(cached)
       >    10  --- FAIL: TestDemoFailure (0.00s)
            11      demo_failing_test.go:6: deliberate failure for the README example
            12  FAIL
-           13  FAIL	github.com/r0jjames/bam-cli/internal/errs	0.012s
+           13  FAIL	github.com/rojcarranza/bam/internal/errs	0.012s
 
     Failed tests: none reported
     Likely cause: --- FAIL: TestDemoFailure (0.00s) (job TEST)

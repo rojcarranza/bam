@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // LogsOptions selects which job logs to fetch.

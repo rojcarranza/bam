@@ -11,10 +11,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/provider/fake"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/fake"
 	"github.com/stretchr/testify/require"
 )
 

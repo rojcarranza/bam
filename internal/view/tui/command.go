@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // command is one entry of the : bar (home spec §5). The table below is the

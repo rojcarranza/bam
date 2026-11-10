@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/atomicfile"
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/atomicfile"
+	"github.com/rojcarranza/bam/internal/errs"
 	"gopkg.in/yaml.v3"
 )
 

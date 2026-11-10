@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/config"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // MaskedDisplay replaces every secret value in output.

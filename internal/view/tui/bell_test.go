@@ -3,8 +3,8 @@ package tui
 import (
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 

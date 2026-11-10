@@ -3,7 +3,7 @@ package app
 import (
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // SetBoardRow is one run of a set as a display knows it.

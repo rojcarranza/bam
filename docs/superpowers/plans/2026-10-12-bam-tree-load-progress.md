@@ -82,7 +82,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -412,7 +412,7 @@ Refs #81"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `internal/app/tree_progress_test.go` (add `"github.com/r0jjames/bam-cli/internal/provider/fake"` to its imports):
+Append to `internal/app/tree_progress_test.go` (add `"github.com/rojcarranza/bam/internal/provider/fake"` to its imports):
 
 ```go
 // finishedTreeFake is treeFake with every build finished, so a watch ends.
@@ -1105,7 +1105,7 @@ Design note: the read starts when the command is built (in `Update`), and the co
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `internal/view/tui/planscreen_test.go` (add `"context"`, `tea "github.com/charmbracelet/bubbletea"` and `"github.com/r0jjames/bam-cli/internal/app"` to imports if missing):
+Append to `internal/view/tui/planscreen_test.go` (add `"context"`, `tea "github.com/charmbracelet/bubbletea"` and `"github.com/rojcarranza/bam/internal/app"` to imports if missing):
 
 ```go
 func noMsg() tea.Msg { return nil }

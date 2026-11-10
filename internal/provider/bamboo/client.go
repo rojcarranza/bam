@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 const maxAttempts = 3

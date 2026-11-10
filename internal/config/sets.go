@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // ResolvedSet is a set from the highest layer that defines it. Sets are

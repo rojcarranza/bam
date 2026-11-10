@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/rojcarranza/bam/internal/app"
 	"github.com/stretchr/testify/require"
 )
 

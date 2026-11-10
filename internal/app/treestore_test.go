@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 func TestTreeStoreKeepsFinalTreesAcrossRestarts(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"unicode/utf8"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/r0jjames/bam-cli/internal/config"
+	"github.com/rojcarranza/bam/internal/config"
 	"github.com/stretchr/testify/require"
 )
 

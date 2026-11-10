@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/view/style"
 )
 
 const gap = "  "

@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/atomicfile"
+	"github.com/rojcarranza/bam/internal/atomicfile"
 )
 
 // Capabilities records which optional Bamboo REST features a server supports.

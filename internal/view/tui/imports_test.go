@@ -17,11 +17,11 @@ import (
 // Test files are exempt: building an app.Service needs a config.Config.
 func TestTUIDependencyRule(t *testing.T) {
 	allowed := map[string]bool{
-		"github.com/r0jjames/bam-cli/internal/app":        true,
-		"github.com/r0jjames/bam-cli/internal/provider":   true,
-		"github.com/r0jjames/bam-cli/internal/view":       true,
-		"github.com/r0jjames/bam-cli/internal/view/style": true,
-		"github.com/r0jjames/bam-cli/internal/errs":       true,
+		"github.com/rojcarranza/bam/internal/app":        true,
+		"github.com/rojcarranza/bam/internal/provider":   true,
+		"github.com/rojcarranza/bam/internal/view":       true,
+		"github.com/rojcarranza/bam/internal/view/style": true,
+		"github.com/rojcarranza/bam/internal/errs":       true,
 	}
 	entries, err := os.ReadDir(".")
 	require.NoError(t, err)
@@ -33,7 +33,7 @@ func TestTUIDependencyRule(t *testing.T) {
 		require.NoError(t, err)
 		for _, imp := range f.Imports {
 			path := strings.Trim(imp.Path.Value, `"`)
-			if !strings.HasPrefix(path, "github.com/r0jjames/bam-cli/") {
+			if !strings.HasPrefix(path, "github.com/rojcarranza/bam/") {
 				continue
 			}
 			require.True(t, allowed[path], "%s imports %s, which spec §9.2 forbids", e.Name(), path)

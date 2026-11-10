@@ -12,13 +12,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/credential"
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
-	"github.com/r0jjames/bam-cli/internal/view"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/config"
+	"github.com/rojcarranza/bam/internal/credential"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/bamboo"
+	"github.com/rojcarranza/bam/internal/view"
 	"github.com/spf13/cobra"
 )
 

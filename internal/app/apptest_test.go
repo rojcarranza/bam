@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/provider/fake"
+	"github.com/rojcarranza/bam/internal/config"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/fake"
 )
 
 // fakeClock fires every After immediately and records the requested waits.

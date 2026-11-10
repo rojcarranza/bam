@@ -1,7 +1,7 @@
 # Copilot review instructions for bam-cli
 
 `bam` is a Go CLI that drives Atlassian Bamboo Data Center over REST with a
-personal access token. Module `github.com/r0jjames/bam-cli`, binary `bam` from
+personal access token. Module `github.com/rojcarranza/bam`, binary `bam` from
 `cmd/bam`. The design lives in `docs/superpowers/specs/` and the scope in
 `docs/prd.md`; if code and spec disagree, the spec wins.
 

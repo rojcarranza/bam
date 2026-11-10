@@ -12,16 +12,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/view"
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/config"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/view"
+	"github.com/rojcarranza/bam/internal/view/style"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// version is set at build time with -ldflags "-X github.com/r0jjames/bam-cli/internal/cli.version=v0.1.0".
+// version is set at build time with -ldflags "-X github.com/rojcarranza/bam/internal/cli.version=v0.1.0".
 // go install cannot pass -ldflags; resolveVersion covers that build.
 var version = "dev"
 

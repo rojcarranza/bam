@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/view/style"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

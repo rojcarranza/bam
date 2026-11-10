@@ -63,7 +63,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -221,7 +221,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // ResolvedSet is a set from the highest layer that defines it. Sets are
@@ -532,8 +532,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 const setIDTime = "20060102T150405Z"

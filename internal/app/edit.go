@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/config"
+	"github.com/rojcarranza/bam/internal/config"
 )
 
 // The buffer of bam run --edit (run-edit spec §4). Render and parse live

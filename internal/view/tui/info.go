@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/view"
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/view"
+	"github.com/rojcarranza/bam/internal/view/style"
 )
 
 // statsBuilds is how many of a plan's newest builds :stats reads, the

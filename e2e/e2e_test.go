@@ -22,8 +22,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/cli"
-	"github.com/r0jjames/bam-cli/internal/toolcfg"
+	"github.com/rojcarranza/bam/internal/cli"
+	"github.com/rojcarranza/bam/internal/toolcfg"
 )
 
 var (

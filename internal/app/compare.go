@@ -5,8 +5,8 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // Change is one value that differs between two builds. Was or Now is empty

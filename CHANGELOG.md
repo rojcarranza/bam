@@ -6,9 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-### Fixed
-
-- `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
+## [0.4.0] - 2026-11-10
 
 ### Added
 
@@ -31,6 +29,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
 - `bam preset add`, `p` in the terminal UI and `bam preset sync` write every variable the plan declares, plan defaults filled in, so the preset is ready to fill; a secret the plan stores is a commented line.
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.
 - On WSL, `bam open` and `o` in the terminal UI fall back to the Windows browser when no Linux opener such as `xdg-open` is installed.
@@ -126,7 +125,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A terminal UI with a plans table, panels for builds, stages and logs, and a run form.
 - `--json` on every read command, and stable exit codes.
 
-[Unreleased]: https://github.com/rojcarranza/bam/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rojcarranza/bam/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rojcarranza/bam/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rojcarranza/bam/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/rojcarranza/bam/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rojcarranza/bam/compare/v0.1.0...v0.2.0

@@ -1,4 +1,4 @@
-module github.com/r0jjames/bam-cli
+module github.com/rojcarranza/bam
 
 go 1.26.0
 

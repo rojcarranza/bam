@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // InvestigateOptions shape the error blocks of each failed job.

@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/config"
+	"github.com/rojcarranza/bam/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 

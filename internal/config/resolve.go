@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // EnvServerAlias names the ad-hoc server defined by BAM_URL.

@@ -8,10 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/view"
-	"github.com/r0jjames/bam-cli/internal/view/tui"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/view"
+	"github.com/rojcarranza/bam/internal/view/tui"
 	"github.com/spf13/cobra"
 )
 

@@ -48,7 +48,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -141,7 +141,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // setFile is a train file: one set, with an optional name.
@@ -222,8 +222,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 

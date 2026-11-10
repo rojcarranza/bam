@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
-	"github.com/r0jjames/bam-cli/internal/toolcfg"
+	"github.com/rojcarranza/bam/internal/provider/bamboo"
+	"github.com/rojcarranza/bam/internal/toolcfg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/atomicfile"
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/atomicfile"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // SetStatus is where a set run stands.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // PrintError writes what failed, why, and what to try. The cause appears only with debug.

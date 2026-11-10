@@ -3,8 +3,8 @@ package view
 import (
 	"fmt"
 
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/view/style"
 )
 
 // Sync statuses, as they appear in the --json status field.

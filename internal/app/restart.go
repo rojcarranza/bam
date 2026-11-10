@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // restartPoll and restartWait bound how long Restart waits for Bamboo to

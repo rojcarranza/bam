@@ -91,8 +91,10 @@ Do not use `apt install golang`. Distribution packages usually lag behind the Go
 
 ```bash
 sudo apt update
-sudo apt install -y git make curl tar
+sudo apt install -y git make curl tar build-essential
 ```
+
+`build-essential` provides the C compiler that `go test -race` (part of the gate) needs; without it Go stops with `go: -race requires cgo`.
 
 ### 2. Go from go.dev
 
@@ -173,8 +175,8 @@ Any editor with gopls works. For VS Code, install the official Go extension (`go
 ## Get the code
 
 ```bash
-git clone git@github.com:r0jjames/bam-cli.git
-cd bam-cli
+git clone git@github.com:rojcarranza/bam.git
+cd bam
 ```
 
 The product design lives in `docs/`:

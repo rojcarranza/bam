@@ -864,7 +864,7 @@ Expected: FAIL to compile, `m.logs.pinned undefined`, `undefined: highlightSpans
 
 - [ ] **Step 4: Rewrite the state and helpers in `logs.go`**
 
-Replace the `logState` struct, `setLines`, `resize`, `appendLines`, `search` and `goTo` with the following, and add `"github.com/r0jjames/bam-cli/internal/view/style"` to the imports (keep `offset int` for now; Task 4 removes it):
+Replace the `logState` struct, `setLines`, `resize`, `appendLines`, `search` and `goTo` with the following, and add `"github.com/rojcarranza/bam/internal/view/style"` to the imports (keep `offset int` for now; Task 4 removes it):
 
 ```go
 // logState is the log screen. It keeps the raw lines as well as the viewport,
@@ -1228,7 +1228,7 @@ func TestFollowWorksWhileSeveralJobsAreShown(t *testing.T) {
 }
 ```
 
-Add the import `github.com/r0jjames/bam-cli/internal/app` to `logs_test.go`.
+Add the import `github.com/rojcarranza/bam/internal/app` to `logs_test.go`.
 
 In `stale_test.go`:
 - `TestStaleFollowChunkIsDropped`: replace the `logChunkMsg{...}` with `logEventMsg{Gen: 3, Event: linesEvent("PROJ-BUILD-INT-44", 5, "from a job we left")}`.
@@ -1522,7 +1522,7 @@ func (l *logState) setBuild(b provider.Build) {
 }
 ```
 
-Add `"github.com/r0jjames/bam-cli/internal/app"` to `logs.go`'s imports.
+Add `"github.com/rojcarranza/bam/internal/app"` to `logs.go`'s imports.
 
 - [ ] **Step 6: Implement in `model.go`**
 
@@ -1749,7 +1749,7 @@ func TestStageLogGolden(t *testing.T) {
 }
 ```
 
-Add the import `github.com/r0jjames/bam-cli/internal/provider/fake` to `logs_test.go` if it is not there.
+Add the import `github.com/rojcarranza/bam/internal/provider/fake` to `logs_test.go` if it is not there.
 
 - [ ] **Step 2: Run them to verify they fail**
 

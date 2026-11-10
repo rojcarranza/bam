@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // buildLinkRe is a link to a build's page, .../browse/PROJ-PLAN-42. A job's

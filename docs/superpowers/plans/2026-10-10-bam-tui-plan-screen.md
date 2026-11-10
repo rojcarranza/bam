@@ -290,7 +290,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -388,7 +388,7 @@ func TestServerSwitchLeavesThePlanScreen(t *testing.T) {
 }
 ```
 
-Add `"github.com/r0jjames/bam-cli/internal/app"` to the imports for `app.TargetInfo`. `time` is used by later tasks; remove it now if `go vet` complains.
+Add `"github.com/rojcarranza/bam/internal/app"` to the imports for `app.TargetInfo`. `time` is used by later tasks; remove it now if `go vet` complains.
 
 In `model_test.go`, delete `TestEnterOnAPresetSelectsItsPlan`, `TestEnterOnAPresetWhosePlanIsNotListedStillLoadsIt`, `TestRefreshOnPresetsRereadsTheProjectFile` and `TestPresetRowShowsNamePlanAndBranch` if still present (covered by `TestEnterOnAPresetOpensItsPlanAndBranch` and Home's preset tests). In `home_test.go`, rename `TestEnterOnHomeOpensThePanelsOnThePlan` and `TestEnterOnAPresetOpensThePanels` only if they now duplicate the new tests; otherwise update them to expect `screenPlan` and `focusBuilds`. In `stale_test.go`, port `TestOpeningAPresetStopsTheWatchToo` to open the preset from Home's presets view (`presetModel()`, Enter) while a watch runs, and assert `m.watchCancel == nil` afterwards.
 
@@ -404,8 +404,8 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/r0jjames/bam-cli/internal/app"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // planScreen is the screen about one plan: its builds, the stages of the
@@ -1440,7 +1440,7 @@ func TestStagesTitleSaysLoading(t *testing.T) {
 }
 ```
 
-(add `"strings"`, `"github.com/charmbracelet/lipgloss"` to the test imports; `golden_test.go` needs `"github.com/r0jjames/bam-cli/internal/app"`.)
+(add `"strings"`, `"github.com/charmbracelet/lipgloss"` to the test imports; `golden_test.go` needs `"github.com/rojcarranza/bam/internal/app"`.)
 
 In `panels_test.go`, delete `TestPlanRowsShowTheNameWhenItFits`, `TestPlanRowsWithoutANameShowTheKey` and `TestMainPanelNamesTheBuildsPlan` (their panels are gone; the header test replaces them). Port `TestPanelCursorRowsAreBars` to `planBuildRows` and Stages: the cursor row of each is one `selectedRowStyle` bar.
 

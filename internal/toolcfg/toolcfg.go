@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/credential"
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/config"
+	"github.com/rojcarranza/bam/internal/credential"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // Options say where the configuration and the credentials live. Tests fill

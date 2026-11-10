@@ -6,8 +6,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
-	"github.com/r0jjames/bam-cli/internal/view/style"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view/style"
 )
 
 // Out is where and how to render.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func TestVersionJSON(t *testing.T) {
 func TestVersionFallsBackToBuildInfo(t *testing.T) {
 	info := func(v string) func() (*debug.BuildInfo, bool) {
 		return func() (*debug.BuildInfo, bool) {
-			return &debug.BuildInfo{Main: debug.Module{Path: "github.com/r0jjames/bam-cli", Version: v}}, true
+			return &debug.BuildInfo{Main: debug.Module{Path: "github.com/rojcarranza/bam", Version: v}}, true
 		}
 	}
 	noInfo := func() (*debug.BuildInfo, bool) { return nil, false }

@@ -49,9 +49,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/config"
-	"github.com/r0jjames/bam-cli/internal/provider/bamboo"
-	"github.com/r0jjames/bam-cli/internal/toolcfg"
+	"github.com/rojcarranza/bam/internal/config"
+	"github.com/rojcarranza/bam/internal/provider/bamboo"
+	"github.com/rojcarranza/bam/internal/toolcfg"
 )
 
 type recorder struct {

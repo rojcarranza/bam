@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"slices"
 
-	"github.com/r0jjames/bam-cli/internal/errs"
+	"github.com/rojcarranza/bam/internal/errs"
 )
 
 // childPlanKeyRe is a plan key, PROJ-PLAN (or a branch plan key, PROJ-PLAN12).

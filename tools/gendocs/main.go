@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/r0jjames/bam-cli/internal/cli"
+	"github.com/rojcarranza/bam/internal/cli"
 	"github.com/spf13/cobra/doc"
 )
 

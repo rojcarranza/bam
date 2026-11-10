@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
+
 ### Added
 
 - `@` stands for the branch checked out in the current directory: `--branch @`, `--repository NAME=@` and `@` in a preset's `branch:` or `repositories:`. When the plan has no plan branch for it, bam says so, names the closest one and prints Bamboo's create link; it creates nothing.
@@ -123,6 +127,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 [Unreleased]: https://github.com/rojcarranza/bam/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/rojcarranza/bam/compare/v0.2.1...v0.3.0
-[0.2.1]: https://github.com/r0jjames/bam-cli/compare/v0.2.0...v0.2.1
-[0.2.0]: https://github.com/r0jjames/bam-cli/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/r0jjames/bam-cli/releases/tag/v0.1.0
+[0.2.1]: https://github.com/rojcarranza/bam/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/rojcarranza/bam/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/rojcarranza/bam/releases/tag/v0.1.0

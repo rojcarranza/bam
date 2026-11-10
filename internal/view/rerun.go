@@ -3,7 +3,7 @@ package view
 import (
 	"fmt"
 
-	"github.com/r0jjames/bam-cli/internal/app"
+	"github.com/rojcarranza/bam/internal/app"
 )
 
 // RerunList is the question bam build tree --rerun-failed asks: what it

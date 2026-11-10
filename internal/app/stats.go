@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // statsReaders is how many failed builds PlanStats reads at once.

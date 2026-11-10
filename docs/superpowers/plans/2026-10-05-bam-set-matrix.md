@@ -662,7 +662,7 @@ func TestSetRecordAndEventJSONCarryNames(t *testing.T) {
 }
 ```
 
-(`sets_test.go` imports `config`: add `"github.com/r0jjames/bam-cli/internal/config"` if missing.)
+(`sets_test.go` imports `config`: add `"github.com/rojcarranza/bam/internal/config"` if missing.)
 
 - [ ] **Step 2: Run** `go test ./internal/view/ -run 'Set' 2>&1 | tail -3` — expected: compile errors.
 

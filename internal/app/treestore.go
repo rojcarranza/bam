@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/r0jjames/bam-cli/internal/atomicfile"
-	"github.com/r0jjames/bam-cli/internal/provider"
+	"github.com/rojcarranza/bam/internal/atomicfile"
+	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // treeTTL is how long a saved tree is drawn before it is dropped (#82).

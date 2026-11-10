@@ -10,7 +10,7 @@ You need Go 1.26 or newer, `git`, `make`, and two terminals.
 ## 1. Get the code and install `bam`
 
     git clone https://github.com/rojcarranza/bam.git
-    cd bam-cli
+    cd bam
     make install
 
 This installs `bam` into Go's bin directory (`go env GOPATH`/bin, usually

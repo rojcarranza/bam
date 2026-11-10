@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
 ### Fixed
 
 - `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
@@ -126,7 +128,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A terminal UI with a plans table, panels for builds, stages and logs, and a run form.
 - `--json` on every read command, and stable exit codes.
 
-[Unreleased]: https://github.com/rojcarranza/bam/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/rojcarranza/bam/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rojcarranza/bam/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rojcarranza/bam/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/rojcarranza/bam/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/rojcarranza/bam/compare/v0.1.0...v0.2.0

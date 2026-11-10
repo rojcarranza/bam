@@ -8,10 +8,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [0.4.0] - 2026-11-10
 
-### Fixed
-
-- `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
-
 ### Added
 
 - `bam watch @` waits for Bamboo to start a build of the commit you have checked out, then follows it and the builds it triggers: `git push && bam watch @`. The plan is the one you last ran in this repository; `bam watch PLAN --branch @` names another. A commit that is not pushed has no build, so bam says so and follows the newest build of the branch; with no build of it within `--timeout` (10 minutes by default) bam exits with the timeout code.
@@ -33,6 +29,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
 - `bam preset add`, `p` in the terminal UI and `bam preset sync` write every variable the plan declares, plan defaults filled in, so the preset is ready to fill; a secret the plan stores is a commented line.
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.
 - On WSL, `bam open` and `o` in the terminal UI fall back to the Windows browser when no Linux opener such as `xdg-open` is installed.

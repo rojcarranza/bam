@@ -272,3 +272,9 @@ func TestRepositoriesURLIsTheBranchRepositoriesTab(t *testing.T) {
 	assert.Equal(t, c.URL("")[:len(c.URL(""))-len("/browse/")]+"/branch/admin/config/configureChainBranchRepositories.action?planKey=PROJ-BRANCH1",
 		c.RepositoriesURL("PROJ-BRANCH1"))
 }
+
+func TestCreateBranchURLIsThePlanBranchCreatePage(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{})
+	base := c.URL("")[:len(c.URL(""))-len("/browse/")]
+	assert.Equal(t, base+"/chain/admin/createPlanBranch!doDefault.action?buildKey=PROJ-PLAN", c.CreateBranchURL("PROJ-PLAN"))
+}

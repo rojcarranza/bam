@@ -43,18 +43,18 @@ type Paths struct {
 
 // Env is everything the CLI takes from the process. Tests build it by hand.
 type Env struct {
-	Stdin       io.Reader
-	Stdout      io.Writer
-	Stderr      io.Writer
-	Getenv      func(string) string
-	StdoutTTY   bool
-	StderrTTY   bool
-	StdinTTY    bool
-	Width       func() int
-	WorkDir     string
+	Stdin     io.Reader
+	Stdout    io.Writer
+	Stderr    io.Writer
+	Getenv    func(string) string
+	StdoutTTY bool
+	StderrTTY bool
+	StdinTTY  bool
+	Width     func() int
+	WorkDir   string
 	// GitBranch returns the branch checked out in dir; nil means bam cannot
 	// tell, and "@" is refused.
-	GitBranch func(dir string) (string, error)
+	GitBranch   func(dir string) (string, error)
 	Home        string
 	Paths       Paths
 	Clock       app.Clock

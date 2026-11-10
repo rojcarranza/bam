@@ -36,6 +36,8 @@ type runtime struct {
 	flags globalFlags
 	cfg   *config.Config
 	trees *app.TreeStore
+	// notify is set by --notify on commands that watch a build.
+	notify bool
 }
 
 // treeStore is one for the process, so every server's Service in the

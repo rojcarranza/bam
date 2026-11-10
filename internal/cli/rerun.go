@@ -82,5 +82,6 @@ succeeded is refused.`,
 	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	f.BoolVar(&dryRun, "dry-run", false, "show which build would rerun, restart nothing")
 	f.DurationVar(&timeout, "timeout", 0, "with --watch, stop watching after this long (the build keeps running)")
+	addNotifyFlag(cmd, r)
 	return cmd
 }

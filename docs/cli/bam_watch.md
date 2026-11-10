@@ -37,6 +37,7 @@ bam watch [<build>|<plan>|<preset>] [flags]
       --branch string      plan branch when a plan or preset is given
   -h, --help               help for watch
       --last               the last build bam triggered from this repository
+      --notify             when the watched build finishes, ring the terminal bell and raise a desktop notification where the system has one
       --timeout duration   stop watching after this long (the build keeps running)
 ```
 

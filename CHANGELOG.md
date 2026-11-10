@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `bam build show` and `bam build investigate` print each failed test's message under its name. `--json` gains `failed_test_details` beside `failed_tests`. Secret-looking values in a message print as `********`.
 - `bam status` lists every build you started with bam in the last day, across repositories and servers, newest first, with its live state, progress and link. Inside a repository the build of the checked-out branch comes first. `bam status --short` prints one line for a shell prompt. bam keeps the last 50 runs it started in its state file: build, plan, preset, server and time, never a variable value.
 - A queued build says its place in the queue, such as `queue 3 of 7`, in `bam build show`, `bam watch` and the tree. `bam queue` lists what the server has queued, first in line first, and `bam agent list` lists the build agents with online, enabled and busy. `--json` gains `queue_position` and `queue_length` on a queued build.
+- `--notify` on `bam run`, `bam watch` and `bam build rerun`: when the watched build finishes, bam rings the terminal bell and raises a desktop notification where the system has one (`osascript` on macOS, `notify-send` on Linux).
 
 ## [0.4.0] - 2026-11-10
 

@@ -307,7 +307,11 @@ func (r *runtime) watchCommit(cmd *cobra.Command, arg string, last bool, branch 
 	if err != nil {
 		return err
 	}
-	return r.followBuild(cmd, nil, svc, key, timeout)
+	var preset []string
+	if arg != app.CheckedOutMarker {
+		preset = []string{arg}
+	}
+	return r.followBuild(cmd, preset, svc, key, timeout)
 }
 
 func newWatchCmd(r *runtime) *cobra.Command {

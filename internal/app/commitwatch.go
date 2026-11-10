@@ -24,6 +24,10 @@ const commitScan = 10
 // is as for ResolvePlan.
 func (s *Service) CommitPlan(ctx context.Context, arg, branch string) (string, error) {
 	if arg == CheckedOutMarker {
+		if branch != "" && branch != CheckedOutMarker {
+			return "", errs.Usagef("%s already means the checked-out branch, so --branch %s does not apply", arg, branch).
+				WithTry("bam watch PROJ-PLAN --branch @, or drop --branch")
+		}
 		rec, ok, err := s.State.Last(s.Cfg.RepoRoot)
 		if err != nil {
 			return "", err

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -579,4 +581,22 @@ func TestWatchAtTakesThePlanOfTheLastRunHere(t *testing.T) {
 		BuildKey: "PROJ-PROV12-8", Origin: workOrigin, PlanKey: "PROJ-PROV12"}))
 	assert.Equal(t, 1, h.run("watch", "@"))
 	assert.Contains(t, h.stdout.String(), "PROJ-PROV12-8")
+}
+
+func TestWatchAtPresetAppliesThePresetTimeout(t *testing.T) {
+	h := commitHarness(t, true)
+	yaml := strings.Replace(projectYAML, "    branch: develop\n", "    branch: develop\n    timeout: 50ms\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte(yaml), 0o644))
+	mine := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateRunning,
+		Revision: "9f2c1d7a0b3e4f5a6b7c8d9e0f1a2b3c4d5e6f70"}
+	h.fake.History["PROJ-PROV12"] = []provider.Build{mine}
+	h.fake.Sequences = map[string][]provider.Build{"PROJ-PROV12-9": {mine}}
+	assert.Equal(t, 6, h.run("watch", "provision-lab", "--branch", "@"))
+	assert.Contains(t, h.stderr.String(), "timed out after 50ms")
+}
+
+func TestWatchAtRefusesAnotherBranch(t *testing.T) {
+	h := commitHarness(t, true)
+	assert.Equal(t, 2, h.run("watch", "@", "--branch", "release"))
+	assert.Contains(t, h.stderr.String(), "--branch release does not apply")
 }

@@ -104,6 +104,9 @@ func TestCommitPlanAtUsesTheLastRunsPlanAndTheCheckedOutBranch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-PARENT1", plan)
 
+	_, err = s.CommitPlan(bg, "@", "release")
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err), "@ and another --branch conflict")
+
 	plan, err = s.CommitPlan(bg, "PROJ-PARENT", "@")
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-PARENT1", plan)

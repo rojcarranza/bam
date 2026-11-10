@@ -17,7 +17,7 @@ bam plan show <plan|preset> [flags]
 ### Options
 
 ```
-      --branch string   plan branch for the recent builds
+  -b, --branch string   plan branch for the recent builds
   -h, --help            help for show
 ```
 

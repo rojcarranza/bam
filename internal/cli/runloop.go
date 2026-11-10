@@ -28,7 +28,11 @@ func init() { commandSets = append(commandSets, addRunLoop) }
 func addRunLoop(root *cobra.Command, r *runtime) {
 	build := subgroup(root, "build", "Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel", groupRun)
 	build.AddCommand(newRunCmd(r), newWatchCmd(r), newLogsCmd(r), newInvestigateCmd(r), newCancelCmd(r))
-	for _, c := range []*cobra.Command{newRunCmd(r), newWatchCmd(r), newLogsCmd(r)} {
+	// bam why is bam investigate; each shortcut is a second instance of its
+	// build subcommand: same flags, same output, same JSON.
+	why := newInvestigateCmd(r)
+	why.Aliases = []string{"why"}
+	for _, c := range []*cobra.Command{newRunCmd(r), newWatchCmd(r), newLogsCmd(r), newBuildTreeCmd(r), why, newCancelCmd(r)} {
 		c.GroupID = groupShortcut
 		root.AddCommand(c)
 	}
@@ -221,10 +225,10 @@ func newRunCmd(r *runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringArrayVar(&rf.vars, "var", nil, "variable name=value (repeatable)")
 	f.StringVar(&rf.from, "from", "", "reuse variables of a build: number, key or last")
-	f.StringVar(&rf.branch, "branch", "", `plan branch to run; @ is the branch checked out here`)
+	f.StringVarP(&rf.branch, "branch", "b", "", `plan branch to run; @ is the branch checked out here`)
 	f.StringArrayVar(&rf.repositories, "repository", nil, "branch NAME=BRANCH a repository of the plan branch must build for this run, over the preset's repositories; BRANCH @ is the branch checked out here (repeatable)")
 	f.StringVar(&rf.revision, "revision", "", `commit to build instead of the newest, or "from" to reuse the commit of the --from build; Bamboo applies it to the plan's default repository`)
-	f.BoolVar(&rf.watch, "watch", false, "follow the build and the builds it triggers until they finish")
+	f.BoolVarP(&rf.watch, "watch", "w", false, "follow the build and the builds it triggers until they finish")
 	f.DurationVar(&rf.timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
 	f.BoolVar(&rf.dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
 	addNotifyFlag(cmd, r)
@@ -342,7 +346,7 @@ build, so bam says so and follows the newest build of the branch.`,
 			"  bam watch deploy-qa --branch develop\n" +
 			"  bam watch PROJ-BUILD-482 --timeout 30m\n" +
 			"  git push && bam watch @",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if (len(args) == 1 && args[0] == app.CheckedOutMarker) || (branch == app.CheckedOutMarker && len(args) == 1) {
@@ -385,7 +389,7 @@ func newLogsCmd(r *runtime) *cobra.Command {
 			"  bam logs --last --failed -n 50\n" +
 			"  bam logs PROJ-BUILD-482 --job JOB1 --follow\n" +
 			"  bam logs PROJ-BUILD-JOB1-482",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			return f.run(cmd.Context(), r, args)
@@ -506,7 +510,7 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 		Short:             "Find the error lines of a failed build and its likely cause",
 		Example:           "  bam build investigate PROJ-BUILD-482\n  bam build investigate --last --compare\n  bam build investigate provision --context 0 --max 0",
 		SuggestFor:        []string{"test", "tests", "failures", "errors", "diagnose", "debug", "why", "compare"},
-		Args:              cobra.MaximumNArgs(1),
+		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if opts.Context < 0 {
@@ -642,10 +646,10 @@ func newCancelCmd(r *runtime) *cobra.Command {
 		Example: "  bam build cancel PROJ-BUILD-482\n" +
 			"  bam build cancel --last --dry-run\n" +
 			"  bam build cancel deploy-qa --branch develop",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			svc, key, err := r.resolveBuildArg(cmd.Context(), args, last, branch)
+			svc, key, err := r.resolveNamedBuild(cmd.Context(), args, last, branch)
 			if err != nil {
 				return err
 			}
@@ -718,6 +722,9 @@ func (r *runtime) urlFor(ctx context.Context, args []string, last bool, job stri
 
 // browseKey returns the server URL and the key that urlFor browses.
 func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (string, string, error) {
+	if len(args) == 0 && !last {
+		last = r.hasLastBuild()
+	}
 	if err := lastOrArg(args, last); err != nil {
 		return "", "", err
 	}

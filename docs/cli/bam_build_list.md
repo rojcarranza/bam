@@ -17,7 +17,7 @@ bam build list <plan|preset> [flags]
 ### Options
 
 ```
-      --branch string   plan branch
+  -b, --branch string   plan branch
   -h, --help            help for list
   -n, --limit int       number of builds (default 10)
       --state string    only builds in this state, e.g. failed

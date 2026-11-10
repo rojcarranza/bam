@@ -70,10 +70,10 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 			"  bam server add lab --url https://bamboo.lab.example --project LAB --project OPS\n" +
 			"  bam server add work --url https://bamboo.example.com --force",
 		Args: func(cmd *cobra.Command, args []string) error {
-			// git remote add muscle memory: show the exact command with --url.
+			// git remote add muscle memory: the URL stands in for --url.
 			if len(args) == 2 && url == "" && strings.Contains(args[1], "://") {
-				return errs.Usagef("the server URL goes in --url").
-					WithTry("bam server add " + lowerAlias(args[0]) + " --url " + args[1])
+				url = args[1]
+				return nil
 			}
 			return cobra.ExactArgs(1)(cmd, args)
 		},
@@ -152,10 +152,10 @@ func checkProjectKeys(projects []string) error {
 
 func newServerListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "list",
-		SuggestFor: []string{"ls"},
-		Short:      "List server aliases, whether a token is stored, and which one is selected here",
-		Args:       cobra.NoArgs,
+		Use:     "list",
+		Aliases: []string{"ls"},
+		Short:   "List server aliases, whether a token is stored, and which one is selected here",
+		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
 			if err != nil {

@@ -1,0 +1,47 @@
+## bam cancel
+
+Stop a queued or running build
+
+### Synopsis
+
+Stop a queued or running build.
+
+Bamboo stops a build by removing its unfinished jobs from the queue, so a
+stage that has not started yet can still be queued afterwards. Check the
+result with bam build show.
+
+```
+bam cancel [<build>|<plan>|<preset>] [flags]
+```
+
+### Examples
+
+```
+  bam build cancel PROJ-BUILD-482
+  bam build cancel --last --dry-run
+  bam build cancel deploy-qa --branch develop
+```
+
+### Options
+
+```
+  -b, --branch string   plan branch when a plan or preset is given
+      --dry-run         show which build would stop, stop nothing
+  -h, --help            help for cancel
+      --last            the last build bam triggered from this repository (the default for commands that only read)
+```
+
+### Options inherited from parent commands
+
+```
+      --color string    color output: auto, always or never
+      --debug           log HTTP requests to stderr
+      --json            print JSON
+      --no-tui          never open the terminal UI
+      --server string   server alias to use
+```
+
+### SEE ALSO
+
+* [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
+

@@ -50,15 +50,14 @@ func TestResolvePlanFromKey(t *testing.T) {
 
 func TestPresetTypedInWrongCaseGetsHint(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	_, err := s.ResolvePlan(bg, "Provision-Lab", "")
+	ref, err := s.ResolvePlan(bg, "Provision-Lab", "")
+	require.NoError(t, err, "a preset typed with capitals is the preset")
+	assert.Equal(t, "PROJ-PROV12", ref.PlanKey)
 	var e *errs.Error
-	require.ErrorAs(t, err, &e)
-	assert.Equal(t, `"Provision-Lab" is neither a preset nor a plan key`, e.What)
-	assert.Equal(t, "preset names are lowercase: did you mean provision-lab?", e.Try)
 
-	_, err = s.ResolveBuild(bg, BuildArg{Arg: "Provision-Lab"})
-	require.ErrorAs(t, err, &e)
-	assert.Equal(t, "preset names are lowercase: did you mean provision-lab?", e.Try)
+	key, err := s.ResolveBuild(bg, BuildArg{Arg: "Provision-Lab"})
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV12-9", key)
 
 	for arg, try := range map[string]string{
 		"PROJ-BUILD-":    "did you mean PROJ-BUILD?",
@@ -145,12 +144,11 @@ func TestResolveBuild(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "a build number needs its plan, as in PROJ-PLAN-482", e.Try)
 	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-480", Origin: s.Origin}))
-	_, err = s.ResolveBuild(bg, BuildArg{Arg: "482"})
-	require.ErrorAs(t, err, &e)
-	assert.Equal(t, "did you mean PROJ-BUILD-482?", e.Try, "a bare number takes the plan of the last build run here")
-	_, err = s.ResolveBuild(bg, BuildArg{Arg: "#482"})
-	require.ErrorAs(t, err, &e)
-	assert.Equal(t, "did you mean PROJ-BUILD-482?", e.Try, "Bamboo's '#' before a bare number")
+	for _, arg := range []string{"482", "#482"} {
+		key, err = s.ResolveBuild(bg, BuildArg{Arg: arg})
+		require.NoError(t, err, arg)
+		assert.Equal(t, "PROJ-BUILD-482", key, "a bare number takes the plan of the last build run here")
+	}
 
 	_, err = s.ResolveBuild(bg, BuildArg{Arg: "PROJ-BUILD-INT-482"})
 	require.ErrorAs(t, err, &e)

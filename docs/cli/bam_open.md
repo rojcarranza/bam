@@ -20,7 +20,7 @@ bam open [<key>|<preset>] [flags]
 ```
   -h, --help         help for open
       --job string   a job of the plan or build, by short key (JOB1)
-      --last         the last build bam triggered from this repository
+      --last         the last build bam triggered from this repository (the default for commands that only read)
 ```
 
 ### Options inherited from parent commands

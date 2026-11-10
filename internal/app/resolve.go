@@ -83,6 +83,7 @@ func BuildLabel(key string) string {
 // overrides the target's branch.
 func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef, error) {
 	var ref PlanRef
+	arg = s.presetCase(arg)
 	switch {
 	case config.ValidTargetName(arg):
 		t, ok, err := s.Cfg.Target(arg)
@@ -130,6 +131,18 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 		ref.PlanKey, ref.Branch = key, branch
 	}
 	return ref, nil
+}
+
+// presetCase is arg in lowercase when that names a preset, so "Deploy-QA"
+// runs deploy-qa; a plan, build or project key is returned unchanged.
+func (s *Service) presetCase(arg string) string {
+	if IsPlanKey(arg) || IsBuildKey(arg) || projectRe.MatchString(arg) {
+		return arg
+	}
+	if p := s.lowerPreset(arg); p != "" {
+		return p
+	}
+	return arg
 }
 
 // lowerPreset returns arg in lowercase when that names a preset, for a
@@ -264,6 +277,7 @@ type BuildArg struct {
 // ResolveBuild returns a build key: the key itself, the latest build of a
 // plan or target, or the last build bam triggered from this repository.
 func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) {
+	a.Arg = s.presetCase(a.Arg)
 	switch {
 	case a.Last:
 		rec, ok, err := s.State.Last(s.Cfg.RepoRoot)
@@ -280,6 +294,8 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		return rec.BuildKey, nil
 	case IsBuildKey(a.Arg):
 		return CanonicalBuildKey(a.Arg)
+	case s.bareNumberBuild(a.Arg) != "":
+		return CanonicalBuildKey(s.bareNumberBuild(a.Arg))
 	case a.Arg == "":
 		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
 	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg) && !projectRe.MatchString(a.Arg):
@@ -313,6 +329,21 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		return "", errs.Bamboof("no builds of %s yet", ref.PlanKey).WithTry("bam run " + a.Arg)
 	}
 	return builds[0].Key, nil
+}
+
+// bareNumberBuild is the build key for a bare build number (482 or #482):
+// that number of the plan of the last build triggered from this repository on
+// this server. It is "" for anything else, and when there is no such build.
+func (s *Service) bareNumberBuild(arg string) string {
+	n := strings.TrimPrefix(arg, "#")
+	if !digitsRe.MatchString(n) {
+		return ""
+	}
+	rec, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	if !ok || !IsBuildKey(rec.BuildKey) || (rec.Origin != "" && rec.Origin != s.Origin) {
+		return ""
+	}
+	return rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + n
 }
 
 // canonicalBuildKey drops leading zeros from a build key's number

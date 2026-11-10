@@ -9,7 +9,7 @@ This spec is the input to the v0.1 implementation plan. It refines the earlier d
 
 Bam is a single Go binary that drives Bamboo Data Center 9.x+ over its REST API with a personal access token. v0.1 covers setup, browsing, run presets and their generation, triggering, watching, logs, cancel, and links back to Bamboo, with human output on a TTY, plain output on a pipe, and a stable JSON contract.
 
-Commands are noun-verb (`bam build run`), with three top-level shortcuts for the daily loop (`run`, `watch`, `logs`) and two cross-entity commands (`open`, `url`).
+Commands are noun-verb (`bam build run`), with top-level shortcuts for the daily loop (`run`, `watch`, `logs`, `tree`, `investigate` (also `why`) and `cancel`) and two cross-entity commands (`open`, `url`).
 
 Bare `bam` on a terminal is reserved for the lazygit-style terminal UI, which ships in v0.2 with its own spec. v0.1 builds the core that the UI will call, under the constraints in section 8.5.
 

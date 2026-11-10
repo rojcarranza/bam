@@ -17,9 +17,9 @@ bam build show [<build>|<plan>|<preset>] [flags]
 ### Options
 
 ```
-      --branch string   plan branch when a plan or preset is given
+  -b, --branch string   plan branch when a plan or preset is given
   -h, --help            help for show
-      --last            the last build bam triggered from this repository
+      --last            the last build bam triggered from this repository (the default for commands that only read)
 ```
 
 ### Options inherited from parent commands

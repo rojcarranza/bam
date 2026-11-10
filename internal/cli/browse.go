@@ -50,9 +50,9 @@ func (r *runtime) note(msg, try string) {
 func newProjectListCmd(r *runtime) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
-		Use:        "list [text]",
-		SuggestFor: []string{"ls"},
-		Short:      "List configured projects (--all: every project on the server)",
+		Use:     "list [text]",
+		Aliases: []string{"ls"},
+		Short:   "List configured projects (--all: every project on the server)",
 		Long: "List configured projects (--all: every project on the server). With text, list\n" +
 			"only the projects whose key or name contains it, ignoring case.",
 		Example: "  bam project list\n  bam project list --all ops",
@@ -103,9 +103,9 @@ func newProjectListCmd(r *runtime) *cobra.Command {
 func newPlanListCmd(r *runtime) *cobra.Command {
 	var match string
 	cmd := &cobra.Command{
-		Use:        "list [PROJ...]",
-		SuggestFor: []string{"ls"},
-		Short:      "List plans of the configured projects, grouped by project",
+		Use:     "list [PROJ...]",
+		Aliases: []string{"ls"},
+		Short:   "List plans of the configured projects, grouped by project",
 		Long: "List plans of the configured projects, or of the projects given, grouped by\n" +
 			"project. With --match, list only the plans whose key or name contains the\n" +
 			"text, ignoring case. A project can also be a link copied from its Bamboo page.",
@@ -272,7 +272,7 @@ func newPlanShowCmd(r *runtime) *cobra.Command {
 			return r.show(doc, func(o view.Out) error { return view.PlanDetailView(o, d) })
 		}),
 	}
-	cmd.Flags().StringVar(&branch, "branch", "", "plan branch for the recent builds")
+	cmd.Flags().StringVarP(&branch, "branch", "b", "", "plan branch for the recent builds")
 	return cmd
 }
 
@@ -315,7 +315,7 @@ func newPlanVarsCmd(r *runtime) *cobra.Command {
 			return r.show(view.VarRowsJSON(res), func(o view.Out) error { return view.Vars(o, res) })
 		}),
 	}
-	cmd.Flags().StringVar(&branch, "branch", "", "plan branch whose builds supply last-used values")
+	cmd.Flags().StringVarP(&branch, "branch", "b", "", "plan branch whose builds supply last-used values")
 	cmd.Flags().StringVar(&from, "from", "", "build for last-used values: number, key or last")
 	return cmd
 }
@@ -433,7 +433,7 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.IntVarP(&last, "last", "n", 20, "how many of the newest builds to read (1 to 100)")
-	f.StringVar(&branch, "branch", "", "plan branch to read")
+	f.StringVarP(&branch, "branch", "b", "", "plan branch to read")
 	return cmd
 }
 
@@ -443,7 +443,8 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:        "list <plan|preset>",
 		Short:      "List recent builds of a plan",
-		SuggestFor: []string{"history", "builds", "ls"},
+		Aliases:    []string{"ls"},
+		SuggestFor: []string{"history", "builds"},
 		Example: "  bam build list PROJ-BUILD\n" +
 			"  bam build list deploy-qa --branch develop\n" +
 			"  bam build list PROJ-BUILD --state failed -n 5",
@@ -497,7 +498,7 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 			return r.show(docs, func(o view.Out) error { return view.BuildListWithProgress(o, builds, progress) })
 		}),
 	}
-	cmd.Flags().StringVar(&branch, "branch", "", "plan branch")
+	cmd.Flags().StringVarP(&branch, "branch", "b", "", "plan branch")
 	cmd.Flags().IntVarP(&limit, "limit", "n", 10, "number of builds")
 	cmd.Flags().StringVar(&state, "state", "", "only builds in this state, e.g. failed")
 	_ = cmd.RegisterFlagCompletionFunc("state", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
@@ -534,7 +535,34 @@ func (r *runtime) resolvePlanArg(ctx context.Context, arg string) (*app.Service,
 }
 
 // resolveBuildArg connects to the right server and turns [<build>] / --last into a build key.
+// With no build, no --last and no --branch it reads the last build bam
+// triggered from this repository, when there is one: commands that only read
+// need no key. Without one it stops with the same "which build?" error.
 func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool, branch string) (*app.Service, string, error) {
+	if len(args) == 0 && !last && branch == "" {
+		last = r.hasLastBuild()
+	}
+	return r.resolveNamedBuild(ctx, args, last, branch)
+}
+
+// hasLastBuild reports whether a build was triggered from this repository.
+// Any failure reading the config or the state counts as none, so the caller
+// reports its usual error.
+func (r *runtime) hasLastBuild() bool {
+	cfg, err := r.config()
+	if err != nil {
+		return false
+	}
+	_, ok, err := (&app.StateStore{Path: r.env.Paths.State}).Last(cfg.RepoRoot)
+	return err == nil && ok
+}
+
+// resolveNamedBuild is resolveBuildArg for commands that change a build
+// (cancel, rerun): a key, a plan, a preset or --last, never a guess.
+func (r *runtime) resolveNamedBuild(ctx context.Context, args []string, last bool, branch string) (*app.Service, string, error) {
+	if joined, ok := joinBuildArgs(args); ok {
+		args = joined
+	}
 	if err := lastOrArg(args, last); err != nil {
 		return nil, "", err
 	}
@@ -562,13 +590,30 @@ func (r *runtime) resolveBuildArg(ctx context.Context, args []string, last bool,
 // addLastFlag adds --last, which names the last build bam triggered from
 // this repository instead of a key or preset.
 func addLastFlag(cmd *cobra.Command, last *bool) {
-	cmd.Flags().BoolVar(last, "last", false, "the last build bam triggered from this repository")
+	cmd.Flags().BoolVar(last, "last", false, "the last build bam triggered from this repository (the default for commands that only read)")
 }
 
 // addBuildArgFlags adds the --last and --branch flags that resolveBuildArg reads.
 func addBuildArgFlags(cmd *cobra.Command, last *bool, branch *string) {
 	addLastFlag(cmd, last)
-	cmd.Flags().StringVar(branch, "branch", "", "plan branch when a plan or preset is given")
+	cmd.Flags().StringVarP(branch, "branch", "b", "", "plan branch when a plan or preset is given")
+}
+
+// joinBuildArgs reads "PROJ-BUILD 482" (or "#482") as the build PROJ-BUILD-482.
+func joinBuildArgs(args []string) ([]string, bool) {
+	if len(args) != 2 {
+		return args, false
+	}
+	k := args[0] + "-" + strings.TrimPrefix(args[1], "#")
+	return []string{k}, app.IsBuildKey(k)
+}
+
+// buildArgs accepts [<build>], and a plan key and a number as two arguments.
+func buildArgs(cmd *cobra.Command, args []string) error {
+	if _, ok := joinBuildArgs(args); ok {
+		return nil
+	}
+	return cobra.MaximumNArgs(1)(cmd, args)
 }
 
 // lastOrArg refuses --last next to a key or preset, which would otherwise be
@@ -643,7 +688,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 		Example: "  bam build show PROJ-BUILD-482\n" +
 			"  bam build show --last\n" +
 			"  bam build show deploy-qa --branch develop",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			svc, key, err := r.resolveBuildArg(cmd.Context(), args, last, branch)

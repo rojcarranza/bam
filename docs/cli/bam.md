@@ -28,9 +28,11 @@ bam [flags]
 
 * [bam agent](bam_agent.md)	 - Build agents: list
 * [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
+* [bam cancel](bam_cancel.md)	 - Stop a queued or running build
 * [bam completion](bam_completion.md)	 - Generate the autocompletion script for the specified shell
 * [bam doctor](bam_doctor.md)	 - Check config, credentials and what this Bamboo server supports
 * [bam init](bam_init.md)	 - Write .bam.yaml for this repository, with generated presets
+* [bam investigate](bam_investigate.md)	 - Find the error lines of a failed build and its likely cause
 * [bam login](bam_login.md)	 - Store a verified personal access token for a server
 * [bam logout](bam_logout.md)	 - Delete the stored token for a server
 * [bam logs](bam_logs.md)	 - Print job logs; --failed for failed jobs only
@@ -43,6 +45,7 @@ bam [flags]
 * [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
 * [bam status](bam_status.md)	 - Show every build you started with bam in the last day, and how it is going
+* [bam tree](bam_tree.md)	 - Show a build and every build it triggered, as a tree
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job
 * [bam version](bam_version.md)	 - Print the bam version

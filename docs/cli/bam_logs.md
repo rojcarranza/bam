@@ -18,12 +18,12 @@ bam logs [<build>|<plan>|<preset>] [flags]
 ### Options
 
 ```
-      --branch string   plan branch when a plan or preset is given
+  -b, --branch string   plan branch when a plan or preset is given
       --failed          only failed jobs
       --follow          keep printing new lines until the job finishes
   -h, --help            help for logs
       --job string      one job: JOB1, PROJ-PLAN-JOB1 or its result key
-      --last            the last build bam triggered from this repository
+      --last            the last build bam triggered from this repository (the default for commands that only read)
   -n, --tail int        last N lines per job; 0 prints the whole log
 ```
 

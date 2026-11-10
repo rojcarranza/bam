@@ -17,7 +17,7 @@ bam plan stats <plan|preset> [flags]
 ### Options
 
 ```
-      --branch string   plan branch to read
+  -b, --branch string   plan branch to read
   -h, --help            help for stats
   -n, --last int        how many of the newest builds to read (1 to 100) (default 20)
 ```

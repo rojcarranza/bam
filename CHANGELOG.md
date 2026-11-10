@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A queued build says its place in the queue, such as `queue 3 of 7`, in `bam build show`, `bam watch` and the tree. `bam queue` lists what the server has queued, first in line first, and `bam agent list` lists the build agents with online, enabled and busy. `--json` gains `queue_position` and `queue_length` on a queued build.
 - `--notify` on `bam run`, `bam watch` and `bam build rerun`: when the watched build finishes, bam rings the terminal bell and raises a desktop notification where the system has one (`osascript` on macOS, `notify-send` on Linux).
 - A finished `bam run --watch`, `bam watch`, `bam build tree` and `bam set run` print the failed tests and the likely cause under each failed build, up to five builds, with secret-looking values masked. `bam build investigate` on a build whose child failed investigates the failed builds of the whole tree. `--json` is unchanged.
+- Commands that only read (`watch`, `logs`, `build show`, `build tree`, `build investigate`, `url`, `open`) use the last build you started from this repository when you name none. `bam tree`, `bam investigate` (also `bam why`) and `bam cancel` work without `build`, `ls` works wherever `list` does, `-w` stands for `--watch` and `-b` for `--branch`, and bam accepts `PROJ-BUILD 482`, a bare `482`, a preset typed with capitals, a plan after `bam preset add NAME` and a URL after `bam server add ALIAS`. `cancel` and `rerun` still need a key or `--last`.
 
 ## [0.4.0] - 2026-11-10
 

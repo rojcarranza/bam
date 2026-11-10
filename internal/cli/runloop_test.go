@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/assert"
@@ -529,4 +532,71 @@ func TestNegativeTimeoutIsAUsageError(t *testing.T) {
 		assert.Contains(t, h.stderr.String(), "--timeout takes 0 or more", args)
 		assert.Contains(t, h.stderr.String(), "leave out --timeout", args)
 	}
+}
+
+// BAM-11 P17: bam watch @ waits for the build of the checked-out commit.
+
+func commitHarness(t *testing.T, pushed bool) *harness {
+	t.Helper()
+	h := newHarness(t)
+	h.env.GitBranch = func(string) (string, error) { return "develop", nil }
+	h.env.GitHead = func(string) (string, bool, error) { return "9f2c1d7a0b3e4f5a6b7c8d9e0f1a2b3c4d5e6f70", pushed, nil }
+	return h
+}
+
+func TestWatchAtFollowsTheBuildOfTheCheckedOutCommit(t *testing.T) {
+	h := commitHarness(t, true)
+	old := h.fake.History["PROJ-PROV12"][0]
+	old.Revision = "1111111aaaa"
+	mine := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateSuccess,
+		Revision: "9f2c1d7a0b3e4f5a6b7c8d9e0f1a2b3c4d5e6f70"}
+	h.fake.History["PROJ-PROV12"] = []provider.Build{mine, old}
+	assert.Equal(t, 0, h.run("watch", "PROJ-PROV", "--branch", "@"))
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV12-9")
+	assert.NotContains(t, h.stdout.String(), "PROJ-PROV12-8")
+}
+
+func TestWatchAtWithoutABuildOfTheCommitTimesOut(t *testing.T) {
+	h := commitHarness(t, true)
+	assert.Equal(t, 6, h.run("watch", "PROJ-PROV", "--branch", "@", "--timeout", "10s"))
+	assert.Contains(t, h.stderr.String(), "no build of commit 9f2c1d7 appeared on PROJ-PROV12")
+}
+
+func TestWatchAtNotPushedSaysSoAndFollowsTheNewestBuild(t *testing.T) {
+	h := commitHarness(t, false)
+	assert.Equal(t, 1, h.run("watch", "PROJ-PROV", "--branch", "@"), "the newest build, PROJ-PROV12-8, failed")
+	assert.Contains(t, h.stderr.String(), "commit 9f2c1d7 is not pushed")
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV12-8")
+}
+
+func TestWatchAtTakesThePlanOfTheLastRunHere(t *testing.T) {
+	h := commitHarness(t, false)
+	assert.Equal(t, 2, h.run("watch", "@"), "no run in this repository yet")
+	assert.Contains(t, h.stderr.String(), "bam watch PROJ-PLAN --branch @")
+
+	b := h.fake.History["PROJ-PROV12"][0]
+	b.MasterKey = "PROJ-PROV"
+	h.fake.History["PROJ-PROV12"] = []provider.Build{b}
+	require.NoError(t, (&app.StateStore{Path: h.env.Paths.State}).SetLast(h.root, app.LastRecord{
+		BuildKey: "PROJ-PROV12-8", Origin: workOrigin, PlanKey: "PROJ-PROV12"}))
+	assert.Equal(t, 1, h.run("watch", "@"))
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV12-8")
+}
+
+func TestWatchAtPresetAppliesThePresetTimeout(t *testing.T) {
+	h := commitHarness(t, true)
+	yaml := strings.Replace(projectYAML, "    branch: develop\n", "    branch: develop\n    timeout: 50ms\n", 1)
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte(yaml), 0o644))
+	mine := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateRunning,
+		Revision: "9f2c1d7a0b3e4f5a6b7c8d9e0f1a2b3c4d5e6f70"}
+	h.fake.History["PROJ-PROV12"] = []provider.Build{mine}
+	h.fake.Sequences = map[string][]provider.Build{"PROJ-PROV12-9": {mine}}
+	assert.Equal(t, 6, h.run("watch", "provision-lab", "--branch", "@"))
+	assert.Contains(t, h.stderr.String(), "timed out after 50ms")
+}
+
+func TestWatchAtRefusesAnotherBranch(t *testing.T) {
+	h := commitHarness(t, true)
+	assert.Equal(t, 2, h.run("watch", "@", "--branch", "release"))
+	assert.Contains(t, h.stderr.String(), "--branch release does not apply")
 }

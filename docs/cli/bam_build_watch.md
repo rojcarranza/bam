@@ -11,6 +11,12 @@ every build in it has finished, then lists each build that did not succeed.
 Interrupting or timing out never stops a build. --json follows the one
 build and writes its events as NDJSON.
 
+bam watch @ follows the build of the commit you have checked out: it waits
+(up to --timeout, 10 minutes by default) until Bamboo starts one, then
+follows it. The plan is the one you last ran in this repository; bam watch
+<plan|preset> --branch @ names another. A commit that is not pushed has no
+build, so bam says so and follows the newest build of the branch.
+
 ```
 bam build watch [<build>|<plan>|<preset>] [flags]
 ```
@@ -22,6 +28,7 @@ bam build watch [<build>|<plan>|<preset>] [flags]
   bam watch --last
   bam watch deploy-qa --branch develop
   bam watch PROJ-BUILD-482 --timeout 30m
+  git push && bam watch @
 ```
 
 ### Options

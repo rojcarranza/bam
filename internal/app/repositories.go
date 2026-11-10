@@ -129,6 +129,10 @@ func (s *Service) CheckRepositories(ctx context.Context, ref PlanRef, want map[s
 			WithWhy("a repository's branch is set on a plan branch's Repositories tab, not on the main plan").
 			WithTry("add --branch NAME, or branch: to the preset")
 	}
+	want, err := s.ExpandRepositories(want)
+	if err != nil {
+		return RepoCheck{}, err
+	}
 	c := RepoCheck{PlanKey: ref.PlanKey, URL: s.P.RepositoriesURL(ref.PlanKey)}
 	built, key, err := s.BuiltRepositories(ctx, ref.PlanKey)
 	if err != nil {

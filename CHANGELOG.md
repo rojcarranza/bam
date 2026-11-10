@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- `@` stands for the branch checked out in the current directory: `--branch @`, `--repository NAME=@` and `@` in a preset's `branch:` or `repositories:`. When the plan has no plan branch for it, bam says so, names the closest one and prints Bamboo's create link; it creates nothing.
 - `bam preset add`, `bam init --plan` and the terminal UI's save-as-preset write the server, the plan branch and `watch: true` as active lines, and list the plan branch's repositories under `repositories:`. A plan branch key given as `--plan` is written as its main plan plus the branch. `--full` no longer does anything.
 - `repositories:` in a preset and `--repository NAME=BRANCH` on `bam run`: bam checks which branch each repository built in the plan branch's newest finished job, opens the Repositories tab link when one differs, waits for Enter, then triggers. `bam preset add` writes the current branches. `--json` gains `repositories`.
 - The terminal UI rings the terminal bell once when a build or tree you are watching finishes; set `bell: false` in the machine config to turn it off.

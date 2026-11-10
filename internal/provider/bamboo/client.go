@@ -98,6 +98,11 @@ func (c *Client) RepositoriesURL(planKey string) string {
 	return c.base.String() + "/branch/admin/config/configureChainBranchRepositories.action?planKey=" + url.QueryEscape(planKey)
 }
 
+// CreateBranchURL is the page that creates a plan branch of a plan by hand.
+func (c *Client) CreateBranchURL(planKey string) string {
+	return c.base.String() + "/chain/admin/createPlanBranch!doDefault.action?buildKey=" + url.QueryEscape(planKey)
+}
+
 // crossOriginRedirectError reports a redirect to a different scheme://host:port.
 // Go's http.Client keeps the Authorization header on same-host redirects, so
 // following a cross-origin one would leak the bearer token to that host.

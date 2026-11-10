@@ -119,6 +119,10 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 		return PlanRef{}, errs.Usagef("%q is neither a preset nor a plan key", arg).WithTry(try)
 	}
 	if branch != "" {
+		var err error
+		if branch, err = s.ExpandBranch(branch); err != nil {
+			return PlanRef{}, err
+		}
 		key, err := s.ResolveBranch(ctx, ref.MasterKey, branch)
 		if err != nil {
 			return PlanRef{}, err
@@ -194,6 +198,10 @@ func UnknownTarget(cfg *config.Config, name string) error {
 
 // ResolveBranch returns the branch plan key of branch on plan master.
 func (s *Service) ResolveBranch(ctx context.Context, master, branch string) (string, error) {
+	branch, err := s.ExpandBranch(branch)
+	if err != nil {
+		return "", err
+	}
 	branches, err := s.P.ListBranches(ctx, master)
 	if err != nil {
 		return "", err
@@ -205,11 +213,45 @@ func (s *Service) ResolveBranch(ctx context.Context, master, branch string) (str
 		}
 		names = append(names, b.ShortName)
 	}
-	e := errs.Usagef("branch %q not found on %s", branch, master)
+	e := errs.Usagef("%s has no plan branch for %q", master, branch)
 	if c := errs.Nearest(branch, names); c != "" {
-		return "", e.WithTry(fmt.Sprintf("did you mean %s? bam plan branches %s lists them all", c, master))
+		e = e.WithWhy("the closest plan branch is " + c)
 	}
-	return "", e.WithTry(fmt.Sprintf("bam plan branches %s (omit --branch for the default branch)", master))
+	return "", e.WithTry(fmt.Sprintf("create it in Bamboo, nothing was created: %s (bam plan branches %s lists the existing ones)",
+		s.P.CreateBranchURL(master), master))
+}
+
+// CheckedOutMarker stands for the branch checked out in the working directory.
+const CheckedOutMarker = "@"
+
+// ExpandBranch turns "@" into the checked-out branch and leaves any other
+// name alone.
+func (s *Service) ExpandBranch(branch string) (string, error) {
+	if branch != CheckedOutMarker {
+		return branch, nil
+	}
+	if s.Checkout == nil {
+		return "", errs.Usagef("bam cannot read the checked-out branch here").WithTry("name the branch instead of @")
+	}
+	b, err := s.Checkout()
+	if err != nil {
+		return "", err
+	}
+	return b, nil
+}
+
+// ExpandRepositories returns want with every "@" replaced by the
+// checked-out branch.
+func (s *Service) ExpandRepositories(want map[string]string) (map[string]string, error) {
+	out := maps.Clone(want)
+	for name, b := range want {
+		x, err := s.ExpandBranch(b)
+		if err != nil {
+			return nil, err
+		}
+		out[name] = x
+	}
+	return out, nil
 }
 
 // BuildArg is how a command names a build.

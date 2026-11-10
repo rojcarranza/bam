@@ -52,6 +52,9 @@ type Env struct {
 	StdinTTY    bool
 	Width       func() int
 	WorkDir     string
+	// GitBranch returns the branch checked out in dir; nil means bam cannot
+	// tell, and "@" is refused.
+	GitBranch func(dir string) (string, error)
 	Home        string
 	Paths       Paths
 	Clock       app.Clock
@@ -106,6 +109,7 @@ func SystemEnv() Env {
 			return 80
 		},
 		WorkDir:     wd,
+		GitBranch:   gitBranch,
 		Home:        home,
 		Glob:        filepath.Glob,
 		WindowsHome: wslWindowsHome,

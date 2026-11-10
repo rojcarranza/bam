@@ -26,6 +26,9 @@ type Provider interface {
 	// RepositoriesURL is the page where a person sets which branch each
 	// repository of the plan (branch) builds.
 	RepositoriesURL(planKey string) string
+	// CreateBranchURL is the page where a person creates a plan branch of the
+	// plan by hand.
+	CreateBranchURL(planKey string) string
 }
 
 // RestartChecker is an optional Provider extension. CannotRestart reports

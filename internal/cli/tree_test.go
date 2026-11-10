@@ -160,3 +160,31 @@ func TestWatchFollowsTheChildBuilds(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "bam watch PROJ-BUILD-482")
 	assert.Empty(t, h.fake.Stopped)
 }
+
+// P15: the failed: line of a finished tree is followed by the cause, for a
+// build tree and for a watch; JSON stays as it was.
+func TestBuildTreeAndWatchSayWhyAChildFailed(t *testing.T) {
+	for _, args := range [][]string{{"build", "tree", "PROJ-BUILD-482"}, {"watch", "PROJ-BUILD-482"}} {
+		h := treeHarness(t, provider.StateFailed)
+		h.fake.Logs = map[string][]string{"PROJ-PROV-TF-9": {"apply", "Error: BucketAlreadyExists password=hunter2"}}
+		assert.Equal(t, 1, h.run(args...), args)
+		out := h.stdout.String()
+		assert.Contains(t, out, "failed: PROJ-PROV-9 "+workOrigin+"/browse/PROJ-PROV-9\n  cause: Error: BucketAlreadyExists password=******** (job TF)", args)
+		assert.NotContains(t, out, "hunter2")
+	}
+}
+
+func TestBuildTreeJSONHasNoCause(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	h.fake.Logs = map[string][]string{"PROJ-PROV-TF-9": {"Error: boom"}}
+	assert.Equal(t, 1, h.run("build", "tree", "PROJ-BUILD-482", "--json"))
+	assert.NotContains(t, h.stdout.String(), "cause")
+}
+
+func TestInvestigateCoversFailedChildOfTheTree(t *testing.T) {
+	h := treeHarness(t, provider.StateFailed)
+	h.fake.Logs = map[string][]string{"PROJ-PROV-TF-9": {"Error: BucketAlreadyExists"}}
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-482"))
+	assert.Contains(t, h.stdout.String(), "Likely cause: Error: BucketAlreadyExists (job TF)")
+	assert.Contains(t, h.stdout.String(), "PROJ-PROV-9")
+}

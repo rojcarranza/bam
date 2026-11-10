@@ -32,7 +32,8 @@ func setEvents(deployState provider.State) []app.SetEvent {
 	spec := provider.Build{Key: "PROJ-SPEC-12", State: provider.StateSuccess, Duration: 72 * time.Second}
 	provRunning := provider.Build{Key: "OPS-PROV-40", State: provider.StateRunning, StartedAt: setAt.Add(3 * time.Minute)}
 	prov := provider.Build{Key: "OPS-PROV-40", State: provider.StateSuccess, Duration: 90 * time.Second}
-	dep := provider.Build{Key: "OPS-DEP-9", State: deployState, Duration: 48 * time.Second}
+	dep := provider.Build{Key: "OPS-DEP-9", State: deployState, Duration: 48 * time.Second,
+		Stages: []provider.Stage{{Name: "Apply", State: deployState, Jobs: []provider.Job{{Key: "OPS-DEP-TF-9", State: deployState}}}}}
 	inner := app.Event{Type: app.EventState, Time: setAt, Build: provRunning, State: provider.StateRunning,
 		Progress: provider.Progress{Valid: true, Average: 3 * time.Minute, Elapsed: time.Minute, Remaining: 2 * time.Minute, Percent: 0.33}}
 	running := setEv(app.SetRunEvent, 1, "provision", provRunning, "")
@@ -232,4 +233,15 @@ func TestSetSummaryLeavesOutRerunWhenUnsupported(t *testing.T) {
 	}
 	require.Contains(t, buf.String(), "try: bam logs OPS-DEP-9 --failed")
 	require.NotContains(t, buf.String(), "bam set rerun")
+}
+
+// P15: a failed set run says why under each failed run's try: line, at most five.
+func TestSetSummaryGivesTheCauseOfAFailedRun(t *testing.T) {
+	o, buf := testOut(false)
+	l := NewSetLines(o)
+	l.Cause = func(b provider.Build) string { return "Error: boom (job " + b.Key + ")" }
+	for _, e := range setEvents(provider.StateFailed) {
+		l.Event(e)
+	}
+	require.Contains(t, buf.String(), "  try: bam logs OPS-DEP-9 --failed\n  cause of deploy: Error: boom (job OPS-DEP-9)\n")
 }

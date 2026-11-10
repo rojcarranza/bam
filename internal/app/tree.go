@@ -65,6 +65,8 @@ type TreeNode struct {
 	Children   []*TreeNode       // by plan key, then build number, newest first
 	Progress   provider.Progress // a running build's estimate; only WatchTree reads one
 	ProgressAt time.Time         // when Progress was read
+	Cause      string            // set by ExplainTree: the likely cause of a failed build, masked; empty when unknown
+	Explained  bool              // ExplainTree looked for a cause, found or not
 }
 
 // Walk calls f for n and every node below it, parents first; the root is at

@@ -7,7 +7,8 @@ Follow a build and the builds it triggers; exit 1 if any fails
 Follow a build and the builds it triggers; exit 1 if any fails.
 
 bam draws the build tree, as "bam build tree <build> --watch" does, until
-every build in it has finished, then lists each build that did not succeed.
+every build in it has finished, then lists each build that did not succeed
+with its likely cause (up to five builds).
 Interrupting or timing out never stops a build. --json follows the one
 build and writes its events as NDJSON.
 

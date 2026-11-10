@@ -1,0 +1,7 @@
+OPS-DEPLOY-88      ✓ success  1m00s
+└─ OPS-SMOKE-51    ✗ failed   1m00s  4 tests failed
+   └─ stage Smoke  ✗ failed   1m00s  Smoke tests
+failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51
+  failed tests: a, b, c (+1 more)
+  cause: Error: BucketAlreadyExists (job SMOKE)
+next: bam logs OPS-SMOKE-51 --failed

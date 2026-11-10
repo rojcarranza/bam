@@ -202,3 +202,30 @@ func TestTreeNodeNoteCountsOneFailedTest(t *testing.T) {
 	n := &app.TreeNode{Build: provider.Build{FailedTests: []string{"a"}}}
 	require.Equal(t, "1 test failed", TreeNodeNote(n, false))
 }
+
+// P15: a tree whose child failed and whose parent succeeded says why under
+// the child's failed: line.
+func TestTreeTextCauseUnderFailedLine(t *testing.T) {
+	smoke := tnode("OPS-SMOKE-51", provider.StateFailed, time.Minute)
+	smoke.Build.Stages = []provider.Stage{stage("Smoke", provider.StateFailed, time.Minute, "Smoke tests")}
+	smoke.Build.FailedTests = []string{"a", "b", "c", "d"}
+	smoke.Explained, smoke.Cause = true, "Error: BucketAlreadyExists (job SMOKE)"
+	root := tnode("OPS-DEPLOY-88", provider.StateSuccess, time.Minute, smoke)
+	o, buf := testOut(false)
+	require.NoError(t, TreeText(o, app.Tree{Root: root, State: app.TreeState(root)}, false))
+	golden(t, "tree_cause", buf.String())
+}
+
+func TestTreeTextUnknownCauseAndLimitNote(t *testing.T) {
+	a := tnode("OPS-A-1", provider.StateFailed, time.Minute)
+	a.Build.Stages = []provider.Stage{stage("S", provider.StateFailed, time.Minute, "J")}
+	a.Explained = true
+	b := tnode("OPS-B-1", provider.StateFailed, time.Minute)
+	b.Build.Stages = a.Build.Stages
+	root := tnode("OPS-P-1", provider.StateSuccess, time.Minute, a, b)
+	o, buf := testOut(false)
+	require.NoError(t, TreeText(o, app.Tree{Root: root, State: app.TreeState(root)}, false))
+	out := buf.String()
+	require.Contains(t, out, "  cause: unknown, no log line matched a known error pattern\n")
+	require.Contains(t, out, "  1 more failed builds without a cause: bam build investigate OPS-B-1\n")
+}

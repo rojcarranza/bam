@@ -282,6 +282,34 @@ func (r *runtime) followBuild(cmd *cobra.Command, args []string, svc *app.Servic
 	return r.treeLoop(cmd.Context(), svc, key, app.TreeOptions{}, false, limit, "bam watch "+key, "")
 }
 
+// watchCommit is bam watch @: wait for the build of the checked-out commit,
+// then follow it.
+func (r *runtime) watchCommit(cmd *cobra.Command, arg string, last bool, branch string, timeout time.Duration) error {
+	ctx := cmd.Context()
+	if last {
+		return errs.Usagef("--last and %s both name a build", arg).WithTry("drop --last")
+	}
+	var svc *app.Service
+	var err error
+	if arg == app.CheckedOutMarker {
+		svc, _, err = r.connectLast(ctx)
+	} else {
+		svc, _, err = r.connectFor(ctx, arg)
+	}
+	if err != nil {
+		return err
+	}
+	plan, err := svc.CommitPlan(ctx, arg, branch)
+	if err != nil {
+		return err
+	}
+	key, err := svc.BuildOfCommit(ctx, plan, timeout, func(s string) { fmt.Fprintln(r.env.Stderr, s) })
+	if err != nil {
+		return err
+	}
+	return r.followBuild(cmd, nil, svc, key, timeout)
+}
+
 func newWatchCmd(r *runtime) *cobra.Command {
 	var last bool
 	var branch string
@@ -295,14 +323,24 @@ func newWatchCmd(r *runtime) *cobra.Command {
 bam draws the build tree, as "bam build tree <build> --watch" does, until
 every build in it has finished, then lists each build that did not succeed.
 Interrupting or timing out never stops a build. --json follows the one
-build and writes its events as NDJSON.`,
+build and writes its events as NDJSON.
+
+bam watch @ follows the build of the commit you have checked out: it waits
+(up to --timeout, 10 minutes by default) until Bamboo starts one, then
+follows it. The plan is the one you last ran in this repository; bam watch
+<plan|preset> --branch @ names another. A commit that is not pushed has no
+build, so bam says so and follows the newest build of the branch.`,
 		Example: "  bam watch PROJ-BUILD-482\n" +
 			"  bam watch --last\n" +
 			"  bam watch deploy-qa --branch develop\n" +
-			"  bam watch PROJ-BUILD-482 --timeout 30m",
+			"  bam watch PROJ-BUILD-482 --timeout 30m\n" +
+			"  git push && bam watch @",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if (len(args) == 1 && args[0] == app.CheckedOutMarker) || (branch == app.CheckedOutMarker && len(args) == 1) {
+				return r.watchCommit(cmd, args[0], last, branch, timeout)
+			}
 			svc, key, err := r.resolveBuildArg(cmd.Context(), args, last, branch)
 			if err != nil {
 				return err

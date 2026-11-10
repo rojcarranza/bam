@@ -54,7 +54,10 @@ type Env struct {
 	WorkDir   string
 	// GitBranch returns the branch checked out in dir; nil means bam cannot
 	// tell, and "@" is refused.
-	GitBranch   func(dir string) (string, error)
+	GitBranch func(dir string) (string, error)
+	// GitHead returns the commit checked out in dir and whether a remote
+	// branch contains it; nil means bam cannot tell.
+	GitHead     func(dir string) (sha string, pushed bool, err error)
 	Home        string
 	Paths       Paths
 	Clock       app.Clock
@@ -110,6 +113,7 @@ func SystemEnv() Env {
 		},
 		WorkDir:     wd,
 		GitBranch:   gitBranch,
+		GitHead:     gitHead,
 		Home:        home,
 		Glob:        filepath.Glob,
 		WindowsHome: wslWindowsHome,

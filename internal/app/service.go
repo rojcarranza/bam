@@ -39,6 +39,9 @@ type Service struct {
 	// Checkout returns the branch checked out in the working directory; nil
 	// when bam has no repository to ask. "@" in a branch means this branch.
 	Checkout func() (string, error)
+	// Head returns the checked-out commit and whether a remote branch has it;
+	// nil when bam has no repository to ask.
+	Head func() (sha string, pushed bool, err error)
 
 	estimates estimateCache // medians of plan histories, for servers without progress
 	scans     scanCache     // the newest tree scan of each plan, for TreeOptions.Shared

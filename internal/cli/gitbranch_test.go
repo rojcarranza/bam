@@ -36,3 +36,36 @@ func TestAtBranchWithNoPlanBranchPrintsTheCreateLinkAndCreatesNothing(t *testing
 	assert.Equal(t, 0, h.run("plan", "show", "PROJ-PROV", "--branch", "@"))
 	assert.Regexp(t, `PROJ-PROV12-8\s+\S+ failed`, h.stdout.String())
 }
+
+// BAM-11 P17: "bam watch @" needs the checked-out commit and whether it is pushed.
+
+func TestGitHeadSaysWhetherAPushReachedTheRemote(t *testing.T) {
+	git := func(dir string, args ...string) {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=jdoe", "-c", "user.email=jdoe@example.com"}, args...)...).CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	remote, dir := t.TempDir(), t.TempDir()
+	git(remote, "init", "-q", "--bare", "-b", "main")
+	git(dir, "init", "-q", "-b", "main")
+	git(dir, "remote", "add", "origin", remote)
+	git(dir, "commit", "-q", "--allow-empty", "-m", "first")
+	sha, pushed, err := gitHead(dir)
+	require.NoError(t, err)
+	assert.Len(t, sha, 40)
+	assert.False(t, pushed, "nothing pushed yet")
+
+	git(dir, "push", "-q", "-u", "origin", "main")
+	_, pushed, err = gitHead(dir)
+	require.NoError(t, err)
+	assert.True(t, pushed)
+
+	git(dir, "commit", "-q", "--allow-empty", "-m", "second")
+	newSHA, pushed, err := gitHead(dir)
+	require.NoError(t, err)
+	assert.NotEqual(t, sha, newSHA)
+	assert.False(t, pushed, "the new commit is local only")
+
+	_, _, err = gitHead(t.TempDir())
+	assert.Error(t, err, "not a git repository")
+}

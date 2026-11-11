@@ -23,6 +23,7 @@ Within a major version fields are only added, never renamed, retyped or removed.
      "state":"failed","duration_ms":31000}]}],"failed_tests":[],"failed_test_details":[]}
 
 - `failed_test_details`: each failed test as `{"name":"...","message":"..."}`, in the order of `failed_tests`. `message` is the error text Bamboo reports, with secret-looking values masked as `********`, and is `""` when the server gives none.
+- `queue_position` and `queue_length`: a queued build's place in the server's queue, counted from 1, and how many builds are queued. Both are absent when the build is not queued or the server cannot list its queue.
 - `plan_name`: the plan's short name, as Bamboo shows it. For a branch build it is the master plan's name; `branch` holds the branch.
 
 `state` is one of `queued`, `running`, `success`, `failed`, `stopped`, `skipped`, `not_built`, `unknown`.
@@ -145,3 +146,6 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 ## Status
 
 `bam status --json` is `{"builds":[...]}`, newest first with the build of the checked-out branch before all. Each build has `key`, `url`, `state`, `plan_key`, `branch`, `preset`, `server`, `started_at`, `here` (true for the build of the checked-out branch), and `progress` for a running build with an estimate (the object described under Build). A build the server could not be asked about has no `state` and an `error` string instead. `builds` is `[]` when nothing was started in the last day.
+## Queue and agents
+
+`bam queue --json` is a list of `{"position":1,"key":"PROJ-BUILD-45","url":"...","plan_key":"PROJ-BUILD","number":45,"reason":"Manual build"}`, first in line first; `[]` when nothing waits. `bam agent list --json` is a list of `{"id":1,"name":"linux-1","type":"REMOTE","online":true,"enabled":true,"busy":false}`. A queued build waits for an agent that is online, enabled and not busy.

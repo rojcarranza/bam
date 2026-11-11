@@ -48,6 +48,10 @@ type Provider struct {
 	LogErrs        []error                        // returned by FetchLog in order, one per call; nil entries succeed
 	Progressions   map[string][]provider.Progress // by build key; BuildProgress walks it and repeats the last entry
 	ProgressErr    error
+	QueueEntries   []provider.QueueEntry
+	QueueErr       error
+	AgentList      []provider.Agent
+	AgentsErr      error
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -306,4 +310,12 @@ func (f *Provider) CreateBranchURL(planKey string) string {
 
 func (f *Provider) RepositoriesURL(planKey string) string {
 	return f.BaseURL + "/branch/admin/config/configureChainBranchRepositories.action?planKey=" + planKey
+}
+
+func (f *Provider) Queue(context.Context) ([]provider.QueueEntry, error) {
+	return f.QueueEntries, f.QueueErr
+}
+
+func (f *Provider) Agents(context.Context) ([]provider.Agent, error) {
+	return f.AgentList, f.AgentsErr
 }

@@ -134,6 +134,11 @@ type Build struct {
 	Revision      string // default repository's commit; empty when Bamboo reports none
 	Revisions     []Revision
 	Stages        []Stage
+	// QueuePosition is the build's place in the server's queue, counted from
+	// 1, and QueueLength how many builds are queued; both 0 when the build is
+	// not queued or the server cannot say. Set by app.Service.Build.
+	QueuePosition int
+	QueueLength   int
 	FailedTests   []string
 	// FailedTestDetails is FailedTests with each test's message; GetBuild only.
 	FailedTestDetails []FailedTest
@@ -194,4 +199,22 @@ type LogOptions struct {
 type LogChunk struct {
 	Lines []string
 	Next  int // offset for the next call
+}
+
+// QueueEntry is one build waiting in the server's queue, in queue order.
+type QueueEntry struct {
+	Key     string // build result key, e.g. PROJ-PLAN-44
+	PlanKey string
+	Number  int
+	Reason  string // plain text
+}
+
+// Agent is one build agent of the server.
+type Agent struct {
+	ID      int
+	Name    string
+	Type    string // "local" or "remote"
+	Online  bool   // Bamboo's "active": the agent is connected
+	Enabled bool   // the agent accepts builds
+	Busy    bool   // the agent is building now
 }

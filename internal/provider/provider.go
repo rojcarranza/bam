@@ -22,6 +22,10 @@ type Provider interface {
 	// in the same build. It returns the queued build.
 	RestartBuild(ctx context.Context, buildKey string) (Build, error)
 	FetchLog(ctx context.Context, jobResultKey string, o LogOptions) (LogChunk, error)
+	// Queue lists the builds waiting for an agent, first in line first.
+	Queue(ctx context.Context) ([]QueueEntry, error)
+	// Agents lists the server's build agents.
+	Agents(ctx context.Context) ([]Agent, error)
 	URL(key string) string
 	// RepositoriesURL is the page where a person sets which branch each
 	// repository of the plan (branch) builds.

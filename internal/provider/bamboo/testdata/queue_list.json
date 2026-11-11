@@ -1,0 +1,5 @@
+{"size": 3, "start-index": 0, "max-result": 3, "queuedBuilds": {"size": 3, "start-index": 0, "max-result": 3, "queuedBuild": [
+  {"planKey": "PROJ-BUILD", "buildNumber": 45, "buildResultKey": "PROJ-BUILD-45", "triggerReason": "Manual build"},
+  {"planKey": "PROJ-PROV", "buildNumber": 9, "buildResultKey": "PROJ-PROV-9", "triggerReason": "Code has changed"},
+  {"planKey": "PROJ-BUILD12", "buildNumber": 46, "buildResultKey": "PROJ-BUILD12-46", "triggerReason": "Manual build"}
+]}}

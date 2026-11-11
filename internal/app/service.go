@@ -77,7 +77,37 @@ func (s *Service) Build(ctx context.Context, key string) (provider.Build, error)
 				WithWhy("it was removed on the server, so bam forgot it").Wrap(errs.ErrNotFound)
 		}
 	}
+	if err == nil && b.State == provider.StateQueued {
+		b = s.withQueuePosition(ctx, b)
+	}
 	return b, err
+}
+
+// withQueuePosition adds the build's place in the server's queue. A server
+// that cannot list its queue, or a build not in the list, leaves it unset:
+// the position is decoration, never a reason to fail a read.
+func (s *Service) withQueuePosition(ctx context.Context, b provider.Build) provider.Build {
+	q, err := s.P.Queue(ctx)
+	if err != nil {
+		return b
+	}
+	for i, e := range q {
+		if e.Key == b.Key {
+			b.QueuePosition, b.QueueLength = i+1, len(q)
+			break
+		}
+	}
+	return b
+}
+
+// Queue lists the builds waiting on the server, first in line first.
+func (s *Service) Queue(ctx context.Context) ([]provider.QueueEntry, error) {
+	return s.P.Queue(ctx)
+}
+
+// Agents lists the server's build agents, offline ones included.
+func (s *Service) Agents(ctx context.Context) ([]provider.Agent, error) {
+	return s.P.Agents(ctx)
 }
 
 // Progress returns how far a running build has got: Bamboo's estimate, or,

@@ -29,6 +29,8 @@ type Capabilities struct {
 	// progress, which learned "no" from Bamboo's 404 for a result it was
 	// not building at that moment.
 	Progress string `json:"progress_status,omitempty"` // yes | no
+	// Queue is whether the server lists its build queue (GET queue).
+	Queue string `json:"queue,omitempty"` // yes | no
 }
 
 const capsMaxAge = 7 * 24 * time.Hour

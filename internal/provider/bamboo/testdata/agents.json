@@ -1,0 +1,5 @@
+[
+  {"id": 1, "name": "linux-1", "type": "REMOTE", "active": true, "enabled": true, "busy": true},
+  {"id": 2, "name": "linux-2", "type": "REMOTE", "active": true, "enabled": false, "busy": false},
+  {"id": 3, "name": "local-1", "type": "LOCAL", "active": false, "enabled": true, "busy": false}
+]

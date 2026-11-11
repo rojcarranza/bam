@@ -411,7 +411,7 @@ It exits 1 when any build in the tree did not succeed, though the triggered buil
 
 `bam build show` prints state, started, completed, queue duration, duration, flags (for example `CUSTOM BUILD`), labels, agent, per-repository revisions with short SHAs, and the stages with their jobs. The URL is in the header.
 
-For a failed build, a **Failure** block lists the failed jobs with their `bam logs` command and, when the server supports it, up to five failed test names.
+For a failed build, a **Failure** block lists the failed jobs with their `bam logs` command and, when the server supports it, up to five failed test names, each with the error message Bamboo reports beneath it (at most 6 lines of 400 characters, secret-looking values masked as `********`).
 
 ### 5.7 Doctor
 
@@ -475,7 +475,7 @@ Build   { key, url, plan_key, plan_name, branch, number, state, reason, custom_b
           queued_at, started_at, finished_at, queue_duration_ms, duration_ms, agent,
           revisions[{ repository, revision, short }],
           stages[{ name, state, duration_ms, jobs[{ key, url, name, state, duration_ms }] }],
-          failed_tests[] }
+          failed_tests[], failed_test_details[{ name, message }] }
 ```
 
 ## 8. Architecture
@@ -578,7 +578,7 @@ All calls send `Accept: application/json`; Bamboo defaults to XML without it.
 | Build history | `GET /rest/api/latest/result/{planKey}?expand=results.result` |
 | Build state | `GET /rest/api/latest/result/{buildKey}?expand=stages.stage.results.result` |
 | Build variables | `GET /rest/api/latest/result/{buildKey}?expand=variables` |
-| Failed tests | `GET /rest/api/latest/result/{buildKey}?expand=testResults.failedTests` |
+| Failed tests | `GET /rest/api/latest/result/{buildKey}?expand=testResults.failedTests.testResult.errors`; on Bamboo 12, which leaves tests off the build result, the same call for each failed job result |
 | Job log | `GET /rest/api/latest/result/{jobResultKey}?expand=logEntries` |
 | Job log fallback | `GET /download/{jobKey}/build_logs/{jobResultKey}.log` |
 | Trigger | `POST /rest/api/latest/queue/{planKey}?executeAllStages=true` with `bamboo.variable.<name>=<value>` parameters |

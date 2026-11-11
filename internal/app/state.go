@@ -107,7 +107,7 @@ func takeOverStale(path string) bool {
 	if os.Rename(path, aside) != nil {
 		return false // another process moved it first
 	}
-	defer os.Remove(aside)
+	defer func() { _ = os.Remove(aside) }()
 	if st, err := os.Stat(aside); err == nil && time.Since(st.ModTime()) <= lockStale {
 		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 			_ = os.Link(aside, path)

@@ -2,8 +2,10 @@ package cli
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/errs"
@@ -14,6 +16,10 @@ import (
 func init() { commandSets = append(commandSets, addStatus) }
 
 func addStatus(root *cobra.Command, r *runtime) { root.AddCommand(newStatusCmd(r)) }
+
+// shortTimeout bounds bam status --short, which a shell prompt runs on every
+// line.
+const shortTimeout = 3 * time.Second
 
 func newStatusCmd(r *runtime) *cobra.Command {
 	var short bool
@@ -32,6 +38,14 @@ func newStatusCmd(r *runtime) *cobra.Command {
 		Example: "  bam status\n  bam status --short\n  bam status --json",
 		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			if short {
+				// A prompt must not hang on a slow server: what is not
+				// answered in time shows as unknown.
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(ctx, shortTimeout)
+				defer cancel()
+			}
 			cfg, err := r.config()
 			if err != nil {
 				return err
@@ -66,7 +80,7 @@ func newStatusCmd(r *runtime) *cobra.Command {
 					}
 					continue
 				}
-				for _, e := range svc.Status(cmd.Context(), group) {
+				for _, e := range svc.Status(ctx, group) {
 					urls[origin+" "+e.Run.BuildKey] = backend.URL(e.Run.BuildKey)
 					entries = append(entries, e)
 				}

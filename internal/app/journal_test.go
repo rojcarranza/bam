@@ -48,16 +48,6 @@ func TestStateFileWithOneRecordStillReads(t *testing.T) {
 	assert.Len(t, runs, 1)
 }
 
-func TestJournalHoldsNoVariableValues(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "state.json")
-	s := &StateStore{Path: path}
-	require.NoError(t, s.Record("/r", LastRecord{}, JournalRun{BuildKey: "PROJ-BUILD-1", PlanKey: "PROJ-BUILD", Target: "build"}))
-	data, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.NotContains(t, string(data), "variable")
-	assert.NotContains(t, string(data), "value")
-}
-
 func TestTwoStoresWritingAtOnceLoseNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
 	var wg sync.WaitGroup

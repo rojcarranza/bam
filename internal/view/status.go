@@ -58,7 +58,15 @@ func Status(o Out, es []app.StatusEntry, url func(app.JournalRun) string) error 
 		state, prog := statusCells(o, e)
 		t.Rows = append(t.Rows, []string{here, o.Key(e.Run.BuildKey, url(e.Run)), state, prog, o.Time(e.Run.StartedAt), statusWhat(e.Run), url(e.Run)})
 	}
-	return t.Render(o)
+	if err := t.Render(o); err != nil {
+		return err
+	}
+	for _, e := range es {
+		if e.Err != nil {
+			fmt.Fprintf(o.W, "%s could not be read: %s\n", e.Run.BuildKey, e.Err)
+		}
+	}
+	return nil
 }
 
 func statusCells(o Out, e app.StatusEntry) (state, prog string) {

@@ -3,6 +3,7 @@ package app
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -87,8 +88,7 @@ func (s *StateStore) lock() (func(), error) {
 		if !errors.Is(err, fs.ErrExist) {
 			return nil, err
 		}
-		if st, serr := os.Stat(path); serr == nil && time.Since(st.ModTime()) > lockStale {
-			_ = os.Remove(path)
+		if st, serr := os.Stat(path); serr == nil && time.Since(st.ModTime()) > lockStale && takeOverStale(path) {
 			continue
 		}
 		if time.Now().After(deadline) {
@@ -96,6 +96,25 @@ func (s *StateStore) lock() (func(), error) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// takeOverStale moves a lock that looked stale aside, atomically, so that of
+// two processes taking it over only one succeeds. It looks again at what it
+// moved: a lock that was in fact fresh, because another process replaced the
+// stale one first, is put back.
+func takeOverStale(path string) bool {
+	aside := fmt.Sprintf("%s.stale.%d.%d", path, os.Getpid(), time.Now().UnixNano())
+	if os.Rename(path, aside) != nil {
+		return false // another process moved it first
+	}
+	defer os.Remove(aside)
+	if st, err := os.Stat(aside); err == nil && time.Since(st.ModTime()) <= lockStale {
+		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+			_ = os.Link(aside, path)
+		}
+		return false
+	}
+	return true
 }
 
 func (s *StateStore) load() (stateFile, error) {

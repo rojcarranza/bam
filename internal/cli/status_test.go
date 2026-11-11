@@ -107,6 +107,7 @@ func TestStatusKeepsGoingWhenOneBuildIsGone(t *testing.T) {
 	require.Equal(t, 0, h.run("status"), h.stderr.String())
 	assert.Contains(t, h.stdout.String(), "LAB-DEP-7")
 	assert.Contains(t, h.stdout.String(), "? unknown")
+	assert.Contains(t, h.stdout.String(), "LAB-DEP-7 could not be read:")
 	assert.Contains(t, h.stdout.String(), "PROJ-BUILD-482")
 }
 
@@ -120,4 +121,16 @@ func TestRunAddsToTheJournal(t *testing.T) {
 	assert.Equal(t, "PROJ-BUILD-483", runs[0].BuildKey)
 	assert.Equal(t, "build", runs[0].Target)
 	assert.Equal(t, "work", runs[0].Server)
+}
+
+// Intent (BAM-11 P16): the journal never holds a variable value.
+func TestJournalHoldsNoVariableValuesFromRun(t *testing.T) {
+	h := newHarness(t)
+	h.fake.TriggerResult = queuedBuild("PROJ-PROV12-9")
+	require.Equal(t, 0, h.run("run", "provision-lab", "--var", "cluster_name=zebra-7731", "--var", "db_password=hunter2-4412"), h.stderr.String())
+	data, err := os.ReadFile(h.env.Paths.State)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "PROJ-PROV12-9")
+	assert.NotContains(t, string(data), "zebra-7731")
+	assert.NotContains(t, string(data), "hunter2-4412")
 }

@@ -8,15 +8,15 @@ import (
 
 func TestProbeHappyPath(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/info":                                                            {fixture: "info.json"},
-		"GET /rest/api/latest/plan/PROJ-BUILD/variables":                                       {fixture: "plan_variables.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD":                                               {fixture: "results.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=variables":                          {fixture: "result_variables.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=" + buildExpand:                     {fixture: "result_detail.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=" + buildExpand:                     {body: failed481},
-		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult": {fixture: "failed_tests.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries":                   {fixture: "log_entries.json"},
-		"GET /rest/api/latest/result/status/PROJ-BUILD-482":                                    {fixture: "status_running.json"},
+		"GET /rest/api/latest/info":                                                                   {fixture: "info.json"},
+		"GET /rest/api/latest/plan/PROJ-BUILD/variables":                                              {fixture: "plan_variables.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD":                                                      {fixture: "results.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=variables":                                 {fixture: "result_variables.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=" + buildExpand:                            {fixture: "result_detail.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=" + buildExpand:                            {body: failed481},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult.errors": {fixture: "failed_tests.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries":                          {fixture: "log_entries.json"},
+		"GET /rest/api/latest/result/status/PROJ-BUILD-482":                                           {fixture: "status_running.json"},
 	})
 	results := c.Probe(ctx, "PROJ-BUILD")
 	byName := map[string]ProbeResult{}
@@ -88,13 +88,13 @@ func TestProbeReportsAFailedBuildReadAsAnError(t *testing.T) {
 
 func TestProbeReportsDurationEstimate(t *testing.T) {
 	base := map[string]*route{
-		"GET /rest/api/latest/info":                                                            {fixture: "info.json"},
-		"GET /rest/api/latest/plan/PROJ-BUILD/variables":                                       {fixture: "plan_variables.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD":                                               {fixture: "results.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=variables":                          {fixture: "result_variables.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=" + buildExpand:                     {fixture: "result_detail.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult": {fixture: "failed_tests.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries":                   {fixture: "log_entries.json"},
+		"GET /rest/api/latest/info":                                                                   {fixture: "info.json"},
+		"GET /rest/api/latest/plan/PROJ-BUILD/variables":                                              {fixture: "plan_variables.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD":                                                      {fixture: "results.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=variables":                                 {fixture: "result_variables.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-482?expand=" + buildExpand:                            {fixture: "result_detail.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult.errors": {fixture: "failed_tests.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-JOB1-44?expand=logEntries":                          {fixture: "log_entries.json"},
 	}
 	supported := map[string]*route{"GET /rest/api/latest/result/status/PROJ-BUILD-482": {fixture: "status_running.json"}}
 	missing := map[string]*route{"GET /rest/api/latest/result/status/PROJ-BUILD-482": {status: 404, body: `{"message":"no"}`}}
@@ -156,12 +156,12 @@ const failed481 = `{"key":"PROJ-BUILD-481","buildResultKey":"PROJ-BUILD-481","bu
 func TestProbeFindsFailedTestsPerJob(t *testing.T) {
 	// Bamboo 12: the build's result carries no tests; its failed job's does.
 	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/info":                                                                 {fixture: "info.json"},
-		"GET /rest/api/latest/plan/PROJ-BUILD/variables":                                            {fixture: "plan_variables.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD":                                                    {fixture: "results.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=" + buildExpand:                          {body: failed481},
-		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult":      {body: `{"key":"PROJ-BUILD-481"}`},
-		"GET /rest/api/latest/result/PROJ-BUILD-JOB1-481?expand=testResults.failedTests.testResult": {fixture: "job_failed_tests.json"},
+		"GET /rest/api/latest/info":                                                                        {fixture: "info.json"},
+		"GET /rest/api/latest/plan/PROJ-BUILD/variables":                                                   {fixture: "plan_variables.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD":                                                           {fixture: "results.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=" + buildExpand:                                 {body: failed481},
+		"GET /rest/api/latest/result/PROJ-BUILD-481?expand=testResults.failedTests.testResult.errors":      {body: `{"key":"PROJ-BUILD-481"}`},
+		"GET /rest/api/latest/result/PROJ-BUILD-JOB1-481?expand=testResults.failedTests.testResult.errors": {fixture: "job_failed_tests.json"},
 	})
 	for _, r := range c.Probe(ctx, "PROJ-BUILD") {
 		if r.Name == "failed tests" {

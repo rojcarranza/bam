@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- `bam build show` and `bam build investigate` print each failed test's message under its name. `--json` gains `failed_test_details` beside `failed_tests`. Secret-looking values in a message print as `********`.
+
 ## [0.4.0] - 2026-11-10
 
 ### Added

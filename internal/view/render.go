@@ -152,15 +152,7 @@ func BuildDetailWithProgress(o Out, b provider.Build, p provider.Progress) error
 		for _, j := range failed {
 			fmt.Fprintf(o.W, "  %s %s  bam logs %s --job %s\n", style.StateGlyph(o.Style, j.State), j.Name, b.Key, app.ShortJobKey(b, j))
 		}
-		if len(b.FailedTests) > 0 {
-			shown := b.FailedTests
-			more := ""
-			if len(shown) > 5 {
-				more = fmt.Sprintf(" (+%d more)", len(shown)-5)
-				shown = shown[:5]
-			}
-			fmt.Fprintf(o.W, "  failed tests: %s%s\n", strings.Join(shown, ", "), more)
-		}
+		writeFailedTests(o.W, "  failed tests", b)
 	}
 	return nil
 }

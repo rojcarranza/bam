@@ -221,7 +221,10 @@ func (c *Client) GetBuild(ctx context.Context, key string) (provider.Build, erro
 	}
 	b := c.mapBuild(r)
 	if b.State == provider.StateFailed {
-		b.FailedTests = c.failedTests(ctx, b)
+		b.FailedTestDetails = c.failedTests(ctx, b)
+		for _, t := range b.FailedTestDetails {
+			b.FailedTests = append(b.FailedTests, t.Name)
+		}
 	}
 	return b, nil
 }

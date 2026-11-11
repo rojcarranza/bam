@@ -20,8 +20,9 @@ Within a major version fields are only added, never renamed, retyped or removed.
      "started_at":"2026-09-12T11:56:20Z","finished_at":"2026-09-12T12:00:00Z","queue_duration_ms":0,
      "duration_ms":220000,"agent":"","revisions":[],"stages":[{"name":"Test","state":"failed",
      "duration_ms":31000,"jobs":[{"key":"PROJ-BUILD-INT-45","url":"...","name":"Integration",
-     "state":"failed","duration_ms":31000}]}],"failed_tests":[]}
+     "state":"failed","duration_ms":31000}]}],"failed_tests":[],"failed_test_details":[]}
 
+- `failed_test_details`: each failed test as `{"name":"...","message":"..."}`, in the order of `failed_tests`. `message` is the error text Bamboo reports, with secret-looking values masked as `********`, and is `""` when the server gives none.
 - `plan_name`: the plan's short name, as Bamboo shows it. For a branch build it is the master plan's name; `branch` holds the branch.
 
 `state` is one of `queued`, `running`, `success`, `failed`, `stopped`, `skipped`, `not_built`, `unknown`.

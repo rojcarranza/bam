@@ -16,8 +16,26 @@
       "start-index": 0,
       "max-result": 2,
       "testResult": [
-        {"testCaseId": 101, "className": "app.ApiTest", "methodName": "parses_config", "status": "failed"},
-        {"testCaseId": 102, "className": "app.ApiTest", "methodName": "talks_to_bamboo", "status": "failed"}
+        {
+          "testCaseId": 101,
+          "className": "app.ApiTest",
+          "methodName": "parses_config",
+          "status": "failed",
+          "errors": {
+            "size": 1,
+            "error": [
+              {
+                "message": "missing key: server_url"
+              }
+            ]
+          }
+        },
+        {
+          "testCaseId": 102,
+          "className": "app.ApiTest",
+          "methodName": "talks_to_bamboo",
+          "status": "failed"
+        }
       ]
     }
   }

@@ -40,6 +40,7 @@ bam [flags]
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables
 * [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
+* [bam status](bam_status.md)	 - Show every build you started with bam in the last day, and how it is going
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job
 * [bam version](bam_version.md)	 - Print the bam version

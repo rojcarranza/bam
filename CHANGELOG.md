@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - `bam build show` and `bam build investigate` print each failed test's message under its name. `--json` gains `failed_test_details` beside `failed_tests`. Secret-looking values in a message print as `********`.
+- `bam status` lists every build you started with bam in the last day, across repositories and servers, newest first, with its live state, progress and link. Inside a repository the build of the checked-out branch comes first. `bam status --short` prints one line for a shell prompt. bam keeps the last 50 runs it started in its state file: build, plan, preset, server and time, never a variable value.
 
 ## [0.4.0] - 2026-11-10
 

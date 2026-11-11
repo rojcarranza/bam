@@ -64,6 +64,13 @@ func TestMaskMessage(t *testing.T) {
 		`passphrase=open sesame`:               `passphrase=******** sesame`,
 		`API_TOKEN=abc`:                        `API_TOKEN=********`,
 		`token_id: abc`:                        `token_id: ********`,
+		`dbPassword=hunter2`:                   `dbPassword=********`,
+		`clientSecret: abc`:                    `clientSecret: ********`,
+		`accessToken=eyJ.x.y`:                  `accessToken=********`,
+		`authToken: x`:                         `authToken: ********`,
+		`secretKey=x`:                          `secretKey=********`,
+		`DbPassword=x`:                         `DbPassword=********`,
+		`authorization: basic dXNlcg==`:        `authorization: basic ********`,
 	} {
 		assert.Equal(t, want, MaskMessage(in), in)
 	}

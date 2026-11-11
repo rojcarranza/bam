@@ -18,8 +18,9 @@ const (
 )
 
 // secretPairRe is a secret-looking name followed by its value: password=x,
-// "token": "x", Authorization: Bearer x. The name and separator stay.
-var secretPairRe = regexp.MustCompile(`(?i)((?:^|[^a-z])(?:pass(?:word|phrase)|secret|sshkey|token|api[_-]?key|authorization)(?:[_-]\w*)?["']?\s*[=:]\s*["']?(?:bearer\s+|basic\s+)?)[^\s"',;]+`)
+// "token": "x", Authorization: Bearer x, accessToken=x. The name and
+// separator stay.
+var secretPairRe = regexp.MustCompile(`((?:(?:^|[^A-Za-z])(?i:pass(?:word|phrase)|secret|sshkey|token|api[_-]?key|authorization)|[a-z](?:Pass(?:word|phrase)|Secret|Ssh[Kk]ey|Token|Api[_-]?Key|Authorization))(?:[_-]\w*|[A-Z]\w*)?["']?\s*[=:]\s*["']?(?:(?i:bearer|basic)\s+)?)[^\s"',;]+`)
 
 // MaskMessage hides the values of secret-looking name/value pairs in a test
 // message, the same names bam masks in variables, and bounds its length.

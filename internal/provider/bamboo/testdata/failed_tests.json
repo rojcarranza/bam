@@ -1,4 +1,39 @@
-{"key": "PROJ-BUILD12-44", "testResults": {"all": 40, "successful": 38, "failed": 2, "failedTests": {"size": 2, "testResult": [
-  {"testCaseName": "TestLogin", "className": "app.AuthTest", "methodName": "TestLogin"},
-  {"testCaseName": "TestRefresh", "className": "app.AuthTest", "methodName": "TestRefresh"}
-]}}}
+{
+  "key": "PROJ-BUILD12-44",
+  "testResults": {
+    "all": 40,
+    "successful": 38,
+    "failed": 2,
+    "failedTests": {
+      "size": 2,
+      "testResult": [
+        {
+          "testCaseName": "TestLogin",
+          "className": "app.AuthTest",
+          "methodName": "TestLogin",
+          "errors": {
+            "size": 1,
+            "start-index": 0,
+            "max-result": 1,
+            "error": [
+              {
+                "message": "expected status 200 but was 401\n\tat app.AuthTest.TestLogin(AuthTest.java:41)"
+              }
+            ]
+          }
+        },
+        {
+          "testCaseName": "TestRefresh",
+          "className": "app.AuthTest",
+          "methodName": "TestRefresh",
+          "errors": {
+            "size": 0,
+            "start-index": 0,
+            "max-result": 0,
+            "error": []
+          }
+        }
+      ]
+    }
+  }
+}

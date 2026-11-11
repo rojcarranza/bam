@@ -93,14 +93,19 @@ func TestBuildVariablesUnsupported(t *testing.T) {
 
 func TestGetBuildAddsFailedTestsOnlyWhenFailed(t *testing.T) {
 	c, rec := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=" + buildExpand:                     {fixture: "result_detail.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=testResults.failedTests.testResult": {fixture: "failed_tests.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD-482":                                            {body: `{"buildResultKey":"PROJ-BUILD-482","buildNumber":482,"state":"Successful","lifeCycleState":"Finished"}`},
+		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=" + buildExpand:                            {fixture: "result_detail.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=testResults.failedTests.testResult.errors": {fixture: "failed_tests.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD-482":                                                   {body: `{"buildResultKey":"PROJ-BUILD-482","buildNumber":482,"state":"Successful","lifeCycleState":"Finished"}`},
 	})
 	knownCaps(c, Capabilities{})
 	b, err := c.GetBuild(ctx, "PROJ-BUILD12-44")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"app.AuthTest.TestLogin", "app.AuthTest.TestRefresh"}, b.FailedTests)
+	// Intent (BAM-11 P3): the message Bamboo reports comes with each name.
+	require.Len(t, b.FailedTestDetails, 2)
+	assert.Equal(t, "app.AuthTest.TestLogin", b.FailedTestDetails[0].Name)
+	assert.Equal(t, "expected status 200 but was 401\n\tat app.AuthTest.TestLogin(AuthTest.java:41)", b.FailedTestDetails[0].Message)
+	assert.Empty(t, b.FailedTestDetails[1].Message)
 
 	_, err = c.GetBuild(ctx, "PROJ-BUILD-482")
 	require.NoError(t, err)
@@ -126,9 +131,9 @@ func TestDecodeVarListShapes(t *testing.T) {
 // as on Bamboo 12; its failed job PROJ-BUILD12-INT-44 answers with job.
 func failedTestRoutes(job *route) map[string]*route {
 	return map[string]*route{
-		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=" + buildExpand:                         {fixture: "result_detail.json"},
-		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=testResults.failedTests.testResult":     {body: `{"key":"PROJ-BUILD12-44","buildResultKey":"PROJ-BUILD12-44"}`},
-		"GET /rest/api/latest/result/PROJ-BUILD12-INT-44?expand=testResults.failedTests.testResult": job,
+		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=" + buildExpand:                                {fixture: "result_detail.json"},
+		"GET /rest/api/latest/result/PROJ-BUILD12-44?expand=testResults.failedTests.testResult.errors":     {body: `{"key":"PROJ-BUILD12-44","buildResultKey":"PROJ-BUILD12-44"}`},
+		"GET /rest/api/latest/result/PROJ-BUILD12-INT-44?expand=testResults.failedTests.testResult.errors": job,
 	}
 }
 

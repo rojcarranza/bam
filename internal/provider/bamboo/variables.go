@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -133,23 +134,57 @@ type testDTO struct {
 	TestCaseName string `json:"testCaseName"`
 	ClassName    string `json:"className"`
 	MethodName   string `json:"methodName"`
+	// Errors is Bamboo's testResult.errors: an object holding an "error"
+	// list, or the list itself on some servers.
+	Errors json.RawMessage `json:"errors"`
 }
 
-// failedTests returns the failed test names of a failed build, or nil when
+func (t testDTO) name() string {
+	if t.ClassName != "" && t.MethodName != "" {
+		return t.ClassName + "." + t.MethodName
+	}
+	return t.TestCaseName
+}
+
+// message is the test's error text, its errors joined by a blank line.
+func (t testDTO) message() string {
+	type one struct {
+		Message string `json:"message"`
+	}
+	var wrapped struct {
+		Error []one `json:"error"`
+	}
+	var list []one
+	var errs []one
+	if json.Unmarshal(t.Errors, &wrapped) == nil {
+		errs = wrapped.Error
+	} else if json.Unmarshal(t.Errors, &list) == nil {
+		errs = list
+	}
+	var parts []string
+	for _, e := range errs {
+		if m := strings.TrimSpace(e.Message); m != "" {
+			parts = append(parts, m)
+		}
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// failedTests returns the failed tests of a failed build, or nil when
 // unavailable. The build's result is asked first; Bamboo 12 leaves tests off
 // it and reports them on each job's result, so then the failed jobs are
 // asked, in stage order. Where the tests were found is learned; "no" only
 // when the jobs carry none either.
-func (c *Client) failedTests(ctx context.Context, b provider.Build) []string {
+func (c *Client) failedTests(ctx context.Context, b provider.Build) []provider.FailedTest {
 	caps := c.fresh(ctx)
 	switch caps.FailedTestsFrom {
 	case "no":
 		return nil
 	case "jobs":
-		names, _, _ := c.jobFailedTests(ctx, b)
-		return names
+		tests, _, _ := c.jobFailedTests(ctx, b)
+		return tests
 	}
-	names, has, err := c.readFailedTests(ctx, b.Key)
+	tests, has, err := c.readFailedTests(ctx, b.Key)
 	if err != nil {
 		return nil
 	}
@@ -157,22 +192,22 @@ func (c *Client) failedTests(ctx context.Context, b provider.Build) []string {
 		if caps.FailedTestsFrom == "" {
 			c.learn(ctx, func(cp *Capabilities) { cp.FailedTestsFrom = "build" })
 		}
-		return names
+		return tests
 	}
-	names, has, readAll := c.jobFailedTests(ctx, b)
+	tests, has, readAll := c.jobFailedTests(ctx, b)
 	switch {
 	case has:
 		c.learn(ctx, func(cp *Capabilities) { cp.FailedTestsFrom = "jobs" })
 	case readAll && len(b.FailedJobs()) > 0:
 		c.learn(ctx, func(cp *Capabilities) { cp.FailedTestsFrom = "no" })
 	}
-	return names
+	return tests
 }
 
 // jobFailedTests reads the failed tests of each failed job of b. has reports
 // whether any job result carried testResults; readAll whether every job
 // could be read.
-func (c *Client) jobFailedTests(ctx context.Context, b provider.Build) (names []string, has, readAll bool) {
+func (c *Client) jobFailedTests(ctx context.Context, b provider.Build) (tests []provider.FailedTest, has, readAll bool) {
 	readAll = true
 	for _, j := range b.FailedJobs() {
 		got, ok, err := c.readFailedTests(ctx, j.Key)
@@ -181,14 +216,18 @@ func (c *Client) jobFailedTests(ctx context.Context, b provider.Build) (names []
 			continue
 		}
 		has = has || ok
-		names = append(names, got...)
+		tests = append(tests, got...)
 	}
-	return names, has, readAll
+	return tests, has, readAll
 }
+
+// failedTestsExpand also asks for each failed test's errors, which carry the
+// message that says why it failed.
+const failedTestsExpand = "testResults.failedTests.testResult.errors"
 
 // readFailedTests reads the failed tests of one build or job result. has
 // reports whether the result carried testResults at all.
-func (c *Client) readFailedTests(ctx context.Context, key string) (names []string, has bool, err error) {
+func (c *Client) readFailedTests(ctx context.Context, key string) (tests []provider.FailedTest, has bool, err error) {
 	var r struct {
 		TestResults *struct {
 			FailedTests *struct {
@@ -196,7 +235,7 @@ func (c *Client) readFailedTests(ctx context.Context, key string) (names []strin
 			} `json:"failedTests"`
 		} `json:"testResults"`
 	}
-	if err := c.getJSON(ctx, api+"/result/"+url.PathEscape(key), url.Values{"expand": {"testResults.failedTests.testResult"}}, &r); err != nil {
+	if err := c.getJSON(ctx, api+"/result/"+url.PathEscape(key), url.Values{"expand": {failedTestsExpand}}, &r); err != nil {
 		return nil, false, err
 	}
 	if r.TestResults == nil {
@@ -204,12 +243,8 @@ func (c *Client) readFailedTests(ctx context.Context, key string) (names []strin
 	}
 	if r.TestResults.FailedTests != nil {
 		for _, t := range r.TestResults.FailedTests.TestResult {
-			if t.ClassName != "" && t.MethodName != "" {
-				names = append(names, t.ClassName+"."+t.MethodName)
-			} else {
-				names = append(names, t.TestCaseName)
-			}
+			tests = append(tests, provider.FailedTest{Name: t.name(), Message: t.message()})
 		}
 	}
-	return names, true, nil
+	return tests, true, nil
 }

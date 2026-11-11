@@ -38,5 +38,6 @@
       ]
     }
   ],
-  "failed_tests": []
+  "failed_tests": [],
+  "failed_test_details": []
 }

@@ -79,12 +79,10 @@ func writeErrorBlocks(sb *strings.Builder, o Out, blocks []app.ErrorBlock) {
 // writeCause prints the failed tests, the likely cause and, with --compare,
 // what changed since the last success.
 func writeCause(sb *strings.Builder, inv app.Investigation) {
-	if t := inv.Build.FailedTests; len(t) > 5 {
-		fmt.Fprintf(sb, "Failed tests: %s (+%d more)\n", strings.Join(t[:5], ", "), len(t)-5)
-	} else if len(t) > 0 {
-		fmt.Fprintf(sb, "Failed tests: %s\n", strings.Join(t, ", "))
-	} else {
+	if len(inv.Build.FailedTests) == 0 {
 		sb.WriteString("Failed tests: none reported\n")
+	} else {
+		writeFailedTests(sb, "Failed tests", inv.Build)
 	}
 	if inv.LikelyCause != "" {
 		fmt.Fprintf(sb, "Likely cause: %s\n", inv.LikelyCause)

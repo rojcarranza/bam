@@ -661,7 +661,7 @@ func (r *recorder) recordFailed(buildKey string) error {
 		return err
 	}
 	if err := r.record("failed_tests.json", http.MethodGet, "/rest/api/latest/result/"+buildKey,
-		url.Values{"expand": {"testResults.failedTests.testResult"}}); err != nil {
+		url.Values{"expand": {"testResults.failedTests.testResult.errors"}}); err != nil {
 		return err
 	}
 	body, _, err := r.call(http.MethodGet, "/rest/api/latest/result/"+buildKey, url.Values{"expand": {"stages.stage.results.result"}})
@@ -694,7 +694,7 @@ func (r *recorder) recordFailed(buildKey string) error {
 			// Bamboo 12 reports failed tests on the job's result only, so
 			// failedTests asks here when the build's own result has none.
 			if err := r.record("job_failed_tests.json", http.MethodGet, "/rest/api/latest/result/"+j.Key,
-				url.Values{"expand": {"testResults.failedTests.testResult"}}); err != nil {
+				url.Values{"expand": {"testResults.failedTests.testResult.errors"}}); err != nil {
 				return err
 			}
 			if err := r.record("log_entries.json", http.MethodGet, "/rest/api/latest/result/"+j.Key,

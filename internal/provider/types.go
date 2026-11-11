@@ -135,6 +135,16 @@ type Build struct {
 	Revisions     []Revision
 	Stages        []Stage
 	FailedTests   []string
+	// FailedTestDetails is FailedTests with each test's message; GetBuild only.
+	FailedTestDetails []FailedTest
+}
+
+// FailedTest is one failed test and the message Bamboo reports for it.
+// Message is empty when the server gives none. It is raw server text: show
+// it through the view package, which masks secrets.
+type FailedTest struct {
+	Name    string
+	Message string
 }
 
 // FailedJobs returns failed jobs in stage order.

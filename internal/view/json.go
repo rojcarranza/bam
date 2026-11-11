@@ -52,7 +52,15 @@ type BuildDoc struct {
 	Revisions       []RevisionDoc `json:"revisions"`
 	Stages          []StageDoc    `json:"stages"`
 	FailedTests     []string      `json:"failed_tests"`
-	Progress        *ProgressDoc  `json:"progress,omitempty"`
+	// FailedTestDetails is failed_tests with each test's message, masked.
+	FailedTestDetails []FailedTestDoc `json:"failed_test_details"`
+	Progress          *ProgressDoc    `json:"progress,omitempty"`
+}
+
+// FailedTestDoc is one failed test with the message the server reports.
+type FailedTestDoc struct {
+	Name    string `json:"name"`
+	Message string `json:"message"`
 }
 
 // ProgressDoc is the server's estimate for a running build. It is absent from
@@ -177,6 +185,9 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 		Reason: b.Reason, CustomBuild: b.CustomBuild, Labels: nonNil(b.Labels), QueuedAt: timePtr(b.QueuedAt),
 		StartedAt: timePtr(b.StartedAt), FinishedAt: timePtr(b.FinishedAt), QueueDurationMS: ms(b.QueueDuration),
 		DurationMS: ms(b.Duration), Agent: b.Agent, FailedTests: nonNil(b.FailedTests), Progress: progressDoc(pr)}
+	d.FailedTestDetails = Docs(b.FailedTestDetails, func(t provider.FailedTest) FailedTestDoc {
+		return FailedTestDoc{Name: t.Name, Message: MaskMessage(t.Message)}
+	})
 	d.Revisions = Docs(b.Revisions, func(r provider.Revision) RevisionDoc {
 		return RevisionDoc{Repository: r.Repository, Revision: r.Revision, Short: r.Short()}
 	})

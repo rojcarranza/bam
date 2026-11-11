@@ -27,7 +27,7 @@ func (c *Client) Queue(ctx context.Context) ([]provider.QueueEntry, error) {
 		return nil, unsupported
 	}
 	var q queueListDTO
-	if err := c.getJSON(ctx, api+"/queue", url.Values{"max-result": {queueListMax}}, &q); err != nil {
+	if err := c.getJSON(ctx, api+"/queue", url.Values{"expand": {"queuedBuilds"}, "max-result": {queueListMax}}, &q); err != nil {
 		if isUnsupportedStatus(err) {
 			c.learn(ctx, func(cp *Capabilities) { cp.Queue = "no" })
 			return nil, unsupported

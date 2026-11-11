@@ -586,9 +586,6 @@ func (s *Service) treeDetails(ctx context.Context, tr *treeTracker, root *TreeNo
 	sem := make(chan struct{}, treeFetch)
 	for i, n := range nodes {
 		if b, ok := done[n.Build.Key]; ok {
-			if b.State == provider.StateQueued {
-				b = s.withQueuePosition(ctx, b)
-			}
 			n.Build = b
 			continue
 		}
@@ -609,6 +606,7 @@ func (s *Service) treeDetails(ctx context.Context, tr *treeTracker, root *TreeNo
 		}(i, n)
 	}
 	wg.Wait()
+	s.markQueued(ctx, root)
 	return slices.DeleteFunc(warnings, func(w string) bool { return w == "" })
 }
 

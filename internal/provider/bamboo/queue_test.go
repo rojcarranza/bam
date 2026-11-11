@@ -13,10 +13,12 @@ import (
 // Intent (BAM-11 P2): say why a build waits - the queue in order, and a
 // server without the queue list is learned once and cached.
 func TestQueueListsBuildsInOrder(t *testing.T) {
-	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/queue": {fixture: "queue_list.json"}})
+	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/queue": {fixture: "queue_list.json"}})
 	saved := knownCaps(c, Capabilities{})
 	q, err := c.Queue(ctx)
 	require.NoError(t, err)
+	// Bamboo leaves a collection's items out unless they are expanded.
+	assert.Equal(t, "queuedBuilds", rec.all()[0].URL.Query().Get("expand"))
 	require.Len(t, q, 3)
 	assert.Equal(t, provider.QueueEntry{Key: "PROJ-PROV-9", PlanKey: "PROJ-PROV", Number: 9, Reason: "Code has changed"}, q[1])
 	assert.Equal(t, "yes", (*saved)[len(*saved)-1].Queue)

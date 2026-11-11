@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -57,8 +58,32 @@ func TestMaskMessage(t *testing.T) {
 		`Authorization: Bearer eyJ.x.y`:        "Authorization: Bearer ********",
 		`{"db_password": "s3cret"}`:            `{"db_password": "********"}`,
 		`plain assertion failed: got 3 want 4`: `plain assertion failed: got 3 want 4`,
+		`Tests passed: 38`:                     `Tests passed: 38`,
+		`bypass=true`:                          `bypass=true`,
+		`tokens: 5, tokenizer: x`:              `tokens: 5, tokenizer: x`,
+		`passphrase=open sesame`:               `passphrase=******** sesame`,
+		`API_TOKEN=abc`:                        `API_TOKEN=********`,
+		`token_id: abc`:                        `token_id: ********`,
 	} {
 		assert.Equal(t, want, MaskMessage(in), in)
 	}
 	assert.True(t, strings.HasSuffix(MaskMessage(strings.Repeat("x", 5000)), "..."))
+}
+
+func TestMaskMessageCutsOnCharacterBoundary(t *testing.T) {
+	m := MaskMessage(strings.Repeat("x", maxJSONMessage-1) + "é and more")
+	assert.True(t, utf8.ValidString(m))
+	assert.Equal(t, strings.Repeat("x", maxJSONMessage-1)+"...", m)
+	for _, l := range textMessage(strings.Repeat("y", maxMessageLength-1) + "→ rest") {
+		assert.True(t, utf8.ValidString(l), l)
+	}
+}
+
+func TestBuildDetailOmitsFailedTestsLineWhenNoneReported(t *testing.T) {
+	b := provider.Build{Key: "PROJ-PLAN-45", State: provider.StateFailed,
+		Stages: []provider.Stage{{Name: "Build", Jobs: []provider.Job{{Key: "PROJ-PLAN-JOB1-45", Name: "Compile", State: provider.StateFailed}}}}}
+	o, buf := testOut(false)
+	require.NoError(t, BuildDetail(o, b))
+	assert.Contains(t, buf.String(), "Failure\n")
+	assert.NotContains(t, buf.String(), "failed tests")
 }

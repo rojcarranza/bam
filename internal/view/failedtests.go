@@ -5,6 +5,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/rojcarranza/bam/internal/provider"
 )
@@ -18,16 +19,24 @@ const (
 
 // secretPairRe is a secret-looking name followed by its value: password=x,
 // "token": "x", Authorization: Bearer x. The name and separator stay.
-var secretPairRe = regexp.MustCompile(`(?i)((?:pass(?:word|phrase)?|secret|sshkey|token|api[_-]?key|authorization)\w*["']?\s*[=:]\s*["']?(?:bearer\s+|basic\s+)?)[^\s"',;]+`)
+var secretPairRe = regexp.MustCompile(`(?i)((?:^|[^a-z])(?:pass(?:word|phrase)|secret|sshkey|token|api[_-]?key|authorization)(?:[_-]\w*)?["']?\s*[=:]\s*["']?(?:bearer\s+|basic\s+)?)[^\s"',;]+`)
 
 // MaskMessage hides the values of secret-looking name/value pairs in a test
 // message, the same names bam masks in variables, and bounds its length.
 func MaskMessage(m string) string {
 	m = secretPairRe.ReplaceAllString(m, "${1}********")
 	if len(m) > maxJSONMessage {
-		m = m[:maxJSONMessage] + "..."
+		m = truncate(m, maxJSONMessage) + "..."
 	}
 	return m
+}
+
+// truncate cuts s to at most n bytes without splitting a UTF-8 character.
+func truncate(s string, n int) string {
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 // textMessage is MaskMessage cut to what text output shows.
@@ -39,7 +48,7 @@ func textMessage(m string) []string {
 	out := lines[:0]
 	for _, l := range lines {
 		if len(l) > maxMessageLength {
-			l = l[:maxMessageLength] + "..."
+			l = truncate(l, maxMessageLength) + "..."
 		}
 		out = append(out, strings.TrimRight(l, " \t\r"))
 	}

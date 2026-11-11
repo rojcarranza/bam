@@ -27,7 +27,7 @@ func TestBuildDetailPrintsFailedTestMessages(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, BuildDetail(o, failedBuild()))
 	out := buf.String()
-	assert.Contains(t, out, "  failed tests:\n  app.AuthTest.TestLogin\n      expected 200 but was 401\n      login with password=******** failed\n  app.AuthTest.TestRefresh\n")
+	assert.Contains(t, out, "  failed tests:\n    app.AuthTest.TestLogin\n        expected 200 but was 401\n        login with password=******** failed\n    app.AuthTest.TestRefresh\n")
 	assert.NotContains(t, out, "hunter2")
 }
 
@@ -78,6 +78,11 @@ func TestMaskMessage(t *testing.T) {
 		assert.Equal(t, want, MaskMessage(in), in)
 	}
 	assert.True(t, strings.HasSuffix(MaskMessage(strings.Repeat("x", 5000)), "..."))
+}
+
+func TestTextMessageIndentsStackFramesWithSpaces(t *testing.T) {
+	assert.Equal(t, []string{"expected 200", "  at app.AuthTest.testLogin(AuthTest.java:41)"},
+		textMessage("expected 200\n\tat app.AuthTest.testLogin(AuthTest.java:41)"))
 }
 
 func TestMaskMessageCutsOnCharacterBoundary(t *testing.T) {

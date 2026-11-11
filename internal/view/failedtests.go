@@ -51,6 +51,10 @@ func textMessage(m string) []string {
 		if len(l) > maxMessageLength {
 			l = truncate(l, maxMessageLength) + "..."
 		}
+		// A leading tab (a stack frame's "\tat ...") becomes two spaces,
+		// so frames line up with the message instead of jumping to a tab stop.
+		body := strings.TrimLeft(l, "\t")
+		l = strings.Repeat("  ", len(l)-len(body)) + body
 		out = append(out, strings.TrimRight(l, " \t\r"))
 	}
 	return out
@@ -74,15 +78,17 @@ func writeFailedTests(w io.Writer, label string, b provider.Build) {
 		return
 	}
 	fmt.Fprintf(w, "%s:\n", label)
+	// Names nest under the label, messages under their name.
+	indent := label[:len(label)-len(strings.TrimLeft(label, " "))] + "  "
 	for i, t := range b.FailedTestDetails {
 		if i == maxShownTests {
-			fmt.Fprintf(w, "  (+%d more)\n", len(b.FailedTestDetails)-maxShownTests)
+			fmt.Fprintf(w, "%s(+%d more)\n", indent, len(b.FailedTestDetails)-maxShownTests)
 			break
 		}
-		fmt.Fprintf(w, "  %s\n", t.Name)
+		fmt.Fprintf(w, "%s%s\n", indent, t.Name)
 		if strings.TrimSpace(t.Message) != "" {
 			for _, l := range textMessage(t.Message) {
-				fmt.Fprintf(w, "      %s\n", l)
+				fmt.Fprintf(w, "%s    %s\n", indent, l)
 			}
 		}
 	}

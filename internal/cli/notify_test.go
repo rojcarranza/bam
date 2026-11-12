@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// BAM-11 P4: --notify rings the bell always and raises a desktop
+// Issue #150: --notify rings the bell always and raises a desktop
 // notification where the system has one.
 
 func TestNotifyRingsBellAndRaisesDesktopNotificationOnTreeFinish(t *testing.T) {

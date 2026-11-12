@@ -555,15 +555,11 @@ func (r *runtime) resolvePlanArg(ctx context.Context, arg string) (*app.Service,
 // this repository and returns that build's plan: the plan branch when it ran
 // on one.
 func (r *runtime) lastPlanArg(ctx context.Context) (*app.Service, string, error) {
-	cfg, err := r.config()
-	if err != nil {
-		return nil, "", err
-	}
-	rec, _, err := (&app.StateStore{Path: r.env.Paths.State}).Last(cfg.RepoRoot)
-	if err != nil {
-		return nil, "", err
-	}
 	svc, _, err := r.connectLast(ctx)
+	if err != nil {
+		return nil, "", err
+	}
+	rec, err := svc.LastBuild()
 	return svc, rec.PlanKey, err
 }
 

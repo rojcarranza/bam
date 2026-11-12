@@ -237,7 +237,7 @@ func (r *runtime) completeVar(cmd *cobra.Command, args []string, toComplete stri
 	if err != nil {
 		return nil, none
 	}
-	t, ok, err := cfg.Target(args[0])
+	t, ok, err := cfg.Target(app.PresetName(cfg, args[0]))
 	if err == nil && ok {
 		return targetVars(toComplete, t)
 	}

@@ -277,8 +277,8 @@ func (r *runtime) watchLoop(ctx context.Context, svc *app.Service, key string, l
 // --timeout is given.
 func (r *runtime) followBuild(cmd *cobra.Command, args []string, svc *app.Service, key string, timeout time.Duration) error {
 	limit := timeout
-	if len(args) == 1 && !cmd.Flags().Changed("timeout") && config.ValidTargetName(args[0]) {
-		if t, ok, _ := r.cfg.Target(args[0]); ok {
+	if len(args) == 1 && !cmd.Flags().Changed("timeout") {
+		if t, ok, _ := r.cfg.Target(app.PresetName(r.cfg, args[0])); ok {
 			limit = time.Duration(t.Timeout)
 		}
 	}
@@ -733,6 +733,9 @@ func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (stri
 		return "", "", err
 	}
 	var key, targetServer, branch string
+	if len(args) > 0 {
+		args = []string{app.PresetName(cfg, args[0])}
+	}
 	switch {
 	case last:
 		rec, ok, err := (&app.StateStore{Path: r.env.Paths.State}).Last(cfg.RepoRoot)

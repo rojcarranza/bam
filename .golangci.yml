@@ -1,9 +1,270 @@
 version: "2"
 linters:
   enable:
+    - depguard
     - misspell
     - unconvert
   settings:
+    depguard:
+      # The import table from CLAUDE.md, enforced. Each rule covers one package's
+      # shipped (non-test) files and forbids every module package its row does not
+      # allow. Test files are exempt. Packages not in the table (cli, provider/fake,
+      # view/tui, tools, cmd) have no rule.
+      rules:
+        atomicfile:
+          files:
+            - "!$test"
+            - "**/internal/atomicfile/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/errs"
+              desc: "atomicfile may not import errs"
+            - pkg: "github.com/rojcarranza/bam/internal/config"
+              desc: "atomicfile may not import config"
+            - pkg: "github.com/rojcarranza/bam/internal/provider"
+              desc: "atomicfile may not import provider"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "atomicfile may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "atomicfile may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "atomicfile may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "atomicfile may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "atomicfile may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "atomicfile may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "atomicfile may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "atomicfile may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "atomicfile may not import cli"
+        errs:
+          files:
+            - "!$test"
+            - "**/internal/errs/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/atomicfile"
+              desc: "errs may not import atomicfile"
+            - pkg: "github.com/rojcarranza/bam/internal/config"
+              desc: "errs may not import config"
+            - pkg: "github.com/rojcarranza/bam/internal/provider"
+              desc: "errs may not import provider"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "errs may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "errs may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "errs may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "errs may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "errs may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "errs may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "errs may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "errs may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "errs may not import cli"
+        config:
+          files:
+            - "!$test"
+            - "**/internal/config/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/provider"
+              desc: "config may not import provider"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "config may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "config may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "config may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "config may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "config may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "config may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "config may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "config may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "config may not import cli"
+        provider:
+          files:
+            - "!$test"
+            - "**/internal/provider/*.go"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/atomicfile"
+              desc: "provider may not import atomicfile"
+            - pkg: "github.com/rojcarranza/bam/internal/config"
+              desc: "provider may not import config"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "provider may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "provider may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "provider may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "provider may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "provider may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "provider may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "provider may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "provider may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "provider may not import cli"
+        credential:
+          files:
+            - "!$test"
+            - "**/internal/credential/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/provider"
+              desc: "credential may not import provider"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "credential may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "credential may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "credential may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "credential may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "credential may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "credential may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "credential may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "credential may not import cli"
+        provider-bamboo:
+          files:
+            - "!$test"
+            - "**/internal/provider/bamboo/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/config"
+              desc: "provider/bamboo may not import config"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "provider/bamboo may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "provider/bamboo may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "provider/bamboo may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "provider/bamboo may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "provider/bamboo may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "provider/bamboo may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "provider/bamboo may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "provider/bamboo may not import cli"
+        app:
+          files:
+            - "!$test"
+            - "**/internal/app/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "app may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "app may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "app may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "app may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "app may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "app may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "app may not import cli"
+        view:
+          files:
+            - "!$test"
+            - "**/internal/view/*.go"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/atomicfile"
+              desc: "view may not import atomicfile"
+            - pkg: "github.com/rojcarranza/bam/internal/config"
+              desc: "view may not import config"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "view may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "view may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "view may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "view may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "view may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "view may not import cli"
+        view-style:
+          files:
+            - "!$test"
+            - "**/internal/view/style/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/atomicfile"
+              desc: "view/style may not import atomicfile"
+            - pkg: "github.com/rojcarranza/bam/internal/config"
+              desc: "view/style may not import config"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "view/style may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "view/style may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "view/style may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "view/style may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "view/style may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "view/style may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "view/style may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "view/style may not import cli"
+        toolcfg:
+          files:
+            - "!$test"
+            - "**/internal/toolcfg/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/atomicfile"
+              desc: "toolcfg may not import atomicfile"
+            - pkg: "github.com/rojcarranza/bam/internal/provider"
+              desc: "toolcfg may not import provider"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "toolcfg may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "toolcfg may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "toolcfg may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "toolcfg may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "toolcfg may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "toolcfg may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "toolcfg may not import cli"
     errcheck:
       exclude-functions:
         - fmt.Fprint

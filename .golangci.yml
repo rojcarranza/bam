@@ -6,10 +6,12 @@ linters:
     - unconvert
   settings:
     depguard:
-      # The import table from CLAUDE.md, enforced. Each rule covers one package's
-      # shipped (non-test) files and forbids every module package its row does not
-      # allow. Test files are exempt. Packages not in the table (cli, provider/fake,
-      # view/tui, tools, cmd) have no rule.
+      # These rules define the allowed imports for the layered packages listed in
+      # CLAUDE.md. Each rule covers one package's shipped (non-test) files and
+      # denies every module package that package may not import. Test files are
+      # exempt. cli, provider/fake, view/tui, tools and cmd have no rule.
+      # atomicfile is allowed in config, credential, provider/bamboo and app,
+      # which import it for their state, cache, config and token files.
       rules:
         atomicfile:
           files:

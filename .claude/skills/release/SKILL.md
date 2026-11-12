@@ -36,7 +36,7 @@ go-ahead for that version.
 - `HEAD` is `origin/main`,
 - the tag `vx.y.z` does not exist yet,
 - `CHANGELOG.md` has a non-empty section for `x.y.z`,
-- `gh` is logged in and `goreleaser` v2 is installed.
+- `gh` is logged in and `goreleaser` is installed (v2 is required by `.goreleaser.yaml`).
 
 Then it runs `go test ./...`, creates the annotated tag `vx.y.z`, and pushes
 the tag to `origin` with `--no-verify`. The pre-push hook would otherwise

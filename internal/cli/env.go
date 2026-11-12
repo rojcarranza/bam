@@ -64,9 +64,12 @@ type Env struct {
 	Keyring     credential.Keyring
 	Connect     func(bamboo.Options) (Backend, error)
 	OpenBrowser func(url string) error
-	RunPager    func(cmd string, r io.Reader) error
-	RunEditor   func(cmd string, initial []byte) ([]byte, error)
-	ReadSecret  func() (string, error)
+	// Notify raises a desktop notification; nil, or an error, means this
+	// system has none and only the terminal bell rings.
+	Notify     func(title, body string) error
+	RunPager   func(cmd string, r io.Reader) error
+	RunEditor  func(cmd string, initial []byte) ([]byte, error)
+	ReadSecret func() (string, error)
 	// RunTUI opens the terminal UI. It is a field so tests can assert on the
 	// Deps the CLI builds without starting a terminal program.
 	RunTUI func(context.Context, tui.Deps) error
@@ -138,6 +141,7 @@ func SystemEnv() Env {
 		OpenBrowser: func(u string) error {
 			return openURL(u, browser.OpenURL, config.IsWSL(os.Getenv), runWindowsOpener)
 		},
+		Notify:    desktopNotify,
 		RunPager:  runPager,
 		RunEditor: runEditor,
 		ReadSecret: func() (string, error) {

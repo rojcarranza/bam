@@ -175,6 +175,9 @@ loop:
 			case app.TreeUpdate:
 				finished = e.Tree.State != provider.StateRunning
 			case app.TreeDone:
+				if e.Tree.State != provider.StateRunning {
+					r.notifyDone(e.Tree.Root.Build.Key, e.Tree.State)
+				}
 				view.PrintWarnings(r.env.Stderr, e.Tree.Warnings)
 				if revision != "" && !r.flags.json && e.Tree.Root.Build.State == provider.StateNotBuilt {
 					if out, err := r.out(); err == nil {

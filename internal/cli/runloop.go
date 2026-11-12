@@ -227,6 +227,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 	f.BoolVar(&rf.watch, "watch", false, "follow the build and the builds it triggers until they finish")
 	f.DurationVar(&rf.timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
 	f.BoolVar(&rf.dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
+	addNotifyFlag(cmd, r)
 	f.BoolVar(&rf.edit, "edit", false, "review and change the variables in $EDITOR before running")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeVar)
 	_ = cmd.RegisterFlagCompletionFunc("revision", r.completeRevision)
@@ -247,6 +248,7 @@ func (r *runtime) watchLoop(ctx context.Context, svc *app.Service, key string, l
 		rend.Event(e)
 		switch e.Type {
 		case app.EventDone:
+			r.notifyDone(e.Build.Key, e.Build.State)
 			if e.Build.State != provider.StateSuccess {
 				return &resultError{State: e.Build.State}
 			}
@@ -354,6 +356,7 @@ build, so bam says so and follows the newest build of the branch.`,
 	}
 	addBuildArgFlags(cmd, &last, &branch)
 	cmd.Flags().DurationVar(&timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
+	addNotifyFlag(cmd, r)
 	return cmd
 }
 

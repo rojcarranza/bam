@@ -215,6 +215,7 @@ On a terminal the tree redraws while the builds run. bam exits 0 when every buil
 | You want to | Type |
 | --- | --- |
 | run a plan by its key and follow it | `bam run BAMCI-BUILD --watch` |
+| get a desktop notification when it finishes | `bam run BAMCI-BUILD --watch --notify` |
 | set a variable | `bam run FORGE-PROV --var cluster_name=lab2` |
 | see what would be sent, start nothing | `bam run FORGE-PROV --var cluster_name=lab2 --dry-run` |
 | reuse the last build's variables | `bam run FORGE-PROV --from last` |
@@ -307,6 +308,7 @@ Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on suc
 | watch a build by its key | `bam watch BAMCI-BUILD-7` |
 | watch the newest build of a plan | `bam watch BAMCI-BUILD` |
 | wait for the build of the commit you pushed, then follow it | `git push && bam watch @` |
+| get a desktop notification when it finishes | `bam watch BAMCI-BUILD --notify` |
 | draw the tree of a build and its children | `bam build tree BAMCI-BUILD-7` |
 | follow that tree until every build finishes | `bam build tree BAMCI-BUILD-7 --watch` |
 | stop waiting after 30 minutes | `bam watch --last --timeout 30m` |
@@ -365,6 +367,7 @@ Start from the failed build. `bam build investigate` picks out the error and the
 | You want to | Type |
 | --- | --- |
 | rerun the failed jobs and watch them | `bam build rerun BAMCI-TEST6-2 --watch` |
+| get a desktop notification when the rerun finishes | `bam build rerun BAMCI-TEST6-2 --watch --notify` |
 | rerun every failed build of a tree | `bam build tree BAMCI-BUILD-7 --rerun-failed` |
 | cancel a build by key | `bam build cancel BAMCI-BUILD-3` |
 | check a cancel first | `bam build cancel --last --dry-run` |

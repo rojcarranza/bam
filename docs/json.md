@@ -144,4 +144,4 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 ## Status
 
-`bam status --json` is `{"builds":[...]}`, newest first with the build of the checked-out branch before all. Each build has `key`, `url`, `state`, `plan_key`, `branch`, `preset`, `server`, `started_at`, `here` (true for the build of the checked-out branch), and `progress` for a running build with an estimate (the object described under Build). A build the server could not be asked about has no `state` and an `error` string instead. `[]` when nothing was started in the last day.
+`bam status --json` is `{"builds":[...]}`, newest first with the build of the checked-out branch before all. Each build has `key`, `url`, `state`, `plan_key`, `branch`, `preset`, `server`, `started_at`, `here` (true for the build of the checked-out branch), and `progress` for a running build with an estimate (the object described under Build). A build the server could not be asked about has no `state` and an `error` string instead. `builds` is `[]` when nothing was started in the last day.

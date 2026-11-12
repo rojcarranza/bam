@@ -141,3 +141,7 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 `set history --json` prints an array of these records for this repository, newest first, with the recorded states and no `build` objects.
 
 `set list --json` and `set show --json` print each set's `name`, `timeout_ms`, `defined_in` and `stages[][]` of `{target, plan_key, branch, vars, matrix, runs}` (`plan_key` and `branch` from the preset, `branch` empty for the plan default; `matrix` only on a run that has one, as configured; `runs` the run names it expands to); secret values are masked and `${ENV}` references are shown as written. `set run --dry-run --json` prints `name`, `origin`, `warnings` and `stages[][]` of `{target, name, plan_key, branch, variables}`, with the changed variables only, masked.
+
+## Status
+
+`bam status --json` is `{"builds":[...]}`, newest first with the build of the checked-out branch before all. Each build has `key`, `url`, `state`, `plan_key`, `branch`, `preset`, `server`, `started_at`, `here` (true for the build of the checked-out branch), and `progress` for a running build with an estimate (the object described under Build). A build the server could not be asked about has no `state` and an `error` string instead. `builds` is `[]` when nothing was started in the last day.

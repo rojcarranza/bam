@@ -136,7 +136,8 @@ type Build struct {
 	Stages        []Stage
 	// QueuePosition is the build's place in the server's queue, counted from
 	// 1, and QueueLength how many builds are queued; both 0 when the build is
-	// not queued or the server cannot say. Set by app.Service.Build.
+	// not queued or the server cannot say. Set by app.Service.BuildWithQueue
+	// and the build tree.
 	QueuePosition int
 	QueueLength   int
 	FailedTests   []string
@@ -213,7 +214,7 @@ type QueueEntry struct {
 type Agent struct {
 	ID      int
 	Name    string
-	Type    string // "local" or "remote"
+	Type    string // "LOCAL" or "REMOTE", as Bamboo reports it
 	Online  bool   // Bamboo's "active": the agent is connected
 	Enabled bool   // the agent accepts builds
 	Busy    bool   // the agent is building now

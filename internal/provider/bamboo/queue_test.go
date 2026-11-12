@@ -44,3 +44,11 @@ func TestAgentsMapOnlineEnabledBusy(t *testing.T) {
 	assert.Equal(t, provider.Agent{ID: 2, Name: "linux-2", Type: "REMOTE", Online: true, Enabled: false, Busy: false}, as[1])
 	assert.False(t, as[2].Online)
 }
+
+func TestAgentsSayAForbiddenListNeedsAnAdministrator(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/agent": {status: 403, body: `{"message":"forbidden"}`}})
+	_, err := c.Agents(ctx)
+	require.Error(t, err)
+	assert.Equal(t, errs.KindAuth, errs.KindOf(err))
+	assert.Contains(t, err.Error(), "administrator")
+}

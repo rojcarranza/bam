@@ -94,6 +94,32 @@ func TestWatchTreeSendsOnlyChanges(t *testing.T) {
 	require.Equal(t, provider.StateFailed, evs[2].Tree.State, "OPS-SMOKE-51 failed")
 }
 
+func TestWatchTreeSendsANewQueuePlace(t *testing.T) {
+	p := treeFake()
+	p.Sequences = map[string][]provider.Build{"PROJ-DOCS-30": {tb("PROJ-DOCS-30", childOf("PROJ-API-142"), provider.StateSuccess, 5)}, "OPS-SMOKE-51": {
+		tb("OPS-SMOKE-51", childOf("OPS-DEPLOY-88"), provider.StateQueued, 9),
+		tb("OPS-SMOKE-51", childOf("OPS-DEPLOY-88"), provider.StateQueued, 9),
+		tb("OPS-SMOKE-51", childOf("OPS-DEPLOY-88"), provider.StateFailed, 9),
+	}}
+	p.QueueEntries = []provider.QueueEntry{{Key: "PROJ-X-1"}, {Key: "PROJ-Y-2"}, {Key: "OPS-SMOKE-51"}}
+	svc := treeService(t, p)
+	svc.Clock = &hookClock{fakeClock: newClock(), hook: func(n int) {
+		if n == 1 { // the two builds ahead of it start
+			p.QueueEntries = []provider.QueueEntry{{Key: "OPS-SMOKE-51"}}
+		}
+	}}
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	require.Len(t, evs, 4, "queued 3 of 3, queued 1 of 1, failed, done")
+	place := func(e TreeEvent) [2]int {
+		smoke := e.Tree.Root.Children[0].Children[0]
+		return [2]int{smoke.Build.QueuePosition, smoke.Build.QueueLength}
+	}
+	require.Equal(t, [2]int{3, 3}, place(evs[0]))
+	require.Equal(t, TreeUpdate, evs[1].Type, "a new place in the queue is a change")
+	require.Equal(t, [2]int{1, 1}, place(evs[1]))
+	require.Equal(t, TreeDone, evs[3].Type)
+}
+
 func TestWatchTreeEndsAtOnceWhenTheFirstRefreshFails(t *testing.T) {
 	svc := treeService(t, treeFake())
 	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-999", TreeOptions{}))

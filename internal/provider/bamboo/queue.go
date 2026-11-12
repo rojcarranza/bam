@@ -2,6 +2,7 @@ package bamboo
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 
 	"github.com/rojcarranza/bam/internal/errs"
@@ -57,6 +58,10 @@ type agentDTO struct {
 func (c *Client) Agents(ctx context.Context) ([]provider.Agent, error) {
 	var as []agentDTO
 	if err := c.getJSON(ctx, api+"/agent", nil, &as); err != nil {
+		if statusOf(err) == http.StatusForbidden {
+			return nil, errs.Authf("403 from %s: the agent list needs an administrator", c.base.Host).
+				WithWhy("Bamboo shows its build agents only to administrators").Wrap(err)
+		}
 		if isUnsupportedStatus(err) {
 			return nil, errs.Bamboof("this Bamboo does not list its build agents").
 				WithWhy("the agent list may need an administrator").Wrap(errs.ErrUnsupported)

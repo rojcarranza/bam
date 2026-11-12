@@ -798,12 +798,13 @@ func (s *Service) estimateTree(ctx context.Context, t Tree, unsupported *bool) {
 }
 
 // treeSignature is what a watcher compares between refreshes: every node,
-// its state, whether it has an estimate and its stages' states. A newer
+// its state, its place in the queue, whether it has an estimate and its
+// stages' states. A newer
 // estimate alone is no change; a live view moves the bars on by itself.
 func treeSignature(t Tree) string {
 	var b strings.Builder
 	t.Root.Walk(func(n *TreeNode, depth int) {
-		fmt.Fprintf(&b, "%d %s %s %s %t %t %t", depth, n.PlanKey, n.Build.Key, n.Build.State, n.NotRun, n.Loop, n.Progress.Valid)
+		fmt.Fprintf(&b, "%d %s %s %s %d/%d %t %t %t", depth, n.PlanKey, n.Build.Key, n.Build.State, n.Build.QueuePosition, n.Build.QueueLength, n.NotRun, n.Loop, n.Progress.Valid)
 		for _, st := range n.Build.Stages {
 			fmt.Fprintf(&b, " %s=%s", st.Name, st.State)
 		}

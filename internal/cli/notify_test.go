@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/rojcarranza/bam/internal/provider"
@@ -19,7 +20,7 @@ func TestNotifyRingsBellAndRaisesDesktopNotificationOnTreeFinish(t *testing.T) {
 		return nil
 	}
 	assert.Equal(t, 1, h.run("watch", "PROJ-BUILD-482", "--notify"))
-	assert.Contains(t, h.stderr.String(), "\a")
+	assert.Equal(t, 1, strings.Count(h.stderr.String(), "\a"), "the bell rings once")
 	require.Len(t, titles, 1)
 	assert.Equal(t, "bam: PROJ-BUILD-482", titles[0])
 	assert.Contains(t, bodies[0], "failed")
@@ -29,7 +30,7 @@ func TestNotifyStillRingsTheBellWithoutADesktopNotifier(t *testing.T) {
 	h := treeHarness(t, provider.StateSuccess)
 	h.env.Notify = nil
 	assert.Equal(t, 0, h.run("watch", "PROJ-BUILD-482", "--notify"))
-	assert.Contains(t, h.stderr.String(), "\a")
+	assert.Equal(t, 1, strings.Count(h.stderr.String(), "\a"), "the bell rings once")
 }
 
 func TestNotifyKeepsJSONStdoutClean(t *testing.T) {

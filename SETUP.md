@@ -253,24 +253,7 @@ make docs && git status --porcelain docs/cli   # must print nothing
 
 ## Releasing
 
-Releases are published from the maintainer's machine; there is no release
-workflow. First merge a pull request that renames `## [Unreleased]` in
-`CHANGELOG.md` to `## [x.y.z] - YYYY-MM-DD`, adds a fresh empty
-`[Unreleased]` and the compare link. Then, with `gh auth login` done:
-
-```bash
-git checkout main && git pull
-make release VERSION=x.y.z
-```
-
-`scripts/release.sh` refuses before it changes anything unless the tree is
-clean, `HEAD` is `origin/main`, the tag `vx.y.z` is new and `CHANGELOG.md` has
-a section for `x.y.z`. It then runs the tests, tags `vx.y.z`, pushes the tag
-to `origin` (past the pre-push hook) and runs `goreleaser release`, which
-builds the archives in `.goreleaser.yaml` and publishes the GitHub release with
-that section as the notes. If goreleaser fails after the tag is pushed, fix
-the cause and run `GITHUB_TOKEN=$(gh auth token) goreleaser release --clean
---release-notes=<file with the section>` on the tag.
+Releases are published from the maintainer's machine with `make release VERSION=x.y.z`. The full procedure, its refusal checks and the goreleaser recovery steps are in [`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md).
 
 ## Run bam without a Bamboo
 

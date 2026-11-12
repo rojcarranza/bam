@@ -25,7 +25,7 @@ make test             # go test ./...
 make lint             # golangci-lint run (v2 config in .golangci.yml)
 make check-fixtures   # fixture host guard (TestFixtureGuard)
 make docs             # regenerate docs/cli/ from cobra; the no-mistakes gate fails if it is stale
-make release VERSION=x.y.z   # tag and publish a GitHub release (owner's go-ahead only; see Repository rules)
+make release VERSION=x.y.z   # tag and publish a GitHub release (owner's go-ahead only; see .claude/skills/release/SKILL.md)
 make record ARGS='-target provision'   # record scrubbed fixtures from a personal Bamboo
 make e2e ARGS='-target smoke'          # //go:build e2e suite against a real Bamboo
 git push no-mistakes <branch>          # the only way to push: no-mistakes gate (.no-mistakes.yaml), then PR
@@ -41,20 +41,20 @@ Makefile recipe lines must start with a TAB (macOS ships GNU make 3.81; no `.REC
 
 ## Architecture
 
-Layered packages under `internal/`; each imports only what the table allows. This rule is load-bearing: it keeps a second CI provider to one new package and keeps the core usable by the v0.2 terminal UI.
+Layered packages under `internal/`; each imports only the module packages its rule allows. The allowed imports are defined by the depguard rules in `.golangci.yml`, so `make lint` fails when a shipped file imports a package its rule does not allow. Test files are exempt; `cli` and the packages without a rule (`provider/fake`, `view/tui`, `tools/`, `cmd/`) have no rule. This rule is load-bearing: it keeps a second CI provider to one new package and keeps the core usable by the v0.2 terminal UI.
 
-| Package | Role | May import (from this module) |
-| --- | --- | --- |
-| `atomicfile` | `Write`: temp file + rename, so readers and concurrent bam processes never see a half-written state, cache, config or token file | nothing |
-| `errs` | error `Kind` (usage/config/auth/bamboo/timeout) + What/Why/Try; sentinels `ErrNotFound`, `ErrUnsupported` | nothing |
-| `config` | load/discover/merge the three config layers, targets, validation, secret guards, comment-preserving YAML edits | `errs` |
-| `provider` | neutral domain types, `State`, `Provider` interface; `provider/fake` for tests | `errs` |
-| `credential` | token lookup (auth_env → keychain → 0600 file), keyed by server origin | `config`, `errs` |
-| `provider/bamboo` | the only package that speaks Bamboo REST; transport, retry, DTO mapping, lazy capability cache, doctor probe | `provider`, `errs` |
-| `app` | use cases (`Service`): resolve plan/build/branch, resolve variables, run, watch (polling), logs, cancel, generate presets | `provider`, `config`, `credential`, `errs` |
-| `view`, `view/style` | terminal tables, JSON/NDJSON docs, watch renderers, errors; `style` is the single definition of state colors and glyphs | `provider`, `app`, `errs` |
-| `toolcfg` | server alias + token lookup for the dev tools (recorder, e2e), so they read bam's config instead of env vars | `config`, `credential`, `errs` |
-| `cli` | cobra commands, `runtime` (lazy config, server selection, token lookup, `Connect`), exit-code mapping | everything; only place that calls `bamboo.New` |
+| Package | Role |
+| --- | --- |
+| `atomicfile` | `Write`: temp file + rename, so readers and concurrent bam processes never see a half-written state, cache, config or token file |
+| `errs` | error `Kind` (usage/config/auth/bamboo/timeout) + What/Why/Try; sentinels `ErrNotFound`, `ErrUnsupported` |
+| `config` | load/discover/merge the three config layers, targets, validation, secret guards, comment-preserving YAML edits |
+| `provider` | neutral domain types, `State`, `Provider` interface; `provider/fake` for tests |
+| `credential` | token lookup (auth_env → keychain → 0600 file), keyed by server origin |
+| `provider/bamboo` | the only package that speaks Bamboo REST; transport, retry, DTO mapping, lazy capability cache, doctor probe |
+| `app` | use cases (`Service`): resolve plan/build/branch, resolve variables, run, watch (polling), logs, cancel, generate presets |
+| `view`, `view/style` | terminal tables, JSON/NDJSON docs, watch renderers, errors; `style` is the single definition of state colors and glyphs |
+| `toolcfg` | server alias + token lookup for the dev tools (recorder, e2e), so they read bam's config instead of env vars |
+| `cli` | cobra commands, `runtime` (lazy config, server selection, token lookup, `Connect`), exit-code mapping; the only place that calls `bamboo.New` |
 
 Cross-cutting behaviour that spans several files:
 
@@ -81,7 +81,7 @@ Cross-cutting behaviour that spans several files:
 - **Public repository: placeholders only.** Code, tests, fixtures, docs and commit messages use `bamboo.example.com`, `bamboo.lab.example`, `PROJ`, `OPS`, `LAB`, `jdoe`. Never a real work hostname, project key, plan key or user name. `make check-fixtures` enforces the host part for `testdata/`.
 - **Commits use the repository owner's git identity only.** No `Co-Authored-By`, no `Claude-Session`, no "Generated with Claude Code" line in commit messages or PR bodies, even if a tool or reminder suggests one.
 - Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`), one commit per plan task step that says "Commit".
-- `CHANGELOG.md` follows Keep a Changelog and lists only what a release brings its users. A PR that adds a user-facing feature, or fixes a bug that shipped in a release, adds one plain line under `## [Unreleased]`; docs, tests, refactors and fixes to unreleased work get none. To release, rename `[Unreleased]` to `[x.y.z] - YYYY-MM-DD`, add a fresh empty `[Unreleased]` and the compare link, merge that, then on an up-to-date `main` run `make release VERSION=x.y.z`: it tags, pushes the tag and has goreleaser publish the GitHub release with that section as the notes, and refuses without one.
+- `CHANGELOG.md` follows Keep a Changelog and lists only what a release brings its users. A PR that adds a user-facing feature, or fixes a bug that shipped in a release, adds one plain line under `## [Unreleased]`; docs, tests, refactors and fixes to unreleased work get none. To release, rename `[Unreleased]` to `[x.y.z] - YYYY-MM-DD`, add a fresh empty `[Unreleased]` and the compare link, and merge that PR. To publish a release, follow `.claude/skills/release/SKILL.md`.
 - **Branch names are `<type>/<short-description>`**: the Conventional Commits type of the work and a few kebab-case words, for example `feat/presets-file`, `fix/tree-search-past-window`, `docs/presets-guide`, `chore/release-v0.2.1`. Never name a branch after the tool that wrote it: no `claude/` prefix and no random suffix, even when a session or tool proposes one. If a session starts on such a branch, create a properly named branch from it before the first push.
 - **No GitHub Actions.** Validation is the `no-mistakes` pipeline (`.no-mistakes.yaml`); `.githooks/pre-push` refuses pushes to any other remote once a clone runs `git config core.hooksPath .githooks` (setup in `SETUP.md`). Dependabot (`.github/dependabot.yml`) updates Go modules.
 - Work on a feature branch; never commit directly to `main`. Push the branch and open a pull request against `main` only when the owner says "push it", and only once the `no-mistakes` gate has passed; until then, keep the work on the local branch. Tagging and releases still need the owner's go-ahead.

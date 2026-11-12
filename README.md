@@ -312,6 +312,7 @@ Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on suc
 | stop waiting after 30 minutes | `bam watch --last --timeout 30m` |
 | see every build you started in the last day, across repositories | `bam status` |
 | put the current build's state in your shell prompt | `bam status --short` |
+| see why a queued build waits | `bam queue`, then `bam agent list` |
 
 ### When a build fails
 

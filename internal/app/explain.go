@@ -14,7 +14,7 @@ const ExplainLimit = 5
 // secretPairRe is a secret-looking name followed by its value: password=x,
 // PGPASSWORD=x, "token": "x", Authorization: Bearer x, accessToken=x. The
 // name and separator stay.
-var secretPairRe = regexp.MustCompile(`((?:\w*(?i:pass(?:word|phrase)|secret|sshkey)\w*|(?:(?:^|[^A-Za-z])(?i:token|api[_-]?key|authorization)|[a-z](?:Token|Api[_-]?Key|Authorization))(?:[_-]\w*|[A-Z]\w*)?)["']?\s*[=:]\s*)(?:("(?:(?i:bearer|basic)\s+)?)[^"\n]+|('(?:(?i:bearer|basic)\s+)?)[^'\n]+|((?:(?i:bearer|basic)\s+)?)[^\s"',;]+)`)
+var secretPairRe = regexp.MustCompile(`((?:[\w-]*(?i:pass(?:word|phrase)|secret|sshkey)[\w-]*|(?:(?:^|[^A-Za-z])(?i:token|api[_-]?key|authorization)|[a-z](?:Token|Api[_-]?Key|Authorization))(?:[_-]\w*|[A-Z]\w*)?)["']?\s*[=:]\s*)(?:("(?:(?i:bearer|basic)\s+)?)[^"\n]+|('(?:(?i:bearer|basic)\s+)?)[^'\n]+|((?:(?i:bearer|basic)\s+)?)[^\s"',;]+)`)
 
 // MaskSecretText replaces the value after every secret-looking name in s
 // with MaskedDisplay, so a cause line or a test message never prints one.

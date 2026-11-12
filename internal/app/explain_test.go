@@ -68,6 +68,8 @@ func TestMaskSecretText(t *testing.T) {
 		`login dbpassword=x failed`:      `login dbpassword=******** failed`,
 		`MYSECRET=x`:                     `MYSECRET=********`,
 		`appsshkey: x`:                   `appsshkey: ********`,
+		`secret-key=x`:                   `secret-key=********`,
+		`run --password-file=x now`:      `run --password-file=******** now`,
 		`Error: no space left on device`: `Error: no space left on device`,
 	} {
 		assert.Equal(t, want, MaskSecretText(in), in)

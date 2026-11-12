@@ -115,7 +115,7 @@ func TestAcceptedShortFormsAndAliases(t *testing.T) {
 }
 
 // BAM-11 P14: a preset typed with capitals is that preset everywhere: its
-// timeout applies and bam url browses its plan.
+// timeout applies, bam url browses its plan and --branch completes.
 func TestCapitalizedPresetKeepsItsSettings(t *testing.T) {
 	h := newHarness(t)
 	yaml := strings.Replace(projectYAML, "  build:\n    plan: PROJ-BUILD\n", "  build:\n    plan: PROJ-BUILD\n    timeout: 50ms\n", 1)
@@ -127,6 +127,8 @@ func TestCapitalizedPresetKeepsItsSettings(t *testing.T) {
 	assert.Equal(t, workOrigin+"/browse/PROJ-BUILD\n", h.stdout.String())
 	assert.Equal(t, 0, h.run("open", "Provision-Lab"), h.stderr.String())
 	assert.Equal(t, []string{workOrigin + "/browse/PROJ-PROV12"}, h.opened)
+	h.run("__complete", "run", "Provision-Lab", "--branch", "")
+	assert.Contains(t, h.stdout.String(), "develop\n", "--branch completes the plan branches of a capitalized preset")
 }
 
 // BAM-11 P14: build list with no plan refuses, as --last does, when the last

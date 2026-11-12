@@ -61,7 +61,9 @@ func TestExplainTreeMasksSecrets(t *testing.T) {
 func TestMaskSecretText(t *testing.T) {
 	for in, want := range map[string]string{
 		`Error: password: s3cr3t failed`: `Error: password: ******** failed`,
-		`token "api_secret": "a b" bad`:  `token "api_secret": ******** bad`,
+		`token "api_secret": "a b" bad`:  `token "api_secret": "********" bad`,
+		`Error: secret: Bearer abc123`:   `Error: secret: Bearer ********`,
+		`Error: api_key=k1 rejected`:     `Error: api_key=******** rejected`,
 		`Error: no space left on device`: `Error: no space left on device`,
 	} {
 		assert.Equal(t, want, MaskSecretText(in), in)

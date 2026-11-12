@@ -11,14 +11,15 @@ import (
 // watch ends. Each one costs a log read, so a tree with more says so.
 const ExplainLimit = 5
 
-// secretText matches a secret-looking name followed by its value, as a log
-// prints it: password=hunter2, "api_secret": "x", DB_PASSWORD: x.
-var secretText = regexp.MustCompile(`(?i)([\w.-]*(?:password|secret|passphrase|sshkey)[\w.-]*["']?\s*[=:]\s*)("[^"]*"|'[^']*'|\S+)`)
+// secretPairRe is a secret-looking name followed by its value: password=x,
+// "token": "x", Authorization: Bearer x, accessToken=x. The name and
+// separator stay.
+var secretPairRe = regexp.MustCompile(`((?:(?:^|[^A-Za-z])(?i:pass(?:word|phrase)|secret|sshkey|token|api[_-]?key|authorization)|[a-z](?:Pass(?:word|phrase)|Secret|Ssh[Kk]ey|Token|Api[_-]?Key|Authorization))(?:[_-]\w*|[A-Z]\w*)?["']?\s*[=:]\s*)(?:("(?:(?i:bearer|basic)\s+)?)[^"\n]+|('(?:(?i:bearer|basic)\s+)?)[^'\n]+|((?:(?i:bearer|basic)\s+)?)[^\s"',;]+)`)
 
 // MaskSecretText replaces the value after every secret-looking name in s
-// with MaskedDisplay, so a cause line never prints one.
+// with MaskedDisplay, so a cause line or a test message never prints one.
 func MaskSecretText(s string) string {
-	return secretText.ReplaceAllString(s, "${1}"+MaskedDisplay)
+	return secretPairRe.ReplaceAllString(s, "${1}${2}${3}${4}"+MaskedDisplay)
 }
 
 // ExplainBuild is the likely cause of a failed build, masked, or "" when

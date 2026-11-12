@@ -560,16 +560,16 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 	return cmd
 }
 
-// failedInTree is the failed builds with a failed job in b's tree, in tree
-// order, up to app.ExplainLimit; empty when the tree cannot be read.
+// failedInTree is every failed build with a failed job in b's tree, in tree
+// order; empty when the tree cannot be read.
 func (r *runtime) failedInTree(ctx context.Context, svc *app.Service, b provider.Build) []provider.Build {
-	t, err := svc.BuildTree(ctx, b.Key, app.TreeOptions{})
+	t, err := r.loadTree(ctx, svc, b.Key, app.TreeOptions{})
 	if err != nil || t.Root == nil {
 		return nil
 	}
 	var out []provider.Build
 	t.Root.Walk(func(n *app.TreeNode, _ int) {
-		if !n.NotRun && !n.Loop && !n.Superseded && n.Build.State == provider.StateFailed && len(n.Build.FailedJobs()) > 0 && len(out) < app.ExplainLimit {
+		if !n.NotRun && !n.Loop && !n.Superseded && n.Build.State == provider.StateFailed && len(n.Build.FailedJobs()) > 0 {
 			out = append(out, n.Build)
 		}
 	})

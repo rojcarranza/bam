@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -187,4 +188,22 @@ func TestInvestigateCoversFailedChildOfTheTree(t *testing.T) {
 	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-482"))
 	assert.Contains(t, h.stdout.String(), "Likely cause: Error: BucketAlreadyExists (job TF)")
 	assert.Contains(t, h.stdout.String(), "PROJ-PROV-9")
+}
+
+func TestInvestigateCoversEveryFailedChildOfTheTree(t *testing.T) {
+	h := newHarness(t)
+	h.fake.Logs = map[string][]string{}
+	for i := 1; i <= 7; i++ {
+		plan := fmt.Sprintf("PROJ-C%d", i)
+		h.fake.Plans["PROJ"] = append(h.fake.Plans["PROJ"], provider.Plan{Key: plan, Name: plan, ProjectKey: "PROJ", URL: workOrigin + "/browse/" + plan})
+		job := fmt.Sprintf("%s-J-%d", plan, i)
+		h.fake.History[plan] = []provider.Build{{Key: fmt.Sprintf("%s-%d", plan, i), URL: workOrigin + "/browse/" + plan, PlanKey: plan, Number: i,
+			State: provider.StateFailed, Reason: "Child of PROJ-BUILD-482", StartedAt: fixedNow.Add(-10 * time.Minute),
+			Stages: []provider.Stage{{Name: "S", State: provider.StateFailed, Jobs: []provider.Job{{Key: job, Name: "J", State: provider.StateFailed}}}}}}
+		h.fake.Logs[job] = []string{fmt.Sprintf("Error: child %d broke", i)}
+	}
+	assert.Equal(t, 0, h.run("build", "investigate", "PROJ-BUILD-482"))
+	for i := 1; i <= 7; i++ {
+		assert.Contains(t, h.stdout.String(), fmt.Sprintf("Likely cause: Error: child %d broke", i))
+	}
 }

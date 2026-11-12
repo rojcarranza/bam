@@ -54,7 +54,11 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 		}
 	}
 	if w.explained && len(w.unexplained) > 0 {
-		if _, err := fmt.Fprintf(o.W, "  %d more failed builds without a cause: bam build investigate %s\n", len(w.unexplained), w.unexplained[0]); err != nil {
+		builds := "builds"
+		if len(w.unexplained) == 1 {
+			builds = "build"
+		}
+		if _, err := fmt.Fprintf(o.W, "%d more failed %s without a cause: bam build investigate %s\n", len(w.unexplained), builds, w.unexplained[0]); err != nil {
 			return err
 		}
 	}

@@ -227,5 +227,5 @@ func TestTreeTextUnknownCauseAndLimitNote(t *testing.T) {
 	require.NoError(t, TreeText(o, app.Tree{Root: root, State: app.TreeState(root)}, false))
 	out := buf.String()
 	require.Contains(t, out, "  cause: unknown, no log line matched a known error pattern\n")
-	require.Contains(t, out, "  1 more failed builds without a cause: bam build investigate OPS-B-1\n")
+	require.Contains(t, out, "\n1 more failed build without a cause: bam build investigate OPS-B-1\n")
 }

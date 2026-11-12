@@ -112,7 +112,7 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"log":             "try: did you mean bam logs? bam --help shows them all",
 		"del":             "try: bam --help\n",
 		"go":              "error: unknown command \"go\" for \"bam\"\n  try: bam --help\n",
-		"ls":              "try: did you mean bam build list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
+		"ls":              "try: did you mean bam agent list, bam build list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
 		"branch":          "try: did you mean bam plan branches? bam --help shows them all",
 		"branches":        "try: did you mean bam plan branches? bam --help shows them all",
 		"plan branch":     "try: did you mean bam plan branches? bam plan --help shows them all",

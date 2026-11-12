@@ -64,6 +64,10 @@ func TestMaskSecretText(t *testing.T) {
 		`token "api_secret": "a b" bad`:  `token "api_secret": "********" bad`,
 		`Error: secret: Bearer abc123`:   `Error: secret: Bearer ********`,
 		`Error: api_key=k1 rejected`:     `Error: api_key=******** rejected`,
+		`PGPASSWORD=hunter2 psql -h db`:  `PGPASSWORD=******** psql -h db`,
+		`login dbpassword=x failed`:      `login dbpassword=******** failed`,
+		`MYSECRET=x`:                     `MYSECRET=********`,
+		`appsshkey: x`:                   `appsshkey: ********`,
 		`Error: no space left on device`: `Error: no space left on device`,
 	} {
 		assert.Equal(t, want, MaskSecretText(in), in)

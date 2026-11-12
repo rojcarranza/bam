@@ -80,6 +80,63 @@ func (s *Service) Build(ctx context.Context, key string) (provider.Build, error)
 	return b, err
 }
 
+// BuildWithQueue is Build with a queued build's place in the server's queue
+// added, for the commands that show it. A server that cannot list its queue,
+// or a build not in the list, leaves it unset: the position is decoration,
+// never a reason to fail a read.
+func (s *Service) BuildWithQueue(ctx context.Context, key string) (provider.Build, error) {
+	b, err := s.Build(ctx, key)
+	if err != nil || b.State != provider.StateQueued {
+		return b, err
+	}
+	if q, qerr := s.P.Queue(ctx); qerr == nil {
+		b.QueuePosition, b.QueueLength = queuePlace(q, b.Key)
+	}
+	return b, nil
+}
+
+// queuePlace is key's place in q, counted from 1, and q's length; both 0
+// when key is not queued.
+func queuePlace(q []provider.QueueEntry, key string) (pos, length int) {
+	for i, e := range q {
+		if e.Key == key {
+			return i + 1, len(q)
+		}
+	}
+	return 0, 0
+}
+
+// markQueued sets the queue place of every queued build under root, root
+// included, with one read of the queue.
+func (s *Service) markQueued(ctx context.Context, root *TreeNode) {
+	var queued []*TreeNode
+	root.Walk(func(n *TreeNode, _ int) {
+		if !n.NotRun && !n.Loop && n.Build.State == provider.StateQueued {
+			queued = append(queued, n)
+		}
+	})
+	if len(queued) == 0 {
+		return
+	}
+	q, err := s.P.Queue(ctx)
+	if err != nil {
+		return
+	}
+	for _, n := range queued {
+		n.Build.QueuePosition, n.Build.QueueLength = queuePlace(q, n.Build.Key)
+	}
+}
+
+// Queue lists the builds waiting on the server, first in line first.
+func (s *Service) Queue(ctx context.Context) ([]provider.QueueEntry, error) {
+	return s.P.Queue(ctx)
+}
+
+// Agents lists the server's build agents, offline ones included.
+func (s *Service) Agents(ctx context.Context) ([]provider.Agent, error) {
+	return s.P.Agents(ctx)
+}
+
 // Progress returns how far a running build has got: Bamboo's estimate, or,
 // when the server reports no progress, one from the plan's recent
 // successful builds. A build that is not running, or one with no estimate

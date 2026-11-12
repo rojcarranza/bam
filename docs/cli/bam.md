@@ -26,6 +26,7 @@ bam [flags]
 
 ### SEE ALSO
 
+* [bam agent](bam_agent.md)	 - Build agents: list
 * [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 * [bam completion](bam_completion.md)	 - Generate the autocompletion script for the specified shell
 * [bam doctor](bam_doctor.md)	 - Check config, credentials and what this Bamboo server supports
@@ -37,6 +38,7 @@ bam [flags]
 * [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 * [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
 * [bam project](bam_project.md)	 - Projects: list
+* [bam queue](bam_queue.md)	 - List the builds waiting for an agent, first in line first
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables
 * [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages

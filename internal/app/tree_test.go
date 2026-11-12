@@ -327,3 +327,33 @@ func TestBuildTreeAsksOnlyRestartedBuildsForTheirParent(t *testing.T) {
 	require.Equal(t, 1, p.GetCalls("OPS-DEPLOY-89"), "its reason names no parent, so GetBuild is asked once")
 	require.Equal(t, 0, p.GetCalls("PROJ-API-141"), "a manual build is never asked")
 }
+
+// Intent (BAM-11 P2): the tree says where a queued build waits, for a child
+// as well as the root, from one read of the queue; Build itself, which the
+// JSON watch polls, never reads it.
+func TestBuildTreeMarksQueuedChildrenWithOneQueueRead(t *testing.T) {
+	p := treeFake()
+	queued := tb("OPS-SMOKE-51", childOf("OPS-DEPLOY-88"), provider.StateQueued, 9)
+	p.Sequences = map[string][]provider.Build{"OPS-SMOKE-51": {queued}}
+	p.QueueEntries = []provider.QueueEntry{{Key: "PROJ-X-1"}, {Key: "PROJ-Y-2"}, {Key: "OPS-SMOKE-51"}}
+	tr, err := treeService(t, p).BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
+	require.NoError(t, err)
+	smoke := tr.Root.Children[0].Children[0]
+	require.Equal(t, provider.StateQueued, smoke.Build.State)
+	require.Equal(t, 3, smoke.Build.QueuePosition)
+	require.Equal(t, 3, smoke.Build.QueueLength)
+}
+
+func TestBuildDoesNotReadTheQueueButBuildWithQueueDoes(t *testing.T) {
+	p := treeFake()
+	q := tb("OPS-SMOKE-51", childOf("OPS-DEPLOY-88"), provider.StateQueued, 9)
+	p.Sequences = map[string][]provider.Build{"OPS-SMOKE-51": {q}}
+	p.QueueEntries = []provider.QueueEntry{{Key: "OPS-SMOKE-51"}}
+	svc := treeService(t, p)
+	b, err := svc.Build(context.Background(), "OPS-SMOKE-51")
+	require.NoError(t, err)
+	require.Zero(t, b.QueuePosition)
+	b, err = svc.BuildWithQueue(context.Background(), "OPS-SMOKE-51")
+	require.NoError(t, err)
+	require.Equal(t, 1, b.QueuePosition)
+}

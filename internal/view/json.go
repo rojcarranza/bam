@@ -54,7 +54,12 @@ type BuildDoc struct {
 	FailedTests     []string      `json:"failed_tests"`
 	// FailedTestDetails is failed_tests with each test's message, masked.
 	FailedTestDetails []FailedTestDoc `json:"failed_test_details"`
-	Progress          *ProgressDoc    `json:"progress,omitempty"`
+	// QueuePosition and QueueLength are a queued build's place in the
+	// server's queue, counted from 1; absent when it is not queued or the
+	// server cannot say.
+	QueuePosition int          `json:"queue_position,omitempty"`
+	QueueLength   int          `json:"queue_length,omitempty"`
+	Progress      *ProgressDoc `json:"progress,omitempty"`
 }
 
 // FailedTestDoc is one failed test with the message the server reports.
@@ -184,7 +189,8 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 	d := BuildDoc{Key: b.Key, URL: b.URL, PlanKey: b.PlanKey, PlanName: b.PlanName, Branch: b.Branch, Number: b.Number, State: string(b.State),
 		Reason: b.Reason, CustomBuild: b.CustomBuild, Labels: nonNil(b.Labels), QueuedAt: timePtr(b.QueuedAt),
 		StartedAt: timePtr(b.StartedAt), FinishedAt: timePtr(b.FinishedAt), QueueDurationMS: ms(b.QueueDuration),
-		DurationMS: ms(b.Duration), Agent: b.Agent, FailedTests: nonNil(b.FailedTests), Progress: progressDoc(pr)}
+		DurationMS: ms(b.Duration), Agent: b.Agent, FailedTests: nonNil(b.FailedTests), Progress: progressDoc(pr),
+		QueuePosition: b.QueuePosition, QueueLength: b.QueueLength}
 	d.FailedTestDetails = Docs(b.FailedTestDetails, func(t provider.FailedTest) FailedTestDoc {
 		return FailedTestDoc{Name: t.Name, Message: MaskMessage(t.Message)}
 	})

@@ -650,7 +650,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			b, err := svc.Build(cmd.Context(), key)
+			b, err := svc.BuildWithQueue(cmd.Context(), key)
 			if err != nil {
 				return err
 			}

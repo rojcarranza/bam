@@ -2,14 +2,20 @@
 
 List recent builds of a plan
 
+### Synopsis
+
+List recent builds of a plan. With no plan and no --branch, list the plan of
+the last build bam triggered from this repository.
+
 ```
-bam build list <plan|preset> [flags]
+bam build list [<plan|preset>] [flags]
 ```
 
 ### Examples
 
 ```
   bam build list PROJ-BUILD
+  bam build list
   bam build list deploy-qa --branch develop
   bam build list PROJ-BUILD --state failed -n 5
 ```

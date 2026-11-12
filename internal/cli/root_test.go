@@ -220,7 +220,7 @@ func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
 		"build show PROJ-PLAN-1 --count 5":      "error: unknown flag: --count\n  try: bam build show --help\n",
 		"run PROJ-PLAN --zzzzzz":                "error: unknown flag: --zzzzzz\n  try: bam run --help\n",
 		"plan list --project PROJ":              "error: unknown flag: --project\n  try: the project is an argument: bam plan list [PROJ...]\n",
-		"build list --plan PROJ-PLAN":           "error: unknown flag: --plan\n  try: the plan is an argument: bam build list <plan|preset>\n",
+		"build list --plan PROJ-PLAN":           "error: unknown flag: --plan\n  try: the plan is an argument: bam build list [<plan|preset>]\n",
 		"logs --build PROJ-PLAN-1":              "error: unknown flag: --build\n  try: the build is an argument: bam logs [<build>|<plan>|<preset>]\n",
 		"run --preset deploy":                   "error: unknown flag: --preset\n  try: the preset is an argument: bam run <plan|preset>\n",
 		"whoami --plan PROJ-PLAN":               "error: unknown flag: --plan\n  try: bam whoami --help\n",

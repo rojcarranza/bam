@@ -441,14 +441,25 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 	var branch, state string
 	var limit int
 	cmd := &cobra.Command{
-		Use:        "list <plan|preset>",
-		Short:      "List recent builds of a plan",
+		Use:   "list [<plan|preset>]",
+		Short: "List recent builds of a plan",
+		Long: "List recent builds of a plan. With no plan and no --branch, list the plan of\n" +
+			"the last build bam triggered from this repository.",
 		Aliases:    []string{"ls"},
 		SuggestFor: []string{"history", "builds"},
 		Example: "  bam build list PROJ-BUILD\n" +
+			"  bam build list\n" +
 			"  bam build list deploy-qa --branch develop\n" +
 			"  bam build list PROJ-BUILD --state failed -n 5",
-		Args:              cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) > 0 {
+				return cobra.MaximumNArgs(1)(cmd, args)
+			}
+			if branch == "" && r.hasLastBuild() {
+				return nil
+			}
+			return errs.Usagef("missing <plan|preset>").WithTry("bam build list <plan|preset>; bam build list --help shows more")
+		},
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			st, err := parseState(state)
@@ -459,7 +470,13 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 				return errs.Usagef("--limit takes 1 or more, not %d", limit).WithTry("--limit 1 lists only the newest build")
 			}
 			ctx := cmd.Context()
-			svc, arg, err := r.resolvePlanArg(ctx, args[0])
+			var svc *app.Service
+			var arg string
+			if len(args) == 0 {
+				svc, arg, err = r.lastPlanArg(ctx)
+			} else {
+				svc, arg, err = r.resolvePlanArg(ctx, args[0])
+			}
 			if err != nil {
 				return err
 			}
@@ -532,6 +549,22 @@ func (r *runtime) resolvePlanArg(ctx context.Context, arg string) (*app.Service,
 	}
 	svc, _, err := r.connectFor(ctx, arg)
 	return svc, arg, err
+}
+
+// lastPlanArg connects to the server of the last build bam triggered from
+// this repository and returns that build's plan: the plan branch when it ran
+// on one.
+func (r *runtime) lastPlanArg(ctx context.Context) (*app.Service, string, error) {
+	cfg, err := r.config()
+	if err != nil {
+		return nil, "", err
+	}
+	rec, _, err := (&app.StateStore{Path: r.env.Paths.State}).Last(cfg.RepoRoot)
+	if err != nil {
+		return nil, "", err
+	}
+	svc, _, err := r.connectLast(ctx)
+	return svc, rec.PlanKey, err
 }
 
 // resolveBuildArg connects to the right server and turns [<build>] / --last into a build key.

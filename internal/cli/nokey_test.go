@@ -12,7 +12,7 @@ import (
 // harness repository, as bam run does.
 func recordLast(t *testing.T, h *harness) {
 	t.Helper()
-	require.NoError(t, (&app.StateStore{Path: h.env.Paths.State}).SetLast(h.root, app.LastRecord{BuildKey: "PROJ-BUILD-482", Origin: workOrigin}))
+	require.NoError(t, (&app.StateStore{Path: h.env.Paths.State}).SetLast(h.root, app.LastRecord{BuildKey: "PROJ-BUILD-482", Origin: workOrigin, PlanKey: "PROJ-BUILD"}))
 }
 
 // BAM-11 P14: commands that only read use the last build when none is named.
@@ -26,7 +26,17 @@ func TestReadingCommandsDefaultToTheLastBuild(t *testing.T) {
 		assert.Contains(t, h.stderr.String(), "which build?", "%v", args)
 	}
 	h := newHarness(t)
+	assert.Equal(t, 2, h.run("build", "list"), "build list needs a plan when no build was triggered")
+	assert.Contains(t, h.stderr.String(), "missing <plan|preset>")
+	for _, cmd := range []string{"url", "open"} {
+		assert.Equal(t, 2, h.run(cmd), "%s needs a key when no build was triggered", cmd)
+		assert.Contains(t, h.stderr.String(), "which Bamboo page?", cmd)
+	}
 	recordLast(t, h)
+	require.Equal(t, 0, h.run("build", "list", "PROJ-BUILD"), h.stderr.String())
+	named := h.stdout.String()
+	assert.Equal(t, 0, h.run("build", "list"), h.stderr.String())
+	assert.Equal(t, named, h.stdout.String(), "build list lists the plan of the last build")
 	assert.Equal(t, 0, h.run("build", "show"), h.stderr.String())
 	assert.Contains(t, h.stdout.String(), "PROJ-BUILD-482")
 	assert.Equal(t, 0, h.run("tree"), h.stderr.String())
@@ -35,6 +45,12 @@ func TestReadingCommandsDefaultToTheLastBuild(t *testing.T) {
 	assert.Equal(t, 0, h.run("url"))
 	assert.Equal(t, workOrigin+"/browse/PROJ-BUILD-482\n", h.stdout.String())
 	assert.Equal(t, 0, h.run("watch"), h.stderr.String())
+	for _, args := range [][]string{{"logs"}, {"build", "tree"}, {"build", "investigate"}, {"investigate"}} {
+		assert.Equal(t, 0, h.run(args...), "%v: %s", args, h.stderr.String())
+		assert.Contains(t, h.stdout.String()+h.stderr.String(), "PROJ-BUILD-482", "%v reads the last build", args)
+	}
+	assert.Equal(t, 0, h.run("open"), h.stderr.String())
+	assert.Equal(t, []string{workOrigin + "/browse/PROJ-BUILD-482"}, h.opened)
 }
 
 // BAM-11 P14: cancel and rerun change builds, so they still need a key or --last.

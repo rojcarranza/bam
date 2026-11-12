@@ -25,22 +25,9 @@ names and doc examples. `make check-fixtures` only guards the host part of
 
 ## 2. Package layering
 
-Each package under `internal/` may import only the listed packages from this
-module, and every package under `internal/` has a row. An import that crosses
-this table is a defect, even when it compiles.
-
-| Package | May import |
-| --- | --- |
-| `errs` | nothing |
-| `config` | `errs` |
-| `provider` | `errs` |
-| `credential` | `config`, `errs` |
-| `provider/bamboo` | `provider`, `errs` |
-| `provider/fake` | `provider`, `errs` |
-| `app` | `provider`, `config`, `credential`, `errs` |
-| `view`, `view/style` | `provider`, `app`, `errs` |
-| `toolcfg` | `config`, `credential`, `errs` |
-| `cli` | everything |
+Each package under `internal/` may import only the module packages its depguard
+rule in `.golangci.yml` allows; `make lint` enforces it. An import that crosses
+those rules is a defect, even when it compiles.
 
 Related rules:
 

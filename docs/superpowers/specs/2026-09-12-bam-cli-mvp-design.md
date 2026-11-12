@@ -74,13 +74,15 @@ Each command accepts one entity type, so parsing never guesses the hierarchy lev
 
 - **`<plan>`** - a target name or a plan key.
   - Target names are validated as `^[a-z][a-z0-9_-]*$`. Plan keys are uppercase. The two can never collide.
-  - An exact target name resolves to that target's plan, server and branch.
+  - An exact target name resolves to that target's plan, server and branch. A target name typed with capitals (`Deploy-QA`) names that target.
   - Otherwise the argument must match `^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*$`.
   - Anything else is a usage error that lists the configured target names.
-- **`<build>`** - one of three forms:
+- **`<build>`** - one of these forms:
   - A build key: `PROJ-PLAN-123`, or a branch build key such as `PROJ-PLAN12-5`.
   - A `<plan>`: the latest build of that plan, on `--branch` if given, else on the target's branch, else on the default branch.
   - `--last`: the last build that bam triggered from the current repository (section 3.8).
+  - A plan key and a number as two arguments (`PROJ-PLAN 123`, `PROJ-PLAN #123`), or a bare number (`123`, `#123`): that build of the named plan, or of the plan of the last build on this server.
+  - Nothing (and no `--branch`), for a command that only reads (`watch`, `logs`, `build show`, `build tree`, `build investigate`, `open`, `url`): the same as `--last`. Commands that change builds (`cancel`, `build rerun`, `build tree --rerun-failed`) never default and still need a key or `--last`. `build list` with no plan and no `--branch` lists the plan of the last build.
 - **`--branch B`** - matched against the plan's branch names, then short names. The match resolves to the branch plan key. No match is a usage error that lists the closest names.
 - **`--job KEY`** - a job key within the build, either the short form `JOB1` or the full `PROJ-PLAN-JOB1`.
 - **`--from N|last`** - `N` is a build number of the resolved plan branch, or a full build key. `last` is the most recent manual build of the resolved plan branch, falling back to the most recent build. The command always prints which build it used.

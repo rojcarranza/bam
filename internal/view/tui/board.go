@@ -144,7 +144,7 @@ func (m Model) boardLoaded(msg boardLoadedMsg) Model {
 	}
 	b := &m.board
 	b.loading = false
-	if msg.Err != nil || (msg.Board.Agents == nil && !msg.Board.QueueOK) {
+	if msg.Err != nil || readNothing(msg.Board) {
 		b.stale = true
 		if msg.Err != nil {
 			m.err = msg.Err
@@ -244,6 +244,45 @@ func (b *boardState) move(delta int) {
 	b.clamp()
 }
 
+// readNothing says whether a read got nothing at all: no agents, no queue
+// and not one pin read.
+func readNothing(d app.Board) bool {
+	if d.Agents != nil || d.QueueOK {
+		return false
+	}
+	for _, g := range d.Groups {
+		for _, p := range g.Pins {
+			if p.Err == nil {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// buildByKey is the build the board read with this key: queued, running
+// or a pin's result.
+func (b *boardState) buildByKey(key string) (provider.Build, bool) {
+	for _, q := range b.data.Queue {
+		if q.Key == key {
+			return provider.Build{Key: q.Key, PlanKey: q.PlanKey, Number: q.Number, State: provider.StateQueued}, true
+		}
+	}
+	for _, g := range b.data.Groups {
+		for _, p := range g.Pins {
+			if p.Current != nil && p.Current.Key == key {
+				return *p.Current, true
+			}
+			for _, r := range p.Results {
+				if r.Key == key {
+					return r, true
+				}
+			}
+		}
+	}
+	return provider.Build{}, false
+}
+
 // selectedBuild is the build under the cursor: a queued build, a pin's build
 // running now or else its newest result, or the build a Needs you line names.
 func (m Model) boardBuild() (provider.Build, bool) {
@@ -252,12 +291,11 @@ func (m Model) boardBuild() (provider.Build, bool) {
 	switch b.panel {
 	case boardNeeds:
 		if c < len(b.data.Needs) && b.data.Needs[c].Build != "" {
-			return keyBuild(b.data.Needs[c].Build), true
+			return b.buildByKey(b.data.Needs[c].Build)
 		}
 	case boardQueue:
 		if c < len(b.data.Queue) {
-			q := b.data.Queue[c]
-			return provider.Build{Key: q.Key, PlanKey: q.PlanKey, Number: q.Number, State: provider.StateQueued}, true
+			return b.buildByKey(b.data.Queue[c].Key)
 		}
 	default:
 		if rows := b.pinRows(); c < len(rows) {
@@ -271,18 +309,6 @@ func (m Model) boardBuild() (provider.Build, bool) {
 		}
 	}
 	return provider.Build{}, false
-}
-
-// keyBuild is a build known by its key only. Its state is left unknown, so
-// the plan screen reads it before showing it.
-func keyBuild(key string) provider.Build {
-	i := strings.LastIndex(key, "-")
-	if i < 0 {
-		return provider.Build{Key: key}
-	}
-	b := provider.Build{Key: key, PlanKey: key[:i]}
-	_, _ = fmt.Sscanf(key[i+1:], "%d", &b.Number)
-	return b
 }
 
 // boardPlan is the plan under the cursor of the pins panel.
@@ -520,9 +546,10 @@ func (m Model) boardBody() []string {
 		awayMax = 4
 	}
 	ah := 4 + min(awayCount(b), awayMax)
-	rest := max(h-nh-ah, 7)
+	nh = max(min(nh, h-ah-7), 3)
+	rest := h - nh - ah
 	qh := max(min(max(len(b.data.Queue), 1)+2, rest-4), 3)
-	ph := max(rest-qh, 4)
+	ph := rest - qh
 
 	var lines []string
 	add := func(title string, focused bool, height int, body []string) {

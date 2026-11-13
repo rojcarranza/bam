@@ -3,10 +3,12 @@ package tui
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/rojcarranza/bam/internal/provider/fake"
@@ -89,6 +91,24 @@ func TestBoardSmallTerminalHidesEverythingButNeedsYou(t *testing.T) {
 	}
 	v := boardModel(60, 20).View()
 	require.Contains(t, v, "Pinned", "20 rows by 60 columns is the smallest full board")
+}
+
+// At the smallest full board, a full Needs you list and several away agents
+// still leave room for the whole Pinned panel, bottom border included.
+func TestBoardGolden60x20FullNeeds(t *testing.T) {
+	m := boardModel(60, 20)
+	data := sampleBoard(goldenNow)
+	data.Agents.Away = append(data.Agents.Away, provider.Agent{ID: 4, Name: "linux-4", Type: "REMOTE", Enabled: true})
+	data.Agents.Offline++
+	data.Needs = app.NeedsYou(data, goldenNow)
+	require.GreaterOrEqual(t, len(data.Needs), 4)
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+
+	lines := strings.Split(ansi.Strip(m.View()), "\n")
+	require.Len(t, lines, 20)
+	require.True(t, strings.HasPrefix(lines[18], "╰"), "the Pinned panel ends in its bottom border: %q", lines[18])
+	requireGolden(t, "board-60x20", m.View())
 }
 
 func TestBoardHeaderSaysHowOldTheDataIs(t *testing.T) {
@@ -203,6 +223,29 @@ func TestBoardMarksStaleAfterAFailedRead(t *testing.T) {
 	m.board.loadGen++
 	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Err: errors.New("interrupted")})
 	require.True(t, m.board.stale)
+}
+
+// A user who may not list agents, on a server that refuses the queue, still
+// gets the pins: a read counts as nothing only when every part of it failed.
+func TestBoardShowsPinsWhenAgentsAndQueueAreRefused(t *testing.T) {
+	m := testModel()
+	m.width, m.height = 100, 30
+	m.screen = screenBoard
+	m.now = func() time.Time { return goldenNow }
+	m.board.loading, m.board.loadGen = true, 1
+	data := sampleBoard(goldenNow)
+	data.Agents, data.AgentsNote = nil, "the agent list needs admin rights"
+	data.Queue, data.QueueOK, data.QueueNote = nil, false, "the queue was refused"
+	m, _ = send(m, boardLoadedMsg{Gen: 1, Full: true, Board: data})
+	require.False(t, m.board.stale)
+	require.Contains(t, m.View(), "PROJ-BUILD-44")
+	require.NotContains(t, m.View(), "stale")
+
+	data.Groups = []app.PinGroupView{{Name: "integration", Pins: []app.PinView{{Pin: "PROJ-BUILD", Err: errors.New("refused")}}}}
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: data})
+	require.True(t, m.board.stale, "agents, queue and every pin failed")
+	require.Contains(t, m.View(), "PROJ-BUILD-44", "what was read before stays on screen")
 }
 
 func TestBoardDropsAReadOfAnOlderRequest(t *testing.T) {
@@ -389,6 +432,31 @@ func TestBoardIExplainsAFailedBuildAndOnlyThat(t *testing.T) {
 	m, _ = send(m, mkKey("i"))
 	require.Equal(t, overlayNone, m.overlay)
 	require.Contains(t, m.status, "did not fail")
+}
+
+// i on a Needs you line about a failed build explains that build, as it does
+// from the Pinned panel; on a line about a build still queued it does not.
+func TestBoardIOnANeedExplainsTheFailedBuild(t *testing.T) {
+	needAt := func(m Model, kind string) Model {
+		for i, n := range m.board.data.Needs {
+			if n.Kind == kind {
+				m.board.cursor[boardNeeds] = i
+				return m
+			}
+		}
+		t.Fatalf("no %s need", kind)
+		return m
+	}
+	m := needAt(boardModel(100, 30), "pin_failed")
+	m, cmd := send(m, mkKey("i"))
+	require.Equal(t, overlayInfo, m.overlay)
+	require.NotNil(t, cmd)
+	require.Contains(t, m.infoPane.title, "PROJ-BUILD-44")
+
+	m = needAt(boardModel(100, 30), "queue_wait")
+	m, _ = send(m, mkKey("i"))
+	require.Equal(t, overlayNone, m.overlay)
+	require.Contains(t, m.status, "PROJ-BUILD-500 did not fail")
 }
 
 func TestBoardOAndYActOnTheSelection(t *testing.T) {

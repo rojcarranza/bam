@@ -65,7 +65,13 @@ type Provider struct {
 	// without a plan search does. Otherwise it finds, across every project,
 	// the plans whose name holds the term, ignoring case.
 	NoPlanSearch bool
-	SearchCalls  []string // the terms SearchPlans was asked for
+	// SearchPage, when set, is all SearchPlans answers, saying more may
+	// follow, as a server whose search fills its page does.
+	SearchPage  []provider.Plan
+	SearchCalls []string // the terms SearchPlans was asked for
+	// PlanErr, when set, is what GetPlan answers.
+	PlanErr   error
+	PlanCalls int // how many times GetPlan was called
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -95,12 +101,15 @@ func (f *Provider) ListPlans(_ context.Context, project string) ([]provider.Plan
 	return plans, nil
 }
 
-func (f *Provider) SearchPlans(_ context.Context, term string) ([]provider.Plan, error) {
+func (f *Provider) SearchPlans(_ context.Context, term string) ([]provider.Plan, bool, error) {
 	f.mu.Lock()
 	f.SearchCalls = append(f.SearchCalls, term)
 	f.mu.Unlock()
 	if f.NoPlanSearch {
-		return nil, errs.Bamboof("this Bamboo does not search plans by name").Wrap(errs.ErrUnsupported)
+		return nil, false, errs.Bamboof("this Bamboo does not search plans by name").Wrap(errs.ErrUnsupported)
+	}
+	if f.SearchPage != nil {
+		return f.SearchPage, false, nil
 	}
 	var out []provider.Plan
 	for _, plans := range f.Plans {
@@ -111,10 +120,16 @@ func (f *Provider) SearchPlans(_ context.Context, term string) ([]provider.Plan,
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
-	return out, nil
+	return out, true, nil
 }
 
 func (f *Provider) GetPlan(_ context.Context, key string) (provider.Plan, error) {
+	f.mu.Lock()
+	f.PlanCalls++
+	f.mu.Unlock()
+	if f.PlanErr != nil {
+		return provider.Plan{}, f.PlanErr
+	}
 	for _, plans := range f.Plans {
 		for _, p := range plans {
 			if p.Key == key {

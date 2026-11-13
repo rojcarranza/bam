@@ -60,9 +60,10 @@ type AgentListChecker interface {
 // the server, across every project. SearchPlans answers an error wrapping
 // errs.ErrUnsupported when the server has no plan search, and the caller
 // reads project plan lists instead. Each Plan carries Key, Name and
-// ProjectKey; LastBuild is not filled.
+// ProjectKey; LastBuild is not filled. complete is false when the server
+// says more plans may match than it answered.
 type PlanSearcher interface {
-	SearchPlans(ctx context.Context, term string) ([]Plan, error)
+	SearchPlans(ctx context.Context, term string) (plans []Plan, complete bool, err error)
 }
 
 // StopChecker is RestartChecker for StopBuild.

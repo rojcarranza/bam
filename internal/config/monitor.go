@@ -129,11 +129,8 @@ func (c *Config) ProjectPins(pin string) bool {
 	return false
 }
 
-// AddPin adds pin to group in the monitor: map of the YAML file at path,
-// keeping the file's comments. It does nothing when the group has the pin.
-func AddPin(path, group, pin string) error { return AddPins(path, group, pin) }
-
-// AddPins adds pins to group in one write, so a failure leaves the file as it
+// AddPins adds pins to group in the monitor: map of the YAML file at path in
+// one write, keeping the file's comments, so a failure leaves the file as it
 // was. A pin the group already has is left out.
 func AddPins(path, group string, pins ...string) error {
 	doc, err := loadDoc(path)

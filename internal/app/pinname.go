@@ -16,30 +16,31 @@ const maxFits = 10
 // FindPlanByName resolves a plan name to one plan. A name that matches a
 // plan's whole name, ignoring case, wins; otherwise the plans whose name
 // holds every word of name. It uses the server's plan search when there is
-// one, and the plans of the configured projects when there is none or the
-// search finds no fit. Anything but exactly one fit is a usage error that
-// says which.
+// one, and adds the plans of the configured projects when there is none, the
+// search finds no fit, or the search says more plans may match than it
+// answered. Anything but exactly one fit is a usage error that says which.
 func (s *Service) FindPlanByName(ctx context.Context, name string) (provider.Plan, error) {
 	words := strings.Fields(name)
 	if len(words) == 0 {
 		return provider.Plan{}, errs.Usagef("a pin cannot be empty")
 	}
 	name = strings.Join(words, " ")
-	var fits []provider.Plan
-	searched := false
+	var found []provider.Plan
+	searched, complete := false, false
 	if ps, ok := s.P.(provider.PlanSearcher); ok {
-		found, err := ps.SearchPlans(ctx, name)
+		var err error
+		found, complete, err = ps.SearchPlans(ctx, name)
 		switch {
 		case err == nil:
 			searched = true
-			fits = planFits(found, name, words)
 		case !errors.Is(err, errs.ErrUnsupported):
 			return provider.Plan{}, err
 		}
 	}
-	if len(fits) == 0 {
+	fits := planFits(found, name, words)
+	if len(fits) == 0 || !complete {
 		projects := s.ProjectKeys()
-		var all []provider.Plan
+		all := found
 		for _, p := range projects {
 			plans, err := s.P.ListPlans(ctx, p)
 			if err != nil {
@@ -54,10 +55,15 @@ func (s *Service) FindPlanByName(ctx context.Context, name string) (provider.Pla
 				WithTry("use a plan key like PROJ-PLAN, or add the project: bam server add --project KEY")
 		}
 	}
+	partial := searched && !complete
 	switch len(fits) {
 	case 0:
-		return provider.Plan{}, errs.Usagef("no plan is named or has a name containing %q", name).
+		e := errs.Usagef("no plan is named or has a name containing %q", name).
 			WithTry("bam plan list PROJECT, or a plan key like PROJ-PLAN")
+		if partial {
+			e = e.WithWhy("Bamboo's plan search found more plans for it than bam reads; give more of the name")
+		}
+		return provider.Plan{}, e
 	case 1:
 		return fits[0], nil
 	}
@@ -69,7 +75,11 @@ func (s *Service) FindPlanByName(ctx context.Context, name string) (provider.Pla
 		}
 		lines = append(lines, p.Key+"  "+p.Name)
 	}
-	return provider.Plan{}, errs.Usagef("%q fits %d plans", name, len(fits)).
+	more := ""
+	if partial {
+		more = " or more"
+	}
+	return provider.Plan{}, errs.Usagef("%q fits %d plans%s", name, len(fits), more).
 		WithWhy(strings.Join(lines, "\n  ")).
 		WithTry("pin one of them by its plan key, or give more of its name")
 }
@@ -107,12 +117,11 @@ func planFits(plans []provider.Plan, name string, words []string) []provider.Pla
 	return part
 }
 
-// PlanName is the name of the plan a plan key or plan branch key belongs to,
-// or "" when Bamboo does not say.
-func (s *Service) PlanName(ctx context.Context, planKey string) string {
+// PlanName is the name of the plan a plan key or plan branch key belongs to.
+func (s *Service) PlanName(ctx context.Context, planKey string) (string, error) {
 	p, err := s.P.GetPlan(ctx, planKey)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return p.Name
+	return p.Name, nil
 }

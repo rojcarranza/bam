@@ -364,7 +364,7 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 	}
 	v.PlanKey, v.Branch = ref.PlanKey, ref.Branch
 	if IsPlanKey(plan) {
-		v.Name = s.PlanName(ctx, ref.MasterKey)
+		v.Name, _ = s.PlanName(ctx, ref.MasterKey)
 	}
 	return s.readPinBuilds(ctx, v, true)
 }

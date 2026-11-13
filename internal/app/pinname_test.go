@@ -105,3 +105,34 @@ func TestFindPlanByNameFallsBackToProjectsWhenTheSearchFindsNothing(t *testing.T
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-INTEGX", plan.Key)
 }
+
+// A search page fills with plans whose project's name matches; the plan
+// named exactly that is past the page, in a configured project.
+func TestFindPlanByNameAPartialSearchPageAlsoReadsTheProjects(t *testing.T) {
+	p := namedBamboo()
+	p.Plans["PROJ"] = append(p.Plans["PROJ"], provider.Plan{Key: "PROJ-DEPLOY", Name: "Deploy", ProjectKey: "PROJ"})
+	p.SearchPage = []provider.Plan{
+		{Key: "OPS-DEPLOY", Name: "Deploy package", ProjectKey: "OPS"},
+		{Key: "OPS-WEB", Name: "Web", ProjectKey: "OPS"},
+	}
+	plan, err := findName(t, p, "deploy")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-DEPLOY", plan.Key, "the exact name beats a part on the partial page")
+}
+
+func TestFindPlanByNameSaysAPartialSearchMayHoldMoreFits(t *testing.T) {
+	p := namedBamboo()
+	p.SearchPage = []provider.Plan{
+		{Key: "OPS-A", Name: "Nightly A", ProjectKey: "OPS"},
+		{Key: "OPS-B", Name: "Nightly B", ProjectKey: "OPS"},
+	}
+	_, err := findName(t, p, "nightly")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Contains(t, e.What, "fits 3 plans or more", "the two on the page and PROJ-LOAD from the project")
+
+	p.SearchPage = []provider.Plan{{Key: "OPS-WEB", Name: "Web", ProjectKey: "OPS"}}
+	_, err = findName(t, p, "zzz")
+	require.ErrorAs(t, err, &e)
+	assert.Contains(t, e.Why, "give more of the name")
+}

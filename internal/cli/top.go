@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -178,9 +179,12 @@ func (r *runtime) pinAdd(ctx context.Context, group string, pins []string) ([]pi
 }
 
 // pinNames asks the server for the name of each pinned plan key, so the list
-// can show it. It is best effort: a server that cannot be reached, or a plan
-// it does not know, leaves that name out and the list prints the pin alone.
+// can show it. It is best effort: a plan the server does not know leaves that
+// name out, and any other failure, or the lookup outlasting shortTimeout,
+// stops asking and the list prints the remaining pins alone.
 func (r *runtime) pinNames(ctx context.Context, groups []config.PinGroup) map[string]string {
+	ctx, cancel := context.WithTimeout(ctx, shortTimeout)
+	defer cancel()
 	names := map[string]string{}
 	var svc *app.Service
 	for _, g := range groups {
@@ -195,7 +199,12 @@ func (r *runtime) pinNames(ctx context.Context, groups []config.PinGroup) map[st
 					return nil
 				}
 			}
-			if n := svc.PlanName(ctx, plan); n != "" {
+			n, err := svc.PlanName(ctx, plan)
+			switch {
+			case errors.Is(err, errs.ErrNotFound):
+			case err != nil:
+				return names
+			case n != "":
 				names[pin] = n
 			}
 		}

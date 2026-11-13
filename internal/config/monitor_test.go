@@ -86,9 +86,9 @@ func TestAddAndRemovePinKeepComments(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 	writeFile(t, path, "# my machine\nversion: 1\nmonitor:\n  # the nightly ones\n  integration:\n    - PROJ-BUILD # main build\n")
 
-	require.NoError(t, AddPin(path, "integration", "PROJ-PROV"))
-	require.NoError(t, AddPin(path, "integration", "PROJ-PROV"), "adding twice changes nothing")
-	require.NoError(t, AddPin(path, "release", "OPS-DEPLOY@main"))
+	require.NoError(t, AddPins(path, "integration", "PROJ-PROV"))
+	require.NoError(t, AddPins(path, "integration", "PROJ-PROV"), "adding twice changes nothing")
+	require.NoError(t, AddPins(path, "release", "OPS-DEPLOY@main"))
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	text := string(data)
@@ -116,7 +116,7 @@ func TestAddAndRemovePinKeepComments(t *testing.T) {
 
 func TestAddPinCreatesTheFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sub", "config.yaml")
-	require.NoError(t, AddPin(path, "integration", "PROJ-BUILD"))
+	require.NoError(t, AddPins(path, "integration", "PROJ-BUILD"))
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "version: 1")

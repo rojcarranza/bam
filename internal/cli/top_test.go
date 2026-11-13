@@ -275,3 +275,23 @@ func TestTheBoardsPinKeyWritesTheSettingsAndKeepsComments(t *testing.T) {
 	require.Error(t, err, "a pin that is not in the settings file cannot be removed")
 	require.Error(t, d.PinAdd("Bad Group", "PROJ-BUILD"))
 }
+
+func TestPinListStopsAskingForNamesAfterTheServerFails(t *testing.T) {
+	h := topHarness(t)
+	require.NoError(t, os.MkdirAll(strings.TrimSuffix(h.env.Paths.MachineConfig, "/config.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\nmonitor:\n  integration: [PROJ-BUILD, PROJ-PROV, PROJ-PROV@develop]\n"), 0o644))
+	h.fake.PlanErr = errs.Bamboof("cannot reach bamboo.example.com")
+	require.Equal(t, 0, h.run("pin", "list"))
+	assert.Equal(t, "integration  PROJ-BUILD\nintegration  PROJ-PROV\nintegration  PROJ-PROV@develop\n", h.stdout.String())
+	assert.Equal(t, 1, h.fake.PlanCalls, "one failure stops the lookup")
+}
+
+func TestPinListAPlanTheServerDoesNotKnowKeepsTheOtherNames(t *testing.T) {
+	h := topHarness(t)
+	require.NoError(t, os.MkdirAll(strings.TrimSuffix(h.env.Paths.MachineConfig, "/config.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\nmonitor:\n  integration: [PROJ-GONE, PROJ-BUILD]\n"), 0o644))
+	require.Equal(t, 0, h.run("pin", "list"))
+	assert.Equal(t, "integration  PROJ-GONE\nintegration  PROJ-BUILD  Build and test\n", h.stdout.String())
+}

@@ -1,0 +1,13 @@
+work  https://bamboo.example.com  Bamboo 12.1.8
+
+NEEDS YOU
+  Nothing needs you
+
+AGENTS
+  the agent list is not shown: Bamboo refused it (it may need an administrator)
+
+QUEUE
+  The queue is empty
+
+PINNED
+  No pipelines pinned. Pin one with: bam pin add GROUP PLAN

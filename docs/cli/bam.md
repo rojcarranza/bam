@@ -37,6 +37,7 @@ bam [flags]
 * [bam logout](bam_logout.md)	 - Delete the stored token for a server
 * [bam logs](bam_logs.md)	 - Print job logs; --failed for failed jobs only
 * [bam open](bam_open.md)	 - Open a project, plan, build or job in the browser
+* [bam pin](bam_pin.md)	 - Pins: add, rm, list
 * [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
 * [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
 * [bam project](bam_project.md)	 - Projects: list
@@ -45,6 +46,7 @@ bam [flags]
 * [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
 * [bam status](bam_status.md)	 - Show every build you started with bam in the last day, and how it is going
+* [bam top](bam_top.md)	 - Print what needs you: agents, the queue and your pinned pipelines
 * [bam tree](bam_tree.md)	 - Show a build and every build it triggered, as a tree
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job

@@ -27,7 +27,7 @@ func newQueueCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			q, err := svc.Queue(cmd.Context())
+			q, err := svc.QueueRows(cmd.Context())
 			if err != nil {
 				return err
 			}

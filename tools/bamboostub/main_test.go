@@ -318,3 +318,34 @@ func TestJobDetailIsTheJobAskedFor(t *testing.T) {
 	_, err = c.GetBuild(context.Background(), "PROJ-BUILD12-NOPE-44")
 	require.Error(t, err)
 }
+
+// Intent (BAM-34 P1): the fake Bamboo serves the agent list and the queue,
+// which bam top reads: the queue holds the simulated builds still waiting.
+func TestStubServesAgentsAndTheQueue(t *testing.T) {
+	s, c := testStub(t)
+	ctx := context.Background()
+
+	agents, err := c.Agents(ctx)
+	require.NoError(t, err)
+	require.Len(t, agents, 3)
+	assert.Equal(t, "linux-1", agents[0].Name)
+	assert.True(t, agents[0].Busy)
+	assert.False(t, agents[1].Enabled)
+	assert.False(t, agents[2].Online)
+
+	q, err := c.Queue(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, q, "nothing was triggered yet")
+
+	b, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
+	require.NoError(t, err)
+	q, err = c.Queue(ctx)
+	require.NoError(t, err)
+	require.Len(t, q, 1)
+	assert.Equal(t, b.Key, q[0].Key)
+
+	advance(s, 6*time.Second) // past the queued phase: the build runs
+	q, err = c.Queue(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, q)
+}

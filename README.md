@@ -315,6 +315,7 @@ Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on suc
 | see every build you started in the last day, across repositories | `bam status` |
 | put the current build's state in your shell prompt | `bam status --short` |
 | see why a queued build waits | `bam queue`, then `bam agent list` |
+| see what needs you: agents, the queue, your pinned pipelines | `bam top` (pin with `bam pin add integration PROJ-BUILD`) |
 
 ### When a build fails
 

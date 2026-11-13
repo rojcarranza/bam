@@ -1,0 +1,51 @@
+## bam top
+
+Print what needs you: agents, the queue and your pinned pipelines
+
+### Synopsis
+
+Print one board of the server: its version, what needs you, the agent counts and
+every agent that is offline or disabled, the queue with the time each build
+waited, and your pinned pipelines by group with their last 10 results.
+
+Needs you lists an enabled agent that is offline, a build that waited more than
+5 minutes, a pinned pipeline whose last build failed, and a pinned build running
+half again past its usual time.
+
+Pin pipelines with bam pin add, or list groups under monitor: in the machine file
+or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list
+needs an administrator), the board says so in one line and prints the rest.
+bam top only reads from Bamboo.
+
+```
+bam top [flags]
+```
+
+### Examples
+
+```
+  bam top
+  bam top --json
+  bam pin add integration PROJ-BUILD
+```
+
+### Options
+
+```
+  -h, --help   help for top
+```
+
+### Options inherited from parent commands
+
+```
+      --color string    color output: auto, always or never
+      --debug           log HTTP requests to stderr
+      --json            print JSON
+      --no-tui          never open the terminal UI
+      --server string   server alias to use
+```
+
+### SEE ALSO
+
+* [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
+

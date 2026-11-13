@@ -116,6 +116,18 @@ func TestBoardAShowsTheWholeServerAndAgain(t *testing.T) {
 	require.Contains(t, m.status, "bam agent mine add")
 }
 
+// When Bamboo refuses the agent list, the board still shows your agents' view,
+// not the whole server's.
+func TestBoardAgentsTitleFollowsTheViewNotTheReading(t *testing.T) {
+	m := mineBoard(120, 45, 5)
+	m.board.data.Mine = nil
+	require.Equal(t, "Your agents", m.agentsTitle())
+	m, _ = send(m, mkKey("a"))
+	require.Equal(t, "Agents · whole server", m.agentsTitle())
+	m, _ = send(m, mkKey("a"))
+	require.Equal(t, "Your agents", m.agentsTitle(), "no whole-server title while your agents load again")
+}
+
 func TestBoardWithoutAgentsSetShowsTheHintWhereThereIsRoom(t *testing.T) {
 	require.Contains(t, boardModel(120, 45).View(), "Show only your agents: bam agent mine add NAME-START")
 	require.NotContains(t, boardModel(60, 20).View(), "Show only your agents")

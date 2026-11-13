@@ -53,6 +53,21 @@ func TestMineAgentsIgnoreTheSuffixAndCountDuplicatesOnce(t *testing.T) {
 	assert.Equal(t, map[string]time.Time{"team-a-agent-0": now, "team-a-agent-1": now}, keep, "the suffix is not remembered")
 }
 
+// A listed agent's remembered time is renewed only once it is an hour old, so
+// a board that reads every 15 s does not rewrite the state file each time.
+func TestMineAgentsRenewTheTimeSeenHourly(t *testing.T) {
+	now := newClock().Now()
+	seen := map[string]time.Time{
+		"team-a-agent-0": now.Add(-30 * time.Minute),
+		"team-a-agent-1": now.Add(-2 * time.Hour),
+	}
+	_, keep := MineAgents([]provider.Agent{
+		agent("team-a-agent-0", true, true, false),
+		agent("team-a-agent-1", true, true, false),
+	}, starts, seen, now)
+	assert.Equal(t, map[string]time.Time{"team-a-agent-0": seen["team-a-agent-0"], "team-a-agent-1": now}, keep)
+}
+
 func TestMineAgentsPoolsAreInNumberOrder(t *testing.T) {
 	m, _ := MineAgents([]provider.Agent{
 		agent("team-a-agent-pool-10", true, true, false),
@@ -138,7 +153,7 @@ func TestBoardRemembersAnAgentAcrossReadsAndForgetsItOnRequest(t *testing.T) {
 	assert.True(t, b.Mine.Away[0].Gone)
 	assert.Equal(t, "team-a-agent-1", b.Mine.Away[0].Name)
 
-	gone, err := svc.ForgetAgents([]string{"team-a-agent-1", "never-seen"})
+	gone, err := svc.State.ForgetAgents(svc.Origin, []string{"team-a-agent-1", "never-seen"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"team-a-agent-1"}, gone)
 	b, err = svc.Board(context.Background(), nil)

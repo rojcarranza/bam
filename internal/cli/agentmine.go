@@ -38,8 +38,8 @@ func newMineAddCmd(r *runtime) *cobra.Command {
 		Args:    cobra.MinimumNArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			for _, a := range args {
-				if strings.TrimSpace(a) == "" || strings.ContainsAny(a, " \t*?") {
-					return errs.Usagef("%q is not a name start", a).WithTry("the first characters of your agents' names, such as team-a-agent; no spaces or wildcards")
+				if strings.TrimSpace(a) == "" || strings.ContainsAny(a, "*?") {
+					return errs.Usagef("%q is not a name start", a).WithTry("the first characters of your agents' names, such as team-a-agent; no wildcards")
 				}
 			}
 			for _, a := range args {

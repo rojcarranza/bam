@@ -48,6 +48,8 @@ func TestAgentMineAddListRemoveAndForget(t *testing.T) {
 	require.Equal(t, 0, h.run("agent", "mine", "rm", "team-b-agent"))
 	assert.Equal(t, 2, h.run("agent", "mine", "rm", "team-b-agent"), "a start that is not listed is a usage error")
 	assert.Equal(t, 2, h.run("agent", "mine", "add", "team-*"), "no wildcards")
+	require.Equal(t, 0, h.run("agent", "mine", "add", "Team B build"), "Bamboo agent names may hold spaces")
+	require.Equal(t, 0, h.run("agent", "mine", "rm", "Team B build"))
 
 	assert.Equal(t, 2, h.run("agent", "mine", "forget", "team-a-agent-pool-9"), "nothing remembered under that name")
 	require.Equal(t, 0, h.run("top", "--once"))

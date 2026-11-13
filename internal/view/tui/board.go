@@ -769,10 +769,10 @@ func (m Model) agentCursorLine() int {
 // agentsTitle names the agents panel by what it shows.
 func (m Model) agentsTitle() string {
 	switch {
-	case m.board.data.Mine != nil:
-		return "Your agents"
-	case m.board.data.MineSet:
+	case m.board.whole && m.board.data.MineSet:
 		return "Agents · whole server"
+	case m.board.data.MineSet:
+		return "Your agents"
 	}
 	return "Agents"
 }

@@ -17,6 +17,10 @@ import (
 // lists before it forgets it.
 const AgentForget = 30 * 24 * time.Hour
 
+// agentSeenStep is how stale a listed agent's remembered time may grow before
+// bam renews it, so the state file is not rewritten on every read.
+const agentSeenStep = time.Hour
+
 // AgentState is the health of one of your agents.
 type AgentState string
 
@@ -85,8 +89,8 @@ func agentState(a provider.Agent) AgentState {
 
 // MineAgents says how your agents are, from the agent list listed and the
 // names remembered (name to when it was last listed). It returns the
-// remembered names to keep: those listed now, and those not listed for less
-// than AgentForget. Two records with one base name count once, the online
+// remembered names to keep: those listed now, renewed once their time is
+// agentSeenStep old, and those not listed for less than AgentForget. Two records with one base name count once, the online
 // one winning.
 func MineAgents(listed []provider.Agent, starts []string, remembered map[string]time.Time, now time.Time) (*MyAgents, map[string]time.Time) {
 	byName := map[string]provider.Agent{}
@@ -105,6 +109,9 @@ func MineAgents(listed []provider.Agent, starts []string, remembered map[string]
 	var agents []MyAgent
 	for name, a := range byName {
 		keep[name] = now
+		if seen, ok := remembered[name]; ok && now.Sub(seen) < agentSeenStep {
+			keep[name] = seen
+		}
 		agents = append(agents, MyAgent{Name: name, State: agentState(a)})
 	}
 	for name, seen := range remembered {
@@ -188,28 +195,6 @@ func (s *Service) myAgents(as []provider.Agent) *MyAgents {
 		_ = s.State.SetSeenAgents(s.Origin, keep)
 	}
 	return m
-}
-
-// MineAgentList reads the agent list and says how your agents are; nil when
-// no name starts are set.
-func (s *Service) MineAgentList(ctx context.Context) (*MyAgents, error) {
-	if len(s.AgentStarts()) == 0 {
-		return nil, nil
-	}
-	as, err := s.P.Agents(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return s.myAgents(as), nil
-}
-
-// ForgetAgents drops names from the agents bam remembers on this server and
-// says which it knew.
-func (s *Service) ForgetAgents(names []string) ([]string, error) {
-	if s.State == nil {
-		return nil, nil
-	}
-	return s.State.ForgetAgents(s.Origin, names)
 }
 
 type agentScopeKey struct{}

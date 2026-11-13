@@ -214,7 +214,7 @@ monitor:
 agents: [team-a-agent, team-b-agent]
 ```
 
-- An agent is yours when its name starts with a listed start. The match is case-sensitive, with no wildcards.
+- An agent is yours when its name starts with a listed start. The match is case-sensitive, with no wildcards; a start may contain spaces, as Bamboo agent names do.
 - Where `projects:` is accepted, `agents:` is too: a `repos` entry, the project file, a `servers` entry, then the machine file's own list. The first that is set wins.
 - `bam agent mine add NAME-START...`, `rm`, `list` and `forget` edit and print the machine file's list and keep its comments. A list in `.bam.yaml` is edited by hand.
 - Bamboo adds ` (2)` to an agent's name when it registers again under a name that is taken. bam ignores it, and two records with one base name count once, the online one winning.

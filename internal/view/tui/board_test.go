@@ -809,3 +809,28 @@ func queueScrollCheck(t *testing.T, m Model, n int) {
 		require.Contains(t, strings.Join(lines, "\n"), fmt.Sprintf("▸ %d  PROJ-Q%d-%d", c+1, c+1, c+1), "height %d cursor %d", m.height, c)
 	}
 }
+
+// Finding test-2 (round 4): one long build key widens the KEY column for
+// every queued build. At 80 columns the key is shortened with an ellipsis so
+// each build's why stays whole inside the panel, not cut at its border.
+func TestBoardQueueLongKeyKeepsTheWhyWhole(t *testing.T) {
+	data := sampleBoard(goldenNow)
+	busy := &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}
+	data.Queue[0].Why = busy
+	data.Queue[1].Why = busy
+	data.Queue[1].Key = "PROJ-LONGPLANNAME-905"
+	data.Queue[1].AtLeast = false
+	m := boardModel(80, 30)
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+	v := ansi.Strip(m.View())
+	n := 0
+	for _, l := range strings.Split(v, "\n") {
+		require.LessOrEqual(t, ansi.StringWidth(l), 80, "%q", l)
+		if strings.Contains(l, "2 agents can run it, all busy, offline or disabled") {
+			n++
+		}
+	}
+	require.Equal(t, 2, n, "both queued builds show their whole why:\n%s", v)
+	require.Regexp(t, `PROJ-LONG[A-Z]*…`, v, "the long key is shortened:\n%s", v)
+}

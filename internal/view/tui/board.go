@@ -668,8 +668,8 @@ func (m Model) agentLines(inner, awayMax int) []string {
 // queueLines draws the queue, one line per build, and says which line holds
 // the cursor. The columns are as wide as their widest value, and why a build
 // waits comes before the trigger reason: when the line is too wide the
-// reason is cut short with an ellipsis, then the agents' names go, so the
-// why stays readable.
+// reason is cut short with an ellipsis, then the agents' names go, then
+// long keys are shortened, so the why stays readable.
 func (m Model) queueLines(inner int) ([]string, int) {
 	b := &m.board
 	switch {
@@ -696,15 +696,35 @@ func (m Model) queueLines(inner int) ([]string, int) {
 		keyW = max(keyW, lipgloss.Width(r.Key))
 		waitW = max(waitW, lipgloss.Width(waits[i]))
 	}
+	// A long key must not push a why past the panel: shorten the KEY
+	// column, down to a floor, until the shortest form of every why fits.
+	needW := 0
+	for _, r := range b.data.Queue {
+		if r.Why != nil {
+			short := *r.Why
+			short.Agents = nil
+			needW = max(needW, lipgloss.Width(view.WhyText(&short)))
+		}
+	}
+	if fit := inner - (2 + posW + 2 + 2 + waitW + 2) - needW; fit < keyW {
+		keyW = max(fit, min(keyW, 10))
+	}
 	var out []string
 	for i, r := range b.data.Queue {
-		head := fmt.Sprintf("%s%-*d  %-*s  %-*s  ", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), posW, r.Position, keyW, r.Key, waitW, waits[i])
+		key := r.Key
+		if lipgloss.Width(key) > keyW {
+			key = ansi.Truncate(key, keyW, "…")
+		}
+		head := fmt.Sprintf("%s%-*d  %-*s  %-*s  ", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), posW, r.Position, keyW, key, waitW, waits[i])
 		room := inner - lipgloss.Width(head)
 		why := view.WhyText(r.Why)
 		if r.Why != nil && len(r.Why.Agents) > 0 && lipgloss.Width(why) > room {
 			short := *r.Why
 			short.Agents = nil
 			why = view.WhyText(&short)
+		}
+		if lipgloss.Width(why) > room {
+			why = ansi.Truncate(why, max(room, 1), "…")
 		}
 		text := r.Reason
 		if why != "" {

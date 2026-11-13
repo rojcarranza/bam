@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -43,6 +44,9 @@ type stateFile struct {
 	Repos   map[string]LastRecord `json:"repos"`
 	// Runs is the journal; absent from state files written before it.
 	Runs []JournalRun `json:"runs,omitempty"`
+	// Agents holds, per server origin, the agent names bam saw listed and
+	// when it last did, so an agent Bamboo drops can still show as down.
+	Agents map[string]map[string]time.Time `json:"agents,omitempty"`
 }
 
 // StateStore reads and writes $XDG_STATE_HOME/bam/state.json.
@@ -179,4 +183,40 @@ func (s *StateStore) Runs() ([]JournalRun, error) {
 // Forget removes the record for a repository root.
 func (s *StateStore) Forget(root string) error {
 	return s.update(func(f *stateFile) { delete(f.Repos, root) })
+}
+
+// SeenAgents is the agent names bam saw listed on the server with origin,
+// each with when it was last listed.
+func (s *StateStore) SeenAgents(origin string) (map[string]time.Time, error) {
+	f, err := s.load()
+	return maps.Clone(f.Agents[origin]), err
+}
+
+// SetSeenAgents replaces the agent names remembered for origin.
+func (s *StateStore) SetSeenAgents(origin string, seen map[string]time.Time) error {
+	return s.update(func(f *stateFile) {
+		if f.Agents == nil {
+			f.Agents = map[string]map[string]time.Time{}
+		}
+		if len(seen) == 0 {
+			delete(f.Agents, origin)
+			return
+		}
+		f.Agents[origin] = seen
+	})
+}
+
+// ForgetAgents removes names from those remembered for origin and returns the
+// ones it knew.
+func (s *StateStore) ForgetAgents(origin string, names []string) ([]string, error) {
+	var gone []string
+	err := s.update(func(f *stateFile) {
+		for _, n := range names {
+			if _, ok := f.Agents[origin][n]; ok {
+				delete(f.Agents[origin], n)
+				gone = append(gone, n)
+			}
+		}
+	})
+	return gone, err
 }

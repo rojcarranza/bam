@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/config"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/view"
@@ -18,7 +19,7 @@ func addTop(root *cobra.Command, r *runtime) {
 }
 
 func newTopCmd(r *runtime) *cobra.Command {
-	var once bool
+	var once, all bool
 	cmd := &cobra.Command{
 		Use:     "top",
 		GroupID: groupBrowse,
@@ -29,6 +30,9 @@ func newTopCmd(r *runtime) *cobra.Command {
 			"Needs you lists an enabled agent that is offline, a build that waited more than\n" +
 			"5 minutes, a pinned pipeline whose last build failed, and a pinned build running\n" +
 			"half again past its usual time.\n\n" +
+			"With agents: set (bam agent mine add NAME-START) the board shows only your\n" +
+			"agents, each building, idle, disabled or down, and Needs you raises your agents\n" +
+			"that are down or disabled. --all shows every agent of the server.\n\n" +
 			"Pin pipelines with bam pin add, or list groups under monitor: in the machine file\n" +
 			"or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list\n" +
 			"needs an administrator), the board says so in one line and prints the rest.\n" +
@@ -47,19 +51,24 @@ func newTopCmd(r *runtime) *cobra.Command {
 				return err
 			}
 			if !once && !r.flags.json && r.tuiAllowed() {
-				return r.openUI(cmd.Context(), true)
+				return r.openUI(cmd.Context(), true, all)
 			}
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
 				return err
 			}
-			b, err := svc.Board(cmd.Context(), groups)
+			ctx := cmd.Context()
+			if all {
+				ctx = app.WholeServer(ctx)
+			}
+			b, err := svc.Board(ctx, groups)
 			if err != nil {
 				return err
 			}
 			return r.show(view.BoardJSON(b, svc.P.URL), func(o view.Out) error { return view.Board(o, b, svc.P.URL) })
 		}),
 	}
+	cmd.Flags().BoolVar(&all, "all", false, "show every agent of the server, not only the ones you listed with bam agent mine")
 	cmd.Flags().BoolVar(&once, "once", false, "print the board once instead of opening the live board")
 	return cmd
 }

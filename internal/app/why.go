@@ -222,6 +222,7 @@ func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int, queuedA
 	if !agentsOK {
 		return w
 	}
+	agents = s.scopeAgents(ctx, agents)
 	names, possibleOK := s.whyPossible(ctx, agents, jobPlanKey(j.Key), queuedAt)
 	if possibleOK {
 		w.Count = len(names)

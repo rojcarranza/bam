@@ -28,7 +28,7 @@ func newUICmd(r *runtime) *cobra.Command {
 					WithWhy("stdin and stdout are not both a terminal").
 					WithTry("run bam ui from an interactive shell, or use bam's commands on a pipe")
 			}
-			return r.openUI(cmd.Context(), false)
+			return r.openUI(cmd.Context(), false, false)
 		}),
 	}
 	addProjectFlag(cmd, r)
@@ -60,7 +60,7 @@ func (r *runtime) tuiAllowed() bool {
 
 // openUI builds the UI's dependencies from the same configuration and the
 // same connect function the commands use, then hands them over.
-func (r *runtime) openUI(ctx context.Context, board bool) error {
+func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 	cfg, err := r.config()
 	if err != nil {
 		return err
@@ -138,6 +138,7 @@ func (r *runtime) openUI(ctx context.Context, board bool) error {
 		PinAdd:       r.pinAdd,
 		PinRemove:    r.pinRemove,
 		StartOnBoard: board,
+		WholeServer:  whole,
 		Open:         r.env.OpenBrowser,
 		Bell: func() func() {
 			if cfg.Machine.Bell != nil && !*cfg.Machine.Bell {

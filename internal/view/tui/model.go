@@ -222,6 +222,7 @@ func New(d Deps) Model {
 	if d.StartOnBoard {
 		m.screen = screenBoard
 	}
+	m.board.whole = d.WholeServer
 	m.plans.setOrder(planLess(m.home.sort))
 	m.projects.setOrder(projectLess(homeSort{}))
 	m.home.lastKey = m.now()

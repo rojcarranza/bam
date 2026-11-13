@@ -58,6 +58,9 @@ type Deps struct {
 	PinRemove func(pin string) error
 	// StartOnBoard opens the board instead of the plans table.
 	StartOnBoard bool
+	// WholeServer opens the board on every agent of the server, not only
+	// the ones you listed (bam top --all).
+	WholeServer bool
 }
 
 // Run opens the UI and returns when the user quits. Ending ctx closes the UI;

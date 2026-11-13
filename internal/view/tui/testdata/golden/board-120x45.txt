@@ -12,6 +12,7 @@
 │    busy ▄                         queued █                         since opened                                      │
 │    linux-2  remote  offline                                                                                          │
 │    linux-3  remote  disabled                                                                                         │
+│    Show only your agents: bam agent mine add NAME-START                                                              │
 │                                                                                                                      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─Queue────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
@@ -25,7 +26,6 @@
 │    integration                                                                                                       │
 │  ▸ PROJ-BUILD     ✓✗         –                        last 3m · usual 3m                                             │
 │    PROJ-PROV      ✓✓         #9 running █████░ 3m/4m  last 4m · usual 4m                                             │
-│                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

@@ -12,6 +12,10 @@ Needs you lists an enabled agent that is offline, a build that waited more than
 5 minutes, a pinned pipeline whose last build failed, and a pinned build running
 half again past its usual time.
 
+With agents: set (bam agent mine add NAME-START) the board shows only your
+agents, each building, idle, disabled or down, and Needs you raises your agents
+that are down or disabled. --all shows every agent of the server.
+
 Pin pipelines with bam pin add, or list groups under monitor: in the machine file
 or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list
 needs an administrator), the board says so in one line and prints the rest.
@@ -36,6 +40,7 @@ bam top [flags]
 ### Options
 
 ```
+      --all    show every agent of the server, not only the ones you listed with bam agent mine
   -h, --help   help for top
       --once   print the board once instead of opening the live board
 ```

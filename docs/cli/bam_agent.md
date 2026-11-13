@@ -1,6 +1,6 @@
 ## bam agent
 
-Build agents: list
+Build agents: list, mine
 
 ```
 bam agent [flags]
@@ -26,4 +26,5 @@ bam agent [flags]
 
 * [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
 * [bam agent list](bam_agent_list.md)	 - List the build agents: online, enabled and busy
+* [bam agent mine](bam_agent_mine.md)	 - The agents you support: add, rm, list, forget
 

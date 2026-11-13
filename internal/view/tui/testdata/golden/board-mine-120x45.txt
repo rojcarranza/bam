@@ -1,0 +1,45 @@
+ lab · Bamboo 12.1.8                                                                                     updated 0s ago
+┏━Needs you · 5━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                                                                                                                      ┃
+┃  ▸ ! agent team-a-agent-pool-0 is down                                                                               ┃
+┃    ! agent team-a-agent-pool-1 is disabled                                                                           ┃
+┃    ! agent team-a-agent-pool-9 is down: Bamboo no longer lists it                                                    ┃
+┃    ! PROJ-BUILD-500 has waited 7m in the queue                                                                       ┃
+┃    ! PROJ-BUILD: the last build, PROJ-BUILD-44, failed                                                               ┃
+┃                                                                                                                      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+╭─Your agents──────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                      │
+│    1 building · 2 idle · 2 down · 1 disabled                                                                         │
+│  ▸ team-a-agent-pool-…  6  ✗⊘●○○✗                                                                                    │
+│    ! team-a-agent-pool-0  down                                                                                       │
+│    ! team-a-agent-pool-1  disabled                                                                                   │
+│    ! team-a-agent-pool-9  down: Bamboo no longer lists it, last seen 2026-09-16 14:00                                │
+│    no agent starts with team-b-agent                                                                                 │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─Queue────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                      │
+│  ▸ 1  PROJ-BUILD-500  7m           Manual build                                                                      │
+│    2  OPS-NIGHTLY-3   at least 0s  Scheduled                                                                         │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─Pinned───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                      │
+│    integration                                                                                                       │
+│  ▸ PROJ-BUILD     ✓✗         –                        last 3m · usual 3m                                             │
+│    PROJ-PROV      ✓✓         #9 running █████░ 3m/4m  last 4m · usual 4m                                             │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+lab · 12.1.8 · jdoe                  enter open  l logs  t tree  i why  P pin  a agents  tab panel  : cmd  ?help  q quit

@@ -20,6 +20,7 @@ type ResolvedServer struct {
 	AuthEnv  string
 	Token    string // only for the BAM_URL server
 	Projects []string
+	Agents   []string // name starts of the agents you support
 	// DefaultProject is the server entries' default_project, as written.
 	DefaultProject string
 	DefinedIn      []string // "project", "machine", "env"
@@ -51,6 +52,9 @@ func (c *Config) Servers() map[string]ResolvedServer {
 			}
 			if len(s.Projects) > 0 {
 				r.Projects = s.Projects
+			}
+			if len(s.Agents) > 0 {
+				r.Agents = s.Agents
 			}
 			if s.DefaultProject != "" {
 				r.DefaultProject = s.DefaultProject
@@ -406,4 +410,21 @@ func validateTarget(t ResolvedTarget, servers map[string]ResolvedServer) error {
 		}
 	}
 	return nil
+}
+
+// AgentStarts returns the name starts of the build agents you support on
+// server s, or nil when none are listed: agents: is looked up where projects:
+// is, in the repos entry, the project file, the server entry, then the machine
+// file's own list.
+func (c *Config) AgentStarts(s ResolvedServer) []string {
+	if repo, ok := c.RepoEntry(); ok && len(repo.Agents) > 0 {
+		return repo.Agents
+	}
+	if c.Project != nil && len(c.Project.Agents) > 0 {
+		return c.Project.Agents
+	}
+	if len(s.Agents) > 0 {
+		return s.Agents
+	}
+	return c.Machine.Agents
 }

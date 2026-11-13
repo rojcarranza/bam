@@ -8,6 +8,7 @@ AGENTS
   4 agents: 2 online, 1 busy, 1 offline, 1 disabled
   linux-2  remote  offline
   linux-3  remote  disabled
+  Show only your agents: bam agent mine add NAME-START
 
 QUEUE
   #  BUILD         REASON            WAITED

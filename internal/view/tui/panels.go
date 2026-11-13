@@ -150,6 +150,9 @@ func (m Model) keyLine() string {
 		return strings.Join(append(parts, "r refresh", "esc back"), "  ")
 	}
 	if m.screen == screenBoard {
+		if m.board.data.MineSet {
+			return "enter open  l logs  t tree  i why  P pin  a agents  tab panel  : cmd  ?help  q quit"
+		}
 		return "enter open  l logs  t tree  i why  P pin  tab panel  : cmd  ?help  q quit"
 	}
 	if m.screen == screenHome {

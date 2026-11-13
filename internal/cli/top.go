@@ -18,7 +18,8 @@ func addTop(root *cobra.Command, r *runtime) {
 }
 
 func newTopCmd(r *runtime) *cobra.Command {
-	return &cobra.Command{
+	var once bool
+	cmd := &cobra.Command{
 		Use:     "top",
 		GroupID: groupBrowse,
 		Short:   "Print what needs you: agents, the queue and your pinned pipelines",
@@ -31,8 +32,10 @@ func newTopCmd(r *runtime) *cobra.Command {
 			"Pin pipelines with bam pin add, or list groups under monitor: in the machine file\n" +
 			"or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list\n" +
 			"needs an administrator), the board says so in one line and prints the rest.\n" +
-			"bam top only reads from Bamboo.",
-		Example: "  bam top\n  bam top --json\n  bam pin add integration PROJ-BUILD",
+			"bam top only reads from Bamboo.\n\n" +
+			"On a terminal bam top opens the live board, which refreshes by itself (see\n" +
+			"docs/tui.md). With --once, --json or a pipe it prints the board once.",
+		Example: "  bam top\n  bam top --once\n  bam top --json\n  bam pin add integration PROJ-BUILD",
 		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {
 			cfg, err := r.config()
@@ -42,6 +45,9 @@ func newTopCmd(r *runtime) *cobra.Command {
 			groups, err := cfg.Monitor()
 			if err != nil {
 				return err
+			}
+			if !once && !r.flags.json && r.tuiAllowed() {
+				return r.openUI(cmd.Context(), true)
 			}
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
@@ -54,6 +60,8 @@ func newTopCmd(r *runtime) *cobra.Command {
 			return r.show(view.BoardJSON(b, svc.P.URL), func(o view.Out) error { return view.Board(o, b, svc.P.URL) })
 		}),
 	}
+	cmd.Flags().BoolVar(&once, "once", false, "print the board once instead of opening the live board")
+	return cmd
 }
 
 func newPinAddCmd(r *runtime) *cobra.Command {
@@ -66,37 +74,54 @@ func newPinAddCmd(r *runtime) *cobra.Command {
 		Example: "  bam pin add integration PROJ-BUILD\n  bam pin add release PROJ-DEPLOY@release/1.2",
 		Args:    cobra.ExactArgs(2),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			group, pin := args[0], args[1]
-			cfg, err := r.config()
-			if err != nil {
+			if err := r.pinAdd(args[0], args[1]); err != nil {
 				return err
 			}
-			if !config.ValidTargetName(group) {
-				return errs.Usagef("%q is not a valid group name", group).WithTry("lowercase letters, digits, - and _, such as integration")
-			}
-			if err := cfg.CheckPin(pin); err != nil {
-				return err
-			}
-			groups, err := cfg.Monitor()
-			if err != nil {
-				return err
-			}
-			for _, g := range groups {
-				if g.Name != group && slices.Contains(g.Pins, pin) {
-					try := "bam pin rm " + pin + " first"
-					if cfg.ProjectPins(pin) {
-						try = "remove it from " + cfg.ProjectPath + " by hand first"
-					}
-					return errs.Usagef("%s is already pinned in group %q", pin, g.Name).WithTry(try)
-				}
-			}
-			if err := config.AddPin(r.env.Paths.MachineConfig, group, pin); err != nil {
-				return err
-			}
-			fmt.Fprintf(r.env.Stdout, "Pinned %s in %s\n", pin, group)
+			fmt.Fprintf(r.env.Stdout, "Pinned %s in %s\n", args[1], args[0])
 			return nil
 		}),
 	}
+}
+
+// pinAdd checks and writes a pin to the machine file. The configuration is
+// read afresh, so a pin added while the UI is open counts as taken.
+func (r *runtime) pinAdd(group, pin string) error {
+	cfg, err := r.loadConfig()
+	if err != nil {
+		return err
+	}
+	if !config.ValidTargetName(group) {
+		return errs.Usagef("%q is not a valid group name", group).WithTry("lowercase letters, digits, - and _, such as integration")
+	}
+	if err := cfg.CheckPin(pin); err != nil {
+		return err
+	}
+	groups, err := cfg.Monitor()
+	if err != nil {
+		return err
+	}
+	for _, g := range groups {
+		if g.Name != group && slices.Contains(g.Pins, pin) {
+			try := "bam pin rm " + pin + " first"
+			if cfg.ProjectPins(pin) {
+				try = "remove it from " + cfg.ProjectPath + " by hand first"
+			}
+			return errs.Usagef("%s is already pinned in group %q", pin, g.Name).WithTry(try)
+		}
+	}
+	return config.AddPin(r.env.Paths.MachineConfig, group, pin)
+}
+
+// pinRemove removes a pin from the machine file.
+func (r *runtime) pinRemove(pin string) error {
+	ok, err := config.RemovePin(r.env.Paths.MachineConfig, pin)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errs.Usagef("%s is not pinned in %s", pin, r.env.Paths.MachineConfig).WithTry("bam pin list; a pin in .bam.yaml is edited there by hand")
+	}
+	return nil
 }
 
 func newPinRmCmd(r *runtime) *cobra.Command {
@@ -108,12 +133,8 @@ func newPinRmCmd(r *runtime) *cobra.Command {
 		Example: "  bam pin rm PROJ-BUILD",
 		Args:    cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			ok, err := config.RemovePin(r.env.Paths.MachineConfig, args[0])
-			if err != nil {
+			if err := r.pinRemove(args[0]); err != nil {
 				return err
-			}
-			if !ok {
-				return errs.Usagef("%s is not pinned in %s", args[0], r.env.Paths.MachineConfig).WithTry("bam pin list")
 			}
 			fmt.Fprintf(r.env.Stdout, "Removed %s\n", args[0])
 			return nil

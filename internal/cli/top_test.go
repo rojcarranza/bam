@@ -194,3 +194,84 @@ func TestPinListWithoutPins(t *testing.T) {
 	require.Equal(t, 0, h.run("pin", "list"))
 	assert.Contains(t, h.stdout.String(), "No pipelines pinned")
 }
+
+// Intent (BAM-34 P2): bam top on a terminal opens the live board; --once,
+// --json and a pipe print the board of P1; bare bam opens the board once
+// pins are set and the plan table otherwise; P in the board writes the
+// settings file and keeps its comments.
+func TestTopOnATerminalOpensTheLiveBoard(t *testing.T) {
+	h := topHarness(t)
+	h.tty = true
+	require.Equal(t, 0, h.run("top"))
+	require.Len(t, h.tuiRuns, 1)
+	require.True(t, h.tuiRuns[0].StartOnBoard)
+	require.Empty(t, h.stdout.String(), "the UI draws, the command prints nothing")
+}
+
+func TestTopOnceJSONAndAPipePrintTheBoard(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		tty  bool
+		args []string
+	}{{"once", true, []string{"top", "--once"}}, {"json", true, []string{"top", "--json"}}, {"pipe", false, []string{"top"}}} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := topHarness(t)
+			h.tty = tc.tty
+			require.Equal(t, 0, h.run(tc.args...))
+			require.Empty(t, h.tuiRuns)
+			require.NotEmpty(t, h.stdout.String())
+			if tc.name == "json" {
+				require.True(t, json.Valid(h.stdout.Bytes()))
+			} else {
+				require.Contains(t, h.stdout.String(), "AGENTS")
+			}
+		})
+	}
+}
+
+func TestBareBamOpensTheBoardOnlyOncePinsAreSet(t *testing.T) {
+	h := topHarness(t)
+	h.tty = true
+	require.Equal(t, 0, h.run())
+	require.Len(t, h.tuiRuns, 1)
+	require.False(t, h.tuiRuns[0].StartOnBoard, "no pins: the plan table, as before")
+
+	h = topHarness(t)
+	pinned(t, h)
+	h.tty = true
+	require.Equal(t, 0, h.run())
+	require.Len(t, h.tuiRuns, 1)
+	require.True(t, h.tuiRuns[0].StartOnBoard)
+
+	h = topHarness(t)
+	pinned(t, h)
+	h.tty = true
+	require.Equal(t, 0, h.run("ui"))
+	require.False(t, h.tuiRuns[0].StartOnBoard, "bam ui is the plan table; :top reaches the board")
+}
+
+func TestTheBoardsPinKeyWritesTheSettingsAndKeepsComments(t *testing.T) {
+	h := topHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\n# my pins\nmonitor:\n  integration: [PROJ-BUILD] # the main one\n"), 0o644))
+	h.tty = true
+	require.Equal(t, 0, h.run("top"))
+	d := h.tuiRuns[0]
+
+	require.NoError(t, d.PinAdd("release", "PROJ-PROV"))
+	groups, err := d.Monitor()
+	require.NoError(t, err)
+	require.Equal(t, "release", groups[len(groups)-1].Name, "Monitor reads the file afresh")
+
+	require.NoError(t, d.PinRemove("PROJ-BUILD"))
+	raw, err := os.ReadFile(h.env.Paths.MachineConfig)
+	require.NoError(t, err)
+	require.Contains(t, string(raw), "# my pins")
+	require.NotContains(t, string(raw), "PROJ-BUILD")
+	require.Contains(t, string(raw), "PROJ-PROV")
+
+	err = d.PinRemove("PROJ-BUILD")
+	require.Error(t, err, "a pin that is not in the settings file cannot be removed")
+	require.Error(t, d.PinAdd("Bad Group", "PROJ-BUILD"))
+}

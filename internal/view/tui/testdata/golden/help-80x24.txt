@@ -1,6 +1,6 @@
                                                                                 
     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓    
-    ┃Keys · 1-19 of 70 · j k g G scroll                                    ┃    
+    ┃Keys · 1-19 of 78 · j k g G scroll                                    ┃    
     ┃MOVE  j k ↑ ↓          up / down in the focused panel                 ┃    
     ┃      g G              first / last row                               ┃    
     ┃      tab              next panel: Builds, Stages, Tree               ┃    
@@ -19,6 +19,6 @@
     ┃      D                remove the selected preset (asks first)        ┃    
     ┃      s                next sort column                               ┃    
     ┃      :                command bar: :plans :presets :sets :projects   ┃    
-    ┃                       :tree :stats :project :server :sort :q         ┃    
+    ┃                       :tree :stats :top :project :server :sort :q    ┃    
     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛    
                                                                                 

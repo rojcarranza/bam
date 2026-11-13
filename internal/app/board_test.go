@@ -60,8 +60,8 @@ func TestBoardCountsAgentsAndListsTheQueue(t *testing.T) {
 	assert.Equal(t, time.Duration(0), b.Queue[1].Waited)
 
 	assert.Equal(t, []Need{
-		{"agent_offline", "agent linux-2 is offline"},
-		{"queue_wait", "PROJ-BUILD-500 has waited 7m in the queue"},
+		{Kind: "agent_offline", Text: "agent linux-2 is offline"},
+		{Kind: "queue_wait", Text: "PROJ-BUILD-500 has waited 7m in the queue", Build: "PROJ-BUILD-500"},
 	}, b.Needs, "a disabled agent is a choice, not a need")
 }
 

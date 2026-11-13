@@ -17,6 +17,9 @@ or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list
 needs an administrator), the board says so in one line and prints the rest.
 bam top only reads from Bamboo.
 
+On a terminal bam top opens the live board, which refreshes by itself (see
+docs/tui.md). With --once, --json or a pipe it prints the board once.
+
 ```
 bam top [flags]
 ```
@@ -25,6 +28,7 @@ bam top [flags]
 
 ```
   bam top
+  bam top --once
   bam top --json
   bam pin add integration PROJ-BUILD
 ```
@@ -33,6 +37,7 @@ bam top [flags]
 
 ```
   -h, --help   help for top
+      --once   print the board once instead of opening the live board
 ```
 
 ### Options inherited from parent commands

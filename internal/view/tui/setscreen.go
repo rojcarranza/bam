@@ -199,7 +199,7 @@ func (m Model) openSetBuild() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	b := rows[m.setView.cursor].Build
-	m.fromSet = true
+	m.fromSet, m.fromBoard = true, false
 	return m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 }
 

@@ -52,11 +52,12 @@ type planFrame struct {
 // draws it again, with its drill stack and its way back to a set or to the
 // tree screen it was itself opened from.
 type planReturn struct {
-	frame    planFrame
-	stack    []planFrame
-	fromSet  bool
-	fromTree bool
-	tree     *treeScreen // the tree screen the plan screen came from, when fromTree
+	frame     planFrame
+	stack     []planFrame
+	fromSet   bool
+	fromTree  bool
+	fromBoard bool
+	tree      *treeScreen // the tree screen the plan screen came from, when fromTree
 }
 
 // currentFrame is the plan screen as it stands, with focus f.

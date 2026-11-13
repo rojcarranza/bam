@@ -23,8 +23,12 @@ type Capabilities struct {
 	// failed_tests, which learned "no" from build results on such servers.
 	FailedTestsFrom string `json:"failed_tests_from,omitempty"` // build | jobs | no
 	Log             string `json:"log,omitempty"`               // entries | download
-	Stop            string `json:"stop,omitempty"`              // yes | no
-	Rerun           string `json:"rerun,omitempty"`             // yes | no
+	// LogEnd is which end of a log longer than max-result the entries
+	// return: Bamboo 12 returns the last ones, so a follow can read only
+	// what a log gained.
+	LogEnd string `json:"log_end,omitempty"` // last | first
+	Stop   string `json:"stop,omitempty"`    // yes | no
+	Rerun  string `json:"rerun,omitempty"`   // yes | no
 	// Progress is whether the server reports build progress. It replaced
 	// progress, which learned "no" from Bamboo's 404 for a result it was
 	// not building at that moment.

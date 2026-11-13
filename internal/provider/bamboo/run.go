@@ -7,6 +7,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -21,6 +22,10 @@ var _ provider.Provider = (*Client)(nil)
 // the LAST entries; asking for more than the log holds returns all of it,
 // whichever end a server counts from. The offset is then applied here.
 var logMax = 100000
+
+// logStep is how many entries a read from an offset asks for first: a
+// followed log gains tens of lines between two reads, not a whole log.
+var logStep = 200
 
 // customRevisionReason is Bamboo's triggerReason for a build queued with
 // customRevision. Any other reason means the server ignored the parameter.
@@ -231,7 +236,7 @@ func (c *Client) stopJobs(ctx context.Context, key string) (bool, error) {
 func (c *Client) FetchLog(ctx context.Context, jobKey string, o provider.LogOptions) (provider.LogChunk, error) {
 	caps := c.fresh(ctx)
 	if caps.Log != "download" {
-		chunk, err := c.logEntries(ctx, jobKey, o.Offset)
+		chunk, err := c.logFrom(ctx, caps, jobKey, o.Offset)
 		if err == nil {
 			if caps.Log == "" {
 				c.learn(ctx, func(cp *Capabilities) { cp.Log = "entries" })
@@ -252,6 +257,80 @@ func (c *Client) FetchLog(ctx context.Context, jobKey string, o provider.LogOpti
 	return chunk, nil
 }
 
+// logFrom reads a job's log entries from offset on. From an offset, it
+// reads the log's last entries, as many as it gained since, on a server
+// that returns a log's last entries; otherwise it reads the whole log.
+func (c *Client) logFrom(ctx context.Context, caps Capabilities, jobKey string, offset int) (provider.LogChunk, error) {
+	if offset > 0 && caps.LogEnd != "first" {
+		chunk, ok, err := c.logTail(ctx, caps, jobKey, offset)
+		if err != nil || ok {
+			return chunk, err
+		}
+	}
+	return c.logEntries(ctx, jobKey, offset)
+}
+
+// logTail reads a log's lines from offset on through its last entries,
+// logStep first and more while what it read starts after offset, so
+// following a log reads what it gained rather than all of it. It returns
+// the same lines and Next as logEntries. It reports false, having returned
+// nothing, when the server's pages may not be a log's last entries.
+func (c *Client) logTail(ctx context.Context, caps Capabilities, jobKey string, offset int) (provider.LogChunk, bool, error) {
+	n := min(logStep, logMax)
+	for {
+		lines, size, err := c.readLogEntries(ctx, jobKey, n)
+		if err != nil {
+			return provider.LogChunk{}, false, err
+		}
+		if size <= len(lines) { // the whole log
+			return provider.LogChunk{Lines: lines[min(offset, len(lines)):], Next: len(lines)}, true, nil
+		}
+		if len(lines) == 0 {
+			return provider.LogChunk{}, false, nil
+		}
+		if caps.LogEnd == "" {
+			end, err := c.logEnd(ctx, jobKey, lines, size)
+			if err != nil || end == "" {
+				return provider.LogChunk{}, false, err
+			}
+			c.learn(ctx, func(cp *Capabilities) { cp.LogEnd = end })
+			if caps.LogEnd = end; end != "last" {
+				return provider.LogChunk{}, false, nil
+			}
+		}
+		base := size - len(lines)
+		if base <= offset || n >= logMax {
+			from := min(max(offset, base), size) - base
+			return provider.LogChunk{Lines: lines[from:], Next: size}, true, nil
+		}
+		n = min(logMax, max(2*n, size-offset+logStep))
+	}
+}
+
+// logEnd tells which end of a log page holds, by asking for a few entries
+// only: "last" when they end page, "first" when they start it, "" when a
+// log that grew in between or repeated lines leave it unclear.
+func (c *Client) logEnd(ctx context.Context, jobKey string, page []string, size int) (string, error) {
+	const k = 3
+	if len(page) <= k {
+		return "", nil
+	}
+	probe, again, err := c.readLogEntries(ctx, jobKey, k)
+	if err != nil || again != size || len(probe) != k {
+		return "", err
+	}
+	last, first := slices.Equal(probe, page[len(page)-k:]), slices.Equal(probe, page[:k])
+	switch {
+	case last && !first:
+		return "last", nil
+	case first && !last:
+		return "first", nil
+	}
+	return "", nil
+}
+
+// logEntries reads a job's whole log, up to its last logMax entries, and
+// returns its lines from offset on.
 func (c *Client) logEntries(ctx context.Context, jobKey string, offset int) (provider.LogChunk, error) {
 	lines, size, err := c.readLogEntries(ctx, jobKey, logMax)
 	if err != nil {

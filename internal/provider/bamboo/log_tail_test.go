@@ -23,7 +23,8 @@ type bamboo12Log struct {
 	mu       sync.Mutex
 	lines    []string
 	download string
-	firstN   bool // answer max-result with the FIRST entries instead, as a server might
+	firstN   bool  // answer max-result with the FIRST entries instead, as a server might
+	served   []int // how many entries each read was sent
 }
 
 func (b *bamboo12Log) grow(n int) {
@@ -62,6 +63,7 @@ func (b *bamboo12Log) client(t *testing.T) *Client {
 		for _, l := range page {
 			es = append(es, entry{l, l})
 		}
+		b.served = append(b.served, len(es))
 		body, _ := json.Marshal(map[string]any{"key": "LAB-VARS-RUN-1", "logEntries": map[string]any{
 			"size": len(b.lines), "start-index": 0, "max-result": n, "logEntry": es}})
 		w.Header().Set("Content-Type", "application/json")
@@ -185,4 +187,83 @@ func TestFetchLogDownloadKeepsTheLastReadLimitLines(t *testing.T) {
 	chunk, err = c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{Offset: 4})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"line 5"}, chunk.Lines, "an offset inside the kept lines starts there")
+}
+
+// sent is how many entries each read since the last call was sent.
+func (b *bamboo12Log) sent() []int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	out := b.served
+	b.served = nil
+	return out
+}
+
+// lineRange is "line from" to "line to", empty when to is before from.
+func lineRange(from, to int) []string {
+	out := []string{}
+	for i := from; i <= to; i++ {
+		out = append(out, fmt.Sprintf("line %d", i))
+	}
+	return out
+}
+
+// TestFollowingALongLogReadsOnlyWhatItGained: a watched tree reads a
+// running job's log on every refresh. After the first read, a read from an
+// offset is sent the log's newest entries, not all of it, even when the log
+// gained more than one small read holds (#199).
+func TestFollowingALongLogReadsOnlyWhatItGained(t *testing.T) {
+	b := &bamboo12Log{}
+	b.grow(3000)
+	c := b.client(t)
+	chunk, err := c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{})
+	require.NoError(t, err)
+	require.Equal(t, []int{3000}, b.sent(), "the first read is the whole log")
+	next := chunk.Next
+	for _, more := range []int{40, 0, logStep + 250, 1} {
+		b.grow(more)
+		chunk, err := c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{Offset: next})
+		require.NoError(t, err)
+		require.Equal(t, lineRange(next+1, next+more), chunk.Lines)
+		require.Equal(t, next+more, chunk.Next)
+		next = chunk.Next
+		for _, n := range b.sent() {
+			require.Less(t, n, 3000, "a follow is never sent the whole log")
+		}
+	}
+}
+
+// TestFollowingALongLogOnAServerThatCountsFromTheStart: a server that
+// answers max-result with a log's first entries cannot be followed from
+// its last ones, so its log is read whole, and still lines up.
+func TestFollowingALongLogOnAServerThatCountsFromTheStart(t *testing.T) {
+	b := &bamboo12Log{firstN: true}
+	b.grow(3000)
+	c := b.client(t)
+	chunk, err := c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{})
+	require.NoError(t, err)
+	for _, more := range []int{10, 20} {
+		b.grow(more)
+		next := chunk.Next
+		chunk, err = c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{Offset: next})
+		require.NoError(t, err)
+		require.Equal(t, lineRange(next+1, next+more), chunk.Lines)
+	}
+}
+
+// TestFollowingALogWhoseEndsLookAlike: when the first and last entries of
+// a read are the same lines, nothing tells which end of the log it is, so
+// the log is read whole rather than taken for its last entries.
+func TestFollowingALogWhoseEndsLookAlike(t *testing.T) {
+	b := &bamboo12Log{firstN: true}
+	b.grow(3000)
+	for _, i := range []int{0, 1, 2, logStep - 3, logStep - 2, logStep - 1} {
+		b.lines[i] = "Build log tailing is paused"
+	}
+	c := b.client(t)
+	chunk, err := c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{})
+	require.NoError(t, err)
+	b.grow(10)
+	chunk, err = c.FetchLog(ctx, "LAB-SLOW-ONE-5", provider.LogOptions{Offset: chunk.Next})
+	require.NoError(t, err)
+	require.Equal(t, lineRange(3001, 3010), chunk.Lines)
 }

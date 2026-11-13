@@ -85,6 +85,9 @@ type PinView struct {
 	Pin     string // as written in the settings
 	PlanKey string
 	Branch  string
+	// Name is the plan's name, set for a pin written as a plan key; a preset
+	// pin keeps the preset's name.
+	Name string
 	// Results are the last finished builds, newest first.
 	Results []provider.Build
 	// Current is the build queued or running now, or nil.
@@ -94,6 +97,18 @@ type PinView struct {
 	// usual build time, 0 when its history is too short.
 	Last, Usual time.Duration
 	Err         error
+}
+
+// Label is how the board names the pipeline: its plan's name, with the
+// branch when the pin has one, or the pin as written when no name is known.
+func (p PinView) Label() string {
+	switch {
+	case p.Name == "":
+		return p.Pin
+	case p.Branch != "":
+		return p.Name + "@" + p.Branch
+	}
+	return p.Name
 }
 
 // Need is one line of the Needs you list.
@@ -334,7 +349,7 @@ func findPin(groups []PinGroupView, pin string) *PinView {
 func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinView {
 	v := PinView{Pin: pin}
 	if prev != nil {
-		v.PlanKey, v.Branch, v.Usual = prev.PlanKey, prev.Branch, prev.Usual
+		v.PlanKey, v.Branch, v.Name, v.Usual = prev.PlanKey, prev.Branch, prev.Name, prev.Usual
 		return s.readPinBuilds(ctx, v, false)
 	}
 	plan, branch := config.SplitPin(pin)
@@ -348,6 +363,9 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 		return v
 	}
 	v.PlanKey, v.Branch = ref.PlanKey, ref.Branch
+	if IsPlanKey(plan) {
+		v.Name, _ = s.PlanName(ctx, ref.MasterKey)
+	}
 	return s.readPinBuilds(ctx, v, true)
 }
 
@@ -406,11 +424,11 @@ func NeedsYou(b Board, now time.Time) []Need {
 				continue
 			}
 			if len(p.Results) > 0 && p.Results[0].State == provider.StateFailed {
-				out = append(out, Need{Kind: "pin_failed", Text: fmt.Sprintf("%s: the last build, %s, failed", p.Pin, p.Results[0].Key), Build: p.Results[0].Key})
+				out = append(out, Need{Kind: "pin_failed", Text: fmt.Sprintf("%s: the last build, %s, failed", p.Label(), p.Results[0].Key), Build: p.Results[0].Key})
 			}
 			if c := p.Current; c != nil && c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
 				if run := now.Sub(c.StartedAt); float64(run) > NeedsSlowFactor*float64(p.Usual) {
-					out = append(out, Need{Kind: "pin_slow", Text: fmt.Sprintf("%s: %s has run %s, usually %s", p.Pin, c.Key, shortDuration(run), shortDuration(p.Usual)), Build: c.Key})
+					out = append(out, Need{Kind: "pin_slow", Text: fmt.Sprintf("%s: %s has run %s, usually %s", p.Label(), c.Key, shortDuration(run), shortDuration(p.Usual)), Build: c.Key})
 				}
 			}
 		}

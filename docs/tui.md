@@ -8,7 +8,7 @@ Terminals under 20 rows or 60 columns keep a one-line header.
 
 ## The board
 
-`bam top` on a terminal, and `:top` in the UI, open a live board of the server: a **Needs you** list, the **Agents** (the busy share of the online, enabled agents as a bar and four counts, `N building · N idle · N down · N disabled`, plus every agent that is offline or disabled), the **Queue** with the time each build has waited and why it waits, and your **Pinned** pipelines by group with their last 10 results, the build running now and its time against the usual one. Pin pipelines with `bam pin add` or the `monitor:` setting (see [configuration](configuration.md)). Bare `bam` opens the board once any pipeline is pinned; with no pins it opens the plan table, and `:plans` always does.
+`bam top` on a terminal, and `:top` in the UI, open a live board of the server: a **Needs you** list, the **Agents** (the busy share of the online, enabled agents as a bar and four counts, `N building · N idle · N down · N disabled`, plus every agent that is offline or disabled), the **Queue** with the time each build has waited and why it waits, and your **Pinned** pipelines by group, a plan pin shown by its plan's name (cut at its end to fit) and a preset by the preset's name, with their last 10 results, the build running now and its time against the usual one. Pin pipelines with `bam pin add` or the `monitor:` setting (see [configuration](configuration.md)). Bare `bam` opens the board once any pipeline is pinned; with no pins it opens the plan table, and `:plans` always does.
 
 With `agents:` set (see [configuration](configuration.md#your-agents-agents)) the Agents panel becomes **Your agents**: the four counts (building, idle, down, disabled), one row per pool of agents whose names differ only in their last number, with one mark for each agent in number order (`●` building, `○` idle, `⊘` disabled, `✗` down), the names of the agents that are down or disabled, and a row for each name start no agent matches. It is a tab stop: `j` and `k` move over the pools, which scroll when they outnumber the panel's lines, and `enter` on a pool lists its agents. Needs you raises each of your agents that is down or disabled, and no other team's. While it is set, the board reads agent details for your agents only. `a` shows every agent of the server, as `bam top --all` does, and again to come back. With no `agents:` set, the Agents panel stays as it was and adds one line saying how to list yours.
 
@@ -80,6 +80,7 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `D` | remove the selected preset (asks first) |
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :stats :top :project :server :sort :q |
+| | `m` | pin the selected plan to `bam top` (asks for the group); also on a plan's screen |
 | Board | `tab` | next panel: Needs you, Your agents (when `agents:` is set), Queue, Pinned |
 | | Needs you, Agents, Queue, Pinned | one sentence each in the help overlay: what the panel lists |
 | | `a` | your agents, queue and Needs you only, or the whole server; `enter` on a pool lists its agents |

@@ -2,8 +2,8 @@
 ┏━Needs you · 3━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Pinned─────────────────────────────────────────────────────────────────────────────────────────────────────╮
 ┃                                                                                        ┃│                                                                                                            │
 ┃  ▸ ! agent linux-2 is offline                                                          ┃│    integration                                                                                             │
-┃    ! PROJ-BUILD-500 has waited 7m in the queue                                         ┃│  ▸ PROJ-BUILD     ✓✗         –                        last 3m · usual 3m                                   │
-┃    ! PROJ-BUILD: the last build, PROJ-BUILD-44, failed                                 ┃│    PROJ-PROV      ✓✓         #9 running █████░ 3m/4m  last 4m · usual 4m                                   │
+┃    ! PROJ-BUILD-500 has waited 7m in the queue                                         ┃│  ▸ Build and test          ✓✗         –                       last 3m · usual 3m                           │
+┃    ! Build and test: the last build, PROJ-BUILD-44, failed                             ┃│    Provision a lab cluster ✓✓         #9 running █████░ 3m/4m last 4m · usual 4m                           │
 ┃                                                                                        ┃│                                                                                                            │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│                                                                                                            │
 ╭─Agents─────────────────────────────────────────────────────────────────────────────────╮│                                                                                                            │

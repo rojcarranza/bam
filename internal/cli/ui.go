@@ -135,7 +135,10 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 			}
 			return fresh.Monitor()
 		},
-		PinAdd:       r.pinAdd,
+		PinAdd: func(group, plan string) error {
+			_, err := r.pinAdd(context.Background(), group, []string{plan})
+			return err
+		},
 		PinRemove:    r.pinRemove,
 		StartOnBoard: board,
 		WholeServer:  whole,

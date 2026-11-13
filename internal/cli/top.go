@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/config"
@@ -79,50 +82,134 @@ func newTopCmd(r *runtime) *cobra.Command {
 
 func newPinAddCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:   "add GROUP PIN",
-		Short: "Pin a plan, a plan with a branch, or a preset to a group of bam top",
-		Long: "Pin a pipeline to a named group of bam top. PIN is a plan key (PROJ-PLAN), a plan\n" +
-			"with a branch (PROJ-PLAN@release/1.2) or a preset name. The pin goes into the\n" +
-			"monitor: section of the machine file, which keeps its comments.",
-		Example: "  bam pin add integration PROJ-BUILD\n  bam pin add release PROJ-DEPLOY@release/1.2",
-		Args:    cobra.ExactArgs(2),
+		Use:   "add GROUP PIN...",
+		Short: "Pin plans, plans with a branch, presets or plan names to a group of bam top",
+		Long: "Pin pipelines to a named group of bam top. Each PIN is a plan key (PROJ-PLAN), a\n" +
+			"plan with a branch (PROJ-PLAN@release/1.2), a preset name, or the name of a plan.\n" +
+			"A name is looked up on the selected server: a plan with exactly that name wins,\n" +
+			"else the plans whose name holds all the words. bam stores the plan's key. A name\n" +
+			"that fits no plan or several plans pins nothing, and none of the other pins are\n" +
+			"written either. The pins go into the monitor: section of the machine file, which\n" +
+			"keeps its comments.",
+		Example: "  bam pin add integration PROJ-BUILD\n  bam pin add release PROJ-DEPLOY@release/1.2\n" +
+			"  bam pin add integration \"Integrate For Next Release\" \"Run Feature Tests\"",
+		Args: cobra.MinimumNArgs(2),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			if err := r.pinAdd(args[0], args[1]); err != nil {
+			done, err := r.pinAdd(cmd.Context(), args[0], args[1:])
+			if err != nil {
 				return err
 			}
-			fmt.Fprintf(r.env.Stdout, "Pinned %s in %s\n", args[1], args[0])
+			for _, p := range done {
+				if p.Name != "" {
+					fmt.Fprintf(r.env.Stdout, "Pinned %s (%s) in %s\n", p.Key, p.Name, args[0])
+				} else {
+					fmt.Fprintf(r.env.Stdout, "Pinned %s in %s\n", p.Key, args[0])
+				}
+			}
 			return nil
 		}),
 	}
 }
 
-// pinAdd checks and writes a pin to the machine file. The configuration is
-// read afresh, so a pin added while the UI is open counts as taken.
-func (r *runtime) pinAdd(group, pin string) error {
+// pinResult is one pin pinAdd wrote: the key or preset it stored and, for a pin
+// given as a plan name, that plan's name.
+type pinResult struct{ Key, Name string }
+
+// pinAdd checks pins and writes them to the machine file in one write, so a
+// bad pin leaves the file as it was. A plan key, a plan key with a branch
+// and an existing preset are taken as they are; any other pin is looked up
+// as a plan name, which asks the server. The configuration is read afresh,
+// so a pin added while the UI is open counts as taken.
+func (r *runtime) pinAdd(ctx context.Context, group string, pins []string) ([]pinResult, error) {
 	cfg, err := r.loadConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !config.ValidTargetName(group) {
-		return errs.Usagef("%q is not a valid group name", group).WithTry("lowercase letters, digits, - and _, such as integration")
-	}
-	if err := cfg.CheckPin(pin); err != nil {
-		return err
+		return nil, errs.Usagef("%q is not a valid group name", group).WithTry("lowercase letters, digits, - and _, such as integration")
 	}
 	groups, err := cfg.Monitor()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for _, g := range groups {
-		if g.Name != group && slices.Contains(g.Pins, pin) {
-			try := "bam pin rm " + pin + " first"
-			if cfg.ProjectPins(pin) {
-				try = "remove it from " + cfg.ProjectPath + " by hand first"
+	var svc *app.Service
+	var done []pinResult
+	for _, pin := range pins {
+		pin = strings.TrimSpace(pin)
+		p := pinResult{Key: pin}
+		if err := cfg.CheckPin(pin); err != nil {
+			if strings.Contains(pin, "@") {
+				return nil, err
 			}
-			return errs.Usagef("%s is already pinned in group %q", pin, g.Name).WithTry(try)
+			if svc == nil {
+				if svc, _, err = r.connect(ctx, ""); err != nil {
+					return nil, err
+				}
+			}
+			plan, err := svc.FindPlanByName(ctx, pin)
+			if err != nil {
+				return nil, err
+			}
+			p = pinResult{Key: plan.Key, Name: plan.Name}
+			if err := cfg.CheckPin(p.Key); err != nil {
+				return nil, err
+			}
+		}
+		for _, g := range groups {
+			if g.Name != group && slices.Contains(g.Pins, p.Key) {
+				try := "bam pin rm " + p.Key + " first"
+				if cfg.ProjectPins(p.Key) {
+					try = "remove it from " + cfg.ProjectPath + " by hand first"
+				}
+				return nil, errs.Usagef("%s is already pinned in group %q", p.Key, g.Name).WithTry(try)
+			}
+		}
+		if !slices.ContainsFunc(done, func(d pinResult) bool { return d.Key == p.Key }) {
+			done = append(done, p)
 		}
 	}
-	return config.AddPin(r.env.Paths.MachineConfig, group, pin)
+	keys := make([]string, len(done))
+	for i, d := range done {
+		keys[i] = d.Key
+	}
+	if err := config.AddPins(r.env.Paths.MachineConfig, group, keys...); err != nil {
+		return nil, err
+	}
+	return done, nil
+}
+
+// pinNames asks the server for the name of each pinned plan key, so the list
+// can show it. It is best effort: a plan the server does not know leaves that
+// name out, and any other failure, or the lookup outlasting shortTimeout,
+// stops asking and the list prints the remaining pins alone.
+func (r *runtime) pinNames(ctx context.Context, groups []config.PinGroup) map[string]string {
+	ctx, cancel := context.WithTimeout(ctx, shortTimeout)
+	defer cancel()
+	names := map[string]string{}
+	var svc *app.Service
+	for _, g := range groups {
+		for _, pin := range g.Pins {
+			plan, _ := config.SplitPin(pin)
+			if !app.IsPlanKey(plan) {
+				continue
+			}
+			if svc == nil {
+				var err error
+				if svc, _, err = r.connect(ctx, ""); err != nil {
+					return nil
+				}
+			}
+			n, err := svc.PlanName(ctx, plan)
+			switch {
+			case errors.Is(err, errs.ErrNotFound):
+			case err != nil:
+				return names
+			case n != "":
+				names[pin] = n
+			}
+		}
+	}
+	return names
 }
 
 // pinRemove removes a pin from the machine file.
@@ -159,6 +246,9 @@ func newPinRmCmd(r *runtime) *cobra.Command {
 type pinListDoc struct {
 	Group string   `json:"group"`
 	Pins  []string `json:"pins"`
+	// Names holds the plan's name of each pin that is a plan key, when the
+	// server could be asked.
+	Names map[string]string `json:"names,omitempty"`
 }
 
 func newPinListCmd(r *runtime) *cobra.Command {
@@ -177,21 +267,32 @@ func newPinListCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			names := r.pinNames(cmd.Context(), groups)
 			docs := make([]pinListDoc, 0, len(groups))
 			for _, g := range groups {
-				docs = append(docs, pinListDoc{Group: g.Name, Pins: g.Pins})
+				d := pinListDoc{Group: g.Name, Pins: g.Pins}
+				for _, p := range g.Pins {
+					if n := names[p]; n != "" {
+						if d.Names == nil {
+							d.Names = map[string]string{}
+						}
+						d.Names[p] = n
+					}
+				}
+				docs = append(docs, d)
 			}
 			return r.show(docs, func(o view.Out) error {
 				if len(groups) == 0 {
 					fmt.Fprintln(o.W, "No pipelines pinned. Pin one with: bam pin add GROUP PLAN")
 					return nil
 				}
+				t := view.Table{Headers: []string{"GROUP", "PIN", "NAME"}, Flex: []int{2}}
 				for _, g := range groups {
 					for _, p := range g.Pins {
-						fmt.Fprintf(o.W, "%s  %s\n", g.Name, p)
+						t.Rows = append(t.Rows, []string{g.Name, p, names[p]})
 					}
 				}
-				return nil
+				return t.Render(o)
 			})
 		}),
 	}

@@ -1,0 +1,21 @@
+{
+ "mayHaveMore": false,
+ "start-index": 0,
+ "max-result": 1,
+ "searchResults": [
+  {
+   "id": "DEMO-BUILD",
+   "type": "chain",
+   "searchEntity": {
+    "id": "DEMO-BUILD",
+    "databaseId": 786433,
+    "key": "DEMO-BUILD",
+    "projectName": "Demo project",
+    "planName": "Build Demo Image",
+    "branchName": "main",
+    "description": "Builds the demo image",
+    "type": "chain"
+   }
+  }
+ ]
+}

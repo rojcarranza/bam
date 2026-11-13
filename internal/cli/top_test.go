@@ -10,6 +10,7 @@ import (
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view/style"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,7 @@ func TestTopWithPins(t *testing.T) {
 	assert.Contains(t, out, "linux-3  remote  disabled")
 	assert.Regexp(t, `1\s+PROJ-PROV-9\s+Code has changed\s+8m00s`, out)
 	assert.Contains(t, out, "integration")
-	assert.Regexp(t, `PROJ-BUILD\s+.*2m11s`, out)
+	assert.Regexp(t, `Build and test\s+.*2m11s`, out, "a pin that is a plan key shows the plan's name")
 	assert.Regexp(t, `provision-lab\s+.*`, out)
 	assert.Contains(t, out, "! provision-lab: the last build, PROJ-PROV12-8, failed")
 }
@@ -151,7 +152,7 @@ func TestPinAddListRm(t *testing.T) {
 	require.Equal(t, 0, h.run("pin", "add", "integration", "provision-lab"))
 	require.Equal(t, 0, h.run("pin", "add", "release", "PROJ-PROV@develop"))
 	require.Equal(t, 0, h.run("pin", "list"))
-	assert.Equal(t, "integration  PROJ-BUILD\nintegration  provision-lab\nrelease  PROJ-PROV@develop\n", h.stdout.String())
+	assert.Equal(t, "GROUP        PIN                NAME\nintegration  PROJ-BUILD         Build and test\nintegration  provision-lab\nrelease      PROJ-PROV@develop  Provision lab\n", h.stdout.String())
 	data, _ := os.ReadFile(h.env.Paths.MachineConfig)
 	assert.True(t, strings.HasPrefix(string(data), "# mine"))
 
@@ -163,7 +164,7 @@ func TestPinAddListRm(t *testing.T) {
 	require.Equal(t, 0, h.run("pin", "rm", "provision-lab"))
 	assert.Equal(t, 2, h.run("pin", "rm", "provision-lab"))
 	require.Equal(t, 0, h.run("pin", "list", "--json"))
-	assert.JSONEq(t, `[{"group":"integration","pins":["PROJ-BUILD"]},{"group":"release","pins":["PROJ-PROV@develop"]}]`, h.stdout.String())
+	assert.JSONEq(t, `[{"group":"integration","pins":["PROJ-BUILD"],"names":{"PROJ-BUILD":"Build and test"}},{"group":"release","pins":["PROJ-PROV@develop"],"names":{"PROJ-PROV@develop":"Provision lab"}}]`, h.stdout.String())
 }
 
 func TestPinAddPointsAtTheProjectFileForAProjectPin(t *testing.T) {
@@ -184,7 +185,7 @@ func TestTopShowsAPresetUnknownHereOnItsPinAlone(t *testing.T) {
 		[]byte("version: 1\nmonitor:\n  integration: [PROJ-BUILD, deploy-qa]\n"), 0o644))
 	require.Equal(t, 0, h.run("top"))
 	assert.Contains(t, h.stdout.String(), "deploy-qa")
-	assert.Regexp(t, `PROJ-BUILD\s+.*2m11s`, h.stdout.String())
+	assert.Regexp(t, `Build and test\s+.*2m11s`, h.stdout.String())
 	require.Equal(t, 0, h.run("pin", "list"))
 	assert.Contains(t, h.stdout.String(), "integration  deploy-qa")
 }
@@ -274,4 +275,47 @@ func TestTheBoardsPinKeyWritesTheSettingsAndKeepsComments(t *testing.T) {
 	err = d.PinRemove("PROJ-BUILD")
 	require.Error(t, err, "a pin that is not in the settings file cannot be removed")
 	require.Error(t, d.PinAdd("Bad Group", "PROJ-BUILD"))
+}
+
+func TestPinListStopsAskingForNamesAfterTheServerFails(t *testing.T) {
+	h := topHarness(t)
+	require.NoError(t, os.MkdirAll(strings.TrimSuffix(h.env.Paths.MachineConfig, "/config.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\nmonitor:\n  integration: [PROJ-BUILD, PROJ-PROV, PROJ-PROV@develop]\n"), 0o644))
+	h.fake.PlanErr = errs.Bamboof("cannot reach bamboo.example.com")
+	require.Equal(t, 0, h.run("pin", "list"))
+	assert.Equal(t, "GROUP        PIN                NAME\nintegration  PROJ-BUILD\nintegration  PROJ-PROV\nintegration  PROJ-PROV@develop\n", h.stdout.String())
+	assert.Equal(t, 1, h.fake.PlanCalls, "one failure stops the lookup")
+}
+
+func TestPinListAPlanTheServerDoesNotKnowKeepsTheOtherNames(t *testing.T) {
+	h := topHarness(t)
+	require.NoError(t, os.MkdirAll(strings.TrimSuffix(h.env.Paths.MachineConfig, "/config.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\nmonitor:\n  integration: [PROJ-GONE, PROJ-BUILD]\n"), 0o644))
+	require.Equal(t, 0, h.run("pin", "list"))
+	assert.Equal(t, "GROUP        PIN         NAME\nintegration  PROJ-GONE\nintegration  PROJ-BUILD  Build and test\n", h.stdout.String())
+}
+
+// Intent (issue #183): bam pin list lines up its columns and, on a
+// terminal, cuts a long plan name at its end instead of wrapping the row.
+func TestPinListCutsALongNameOnATerminal(t *testing.T) {
+	long := "Integrate every service for the next release and run the long checks"
+	h := topHarness(t)
+	h.tty = true
+	h.env.Width = func() int { return 60 }
+	for i, p := range h.fake.Plans["PROJ"] {
+		if p.Key == "PROJ-BUILD" {
+			h.fake.Plans["PROJ"][i].Name = long
+		}
+	}
+	require.NoError(t, os.MkdirAll(strings.TrimSuffix(h.env.Paths.MachineConfig, "/config.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\nmonitor:\n  integration: [PROJ-BUILD]\n"), 0o644))
+	require.Equal(t, 0, h.run("pin", "list"))
+	lines := strings.Split(strings.TrimRight(style.Strip(h.stdout.String()), "\n"), "\n")
+	require.Len(t, lines, 2, "header and one row, no wrapped line")
+	assert.LessOrEqual(t, style.Width(lines[1]), 60, lines[1])
+	assert.True(t, strings.HasPrefix(lines[1], "integration  PROJ-BUILD  Integrate every"), lines[1])
+	assert.True(t, strings.HasSuffix(lines[1], "…"), lines[1])
 }

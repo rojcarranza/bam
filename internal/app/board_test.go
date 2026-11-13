@@ -159,3 +159,23 @@ func TestBoardDoesNotFlagARunWithinHalfAgainOfUsual(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, b.Needs)
 }
+
+// Intent (pin by name): a pin written as a plan key carries its plan's name,
+// kept across reads; a preset pin keeps the preset's name.
+func TestBoardPinsCarryTheirPlansName(t *testing.T) {
+	svc := newService(t, nil)
+	svc.P = boardBamboo(svc.Clock.Now())
+	b, err := svc.Board(context.Background(), pins("integration", "PROJ-BUILD", "PROJ-PROV@develop", "provision-lab"))
+	require.NoError(t, err)
+	got := b.Groups[0].Pins
+	assert.Equal(t, "Build and test", got[0].Name)
+	assert.Equal(t, "Build and test", got[0].Label())
+	assert.Equal(t, "Provision lab", got[1].Name, "a branch pin carries the plan's name")
+	assert.Equal(t, "Provision lab@develop", got[1].Label())
+	assert.Empty(t, got[2].Name, "a preset pin keeps the preset's name")
+	assert.Equal(t, "provision-lab", got[2].Label())
+
+	again, err := svc.RefreshBoard(context.Background(), pins("integration", "PROJ-BUILD"), &b)
+	require.NoError(t, err)
+	assert.Equal(t, "Build and test", again.Groups[0].Pins[0].Name, "the quick refresh keeps the name")
+}

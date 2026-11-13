@@ -36,6 +36,8 @@ type Capabilities struct {
 	// AgentJobs is whether the jobs each agent can run are readable (it
 	// needs an administrator).
 	AgentJobs string `json:"agent_jobs,omitempty"` // yes | no
+	// PlanSearch is whether the server searches plans by name.
+	PlanSearch string `json:"plan_search,omitempty"` // yes | no
 }
 
 const capsMaxAge = 7 * 24 * time.Hour

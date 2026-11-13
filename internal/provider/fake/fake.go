@@ -3,13 +3,18 @@ package fake
 
 import (
 	"context"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
 )
 
-var _ provider.Provider = (*Provider)(nil)
+var (
+	_ provider.Provider     = (*Provider)(nil)
+	_ provider.PlanSearcher = (*Provider)(nil)
+)
 
 // Provider returns whatever its fields hold. Zero value is usable.
 type Provider struct {
@@ -56,6 +61,17 @@ type Provider struct {
 	AgentJobsErr   error               // returned when AgentJobMap is nil
 	AgentJobsCalls int
 	AgentJobsAsked [][]string // the agent names each AgentJobs call asked about
+	// NoPlanSearch makes SearchPlans answer ErrUnsupported, as a server
+	// without a plan search does. Otherwise it finds, across every project,
+	// the plans whose name holds the term, ignoring case.
+	NoPlanSearch bool
+	// SearchPage, when set, is all SearchPlans answers, saying more may
+	// follow, as a server whose search fills its page does.
+	SearchPage  []provider.Plan
+	SearchCalls []string // the terms SearchPlans was asked for
+	// PlanErr, when set, is what GetPlan answers.
+	PlanErr   error
+	PlanCalls int // how many times GetPlan was called
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -85,7 +101,35 @@ func (f *Provider) ListPlans(_ context.Context, project string) ([]provider.Plan
 	return plans, nil
 }
 
+func (f *Provider) SearchPlans(_ context.Context, term string) ([]provider.Plan, bool, error) {
+	f.mu.Lock()
+	f.SearchCalls = append(f.SearchCalls, term)
+	f.mu.Unlock()
+	if f.NoPlanSearch {
+		return nil, false, errs.Bamboof("this Bamboo does not search plans by name").Wrap(errs.ErrUnsupported)
+	}
+	if f.SearchPage != nil {
+		return f.SearchPage, false, nil
+	}
+	var out []provider.Plan
+	for _, plans := range f.Plans {
+		for _, p := range plans {
+			if strings.Contains(strings.ToLower(p.Name), strings.ToLower(term)) {
+				out = append(out, p)
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out, true, nil
+}
+
 func (f *Provider) GetPlan(_ context.Context, key string) (provider.Plan, error) {
+	f.mu.Lock()
+	f.PlanCalls++
+	f.mu.Unlock()
+	if f.PlanErr != nil {
+		return provider.Plan{}, f.PlanErr
+	}
 	for _, plans := range f.Plans {
 		for _, p := range plans {
 			if p.Key == key {

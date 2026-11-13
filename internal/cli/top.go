@@ -27,12 +27,16 @@ func newTopCmd(r *runtime) *cobra.Command {
 		Long: "Print one board of the server: its version, what needs you, the agent counts and\n" +
 			"every agent that is offline or disabled, the queue with the time each build\n" +
 			"waited, and your pinned pipelines by group with their last 10 results.\n\n" +
-			"Needs you lists an enabled agent that is offline, a build that waited more than\n" +
-			"5 minutes, a pinned pipeline whose last build failed, and a pinned build running\n" +
-			"half again past its usual time.\n\n" +
+			"Needs you lists an enabled agent that is offline, a build of yours that waited\n" +
+			"more than 5 minutes (one line per reason it waits), a pinned pipeline whose last\n" +
+			"build failed, and a pinned build running half again past its usual time.\n\n" +
 			"With agents: set (bam agent mine add NAME-START) the board shows only your\n" +
 			"agents, each building, idle, disabled or down, and Needs you raises your agents\n" +
-			"that are down or disabled. --all shows every agent of the server.\n\n" +
+			"that are down or disabled. With agents:, a pin or projects: set, the queue lists\n" +
+			"only your builds (one of your agents can run one of its jobs, its plan is pinned\n" +
+			"or its project is in projects:) with their place in the whole queue, and one\n" +
+			"line counts the builds that wait for other agents. --all shows every agent and\n" +
+			"the whole queue of the server.\n\n" +
 			"Pin pipelines with bam pin add, or list groups under monitor: in the machine file\n" +
 			"or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list\n" +
 			"needs an administrator), the board says so in one line and prints the rest.\n" +
@@ -68,7 +72,7 @@ func newTopCmd(r *runtime) *cobra.Command {
 			return r.show(view.BoardJSON(b, svc.P.URL), func(o view.Out) error { return view.Board(o, b, svc.P.URL) })
 		}),
 	}
-	cmd.Flags().BoolVar(&all, "all", false, "show every agent of the server, not only the ones you listed with bam agent mine")
+	cmd.Flags().BoolVar(&all, "all", false, "show every agent and the whole queue of the server, not only your part")
 	cmd.Flags().BoolVar(&once, "once", false, "print the board once instead of opening the live board")
 	return cmd
 }

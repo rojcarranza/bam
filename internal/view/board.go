@@ -17,6 +17,9 @@ type BoardDoc struct {
 	Agents      *BoardAgentsDoc `json:"agents"`
 	AgentsNote  string          `json:"agents_note,omitempty"`
 	Queue       []QueueDoc      `json:"queue"`
+	// QueueOthers counts the waiting builds the queue leaves out because
+	// they wait for other agents, pipelines or projects.
+	QueueOthers int             `json:"queue_others"`
 	QueueNote   string          `json:"queue_note,omitempty"`
 	Pins        []BoardGroupDoc `json:"pins"`
 }
@@ -77,7 +80,8 @@ func BoardJSON(b app.Board, url func(string) string) BoardDoc {
 		Server:      BoardServerDoc{Alias: b.Server, URL: b.URL, Version: b.Version},
 		Needs:       Docs(b.Needs, func(n app.Need) NeedDoc { return NeedDoc{Kind: n.Kind, Text: n.Text} }),
 		AgentsNote:  b.AgentsNote,
-		Queue:       QueueJSON(b.Queue, url),
+		Queue:       BoardQueueJSON(b.Queue, url),
+		QueueOthers: b.QueueOthers,
 		QueueNote:   b.QueueNote,
 		Pins:        []BoardGroupDoc{},
 	}
@@ -143,7 +147,7 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		fmt.Fprintln(w, "  "+b.AgentsNote)
 	} else {
 		section(o, "AGENTS")
-		fmt.Fprintf(w, "  %d agents: %d online, %d busy, %d offline, %d disabled\n", a.Total, a.Online, a.Busy, a.Offline, a.Disabled)
+		fmt.Fprintf(w, "  %d agents: %s\n", a.Total, AgentSummaryText(a))
 		for _, ag := range a.Away {
 			why := "offline"
 			if !ag.Enabled {
@@ -156,16 +160,23 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		}
 	}
 
-	section(o, "QUEUE")
+	section(o, queueTitle(b))
 	switch {
 	case !b.QueueOK:
 		fmt.Fprintln(w, "  "+b.QueueNote)
-	case len(b.Queue) == 0:
+	case len(b.Queue) == 0 && b.QueueOthers == 0:
 		fmt.Fprintln(w, "  The queue is empty")
 	default:
-		t := queueTable(o, b.Queue, url, "  ")
-		if err := t.Render(o); err != nil {
-			return err
+		if len(b.Queue) == 0 {
+			fmt.Fprintln(w, "  Nothing waits for you")
+		} else {
+			t := queueTable(o, b.Queue, url, "  ")
+			if err := t.Render(o); err != nil {
+				return err
+			}
+		}
+		if b.QueueOthers > 0 {
+			fmt.Fprintln(w, "  "+style.Dim(o.Style, OthersText(b.QueueOthers)))
 		}
 	}
 
@@ -226,4 +237,18 @@ func now(o Out, p app.PinView) string {
 		s += fmt.Sprintf(" %.0f%%", p.Progress.Percent*100)
 	}
 	return s
+}
+
+// AgentSummaryText is the whole server's agents as four counts, the same
+// words as the summary of your own agents.
+func AgentSummaryText(a *app.AgentSummary) string {
+	return fmt.Sprintf("%d building · %d idle · %d down · %d disabled", a.Busy, a.Online-a.Busy, a.Offline, a.Disabled)
+}
+
+// queueTitle names the queue section by what it lists.
+func queueTitle(b app.Board) string {
+	if b.QueueFiltered {
+		return "YOUR QUEUE"
+	}
+	return "QUEUE"
 }

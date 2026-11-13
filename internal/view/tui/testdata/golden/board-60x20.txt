@@ -5,13 +5,13 @@
 ┃  ! PROJ-BUILD-500 has waited 7m in the queue             ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ╭─Agents───────────────────────────────────────────────────╮
-│  busy █████░░░░░ 1 of 2 online · 2 offline · 1 disabled  │
-│  busy ▄▄             queued ██             since opened  │
+│  █████░░░░░ 1 building · 1 idle · 2 down · 1 disabled    │
+│  busy ▄▄ 50%–50%  queued ██ 2–2                          │
 │  linux-2  remote  offline                                │
 │  … and 2 more offline or disabled                        │
 ╰──────────────────────────────────────────────────────────╯
-╭─Queue────────────────────────────────────────────────────╮
-│▸ 1  PROJ-BUILD-500  7m           Manual build            │
+╭─Queue · 2────────────────────────────────────────────────╮
+│▸ 1  PROJ-BUILD-500  7m  Manual build                     │
 ╰──────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────╮
 │  integration                                             │

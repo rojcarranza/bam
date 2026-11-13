@@ -35,21 +35,21 @@ bam set run [set] [-f FILE] [flags]
 ### Options
 
 ```
-      --dry-run           resolve and check every run, trigger nothing
-  -f, --file string       run the set defined in this train file instead of a configured set
-      --force             take over the lock of a set run whose process is gone
-  -h, --help              help for run
-      --var stringArray   variable name=value for every run that declares it (repeatable)
+      --dry-run[=true|false]   resolve and check every run, trigger nothing
+  -f, --file string            run the set defined in this train file instead of a configured set
+      --force[=true|false]     take over the lock of a set run whose process is gone
+  -h, --help[=true|false]      help for run
+      --var stringArray        variable name=value for every run that declares it (repeatable)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --color string    color output: auto, always or never
-      --debug           log HTTP requests to stderr
-      --json            print JSON
-      --no-tui          never open the terminal UI
-      --server string   server alias to use
+      --color string          color output: auto, always or never
+      --debug[=true|false]    log HTTP requests to stderr
+      --json[=true|false]     print JSON
+      --no-tui[=true|false]   never open the terminal UI
+      --server string         server alias to use
 ```
 
 ### SEE ALSO

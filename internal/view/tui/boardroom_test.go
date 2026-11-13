@@ -25,7 +25,8 @@ func boardWith(w, h, needs int, groups []app.PinGroupView) Model {
 	data.Queue = nil
 	for i := 1; i <= needs; i++ {
 		key := fmt.Sprintf("PROJ-BUILD-%d", i)
-		data.Queue = append(data.Queue, app.QueueRow{Position: i, QueueEntry: provider.QueueEntry{Key: key, PlanKey: "PROJ-BUILD", Number: i, Reason: "Manual build"}, Waited: 9 * time.Minute})
+		data.Queue = append(data.Queue, app.QueueRow{Position: i, QueueEntry: provider.QueueEntry{Key: key, PlanKey: "PROJ-BUILD", Number: i, Reason: "Manual build"}, Waited: 9 * time.Minute,
+			Why: &provider.Why{Case: provider.WhyBusy, Count: i + 1}}) // each reason is its own, so each is a line of Needs you
 	}
 	if groups != nil {
 		data.Groups = groups

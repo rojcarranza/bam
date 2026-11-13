@@ -28,25 +28,25 @@ bam tree [<build>|<plan>|<preset>] [flags]
 ### Options
 
 ```
-  -b, --branch string   plan branch when a plan or preset is given
-      --depth int       levels of builds to show below the root (default: all)
-      --failed          show only the branches that lead to a failure
-  -h, --help            help for tree
-      --last            the last build bam triggered from this repository (the default for commands that only read)
-      --no-watch        with --rerun-failed, restart and exit without following
-      --rerun-failed    restart the failed builds whose parents succeeded, then follow the tree
-  -w, --watch           follow the tree until every build has finished
-      --yes             with --rerun-failed, do not ask first
+  -b, --branch string               plan branch when a plan or preset is given
+      --depth int                   levels of builds to show below the root (default: all)
+      --failed[=true|false]         show only the branches that lead to a failure
+  -h, --help[=true|false]           help for tree
+      --last[=true|false]           the last build bam triggered from this repository (the default for commands that only read)
+      --no-watch[=true|false]       with --rerun-failed, restart and exit without following
+      --rerun-failed[=true|false]   restart the failed builds whose parents succeeded, then follow the tree
+  -w, --watch[=true|false]          follow the tree until every build has finished
+      --yes[=true|false]            with --rerun-failed, do not ask first
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --color string    color output: auto, always or never
-      --debug           log HTTP requests to stderr
-      --json            print JSON
-      --no-tui          never open the terminal UI
-      --server string   server alias to use
+      --color string          color output: auto, always or never
+      --debug[=true|false]    log HTTP requests to stderr
+      --json[=true|false]     print JSON
+      --no-tui[=true|false]   never open the terminal UI
+      --server string         server alias to use
 ```
 
 ### SEE ALSO

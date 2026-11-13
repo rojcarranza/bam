@@ -42,12 +42,16 @@ type Board struct {
 	Mine *MyAgents
 	// MineSet is true when agents: lists name starts, so the board can show
 	// the empty state apart from "not set".
-	MineSet   bool
-	Queue     []QueueRow
-	QueueOK   bool // the queue was read; an empty Queue is then really empty
-	QueueNote string
-	Groups    []PinGroupView
-	Needs     []Need
+	MineSet bool
+	// Queue is the builds that wait for you; with QueueFiltered, QueueOthers
+	// more wait for other agents, pipelines or projects.
+	Queue         []QueueRow
+	QueueOthers   int
+	QueueFiltered bool
+	QueueOK       bool // the queue was read; an empty Queue is then really empty
+	QueueNote     string
+	Groups        []PinGroupView
+	Needs         []Need
 }
 
 // AgentSummary counts the agents and lists those that are not working.
@@ -132,17 +136,25 @@ func (s *Service) RefreshBoard(ctx context.Context, groups []config.PinGroup, pr
 		}
 	}
 	b.MineSet = len(s.AgentStarts()) > 0
-	if q, err := s.QueueRows(ctx); err != nil {
-		b.QueueNote = refusal("the queue", err)
-	} else {
-		b.QueueOK = true
-		b.Queue = q
-	}
 	var known []PinGroupView
 	if prev != nil {
 		known = prev.Groups
 	}
 	b.Groups = s.readPins(ctx, groups, known)
+	pinned := map[string]bool{}
+	for _, g := range b.Groups {
+		for _, p := range g.Pins {
+			if p.PlanKey != "" {
+				pinned[p.PlanKey] = true
+			}
+		}
+	}
+	if q, others, filtered, err := s.BoardQueue(ctx, pinned); err != nil {
+		b.QueueNote = refusal("the queue", err)
+	} else {
+		b.QueueOK = true
+		b.Queue, b.QueueOthers, b.QueueFiltered = q, others, filtered
+	}
 	if err := ctx.Err(); err != nil {
 		return Board{}, err
 	}
@@ -184,43 +196,104 @@ func summarizeAgents(as []provider.Agent) *AgentSummary {
 
 // QueueRows lists the builds waiting on the server, first in line first,
 // each with the time it has waited, taken from the build's own record. The
-// first waitReads builds are read; a build whose record gives no time keeps
-// AtLeast and counts from now, when bam first saw it.
+// first waitReads builds are read; a build that was not read, or whose record
+// gives no time, keeps AtLeast and shows no wait.
 func (s *Service) QueueRows(ctx context.Context) ([]QueueRow, error) {
+	rows, _, err := s.readQueue(ctx, func([]provider.QueueEntry) []bool { return nil })
+	return rows, err
+}
+
+// BoardQueue is the queue the board shows: the builds that wait for you, with
+// their true place in the whole queue, and how many others wait. A build is
+// yours when one of your agents can run one of its jobs, its plan is in
+// pinned (the plan keys of the pins), or its project is in projects:. With
+// none of the three set, or when ctx asks for the whole server, every build is
+// yours. When bam cannot tell which jobs your agents run, a build no pin or
+// project names is shown, never hidden. The waits and reasons are read for
+// your builds first, wherever they sit, up to waitReads.
+func (s *Service) BoardQueue(ctx context.Context, pinned map[string]bool) (rows []QueueRow, others int, filtered bool, err error) {
+	filtered = ctx.Value(agentScopeKey{}) != false &&
+		(len(s.AgentStarts()) > 0 || len(pinned) > 0 || len(s.ProjectKeys()) > 0)
+	if !filtered {
+		rows, err = s.QueueRows(ctx)
+		return rows, 0, false, err
+	}
+	rows, others, err = s.readQueue(ctx, func(q []provider.QueueEntry) []bool { return s.mineBuilds(ctx, q, pinned) })
+	return rows, others, true, err
+}
+
+// mineBuilds says, for each queued entry, whether it is yours.
+func (s *Service) mineBuilds(ctx context.Context, q []provider.QueueEntry, pinned map[string]bool) []bool {
+	projects := map[string]bool{}
+	for _, k := range s.ProjectKeys() {
+		projects[strings.ToUpper(k)] = true
+	}
+	var runs map[string]bool
+	known := false
+	if len(s.AgentStarts()) > 0 {
+		if agents, ok := s.whyAgents(ctx); ok {
+			agents = s.scopeAgents(ctx, agents)
+			plans := make([]string, 0, len(q))
+			for _, e := range q {
+				plans = append(plans, e.PlanKey)
+			}
+			runs, known = s.planRunners(ctx, agents, plans)
+		}
+	}
+	mine := make([]bool, len(q))
+	for i, e := range q {
+		project, _, _ := strings.Cut(e.PlanKey, "-")
+		mine[i] = pinned[e.PlanKey] || projects[strings.ToUpper(project)] || runs[e.PlanKey] ||
+			(len(s.AgentStarts()) > 0 && !known)
+	}
+	return mine
+}
+
+// readQueue reads the queue and the wait of up to waitReads builds, yours
+// first. mineOf says which entries are yours; nil means all. It returns the
+// rows of your builds, each with its place in the whole queue, and how many
+// others it left out.
+func (s *Service) readQueue(ctx context.Context, mineOf func([]provider.QueueEntry) []bool) ([]QueueRow, int, error) {
 	q, err := s.P.Queue(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	now := s.Clock.Now()
-	rows := make([]QueueRow, len(q))
-	sem := make(chan struct{}, boardReaders)
-	var wg sync.WaitGroup
+	mine := mineOf(q)
+	rows := make([]QueueRow, 0, len(q))
+	others := 0
 	for i, e := range q {
-		rows[i] = QueueRow{Position: i + 1, QueueEntry: e, AtLeast: true}
-		if i >= waitReads {
+		if mine != nil && !mine[i] {
+			others++
 			continue
 		}
+		rows = append(rows, QueueRow{Position: i + 1, QueueEntry: e, AtLeast: true})
+	}
+	sem := make(chan struct{}, boardReaders)
+	var wg sync.WaitGroup
+	for i := range min(len(rows), waitReads) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			b, err := s.P.GetBuild(ctx, e.Key)
+			r := &rows[i]
+			b, err := s.P.GetBuild(ctx, r.Key)
 			if err != nil {
 				return
 			}
-			rows[i].Why = s.WhyWaits(ctx, b, i)
+			r.Why = s.WhyWaits(ctx, b, r.Position-1)
 			since := b.QueuedAt
 			if since.IsZero() {
 				since = b.StartedAt
 			}
 			if !since.IsZero() {
-				rows[i].Waited, rows[i].AtLeast = max(now.Sub(since), 0), false
+				r.Waited, r.AtLeast = max(now.Sub(since), 0), false
 			}
 		}()
 	}
 	wg.Wait()
-	return rows, nil
+	return rows, others, nil
 }
 
 // readPins reads every pinned pipeline, boardReaders at a time.
@@ -326,11 +399,7 @@ func NeedsYou(b Board, now time.Time) []Need {
 			}
 		}
 	}
-	for _, r := range b.Queue {
-		if r.Waited > NeedsWait {
-			out = append(out, Need{Kind: "queue_wait", Text: fmt.Sprintf("%s has waited %s in the queue", r.Key, shortDuration(r.Waited)), Build: r.Key})
-		}
-	}
+	out = append(out, needsQueue(b.Queue)...)
 	for _, g := range b.Groups {
 		for _, p := range g.Pins {
 			if p.Err != nil {
@@ -349,8 +418,75 @@ func NeedsYou(b Board, now time.Time) []Need {
 	return out
 }
 
-// shortDuration is d in whole minutes, or seconds under a minute.
+// needsQueue is the Needs you lines for builds waiting over NeedsWait.
+// Builds that wait for the same reason become one line with a count, led by
+// the one that has waited longest; a build bam has no wait for is left out.
+func needsQueue(q []QueueRow) []Need {
+	type group struct {
+		why   string
+		rows  []QueueRow
+		first int
+	}
+	var groups []*group
+	byWhy := map[string]*group{}
+	for _, r := range q {
+		if r.Waited <= NeedsWait {
+			continue
+		}
+		why := WaitReason(r.Why)
+		g := byWhy[why]
+		if g == nil {
+			g = &group{why: why, first: len(groups)}
+			byWhy[why] = g
+			groups = append(groups, g)
+		}
+		g.rows = append(g.rows, r)
+	}
+	var out []Need
+	for _, g := range groups {
+		longest := g.rows[0]
+		for _, r := range g.rows {
+			if r.Waited > longest.Waited {
+				longest = r
+			}
+		}
+		text := fmt.Sprintf("%s has waited %s in the queue", longest.Key, shortDuration(longest.Waited))
+		if len(g.rows) > 1 {
+			text = fmt.Sprintf("%d builds have waited over %s in the queue, the longest %s for %s", len(g.rows), shortDuration(NeedsWait), longest.Key, shortDuration(longest.Waited))
+		}
+		if g.why != "" {
+			text += ": " + g.why
+		}
+		out = append(out, Need{Kind: "queue_wait", Text: text, Build: longest.Key})
+	}
+	return out
+}
+
+// WaitReason is why a build waits, short enough for a Needs you line: the
+// reason without the names of the agents.
+func WaitReason(w *provider.Why) string {
+	if w == nil {
+		return ""
+	}
+	short := *w
+	short.Agents = nil
+	return short.Text()
+}
+
+// LongWait is d as days and hours, "57d 4h", once it is 48 hours or more.
+func LongWait(d time.Duration) (string, bool) {
+	if d < 48*time.Hour {
+		return "", false
+	}
+	return fmt.Sprintf("%dd %dh", int(d.Hours())/24, int(d.Hours())%24), true
+}
+
+// shortDuration is d in whole minutes, or seconds under a minute; 48 hours
+// and more read as days and hours.
 func shortDuration(d time.Duration) string {
+	if l, ok := LongWait(d); ok {
+		return l
+	}
 	switch {
 	case d < time.Minute:
 		return fmt.Sprintf("%ds", int(d.Seconds()))

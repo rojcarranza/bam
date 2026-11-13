@@ -2,7 +2,11 @@
 // interface. Nothing Bamboo-shaped appears here.
 package provider
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 // State is the neutral state of a build, stage or job.
 type State string
@@ -245,4 +249,45 @@ type Why struct {
 	Count    int      // how many agents can run it; 0 when unknown
 	Agents   []string // their names, when Count is 3 or fewer
 	Ahead    int      // WhyAhead: builds queued before this one
+	// Mine is true when only the agents you support were looked at, so
+	// "no agent" means none of yours.
+	Mine bool
+}
+
+// Text says why a build waits, or "" when bam could not tell. The agents are
+// named when three or fewer can run the job.
+func (w *Why) Text() string {
+	if w == nil {
+		return ""
+	}
+	var who string
+	switch {
+	case w.Count == 1:
+		who = "1 agent can run it"
+	case w.Count > 1:
+		who = fmt.Sprintf("%d agents can run it", w.Count)
+	}
+	if who != "" && len(w.Agents) > 0 {
+		who += " (" + strings.Join(w.Agents, ", ") + ")"
+	}
+	switch w.Case {
+	case WhyNoAgent:
+		if w.Mine {
+			return "none of your agents can run it"
+		}
+		return "no agent can run it"
+	case WhyBusy:
+		switch {
+		case w.Count == 1:
+			return who + ", busy, offline or disabled"
+		case w.Count > 1:
+			return who + ", all busy, offline or disabled"
+		}
+		return "every agent is busy, offline or disabled"
+	case WhyNext:
+		return "agents are free, it is next"
+	case WhyAhead:
+		return fmt.Sprintf("agents are free, %d before it", w.Ahead)
+	}
+	return who
 }

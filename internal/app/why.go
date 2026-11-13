@@ -86,47 +86,8 @@ func (s *Service) whyPossible(ctx context.Context, agents []provider.Agent, plan
 	if queuedAt.IsZero() {
 		queuedAt = now
 	}
-	if !c.loaded {
-		c.loaded, c.jobsOK = true, true
-		c.jobs = map[string]agentJobs{}
-		if s.AgentJobs != nil {
-			c.jobs = s.AgentJobs.Load(s.Origin, now)
-		}
-	}
-	var stale []provider.Agent
-	for _, a := range agents {
-		if e, ok := c.jobs[a.Name]; !ok || now.Sub(e.Read) >= agentJobsTTL {
-			stale = append(stale, a)
-		}
-	}
-	if len(stale) > 0 && (c.jobsTry.IsZero() || now.Sub(c.jobsTry) >= c.jobsWait) {
-		jobs, err := s.P.AgentJobs(ctx, stale)
-		if ctx.Err() != nil {
-			return nil, false
-		}
-		c.jobsTry = now
-		switch {
-		case err == nil:
-			for _, a := range stale {
-				// An agent left out was removed since the list was read: it runs nothing.
-				c.jobs[a.Name] = agentJobs{Read: now, Jobs: slices.Sorted(slices.Values(jobs[a.Name]))}
-			}
-			listed := map[string]bool{}
-			for _, a := range agents {
-				listed[a.Name] = true
-			}
-			maps.DeleteFunc(c.jobs, func(name string, _ agentJobs) bool { return !listed[name] })
-			if s.AgentJobs != nil {
-				s.AgentJobs.Save(s.Origin, c.jobs)
-			}
-			c.jobsOK, c.jobsWait = true, whyTTL
-		case errors.Is(err, errs.ErrUnsupported):
-			c.jobsOK, c.jobsWait = false, whyTTL // learned by the provider: asking again sends nothing
-		default:
-			c.jobsOK, c.jobsWait = false, agentJobsRetry
-		}
-	}
-	if !c.jobsOK && len(stale) > 0 {
+	stale, ok := s.jobListsLocked(ctx, agents, now)
+	if !ok && stale {
 		return nil, false // a list bam needs could not be read
 	}
 	names := []string{}
@@ -147,6 +108,84 @@ func (s *Service) whyPossible(ctx context.Context, agents []provider.Agent, plan
 	}
 	slices.Sort(names)
 	return names, true
+}
+
+// jobListsLocked makes sure the jobs each of agents can run are known,
+// asking the server for those it has no recent list of. It reports whether
+// some list was missing (stale) and whether the lists are usable (ok). The
+// caller holds the cache.
+func (s *Service) jobListsLocked(ctx context.Context, agents []provider.Agent, now time.Time) (stale, ok bool) {
+	c := &s.why
+	if !c.loaded {
+		c.loaded, c.jobsOK = true, true
+		c.jobs = map[string]agentJobs{}
+		if s.AgentJobs != nil {
+			c.jobs = s.AgentJobs.Load(s.Origin, now)
+		}
+	}
+	var missing []provider.Agent
+	for _, a := range agents {
+		if e, ok := c.jobs[a.Name]; !ok || now.Sub(e.Read) >= agentJobsTTL {
+			missing = append(missing, a)
+		}
+	}
+	if len(missing) > 0 && (c.jobsTry.IsZero() || now.Sub(c.jobsTry) >= c.jobsWait) {
+		jobs, err := s.P.AgentJobs(ctx, missing)
+		if ctx.Err() != nil {
+			return true, false
+		}
+		c.jobsTry = now
+		switch {
+		case err == nil:
+			for _, a := range missing {
+				// An agent left out was removed since the list was read: it runs nothing.
+				c.jobs[a.Name] = agentJobs{Read: now, Jobs: slices.Sorted(slices.Values(jobs[a.Name]))}
+			}
+			listed := map[string]bool{}
+			for _, a := range agents {
+				listed[a.Name] = true
+			}
+			maps.DeleteFunc(c.jobs, func(name string, _ agentJobs) bool { return !listed[name] })
+			if s.AgentJobs != nil {
+				s.AgentJobs.Save(s.Origin, c.jobs)
+			}
+			c.jobsOK, c.jobsWait = true, whyTTL
+		case errors.Is(err, errs.ErrUnsupported):
+			c.jobsOK, c.jobsWait = false, whyTTL // learned by the provider: asking again sends nothing
+		default:
+			c.jobsOK, c.jobsWait = false, agentJobsRetry
+		}
+	}
+	return len(missing) > 0, c.jobsOK || len(missing) == 0
+}
+
+// planRunners reports, for each plan key, whether one of agents can run one
+// of its jobs. known is false when bam cannot tell (the server refuses to
+// say which jobs agents run); no plan is then reported as run by an agent.
+// A plan created since an agent's list was read is not on it until the list
+// is read again, within the hour; an agent whose list is not read yet runs
+// nothing until it is.
+func (s *Service) planRunners(ctx context.Context, agents []provider.Agent, planKeys []string) (runs map[string]bool, known bool) {
+	c := &s.why
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	stale, ok := s.jobListsLocked(ctx, agents, s.Clock.Now())
+	if stale && !ok {
+		return nil, false
+	}
+	runs = map[string]bool{}
+	for _, a := range agents {
+		e, have := c.jobs[a.Name]
+		if !have {
+			continue
+		}
+		for _, k := range planKeys {
+			if !runs[k] && e.runsPlan(k) {
+				runs[k] = true
+			}
+		}
+	}
+	return runs, true
 }
 
 // jobPlanKey is the job's plan key, PROJ-PLAN-JOB1, from its result key
@@ -223,6 +262,7 @@ func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int, queuedA
 		return w
 	}
 	agents = s.scopeAgents(ctx, agents)
+	w.Mine, _ = ctx.Value(agentScopeKey{}).(bool)
 	names, possibleOK := s.whyPossible(ctx, agents, jobPlanKey(j.Key), queuedAt)
 	if possibleOK {
 		w.Count = len(names)

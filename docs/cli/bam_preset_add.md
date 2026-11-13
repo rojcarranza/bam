@@ -34,24 +34,24 @@ bam preset add <name> --plan KEY [flags]
 ### Options
 
 ```
-  -b, --branch string   default branch for the preset; defaults to the --from build's branch
-      --file string     write NAME.yaml in your presets directory instead of the plan's project file
-      --force           replace an existing preset
-      --from string     build whose variable values fill the preset: number, key or last
-  -h, --help            help for add
-      --plan string     plan key or plan page link to generate from; optional when --from is a build key
-      --print           print the YAML and write nothing
-      --shared          write to the repository's .bam.yaml instead of your presets directory
+  -b, --branch string         default branch for the preset; defaults to the --from build's branch
+      --file string           write NAME.yaml in your presets directory instead of the plan's project file
+      --force[=true|false]    replace an existing preset
+      --from string           build whose variable values fill the preset: number, key or last
+  -h, --help[=true|false]     help for add
+      --plan string           plan key or plan page link to generate from; optional when --from is a build key
+      --print[=true|false]    print the YAML and write nothing
+      --shared[=true|false]   write to the repository's .bam.yaml instead of your presets directory
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --color string    color output: auto, always or never
-      --debug           log HTTP requests to stderr
-      --json            print JSON
-      --no-tui          never open the terminal UI
-      --server string   server alias to use
+      --color string          color output: auto, always or never
+      --debug[=true|false]    log HTTP requests to stderr
+      --json[=true|false]     print JSON
+      --no-tui[=true|false]   never open the terminal UI
+      --server string         server alias to use
 ```
 
 ### SEE ALSO

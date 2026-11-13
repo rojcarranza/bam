@@ -92,7 +92,7 @@ func TestTopOnceShowsYourAgentsAndAllShowsTheServer(t *testing.T) {
 	require.Equal(t, 0, h.run("top", "--once", "--all"))
 	out = h.stdout.String()
 	assert.NotContains(t, out, "YOUR AGENTS")
-	assert.Contains(t, out, "4 agents: 1 online, 1 busy, 2 offline, 1 disabled")
+	assert.Contains(t, out, "4 agents: 1 building · 0 idle · 2 down · 1 disabled")
 	assert.Contains(t, out, "! agent other-agent-0 is offline")
 }
 
@@ -133,7 +133,7 @@ func TestTopJSONGainsAgentsMine(t *testing.T) {
 
 	h2 := mineHarness(t)
 	require.Equal(t, 0, h2.run("top", "--json"))
-	assert.NotContains(t, h2.stdout.String(), `"mine"`, "without agents: set the document is as before")
+	assert.NotContains(t, h2.stdout.String(), `"mine": {`, "without agents: set the document is as before")
 }
 
 func TestAgentListMineFilters(t *testing.T) {

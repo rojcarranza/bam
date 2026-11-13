@@ -24,19 +24,19 @@ bam preset sync <name> | --all [flags]
 ### Options
 
 ```
-      --all       sync every preset
-      --dry-run   show the changes and write nothing
-  -h, --help      help for sync
+      --all[=true|false]       sync every preset
+      --dry-run[=true|false]   show the changes and write nothing
+  -h, --help[=true|false]      help for sync
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --color string    color output: auto, always or never
-      --debug           log HTTP requests to stderr
-      --json            print JSON
-      --no-tui          never open the terminal UI
-      --server string   server alias to use
+      --color string          color output: auto, always or never
+      --debug[=true|false]    log HTTP requests to stderr
+      --json[=true|false]     print JSON
+      --no-tui[=true|false]   never open the terminal UI
+      --server string         server alias to use
 ```
 
 ### SEE ALSO

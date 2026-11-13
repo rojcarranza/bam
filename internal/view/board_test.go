@@ -3,6 +3,7 @@ package view
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,4 +65,38 @@ func TestBoardJSONGolden(t *testing.T) {
 	out, err := json.MarshalIndent(BoardJSON(sampleBoard(), boardURL), "", "  ")
 	require.NoError(t, err)
 	golden(t, "board_json", string(out)+"\n")
+}
+
+// Intent (BAM-42 P3): the queue of the board reads in plain words: a wait of
+// 48 hours or more is days and hours, a wait bam did not read is a dash, and a
+// line counts the builds that wait for others.
+func TestQueueWaitsReadAsDaysAndDashes(t *testing.T) {
+	for _, c := range []struct {
+		row  app.QueueRow
+		want string
+	}{
+		{app.QueueRow{Waited: 47*time.Hour + 59*time.Minute}, "47h59m"},
+		{app.QueueRow{Waited: 48 * time.Hour}, "2d 0h"},
+		{app.QueueRow{Waited: 1372*time.Hour + 36*time.Minute}, "57d 4h"},
+		{app.QueueRow{Waited: 5 * time.Minute, AtLeast: true}, "–"},
+	} {
+		require.Equal(t, c.want, waitedText(c.row))
+	}
+}
+
+func TestBoardTextCountsTheBuildsThatWaitForOthers(t *testing.T) {
+	b := sampleBoard()
+	b.QueueFiltered, b.QueueOthers = true, 37
+	var sb strings.Builder
+	require.NoError(t, Board(Out{W: &sb}, b, func(k string) string { return k }))
+	out := sb.String()
+	require.Contains(t, out, "YOUR QUEUE")
+	require.Contains(t, out, "37 more builds wait for other agents")
+	require.Contains(t, out, "1 building · 1 idle · 1 down · 1 disabled")
+	require.Equal(t, "1 more build waits for other agents", OthersText(1))
+
+	doc := BoardJSON(b, func(k string) string { return k })
+	require.Equal(t, 37, doc.QueueOthers)
+	require.NotNil(t, doc.Queue[0].Mine)
+	require.True(t, *doc.Queue[0].Mine)
 }

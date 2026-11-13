@@ -38,7 +38,7 @@ func TestTopWithPins(t *testing.T) {
 	assert.Contains(t, out, "Bamboo 9.6.2")
 	assert.Contains(t, out, "! agent linux-2 is offline")
 	assert.Contains(t, out, "! PROJ-PROV-9 has waited 8m in the queue")
-	assert.Contains(t, out, "3 agents: 1 online, 1 busy, 1 offline, 1 disabled")
+	assert.Contains(t, out, "3 agents: 1 building · 0 idle · 1 down · 1 disabled")
 	assert.Contains(t, out, "linux-3  remote  disabled")
 	assert.Regexp(t, `1\s+PROJ-PROV-9\s+Code has changed\s+8m00s`, out)
 	assert.Contains(t, out, "integration")
@@ -131,8 +131,8 @@ func TestQueueShowsTimeWaited(t *testing.T) {
 	require.Equal(t, 0, h.run("queue"))
 	assert.Regexp(t, `WAITED`, h.stdout.String())
 	assert.Regexp(t, `PROJ-PROV-9\s+Code has changed\s+8m00s`, h.stdout.String())
-	assert.Regexp(t, `PROJ-OTHER-3\s+Manual build\s+at least 0s`, h.stdout.String(),
-		"a build whose record has no start is counted from when bam saw it")
+	assert.Regexp(t, `PROJ-OTHER-3\s+Manual build\s+–`, h.stdout.String(),
+		"a build whose record has no start shows a dash")
 	require.Equal(t, 0, h.run("queue", "--json"))
 	var docs []map[string]any
 	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &docs))

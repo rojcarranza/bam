@@ -137,7 +137,7 @@ func TestBoardRedrawBeatCountsUpBetweenReadsWithoutReading(t *testing.T) {
 
 	m.board.tickGen = 1
 	require.Contains(t, m.View(), "updated 0s ago")
-	require.Contains(t, ansi.Strip(m.View()), "at least 0s", "a wait first seen by this read starts at zero")
+	require.Contains(t, ansi.Strip(m.View()), "PROJ-BUILD-500  7m", "the read wait is on screen")
 	now := goldenNow.Add(8 * time.Second)
 	m.now = func() time.Time { return now }
 	m, cmd = send(m, boardRedrawMsg{Gen: 1})
@@ -146,7 +146,7 @@ func TestBoardRedrawBeatCountsUpBetweenReadsWithoutReading(t *testing.T) {
 	require.IsType(t, boardRedrawMsg{}, msgs[0], "and never reads the server")
 	v := ansi.Strip(m.View())
 	require.Contains(t, v, "updated 8s ago")
-	require.Contains(t, v, "at least 8s", "a queue wait counts up between reads")
+	require.Regexp(t, `OPS-NIGHTLY-3\s+–`, v, "a wait bam did not read stays a dash between reads")
 
 	_, cmd = send(m, boardRedrawMsg{Gen: 0})
 	require.Nil(t, cmd, "a redraw beat of an older generation ends its loop")
@@ -342,9 +342,9 @@ func TestBoardReadsTheServerThroughTheUseCase(t *testing.T) {
 	require.Len(t, m.board.data.Queue, 1)
 }
 
-// A build whose record gave no time it began waiting counts from when the
-// board first saw it, and keeps counting across reads.
-func TestBoardCountsAnUnknownWaitFromFirstSight(t *testing.T) {
+// A build whose wait bam did not read shows a dash, and keeps showing it as
+// time passes: bam no longer guesses "at least" from when it first saw it.
+func TestBoardShowsADashForAWaitItDidNotRead(t *testing.T) {
 	m := boardModel(100, 30)
 	now := goldenNow.Add(2 * time.Minute)
 	m.now = func() time.Time { return now }
@@ -352,8 +352,10 @@ func TestBoardCountsAnUnknownWaitFromFirstSight(t *testing.T) {
 	b := sampleBoard(now)
 	b.Queue[1].Waited = 0
 	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: b})
-	require.Equal(t, 2*time.Minute, m.board.data.Queue[1].Waited, "first seen at the first read, two minutes ago")
-	require.Equal(t, 7*time.Minute, m.board.data.Queue[0].Waited, "a known wait is the record's")
+	v := ansi.Strip(m.View())
+	require.Regexp(t, `OPS-NIGHTLY-3\s+–`, v)
+	require.NotContains(t, v, "at least")
+	require.Regexp(t, `PROJ-BUILD-500\s+7m`, v, "a read wait is the record's")
 }
 
 // ---- bell ----
@@ -798,7 +800,7 @@ func queueScrollCheck(t *testing.T, m Model, n int) {
 		lines := strings.Split(ansi.Strip(m.View()), "\n")
 		top := -1
 		for i, l := range lines {
-			if strings.Contains(l, "━Queue━") {
+			if strings.Contains(l, "━Queue") {
 				top = i + 1
 				break
 			}
@@ -833,4 +835,61 @@ func TestBoardQueueLongKeyKeepsTheWhyWhole(t *testing.T) {
 	}
 	require.Equal(t, 2, n, "both queued builds show their whole why:\n%s", v)
 	require.Regexp(t, `PROJ-LONG[A-Z]*…`, v, "the long key is shortened:\n%s", v)
+}
+
+// Intent (BAM-42 P3): the queue panel says it lists your part, counts the rest
+// on a line under the builds, and a asks for the whole server even when no
+// agents are listed but a pin or project filters the queue.
+func TestBoardQueuePanelSaysItIsYourPartAndCountsTheRest(t *testing.T) {
+	m := boardModel(100, 30)
+	data := sampleBoard(goldenNow)
+	data.QueueFiltered, data.QueueOthers = true, 37
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+	v := ansi.Strip(m.View())
+	require.Contains(t, v, "Your queue · 2 of 39")
+	require.Contains(t, v, "37 more builds wait for other agents")
+	require.Equal(t, 2, m.board.rows(boardQueue), "the count line is not a row the cursor lands on")
+	require.Contains(t, v, "a agents", "the key line offers a while the queue is filtered")
+
+	m, _ = send(m, mkKey("a"))
+	require.True(t, m.board.whole)
+	require.NotContains(t, m.status, "nothing is listed")
+}
+
+// The chart line fits the Agents panel once both charts are full and their
+// ranges are at their widest, at every board width.
+func TestBoardChartLineFitsThePanel(t *testing.T) {
+	b := &boardState{}
+	for i := range boardSamples {
+		b.busy = append(b.busy, float64(i%2))
+		b.queued = append(b.queued, float64(120+330*(i%2)))
+	}
+	for _, inner := range []int{36, 56, 76, 116, 196} {
+		line := chartLine(b, inner)
+		require.LessOrEqual(t, ansi.StringWidth(line), inner, "inner %d: %q", inner, line)
+		require.Contains(t, line, "0%–100%")
+		require.Contains(t, line, "120–450")
+	}
+	require.Contains(t, chartLine(b, 76), "since opened, lowest–highest")
+}
+
+// A Needs you line too long for its panel ends in "…" at the panel edge,
+// as Queue rows do, rather than being cut mid-word, in the tight, roomy and
+// two-column layouts.
+func TestBoardNeedsYouLongLineEndsInEllipsis(t *testing.T) {
+	long := "22 builds have waited over 5m in the queue, the longest OTHR-APP-124 for 3h25m: 2 agents can run it, all busy, offline or disabled"
+	for _, size := range [][2]int{{80, 24}, {120, 45}, {170, 45}} {
+		m := boardModel(size[0], size[1])
+		m.board.data.Needs = []app.Need{{Kind: "queue_wait", Build: "OTHR-APP-124", Text: long}}
+		var line string
+		for _, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+			if strings.Contains(l, "22 builds have waited") {
+				line = l
+			}
+		}
+		require.NotEmpty(t, line, "%v", size)
+		require.NotContains(t, line, "disabled", "%v: the line should not fit: %q", size, line)
+		require.Regexp(t, `…\s*┃`, line, "%v: %q", size, line)
+	}
 }

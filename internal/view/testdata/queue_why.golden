@@ -1,4 +1,4 @@
-#  BUILD          REASON    WAITED       WHY
-1  PROJ-PROV-9    Code ha…  7m00s        no agent can run it
-2  PROJ-BUILD-45  Manual …  at least 0s  2 agents can run it (linux-1, linux-2), all busy, offline or disabled
-3  PROJ-OTHER-3   Manual …  at least 0s
+#  BUILD          REASON    WAITED  WHY
+1  PROJ-PROV-9    Code ha…  7m00s   no agent can run it
+2  PROJ-BUILD-45  Manual …  –       2 agents can run it (linux-1, linux-2), all busy, offline or disabled
+3  PROJ-OTHER-3   Manual …  –

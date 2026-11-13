@@ -729,20 +729,34 @@ func TestBoardStartsOnTheBoardWhenAsked(t *testing.T) {
 	require.Equal(t, screenHome, m.screen, "without pins bam opens the plan table")
 }
 
-// Intent (BAM-34 P3): the live board's queue says why each build waits, as
-// bam queue's WHY column does, readable in full at 80 columns rather than cut
-// off at the panel's edge, and a narrow board still keeps every line inside
-// its panel, dropping the agents' names rather than the reason.
+// Intent (BAM-34 P3) and finding test-1: the live board's queue says why each
+// build waits, as bam queue's WHY column does. The why comes before the
+// trigger reason on the build's line; when the line is too wide the trigger
+// reason is shortened with an ellipsis, then the agents' names go, and the
+// why itself stays whole, so it is readable at 80 columns. Every line stays
+// inside its panel.
 func TestBoardQueueSaysWhyABuildWaits(t *testing.T) {
 	data := sampleBoard(goldenNow)
 	data.Queue[0].Why = &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}
 	data.Queue[1].Why = &provider.Why{Case: provider.WhyNoAgent}
+	data.Queue[1].AtLeast = false
 	for _, c := range []struct {
-		w    int
-		busy string
+		w     int
+		lines []string
 	}{
-		{80, "2 agents can run it (linux-1, linux-2), all busy, offline or disabled"},
-		{60, "2 agents can run it, all busy, offline or disabled"},
+		{120, []string{
+			"7m   2 agents can run it (linux-1, linux-2), all busy, offline or disabled · Manual build",
+			"20s  no agent can run it · Scheduled",
+		}},
+		{90, []string{
+			"7m   2 agents can run it, all busy, offline or disabled · Manual b…",
+			"20s  no agent can run it · Scheduled",
+		}},
+		{80, []string{
+			"7m   2 agents can run it, all busy, offline or disabled",
+			"20s  no agent can run it · Scheduled",
+		}},
+		{60, []string{"20s  no agent can run it · Scheduled"}},
 	} {
 		m := boardModel(c.w, 30)
 		m.board.loadGen++
@@ -751,16 +765,15 @@ func TestBoardQueueSaysWhyABuildWaits(t *testing.T) {
 		for _, l := range strings.Split(v, "\n") {
 			require.LessOrEqual(t, ansi.StringWidth(l), c.w, "width %d: %q", c.w, l)
 		}
-		require.Contains(t, v, c.busy+" ", "width %d", c.w)
-		require.Contains(t, v, "no agent can run it", "width %d", c.w)
-		require.Contains(t, v, "Manual build", "width %d", c.w)
+		for _, want := range c.lines {
+			require.Contains(t, v, want, "width %d:\n%s", c.w, v)
+		}
 	}
 }
 
 // Finding tui-queue-scroll-orphan: with more queued builds than the Queue
-// panel holds, scrolling must never leave a build's reason line at the top of
-// the panel with its build scrolled out of view, and the cursor's build stays
-// in view wherever the cursor goes.
+// panel holds, the panel always starts on a build, and the cursor's build
+// stays in view wherever the cursor goes.
 func TestBoardQueueScrollKeepsEachReasonWithItsBuild(t *testing.T) {
 	data := sampleBoard(goldenNow)
 	data.Queue = nil

@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/rojcarranza/bam/internal/view"
@@ -579,7 +580,7 @@ func (m Model) boardBody() []string {
 	ah := 4 + min(awayCount(b), awayMax)
 	nh = max(min(nh, h-ah-7), 3)
 	rest := h - nh - ah
-	queue, queueCursor, queueHeads := m.queueLines(inner)
+	queue, queueCursor := m.queueLines(inner)
 	qh := max(min(len(queue)+2, rest-4), 3)
 	ph := rest - qh
 
@@ -592,7 +593,7 @@ func (m Model) boardBody() []string {
 	}
 	add("Needs you", b.panel == boardNeeds, nh, window(needs, b.cursor[boardNeeds], nh-2))
 	add("Agents", false, ah, m.agentLines(inner, awayMax))
-	add("Queue", b.panel == boardQueue, qh, queueWindow(queue, queueHeads, queueCursor, qh-2))
+	add("Queue", b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
 	pins, pinCursor := m.pinLines()
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
 	return lines
@@ -612,25 +613,6 @@ func window(lines []string, cursor, h int) []string {
 	}
 	start := max(min(cursor-h/2, len(lines)-h), 0)
 	return lines[start : start+h]
-}
-
-// queueWindow is window for the queue, whose builds may take two lines: it
-// never starts on a build's reason line with the build itself scrolled away.
-// heads marks the lines that start a build.
-func queueWindow(lines []string, heads []bool, cursor, h int) []string {
-	if h <= 0 || len(lines) <= h {
-		return lines
-	}
-	start := max(min(cursor-h/2, len(lines)-h), 0)
-	end := start + h
-	if !heads[start] && h > 1 {
-		if cursor < end-1 {
-			start, end = start-1, end-1 // show the reason's build as well
-		} else {
-			start++ // the cursor is on the last line: drop the orphan reason
-		}
-	}
-	return lines[start:end]
 }
 
 func (m Model) needsLines() []string {
@@ -683,56 +665,57 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	return out
 }
 
-// queueLines draws the queue, and says which line holds the cursor. Why a
-// build waits goes on its own line under the build, so it is not cut off at
-// the panel's edge; the agents' names go when even that line is too wide.
-func (m Model) queueLines(inner int) ([]string, int, []bool) {
+// queueLines draws the queue, one line per build, and says which line holds
+// the cursor. The columns are as wide as their widest value, and why a build
+// waits comes before the trigger reason: when the line is too wide the
+// reason is cut short with an ellipsis, then the agents' names go, so the
+// why stays readable.
+func (m Model) queueLines(inner int) ([]string, int) {
 	b := &m.board
 	switch {
 	case !b.have:
-		return []string{dimStyle.Render("  reading the queue…")}, 0, []bool{true}
+		return []string{dimStyle.Render("  reading the queue…")}, 0
 	case !b.data.QueueOK:
-		return []string{"  " + b.data.QueueNote}, 0, []bool{true}
+		return []string{"  " + b.data.QueueNote}, 0
 	case len(b.data.Queue) == 0:
-		return []string{dimStyle.Render("  The queue is empty")}, 0, []bool{true}
+		return []string{dimStyle.Render("  The queue is empty")}, 0
 	}
-	const whyIndent = "     "
-	var out []string
-	var heads []bool
-	cursorLine := 0
+	waits := make([]string, len(b.data.Queue))
+	posW, keyW, waitW := 0, 0, 0
 	for i, r := range b.data.Queue {
 		// Waited is as of the last read; it keeps counting until the next.
 		w := r.Waited + max(m.now().Sub(b.loadedAt), 0)
-		waited := brief(w)
+		waits[i] = brief(w)
 		if w <= 0 {
-			waited = "0s"
+			waits[i] = "0s"
 		}
 		if r.AtLeast {
-			waited = "at least " + waited
+			waits[i] = "at least " + waits[i]
 		}
-		sel := i == b.cursor[boardQueue]
-		if sel {
-			cursorLine = len(out)
-		}
-		out = append(out, fmt.Sprintf("%s%d  %-18s %-14s %s", m.cursorFor(b.panel == boardQueue, sel), r.Position, r.Key, waited, dimStyle.Render(r.Reason)))
-		heads = append(heads, true)
+		posW = max(posW, len(fmt.Sprint(r.Position)))
+		keyW = max(keyW, lipgloss.Width(r.Key))
+		waitW = max(waitW, lipgloss.Width(waits[i]))
+	}
+	var out []string
+	for i, r := range b.data.Queue {
+		head := fmt.Sprintf("%s%-*d  %-*s  %-*s  ", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), posW, r.Position, keyW, r.Key, waitW, waits[i])
+		room := inner - lipgloss.Width(head)
 		why := view.WhyText(r.Why)
-		if why == "" {
-			continue
-		}
-		if len(r.Why.Agents) > 0 && lipgloss.Width(whyIndent+why) > inner {
+		if r.Why != nil && len(r.Why.Agents) > 0 && lipgloss.Width(why) > room {
 			short := *r.Why
 			short.Agents = nil
 			why = view.WhyText(&short)
 		}
-		if sel {
-			// Keep the reason in view along with its build.
-			cursorLine = len(out)
+		text := r.Reason
+		if why != "" {
+			text = why
+			if rest := room - lipgloss.Width(why+" · "); r.Reason != "" && rest > 1 {
+				text += " · " + ansi.Truncate(r.Reason, rest, "…")
+			}
 		}
-		out = append(out, whyIndent+dimStyle.Render(why))
-		heads = append(heads, false)
+		out = append(out, head+dimStyle.Render(text))
 	}
-	return out, cursorLine, heads
+	return out, b.cursor[boardQueue]
 }
 
 // pinLines draws the groups, and says which line holds the cursor.

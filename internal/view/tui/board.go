@@ -684,7 +684,11 @@ func (m Model) queueLines() []string {
 		if r.AtLeast {
 			waited = "at least " + waited
 		}
-		out = append(out, fmt.Sprintf("%s%d  %-18s %-14s %s", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), r.Position, r.Key, waited, dimStyle.Render(r.Reason)))
+		reason := r.Reason
+		if why := view.WhyText(r.Why); why != "" {
+			reason += " · " + why
+		}
+		out = append(out, fmt.Sprintf("%s%d  %-18s %-14s %s", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), r.Position, r.Key, waited, dimStyle.Render(reason)))
 	}
 	return out
 }

@@ -727,3 +727,25 @@ func TestBoardStartsOnTheBoardWhenAsked(t *testing.T) {
 	m = New(Deps{})
 	require.Equal(t, screenHome, m.screen, "without pins bam opens the plan table")
 }
+
+// Intent (BAM-34 P3): the live board's queue says why each build waits, as
+// bam queue's WHY column does, and a narrow board still keeps every line
+// inside its panel.
+func TestBoardQueueSaysWhyABuildWaits(t *testing.T) {
+	data := sampleBoard(goldenNow)
+	data.Queue[0].Why = &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}
+	data.Queue[1].Why = &provider.Why{Case: provider.WhyNoAgent}
+	for _, w := range []int{140, 60} {
+		m := boardModel(w, 30)
+		m.board.loadGen++
+		m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+		v := ansi.Strip(m.View())
+		for _, l := range strings.Split(v, "\n") {
+			require.LessOrEqual(t, ansi.StringWidth(l), w, "width %d: %q", w, l)
+		}
+		if w == 140 {
+			require.Contains(t, v, "Manual build · 2 agents can run it (linux-1, linux-2), all busy, offline or disabled")
+			require.Contains(t, v, "Scheduled · no agent can run it")
+		}
+	}
+}

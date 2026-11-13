@@ -224,3 +224,15 @@ func TestAPinTreeIsNotSavedUntilItsBuildHasSettled(t *testing.T) {
 	svc.PinTree(context.Background(), root)
 	require.Equal(t, before, lists(), "once settled the tree is saved and not read again")
 }
+
+// Intent (review of this change): a board that runs for days keeps the memo
+// of the build a pin shows now, not of every build it showed before.
+func TestAPinKeepsOnlyTheMemoOfItsNewestBuild(t *testing.T) {
+	var c pinTreeCache
+	c.memo("PROJ-TOP", "PROJ-TOP-8")
+	c.memo("PROJ-OTHER", "PROJ-OTHER-1")
+	c.memo("PROJ-TOP", "PROJ-TOP-9")
+	require.Len(t, c.m, 2)
+	require.Contains(t, c.m, "PROJ-TOP-9")
+	require.Contains(t, c.m, "PROJ-OTHER-1")
+}

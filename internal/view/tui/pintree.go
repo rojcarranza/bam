@@ -32,12 +32,11 @@ func (b *boardState) pinSels() []pinSel {
 	for _, g := range b.data.Groups {
 		for _, p := range g.Pins {
 			out = append(out, pinSel{pin: p})
-			if b.folded[p.Pin] {
-				continue
-			}
-			for _, l := range pinTreeRows(p, noText) {
-				if l.node != nil && !l.node.NotRun {
-					out = append(out, pinSel{pin: p, node: l.node})
+			if !b.folded[p.Pin] {
+				for _, l := range pinTreeRows(p, noText) {
+					if l.node != nil && !l.node.NotRun {
+						out = append(out, pinSel{pin: p, node: l.node})
+					}
 				}
 			}
 			for _, br := range p.Branches {
@@ -273,6 +272,7 @@ func (m Model) toggleFold() Model {
 		for i, s := range sels {
 			if s.node == nil && s.pin.Pin == pin.Pin {
 				b.cursor[boardPins] = i
+				break
 			}
 		}
 	}

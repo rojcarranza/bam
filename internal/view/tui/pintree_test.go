@@ -211,3 +211,27 @@ func TestBoardPinWithATreeAndBranchesKeepsBothInOrder(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "PROJ-TOP0", pin.PlanKey, "the fourth line below the pin is its branch")
 }
+
+// Intent (review of this change): folding a pin's tree leaves its branch rows
+// drawn, so the cursor stops on each of them and the keys act on the line
+// marked.
+func TestFoldedPinKeepsItsBranchRowsAddressable(t *testing.T) {
+	m := pinCursor(treeBoardModel(120, 45, func(b *app.Board) {
+		br := app.PinView{Pin: "PROJ-TOP", PlanKey: "PROJ-TOP0", Branch: "feature-y", Name: "Top pipeline",
+			Results: []provider.Build{{Key: "PROJ-TOP0-2", PlanKey: "PROJ-TOP0", Number: 2, State: provider.StateSuccess}}}
+		b.Groups[0].Pins[0].Branches = []app.PinView{br}
+	}))
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey(" "))
+	pin, ok := m.boardPin()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-TOP", pin.PlanKey, "folding from a child line puts the cursor on the pin itself")
+	m, _ = send(m, mkKey("j"))
+	pin, ok = m.boardPin()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-TOP0", pin.PlanKey, "the next line is the branch row")
+	require.Contains(t, plain(m), "▸ Top pipeline@", "and it is the line marked")
+	m, _ = send(m, mkKey("j"))
+	pin, _ = m.boardPin()
+	require.Equal(t, "PROJ-BUILD", pin.PlanKey, "then the next pin")
+}

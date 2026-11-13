@@ -22,6 +22,7 @@ const pinSettle = 2 * time.Minute
 // pinTreeMemo is what the board keeps of one pinned build's tree between
 // refreshes, so a refresh reads only what runs.
 type pinTreeMemo struct {
+	plan      string // the plan of the root, so a newer build of it replaces this memo
 	mu        sync.Mutex
 	scan      *treeScan
 	done      map[string]provider.Build
@@ -35,14 +36,22 @@ type pinTreeCache struct {
 	m  map[string]*pinTreeMemo
 }
 
-func (c *pinTreeCache) memo(key string) *pinTreeMemo {
+// memo is the memo of the root build key of plan. Memos of older builds of
+// the same plan are dropped: a pin shows one build at a time, and a board that
+// runs for days would otherwise keep every tree it ever read.
+func (c *pinTreeCache) memo(plan, key string) *pinTreeMemo {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.m == nil {
 		c.m = map[string]*pinTreeMemo{}
 	}
+	for k, m := range c.m {
+		if m.plan == plan && k != key {
+			delete(c.m, k)
+		}
+	}
 	if c.m[key] == nil {
-		c.m[key] = &pinTreeMemo{done: map[string]provider.Build{}}
+		c.m[key] = &pinTreeMemo{plan: plan, done: map[string]provider.Build{}}
 	}
 	return c.m[key]
 }
@@ -98,7 +107,7 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 			return &t
 		}
 	}
-	m := s.pinTrees.memo(root.Key)
+	m := s.pinTrees.memo(root.PlanKey, root.Key)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	now := s.Clock.Now()

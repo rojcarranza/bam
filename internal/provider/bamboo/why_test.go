@@ -2,6 +2,7 @@ package bamboo
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/rojcarranza/bam/internal/errs"
@@ -99,20 +100,81 @@ func TestAgentJobsLeavesOutAnAgentRemovedSinceTheListWasRead(t *testing.T) {
 }
 
 func TestAgentJobsWhenEveryAgentIsMissingIsLearnedAsRefused(t *testing.T) {
-	c, _ := newTestServer(t, map[string]*route{})
+	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/agent": {fixture: "recorded/agents_one_remote.json"}})
 	saved := knownCaps(c, Capabilities{})
 	_, err := c.AgentJobs(ctx, recordedAgent)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Equal(t, "no", (*saved)[len(*saved)-1].AgentJobs)
 }
 
+// Intent (BAM-43): while bam does not yet know the agent details work (the
+// capabilities were reset after a week or an upgrade), an agent removed since
+// the caller's list was read must not turn the check off for a week: the
+// agent list no longer names it, so the 404 means it is gone.
+func TestAgentJobsWhenEveryAgentAskedWasRemovedLearnsNothing(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/agent": {fixture: "agents.json"}})
+	saved := knownCaps(c, Capabilities{})
+	got, err := c.AgentJobs(ctx, recordedAgent)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	for _, cp := range *saved {
+		assert.NotEqual(t, "no", cp.AgentJobs)
+	}
+	assert.NotEqual(t, "no", c.Capabilities().AgentJobs)
+}
+
+// Intent (BAM-43): bam now asks only for agents it has no recent answer for,
+// often a single agent, so one agent removed since the list was read must
+// not turn the check off for a week once the endpoint is known to work.
+func TestAgentJobsWhenAKnownEndpointMissesEveryAgentAsked(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{})
+	saved := knownCaps(c, Capabilities{AgentJobs: "yes"})
+	got, err := c.AgentJobs(ctx, recordedAgent)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	assert.Empty(t, *saved, "a removed agent teaches nothing")
+	assert.Equal(t, "yes", c.Capabilities().AgentJobs)
+
+	before := len(rec.all())
+	_, err = c.AgentJobs(ctx, recordedAgent)
+	require.NoError(t, err)
+	assert.Greater(t, len(rec.all()), before, "the next call still asks")
+}
+
+// Intent (BAM-43): a list Bamboo cut short stays short, so it is learned as a
+// refusal and later runs read no agent's details only to be cut short again.
 func TestAgentJobsWithACutShortListIsRefusedNotMisleading(t *testing.T) {
-	c, _ := newTestServer(t, map[string]*route{
+	c, rec := newTestServer(t, map[string]*route{
 		agentDetailPath: {body: `{"executableJobs":{"size":3,"executableJobs":[{"key":{"key":"PROJ-HOLD-SL"}}]}}`},
 	})
-	knownCaps(c, Capabilities{})
+	saved := knownCaps(c, Capabilities{})
 	_, err := c.AgentJobs(ctx, recordedAgent)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
+	require.NotEmpty(t, *saved)
+	assert.Equal(t, "no", (*saved)[len(*saved)-1].AgentJobs)
+
+	before := len(rec.all())
+	_, err = c.AgentJobs(ctx, recordedAgent)
+	assert.True(t, errors.Is(err, errs.ErrUnsupported))
+	assert.Equal(t, before, len(rec.all()), "a learned no does not ask again")
+}
+
+// Intent (BAM-43): when agent details fail, bam stops reading the agents it
+// has not read yet instead of asking a struggling server for every one.
+func TestAgentJobsStopsAtTheFirstFailure(t *testing.T) {
+	routes := map[string]*route{}
+	var agents []provider.Agent
+	for id := 1; id <= 60; id++ {
+		routes[fmt.Sprintf("GET /rest/api/latest/agent/%d?expand=executableJobs[0:1000]", id)] = &route{status: 500, body: `{"message":"internal error"}`}
+		agents = append(agents, provider.Agent{ID: id, Name: fmt.Sprintf("linux-%d", id)})
+	}
+	c, rec := newTestServer(t, routes)
+	saved := knownCaps(c, Capabilities{})
+	_, err := c.AgentJobs(ctx, agents)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, errs.ErrUnsupported), "a failure is not a refusal")
+	assert.LessOrEqual(t, len(rec.all()), agentReaders*maxAttempts, "only the agents being read when it failed")
+	assert.Empty(t, *saved, "nothing is learned from a failure")
 }
 
 func TestAgentListRefusalIsLearnedForTheWhyCheck(t *testing.T) {

@@ -131,6 +131,18 @@ func TestBuildShowAndTreeNameWhyBesideTheQueuePlace(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "queue 3 of 3 · 2 agents can run it")
 }
 
+// Intent (BAM-43): bam queue, build show and the tree share one read of the
+// jobs each agent can run, kept in bam's cache for an hour, so running them
+// again does not read every agent's details again.
+func TestQueueAndBuildShowReadTheAgentsJobsOnceAcrossRuns(t *testing.T) {
+	h := whyHarness(t)
+	require.Equal(t, 0, h.run("queue"))
+	require.Equal(t, 0, h.run("queue"))
+	require.Equal(t, 0, h.run("build", "show", "PROJ-BUILD-45"))
+	assert.Contains(t, h.stdout.String(), "2 agents can run it (linux-1, linux-2)")
+	assert.Equal(t, 1, h.fake.AgentJobsCalls)
+}
+
 func TestWhyWithoutAdministratorRightsKeepsWhatIsReadable(t *testing.T) {
 	h := whyHarness(t)
 	h.fake.AgentsErr = errs.Authf("403 from bamboo.example.com: the agent list needs an administrator")

@@ -55,6 +55,7 @@ type Provider struct {
 	AgentJobMap    map[string][]string // by agent name: the jobs it can run
 	AgentJobsErr   error               // returned when AgentJobMap is nil
 	AgentJobsCalls int
+	AgentJobsAsked [][]string // the agent names each AgentJobs call asked about
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -323,12 +324,24 @@ func (f *Provider) Agents(context.Context) ([]provider.Agent, error) {
 	return f.AgentList, f.AgentsErr
 }
 
-func (f *Provider) AgentJobs(context.Context, []provider.Agent) (map[string][]string, error) {
+// AgentJobs answers AgentJobMap for the agents asked about, as Bamboo
+// answers only the agents it is asked about; an agent the map does not hold
+// runs nothing.
+func (f *Provider) AgentJobs(_ context.Context, agents []provider.Agent) (map[string][]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.AgentJobsCalls++
+	asked := make([]string, 0, len(agents))
+	for _, a := range agents {
+		asked = append(asked, a.Name)
+	}
+	f.AgentJobsAsked = append(f.AgentJobsAsked, asked)
 	if f.AgentJobMap != nil {
-		return f.AgentJobMap, nil
+		out := map[string][]string{}
+		for _, a := range agents {
+			out[a.Name] = f.AgentJobMap[a.Name]
+		}
+		return out, nil
 	}
 	if f.AgentJobsErr != nil {
 		return nil, f.AgentJobsErr

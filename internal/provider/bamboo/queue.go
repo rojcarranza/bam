@@ -124,56 +124,108 @@ type agentDetailDTO struct {
 // AgentJobs says which jobs each of agents can run, by agent name: the jobs
 // whose requirements the agent's capabilities meet. Bamboo shows it only to
 // administrators, one agent at a time, so up to agentReaders agents are read
-// at once; a refusal is learned once and answers ErrUnsupported afterwards.
-// An agent removed since the list was read is left out; only when every
-// agent is missing is the endpoint taken to be absent.
+// at once. A refusal, or a list Bamboo cut short, is learned once and answers
+// ErrUnsupported afterwards with no request. An agent removed since the list
+// was read is left out. When every agent asked about is missing and the
+// endpoint is not yet known to work, the agent list is read once to tell the
+// causes apart: if none of them is listed they were removed and the answer is
+// an empty map; if any is still listed the endpoint is absent and that is
+// learned; if the list cannot be read the answer is a refusal, not learned.
+// Once the endpoint is known to work, those agents were removed and the
+// answer is an empty map. The first other failure stops the agents not read
+// yet.
 func (c *Client) AgentJobs(ctx context.Context, agents []provider.Agent) (map[string][]string, error) {
 	refused := errs.Bamboof("this Bamboo does not tell which jobs each agent can run").
 		WithWhy("the agent details need an administrator").Wrap(errs.ErrUnsupported)
 	if c.fresh(ctx).AgentJobs == "no" {
 		return nil, refused
 	}
+	read, cancel := context.WithCancel(ctx)
+	defer cancel()
 	keys := make([][]string, len(agents))
-	errOf := make([]error, len(agents))
+	got := make([]bool, len(agents))
+	var mu sync.Mutex
+	var first error // the answer that stopped the reads
 	sem := make(chan struct{}, agentReaders)
 	var wg sync.WaitGroup
 	for i, a := range agents {
 		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			keys[i], errOf[i] = c.agentJobs(ctx, a.ID)
+			if read.Err() != nil {
+				return
+			}
+			k, err := c.agentJobs(read, a.ID)
+			switch {
+			case err == nil:
+				keys[i], got[i] = k, true
+			case statusOf(err) == http.StatusNotFound: // removed since the list was read
+			default:
+				mu.Lock()
+				if first == nil {
+					first = err
+				}
+				mu.Unlock()
+				cancel()
+			}
 		})
 	}
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if first != nil {
+		s := statusOf(first)
+		if s == http.StatusForbidden || s == http.StatusUnauthorized || isUnsupportedStatus(first) || errors.Is(first, errs.ErrUnsupported) {
+			c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
+			if errors.Is(first, errs.ErrUnsupported) {
+				return nil, first
+			}
+			return nil, refused
+		}
+		return nil, first
+	}
 	out := make(map[string][]string, len(agents))
 	for i, a := range agents {
-		if err := errOf[i]; err != nil {
-			if statusOf(err) == http.StatusNotFound {
-				continue
-			}
-			if s := statusOf(err); s == http.StatusForbidden || s == http.StatusUnauthorized || isUnsupportedStatus(err) {
-				c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
-				return nil, refused
-			}
-			if errors.Is(err, errs.ErrUnsupported) {
-				return nil, refused
-			}
-			return nil, err
+		if got[i] {
+			out[a.Name] = keys[i]
 		}
-		out[a.Name] = keys[i]
 	}
-	if len(agents) > 0 && len(out) == 0 {
+	known := c.Capabilities().AgentJobs == "yes"
+	if len(agents) > 0 && len(out) == 0 && !known {
+		listed, err := c.Agents(ctx)
+		if err != nil {
+			return nil, refused
+		}
+		if !anyListed(agents, listed) {
+			return out, nil
+		}
 		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
 		return nil, refused
 	}
-	if c.Capabilities().AgentJobs != "yes" {
+	if !known {
 		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "yes" })
 	}
 	return out, nil
 }
 
+// anyListed reports whether any of agents is still in listed, by ID.
+func anyListed(agents, listed []provider.Agent) bool {
+	ids := make(map[int]bool, len(listed))
+	for _, a := range listed {
+		ids[a.ID] = true
+	}
+	for _, a := range agents {
+		if ids[a.ID] {
+			return true
+		}
+	}
+	return false
+}
+
 // agentJobs reads the jobs the agent id can run. A list Bamboo cut short
-// answers ErrUnsupported: it would name too few agents.
+// answers ErrUnsupported: it would name too few agents, and it stays short
+// on every later read.
 func (c *Client) agentJobs(ctx context.Context, id int) ([]string, error) {
 	var d agentDetailDTO
 	q := url.Values{"expand": {"executableJobs[0:" + queueListMax + "]"}}
@@ -181,7 +233,8 @@ func (c *Client) agentJobs(ctx context.Context, id int) ([]string, error) {
 		return nil, err
 	}
 	if d.ExecutableJobs.Size > len(d.ExecutableJobs.Jobs) {
-		return nil, errs.ErrUnsupported
+		return nil, errs.Bamboof("Bamboo lists %d of the %d jobs agent %d can run", len(d.ExecutableJobs.Jobs), d.ExecutableJobs.Size, id).
+			WithWhy("it cuts the list short, so bam cannot tell which agents can run a job").Wrap(errs.ErrUnsupported)
 	}
 	keys := make([]string, 0, len(d.ExecutableJobs.Jobs))
 	for _, j := range d.ExecutableJobs.Jobs {

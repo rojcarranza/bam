@@ -28,8 +28,10 @@ type Provider interface {
 	Agents(ctx context.Context) ([]Agent, error)
 	// AgentJobs says, for each of agents by name, the jobs (plan keys such
 	// as PROJ-PLAN-JOB1) its capabilities let it run, disabled and offline
-	// agents included. agents is the list Agents answered. It needs an
-	// administrator; a refusal wraps errs.ErrUnsupported.
+	// agents included. agents is the list Agents answered, or the part of it
+	// the caller has no recent answer for; an agent left out of the answer
+	// no longer exists. It needs an administrator; a refusal wraps
+	// errs.ErrUnsupported.
 	AgentJobs(ctx context.Context, agents []Agent) (map[string][]string, error)
 	URL(key string) string
 	// RepositoriesURL is the page where a person sets which branch each

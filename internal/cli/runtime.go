@@ -174,6 +174,9 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 	svc := &app.Service{P: backend, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
 		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv,
 		Checkout: r.checkedOutBranch, Head: r.checkedOutCommit}
+	if r.env.Paths.AgentJobs != "" {
+		svc.AgentJobs = &app.AgentJobStore{Dir: r.env.Paths.AgentJobs}
+	}
 	return svc, backend, nil
 }
 

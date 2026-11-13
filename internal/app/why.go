@@ -2,30 +2,39 @@ package app
 
 import (
 	"context"
+	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
 )
 
-// whyTTL is how long the agent list and a job's possible agents are kept, so
-// a watched tree or a refreshing board does not ask again every poll.
+// whyTTL is how long the agent list is kept, so a watched tree or a
+// refreshing board does not ask again every poll. It is also the shortest
+// time between two asks for agent details; what those said is kept for
+// agentJobsTTL.
 const whyTTL = 30 * time.Second
 
 // whyJobs is how many of a build's queued jobs are looked at.
 const whyJobs = 5
 
-// whyCache holds what the why-it-waits sources answered, for whyTTL.
+// whyCache holds what the why-it-waits sources answered: the agent list for
+// whyTTL, and the jobs each agent can run for agentJobsTTL.
 type whyCache struct {
 	mu       sync.Mutex
 	agentsAt time.Time
 	agents   []provider.Agent
 	agentsOK bool
-	jobsAt   time.Time
-	jobs     map[string][]string // agent name → the jobs it can run
-	jobsOK   bool
+
+	loaded   bool                 // jobs holds what the store kept
+	jobs     map[string]agentJobs // by agent name
+	jobsTry  time.Time            // when bam last asked for agent details
+	jobsWait time.Duration        // how long after jobsTry it may ask again
+	jobsOK   bool                 // false when the last ask was refused or failed
 }
 
 // seedAgents keeps an agent list the caller has just read, or its refusal.
@@ -59,27 +68,82 @@ func (s *Service) whyAgents(ctx context.Context) ([]provider.Agent, bool) {
 }
 
 // whyPossible names the agents in agents that can run the job planKey, in
-// name order, or false when the server refuses to say. Like whyAgents, it
-// holds the cache while it asks.
-func (s *Service) whyPossible(ctx context.Context, agents []provider.Agent, planKey string) ([]string, bool) {
+// name order, or false when bam cannot tell: the server refuses to say, or
+// no agent's list names the job and some list was read before the job was
+// queued at queuedAt, so the job's plan may be newer than the lists. A zero
+// queuedAt, a job whose queued time is not known, trusts only a list read
+// now.
+//
+// Each agent's list is kept for agentJobsTTL, in the Service and in its
+// AgentJobs store, so only an agent bam has no list for, or an old list, is
+// read again, and no more often than whyTTL apart. Like whyAgents, it holds
+// the cache while it asks.
+func (s *Service) whyPossible(ctx context.Context, agents []provider.Agent, planKey string, queuedAt time.Time) ([]string, bool) {
 	c := &s.why
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.jobsAt.IsZero() || s.Clock.Now().Sub(c.jobsAt) >= whyTTL {
-		jobs, err := s.P.AgentJobs(ctx, agents)
+	now := s.Clock.Now()
+	if queuedAt.IsZero() {
+		queuedAt = now
+	}
+	if !c.loaded {
+		c.loaded, c.jobsOK = true, true
+		c.jobs = map[string]agentJobs{}
+		if s.AgentJobs != nil {
+			c.jobs = s.AgentJobs.Load(s.Origin, now)
+		}
+	}
+	var stale []provider.Agent
+	for _, a := range agents {
+		if e, ok := c.jobs[a.Name]; !ok || now.Sub(e.Read) >= agentJobsTTL {
+			stale = append(stale, a)
+		}
+	}
+	if len(stale) > 0 && (c.jobsTry.IsZero() || now.Sub(c.jobsTry) >= c.jobsWait) {
+		jobs, err := s.P.AgentJobs(ctx, stale)
 		if ctx.Err() != nil {
 			return nil, false
 		}
-		c.jobsAt, c.jobs, c.jobsOK = s.Clock.Now(), jobs, err == nil
+		c.jobsTry = now
+		switch {
+		case err == nil:
+			for _, a := range stale {
+				// An agent left out was removed since the list was read: it runs nothing.
+				c.jobs[a.Name] = agentJobs{Read: now, Jobs: slices.Sorted(slices.Values(jobs[a.Name]))}
+			}
+			listed := map[string]bool{}
+			for _, a := range agents {
+				listed[a.Name] = true
+			}
+			maps.DeleteFunc(c.jobs, func(name string, _ agentJobs) bool { return !listed[name] })
+			if s.AgentJobs != nil {
+				s.AgentJobs.Save(s.Origin, c.jobs)
+			}
+			c.jobsOK, c.jobsWait = true, whyTTL
+		case errors.Is(err, errs.ErrUnsupported):
+			c.jobsOK, c.jobsWait = false, whyTTL // learned by the provider: asking again sends nothing
+		default:
+			c.jobsOK, c.jobsWait = false, agentJobsRetry
+		}
 	}
-	if !c.jobsOK {
-		return nil, false
+	if !c.jobsOK && len(stale) > 0 {
+		return nil, false // a list bam needs could not be read
 	}
 	names := []string{}
-	for name, keys := range c.jobs {
-		if slices.Contains(keys, planKey) {
-			names = append(names, name)
+	unsure := false
+	for _, a := range agents {
+		e, ok := c.jobs[a.Name]
+		switch {
+		case !ok:
+			unsure = true // listed since bam last asked: not read yet
+		case e.canRun(planKey):
+			names = append(names, a.Name)
+		case e.Read.Before(queuedAt):
+			unsure = true
 		}
+	}
+	if len(names) == 0 && unsure {
+		return nil, false
 	}
 	slices.Sort(names)
 	return names, true
@@ -119,7 +183,14 @@ func (s *Service) WhyWaits(ctx context.Context, b provider.Build, ahead int) *pr
 	}
 	var worst *provider.Why
 	for _, j := range jobs {
-		w := s.whyJob(ctx, j, ahead)
+		queuedAt := j.QueuedAt
+		if queuedAt.IsZero() {
+			queuedAt = b.QueuedAt
+		}
+		if queuedAt.IsZero() {
+			queuedAt = b.StartedAt // a queued build can carry only the time it was started, as on the board
+		}
+		w := s.whyJob(ctx, j, ahead, queuedAt)
 		if worst == nil || whyRank(w.Case) < whyRank(worst.Case) {
 			worst = w
 		}
@@ -144,14 +215,14 @@ func whyRank(c string) int {
 	return 4
 }
 
-func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int) *provider.Why {
+func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int, queuedAt time.Time) *provider.Why {
 	yes, no := true, false
 	w := &provider.Why{}
 	agents, agentsOK := s.whyAgents(ctx)
 	if !agentsOK {
 		return w
 	}
-	names, possibleOK := s.whyPossible(ctx, agents, jobPlanKey(j.Key))
+	names, possibleOK := s.whyPossible(ctx, agents, jobPlanKey(j.Key), queuedAt)
 	if possibleOK {
 		w.Count = len(names)
 		if len(names) > 0 && len(names) <= 3 {

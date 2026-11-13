@@ -83,7 +83,11 @@ func newPinAddCmd(r *runtime) *cobra.Command {
 			}
 			for _, g := range groups {
 				if g.Name != group && slices.Contains(g.Pins, pin) {
-					return errs.Usagef("%s is already pinned in group %q", pin, g.Name).WithTry("bam pin rm " + pin + " first")
+					try := "bam pin rm " + pin + " first"
+					if cfg.ProjectPins(pin) {
+						try = "remove it from " + cfg.ProjectPath + " by hand first"
+					}
+					return errs.Usagef("%s is already pinned in group %q", pin, g.Name).WithTry(try)
 				}
 			}
 			if err := config.AddPin(r.env.Paths.MachineConfig, group, pin); err != nil {

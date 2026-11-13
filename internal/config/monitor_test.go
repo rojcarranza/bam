@@ -35,6 +35,19 @@ func TestMonitorAcceptsPresetPins(t *testing.T) {
 	assert.Equal(t, []PinGroup{{Name: "integration", Pins: []string{"provision"}}}, got)
 }
 
+func TestMonitorLeavesAnUnknownPresetToTheBoard(t *testing.T) {
+	cfg, err := loadProject(t, "version: 1\n", "version: 1\nmonitor:\n  release: [deploy-qa]\n")
+	require.NoError(t, err)
+	got, err := cfg.Monitor()
+	require.NoError(t, err, "a preset defined in another repository must not break the board here")
+	assert.Equal(t, []PinGroup{{Name: "release", Pins: []string{"deploy-qa"}}}, got)
+
+	err = cfg.CheckPin("deploy-qa")
+	require.Error(t, err)
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+	assert.Contains(t, err.Error(), "deploy-qa is not a preset")
+}
+
 func TestMonitorWithoutPinsIsEmpty(t *testing.T) {
 	cfg, err := loadProject(t, "version: 1\n", "version: 1\n")
 	require.NoError(t, err)
@@ -49,7 +62,6 @@ func TestMonitorValidation(t *testing.T) {
 		{"monitor:\n  integration: []\n", `group "integration" has no pins`},
 		{"monitor:\n  integration: [PROJ-BUILD, PROJ-BUILD]\n", "pins PROJ-BUILD twice"},
 		{"monitor:\n  a: [PROJ-BUILD]\n  b: [PROJ-BUILD]\n", `PROJ-BUILD is pinned in "a" and in "b"`},
-		{"monitor:\n  a: [proj-build]\n", "is not a preset"},
 		{"monitor:\n  a: [PROJ-BUILD@]\n", "names no branch"},
 		{"monitor:\n  a: [PROJ-BUILD-45]\n", "is not a plan key"},
 	} {

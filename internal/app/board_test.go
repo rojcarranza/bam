@@ -122,6 +122,24 @@ func TestBoardReadsPinsAndFlagsFailedAndSlowOnes(t *testing.T) {
 	assert.Contains(t, kinds, "pin_slow")
 }
 
+func TestBoardDoesNotReadAPresetOfAnotherServer(t *testing.T) {
+	svc := newService(t, nil)
+	svc.P = boardBamboo(svc.Clock.Now())
+	svc.Cfg.Project.Servers["lab"] = config.Server{URL: "http://bamboo.lab.example:8085"}
+	svc.Cfg.Project.Targets["deploy-lab"] = config.Target{Plan: "PROJ-BUILD", Server: "lab"}
+	svc.Cfg.Project.Targets["deploy-work"] = config.Target{Plan: "PROJ-BUILD", Server: "work"}
+	b, err := svc.Board(context.Background(), pins("release", "deploy-lab", "deploy-work", "unknown-preset"))
+	require.NoError(t, err)
+	got := b.Groups[0].Pins
+	require.Error(t, got[0].Err)
+	assert.Contains(t, got[0].Err.Error(), "preset deploy-lab is on server lab; bam top shows one server, work")
+	assert.Empty(t, got[0].Results, "the plan is not read from the wrong server")
+	assert.NoError(t, got[1].Err, "a preset on the board's server is read")
+	assert.Equal(t, "PROJ-BUILD", got[1].PlanKey)
+	require.Error(t, got[2].Err, "a preset unknown here is an error on its pin alone")
+	assert.Contains(t, got[2].Err.Error(), "unknown-preset")
+}
+
 func TestBoardDoesNotFlagARunWithinHalfAgainOfUsual(t *testing.T) {
 	svc := newService(t, nil)
 	now := svc.Clock.Now()

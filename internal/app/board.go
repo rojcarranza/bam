@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -216,6 +217,10 @@ func (s *Service) readPin(ctx context.Context, pin string) PinView {
 	ref, err := s.ResolvePlan(ctx, plan, branch)
 	if err != nil {
 		v.Err = err
+		return v
+	}
+	if t := ref.Target; t != nil && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
+		v.Err = errs.Usagef("preset %s is on server %s; bam top shows one server, %s", plan, t.Server, s.Server.Alias)
 		return v
 	}
 	v.PlanKey, v.Branch = ref.PlanKey, ref.Branch

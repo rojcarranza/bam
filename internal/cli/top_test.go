@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -163,6 +164,29 @@ func TestPinAddListRm(t *testing.T) {
 	assert.Equal(t, 2, h.run("pin", "rm", "provision-lab"))
 	require.Equal(t, 0, h.run("pin", "list", "--json"))
 	assert.JSONEq(t, `[{"group":"integration","pins":["PROJ-BUILD"]},{"group":"release","pins":["PROJ-PROV@develop"]}]`, h.stdout.String())
+}
+
+func TestPinAddPointsAtTheProjectFileForAProjectPin(t *testing.T) {
+	h := topHarness(t)
+	project := filepath.Join(h.root, ".bam.yaml")
+	data, err := os.ReadFile(project)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(project, append(data, []byte("monitor:\n  integration: [PROJ-BUILD]\n")...), 0o644))
+	assert.Equal(t, 2, h.run("pin", "add", "release", "PROJ-BUILD"))
+	assert.Contains(t, h.stderr.String(), "remove it from "+project+" by hand first")
+	assert.NotContains(t, h.stderr.String(), "bam pin rm")
+}
+
+func TestTopShowsAPresetUnknownHereOnItsPinAlone(t *testing.T) {
+	h := topHarness(t)
+	require.NoError(t, os.MkdirAll(strings.TrimSuffix(h.env.Paths.MachineConfig, "/config.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\nmonitor:\n  integration: [PROJ-BUILD, deploy-qa]\n"), 0o644))
+	require.Equal(t, 0, h.run("top"))
+	assert.Contains(t, h.stdout.String(), "deploy-qa")
+	assert.Regexp(t, `PROJ-BUILD\s+.*2m11s`, h.stdout.String())
+	require.Equal(t, 0, h.run("pin", "list"))
+	assert.Contains(t, h.stdout.String(), "integration  deploy-qa")
 }
 
 func TestPinListWithoutPins(t *testing.T) {

@@ -245,19 +245,21 @@ func (b *boardState) move(delta int) {
 }
 
 // readNothing says whether a read got nothing at all: no agents, no queue
-// and not one pin read.
+// and every pin it tried failed. A read with no pins to try read them all.
 func readNothing(d app.Board) bool {
 	if d.Agents != nil || d.QueueOK {
 		return false
 	}
+	tried := false
 	for _, g := range d.Groups {
 		for _, p := range g.Pins {
 			if p.Err == nil {
 				return false
 			}
+			tried = true
 		}
 	}
-	return true
+	return tried
 }
 
 // buildByKey is the build the board read with this key: queued, running

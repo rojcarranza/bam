@@ -210,7 +210,8 @@ func TestBoardMarksStaleAfterAFailedRead(t *testing.T) {
 	require.NotContains(t, m.View(), "stale")
 
 	m.board.loadGen++
-	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: app.Board{AgentsNote: "no", QueueNote: "no"}})
+	refused := []app.PinGroupView{{Name: "integration", Pins: []app.PinView{{Pin: "PROJ-BUILD", Err: errors.New("no")}, {Pin: "PROJ-PROV", Err: errors.New("no")}}}}
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: app.Board{AgentsNote: "no", QueueNote: "no", Groups: refused}})
 	require.True(t, m.board.stale)
 	require.Contains(t, m.View(), "stale")
 	require.Contains(t, m.View(), "PROJ-BUILD-500", "what was read before stays on screen")
@@ -246,6 +247,37 @@ func TestBoardShowsPinsWhenAgentsAndQueueAreRefused(t *testing.T) {
 	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: data})
 	require.True(t, m.board.stale, "agents, queue and every pin failed")
 	require.Contains(t, m.View(), "PROJ-BUILD-44", "what was read before stays on screen")
+
+	data.Groups = nil
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+	require.False(t, m.board.stale, "with nothing pinned, no pins is what there is to read")
+	require.NotContains(t, m.View(), "PROJ-BUILD-44")
+	require.Contains(t, m.View(), "No pipelines pinned")
+}
+
+// Unpinning the last pipeline, with agents and queue refused, empties the
+// Pinned panel rather than leaving the removed pin on screen as stale.
+func TestBoardUnpinningTheLastPinWithAgentsAndQueueRefused(t *testing.T) {
+	m := testModel()
+	m.width, m.height = 100, 30
+	m.screen = screenBoard
+	m.svc = testService()
+	m.now = func() time.Time { return goldenNow }
+	m.board.loading, m.board.loadGen = true, 1
+	data := sampleBoard(goldenNow)
+	data.Agents, data.AgentsNote = nil, "the agent list needs admin rights"
+	data.Queue, data.QueueOK, data.QueueNote = nil, false, "the queue was refused"
+	m, _ = send(m, boardLoadedMsg{Gen: 1, Full: true, Board: data})
+	require.Contains(t, m.View(), "PROJ-BUILD-44")
+
+	m, _ = send(m, boardPinnedMsg{Status: "unpinned PROJ-BUILD"})
+	data.Groups, data.Needs = nil, nil
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+	require.False(t, m.board.stale)
+	require.NotContains(t, m.View(), "stale")
+	require.NotContains(t, m.View(), "PROJ-BUILD-44")
+	require.Contains(t, m.View(), "No pipelines pinned")
 }
 
 func TestBoardDropsAReadOfAnOlderRequest(t *testing.T) {

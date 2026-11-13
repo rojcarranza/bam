@@ -31,7 +31,7 @@ func sampleBoard() app.Board {
 		},
 		QueueOK: true,
 		Groups: []app.PinGroupView{{Name: "integration", Pins: []app.PinView{
-			{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD", Current: &running,
+			{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD", Name: "Build and test", Current: &running,
 				Progress: provider.Progress{Valid: true, Percent: 0.62, Average: 10 * time.Minute},
 				Results: []provider.Build{
 					build("PROJ-BUILD-483", 483, provider.StateSuccess, 9*time.Minute),

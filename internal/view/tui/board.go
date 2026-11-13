@@ -520,6 +520,32 @@ func (m Model) boardPinKey() (tea.Model, tea.Cmd) {
 	return m, textinput.Blink
 }
 
+// startPinPlan is m on the plans table and on a plan's screen: it asks for
+// the group and pins the selected plan, as P does for a queued build.
+func (m Model) startPinPlan() (tea.Model, tea.Cmd) {
+	if m.deps.PinAdd == nil {
+		return m, nil
+	}
+	plan := ""
+	switch {
+	case m.screen == screenHome && m.home.view == homePlans:
+		if p, ok := m.plans.selected(); ok {
+			plan = p.Key
+		}
+	case m.screen == screenPlan:
+		plan = m.plan.key
+	}
+	if plan == "" {
+		return m, nil
+	}
+	m.board.pinFor = plan
+	m.inputFor = inputPin
+	m.input.SetValue("")
+	m.input.Prompt = "pin " + plan + " to group: "
+	m.input.Focus()
+	return m, textinput.Blink
+}
+
 // boardPinnedMsg says the settings file changed; the board reads it again.
 type boardPinnedMsg struct{ Status string }
 
@@ -950,6 +976,7 @@ func (m Model) pinLines(spaced bool) ([]string, int) {
 	}
 	var out []string
 	cursorLine, n := 0, 0
+	labelW := m.pinLabelWidth()
 	for gi, g := range b.data.Groups {
 		if spaced && gi > 0 {
 			out = append(out, "")
@@ -960,16 +987,35 @@ func (m Model) pinLines(spaced bool) ([]string, int) {
 			if sel {
 				cursorLine = len(out)
 			}
-			out = append(out, m.cursorFor(b.panel == boardPins, n == b.cursor[boardPins])+m.pinText(p))
+			out = append(out, m.cursorFor(b.panel == boardPins, n == b.cursor[boardPins])+m.pinText(p, labelW))
 			n++
 		}
 	}
 	return out, cursorLine
 }
 
-func (m Model) pinText(p app.PinView) string {
+// pinRest is the width of a pin's row besides its name: the results, the
+// current build, and the last and usual times, with the spaces between.
+const pinRest = 61
+
+// pinLabelWidth is the width of the name column of Pinned: the longest name
+// of a pin, at least 14, and no wider than what the terminal leaves after the
+// rest of the row.
+func (m Model) pinLabelWidth() int {
+	w := 14
+	for _, g := range m.board.data.Groups {
+		for _, p := range g.Pins {
+			if p.Err == nil {
+				w = max(w, lipgloss.Width(p.Label()))
+			}
+		}
+	}
+	return min(w, max(14, m.width-4-pinRest))
+}
+
+func (m Model) pinText(p app.PinView, labelW int) string {
 	if p.Err != nil {
-		return fmt.Sprintf("%-22s %s", p.Pin, errorStyle.Render("could not be read: "+p.Err.Error()))
+		return fmt.Sprintf("%-22s %s", p.Label(), errorStyle.Render("could not be read: "+p.Err.Error()))
 	}
 	var sb strings.Builder
 	for i := len(p.Results) - 1; i >= 0; i-- {
@@ -983,7 +1029,9 @@ func (m Model) pinText(p app.PinView) string {
 			now += fmt.Sprintf(" %s %s/%s", bar(float64(run)/float64(p.Usual), 6), brief(run), brief(p.Usual))
 		}
 	}
-	return fmt.Sprintf("%-14s %s %-24s last %s · usual %s", truncate(p.Pin, 14), results(sb.String(), len(p.Results)), now, brief(p.Last), brief(p.Usual))
+	label := truncate(p.Label(), labelW)
+	label += strings.Repeat(" ", max(labelW-lipgloss.Width(label), 0))
+	return fmt.Sprintf("%s %s %-24s last %s · usual %s", label, results(sb.String(), len(p.Results)), now, brief(p.Last), brief(p.Usual))
 }
 
 // bar draws frac (0 to 1, more is full) as w cells.

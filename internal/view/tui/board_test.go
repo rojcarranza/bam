@@ -51,8 +51,8 @@ func sampleBoard(at time.Time) app.Board {
 		},
 		Groups: []app.PinGroupView{
 			{Name: "integration", Pins: []app.PinView{
-				{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD", Results: []provider.Build{failed, ok(3)}, Last: 192 * time.Second, Usual: 3 * time.Minute},
-				{Pin: "PROJ-PROV", PlanKey: "PROJ-PROV", Results: []provider.Build{ok(8), ok(7)}, Current: &running, Last: 4 * time.Minute, Usual: 4 * time.Minute},
+				{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD", Name: "Build and test", Results: []provider.Build{failed, ok(3)}, Last: 192 * time.Second, Usual: 3 * time.Minute},
+				{Pin: "PROJ-PROV", PlanKey: "PROJ-PROV", Name: "Provision a lab cluster", Results: []provider.Build{ok(8), ok(7)}, Current: &running, Last: 4 * time.Minute, Usual: 4 * time.Minute},
 			}},
 		},
 	}
@@ -892,4 +892,75 @@ func TestBoardNeedsYouLongLineEndsInEllipsis(t *testing.T) {
 		require.NotContains(t, line, "disabled", "%v: the line should not fit: %q", size, line)
 		require.Regexp(t, `…\s*┃`, line, "%v: %q", size, line)
 	}
+}
+
+// Intent (pin by name): a pin shows its plan's name, as wide as the terminal
+// leaves room for, cut at its end; a pin without a name shows the pin.
+func TestBoardPinnedShowsThePlansNameAndCutsItToFit(t *testing.T) {
+	wide := boardModel(120, 30).View()
+	require.Contains(t, wide, "Provision a lab cluster")
+	require.Contains(t, wide, "Build and test")
+	require.NotContains(t, wide, "PROJ-BUILD  ", "the name replaces the key in the row")
+
+	narrow := boardModel(80, 24).View()
+	require.Contains(t, narrow, "Provision a lab", "the name is cut at its end to fit")
+	require.NotContains(t, narrow, "Provision a lab cluster")
+}
+
+func TestPinViewLabel(t *testing.T) {
+	require.Equal(t, "PROJ-BUILD", app.PinView{Pin: "PROJ-BUILD"}.Label())
+	require.Equal(t, "Build and test", app.PinView{Pin: "PROJ-BUILD", Name: "Build and test"}.Label())
+	require.Equal(t, "Build and test@develop", app.PinView{Pin: "PROJ-BUILD@develop", Name: "Build and test", Branch: "develop"}.Label())
+}
+
+// Intent (pin by name): m pins the plan under the cursor on the plans table
+// and on a plan's screen, after asking for the group, and nowhere else.
+func TestMPinsTheSelectedPlanFromTheTable(t *testing.T) {
+	var group, plan string
+	m := homeModel()
+	m.deps.PinAdd = func(g, p string) error { group, plan = g, p; return nil }
+	want := selectedKey(m)
+	m, _ = send(m, mkKey("m"))
+	require.Equal(t, inputPin, m.inputFor)
+	require.Contains(t, m.input.Prompt, want)
+	for _, r := range "release" {
+		m, _ = send(m, mkKey(string(r)))
+	}
+	m, cmd := send(m, mkKey("enter"))
+	msg := cmd()
+	require.Equal(t, "release", group)
+	require.Equal(t, want, plan)
+	m, cmd = send(m, msg)
+	require.Contains(t, m.status, "pinned "+want+" in release")
+	require.Nil(t, cmd, "off the board there is no board to read again")
+}
+
+func TestMPinsAPlanFromItsScreen(t *testing.T) {
+	var plan string
+	m := testModel()
+	m.plan.key = "PROJ-BUILD"
+	m.deps.PinAdd = func(_, p string) error { plan = p; return nil }
+	m, _ = send(m, mkKey("m"))
+	require.Equal(t, inputPin, m.inputFor)
+	m, _ = send(m, mkKey("g"))
+	_, cmd := send(m, mkKey("enter"))
+	cmd()
+	require.Equal(t, "PROJ-BUILD", plan)
+}
+
+func TestMDoesNothingWithoutAPlanOrWhereItIsNotAPlanTable(t *testing.T) {
+	m := homeModel()
+	m.deps.PinAdd = func(string, string) error { return nil }
+	m.home.view = homePresets
+	m, _ = send(m, mkKey("m"))
+	require.Equal(t, inputNone, m.inputFor)
+
+	b := boardModel(100, 30)
+	b.deps.PinAdd = func(string, string) error { return nil }
+	b, _ = send(b, mkKey("m"))
+	require.Equal(t, inputNone, b.inputFor)
+
+	h := homeModel() // no PinAdd: nothing to write with
+	h, _ = send(h, mkKey("m"))
+	require.Equal(t, inputNone, h.inputFor)
 }

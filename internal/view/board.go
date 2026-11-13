@@ -54,6 +54,7 @@ type BoardGroupDoc struct {
 
 type BoardPinDoc struct {
 	Pin             string          `json:"pin"`
+	Name            string          `json:"name,omitempty"`
 	PlanKey         string          `json:"plan_key,omitempty"`
 	Branch          string          `json:"branch,omitempty"`
 	Results         []BoardPinBuild `json:"results"`
@@ -94,7 +95,7 @@ func BoardJSON(b app.Board, url func(string) string) BoardDoc {
 	for _, g := range b.Groups {
 		gd := BoardGroupDoc{Name: g.Name, Pipelines: []BoardPinDoc{}}
 		for _, p := range g.Pins {
-			pd := BoardPinDoc{Pin: p.Pin, PlanKey: p.PlanKey, Branch: p.Branch,
+			pd := BoardPinDoc{Pin: p.Pin, Name: p.Name, PlanKey: p.PlanKey, Branch: p.Branch,
 				Results:        Docs(p.Results, func(b provider.Build) BoardPinBuild { return pinBuildDoc(b, url) }),
 				LastDurationMS: ms(p.Last), UsualDurationMS: ms(p.Usual), Progress: progressDoc(p.Progress)}
 			if p.Current != nil {
@@ -194,7 +195,7 @@ func Board(o Out, b app.Board, url func(string) string) error {
 				failed = append(failed, fmt.Sprintf("    %s could not be read: %s", p.Pin, p.Err))
 				continue
 			}
-			t.Rows = append(t.Rows, []string{o.Key(p.Pin, url(p.PlanKey)), results(o, p), now(o, p), Duration(p.Last), Duration(p.Usual)})
+			t.Rows = append(t.Rows, []string{o.Key(p.Label(), url(p.PlanKey)), results(o, p), now(o, p), Duration(p.Last), Duration(p.Usual)})
 		}
 		if len(t.Rows) > 0 {
 			if err := t.Render(o); err != nil {

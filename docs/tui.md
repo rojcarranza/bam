@@ -80,6 +80,7 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `D` | remove the selected preset (asks first) |
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :stats :top :project :server :sort :q |
+| | `m` | pin the selected plan to `bam top` (asks for the group); also on a plan's screen |
 | Board | `tab` | next panel: Needs you, Your agents (when `agents:` is set), Queue, Pinned |
 | | Needs you, Agents, Queue, Pinned | one sentence each in the help overlay: what the panel lists |
 | | `a` | your agents, queue and Needs you only, or the whole server; `enter` on a pool lists its agents |

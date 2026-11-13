@@ -155,3 +155,18 @@ func TestAgentStartsEditKeepsTheFilesComments(t *testing.T) {
 	assert.NotContains(t, string(data), "agents")
 	assert.Contains(t, string(data), "# my servers")
 }
+
+// Intent (pin by name): several pins go into the file in one write, in order,
+// keeping comments and leaving out a pin the group has.
+func TestAddPinsWritesSeveralPinsInOneWriteKeepingComments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	writeFile(t, path, "# my machine\nversion: 1\nmonitor:\n  integration:\n    - PROJ-BUILD # main build\n")
+	require.NoError(t, AddPins(path, "integration", "PROJ-PROV", "PROJ-BUILD", "OPS-DEPLOY"))
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	text := string(data)
+	assert.Contains(t, text, "# my machine")
+	assert.Contains(t, text, "# main build")
+	assert.Equal(t, 1, strings.Count(text, "PROJ-BUILD"))
+	assert.Less(t, strings.Index(text, "PROJ-PROV"), strings.Index(text, "OPS-DEPLOY"))
+}

@@ -71,6 +71,7 @@
       "pipelines": [
         {
           "pin": "PROJ-BUILD",
+          "name": "Build and test",
           "plan_key": "PROJ-BUILD",
           "results": [
             {

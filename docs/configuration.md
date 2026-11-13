@@ -203,8 +203,8 @@ monitor:
 
 - A group name is lowercase letters, digits, `-` and `_`. A pin is a plan key, a plan key with a branch after `@`, or the name of a preset.
 - The project file and the machine file may each set it; groups with the same name are joined, project first. A pin may appear once, in one group.
-- `bam pin add GROUP PIN`, `bam pin rm PIN` and `bam pin list` edit the machine file and keep its comments. A pin in `.bam.yaml` is edited by hand.
-- A bad group name, an empty group, a pin that is not shaped like a plan key or a preset name, an unknown key, or a pin listed twice is a configuration error. A preset that does not exist where bam runs, or that names another server, shows as an error on that pin alone; `bam pin add` refuses a preset it cannot find.
+- `bam pin add GROUP PIN...`, `bam pin rm PIN` and `bam pin list` edit the machine file and keep its comments. A pin in `.bam.yaml` is edited by hand.
+- A bad group name, an empty group, a pin that is not shaped like a plan key or a preset name, an unknown key, or a pin listed twice is a configuration error. A preset that does not exist where bam runs, or that names another server, shows as an error on that pin alone; A pin that is none of those is looked up as a plan name: `bam pin add integration "Integrate for next release"` stores the plan's key. An exact name (ignoring case) wins, else the plans whose name holds all the words. A name that fits several plans lists up to 10 with their keys and exits 2, as does one that fits none, and `bam pin add` writes all its pins or none. bam looks names up with Bamboo's plan search when the server has one, and in the plans of the configured `projects:` otherwise.
 
 ## Your agents (`agents`)
 

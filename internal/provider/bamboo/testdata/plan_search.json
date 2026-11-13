@@ -1,0 +1,5 @@
+{"expand":"searchResults","searchResults":[
+ {"id":"PROJ-INTEG","type":"chain","searchEntity":{"id":"PROJ-INTEG","key":"PROJ-INTEG","planName":"Integrate for next release","projectName":"Example Project","description":"","type":"chain"}},
+ {"id":"PROJ-INTEG12","type":"chain","searchEntity":{"id":"PROJ-INTEG12","key":"PROJ-INTEG12","planName":"Integrate for next release","branchName":"feature-x","projectName":"Example Project","type":"chain"}},
+ {"id":"OPS-INTEG","type":"chain","searchEntity":{"id":"OPS-INTEG","key":"OPS-INTEG","planName":"Integrate for next release","projectName":"Example Ops","type":"chain"}}],
+ "size":3,"start-index":0,"max-result":25}

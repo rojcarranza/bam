@@ -131,7 +131,11 @@ func (c *Config) ProjectPins(pin string) bool {
 
 // AddPin adds pin to group in the monitor: map of the YAML file at path,
 // keeping the file's comments. It does nothing when the group has the pin.
-func AddPin(path, group, pin string) error {
+func AddPin(path, group, pin string) error { return AddPins(path, group, pin) }
+
+// AddPins adds pins to group in one write, so a failure leaves the file as it
+// was. A pin the group already has is left out.
+func AddPins(path, group string, pins ...string) error {
 	doc, err := loadDoc(path)
 	if err != nil {
 		return err
@@ -142,12 +146,11 @@ func AddPin(path, group, pin string) error {
 		list = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
 		setKey(groups, scalar(group), list)
 	}
-	for _, n := range list.Content {
-		if n.Value == pin {
-			return nil
+	for _, pin := range pins {
+		if !slices.ContainsFunc(list.Content, func(n *yaml.Node) bool { return n.Value == pin }) {
+			list.Content = append(list.Content, scalar(pin))
 		}
 	}
-	list.Content = append(list.Content, scalar(pin))
 	return saveDoc(path, doc)
 }
 

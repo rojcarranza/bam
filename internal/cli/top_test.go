@@ -42,7 +42,7 @@ func TestTopWithPins(t *testing.T) {
 	assert.Contains(t, out, "linux-3  remote  disabled")
 	assert.Regexp(t, `1\s+PROJ-PROV-9\s+Code has changed\s+8m00s`, out)
 	assert.Contains(t, out, "integration")
-	assert.Regexp(t, `PROJ-BUILD\s+.*2m11s`, out)
+	assert.Regexp(t, `Build and test\s+.*2m11s`, out, "a pin that is a plan key shows the plan's name")
 	assert.Regexp(t, `provision-lab\s+.*`, out)
 	assert.Contains(t, out, "! provision-lab: the last build, PROJ-PROV12-8, failed")
 }
@@ -151,7 +151,7 @@ func TestPinAddListRm(t *testing.T) {
 	require.Equal(t, 0, h.run("pin", "add", "integration", "provision-lab"))
 	require.Equal(t, 0, h.run("pin", "add", "release", "PROJ-PROV@develop"))
 	require.Equal(t, 0, h.run("pin", "list"))
-	assert.Equal(t, "integration  PROJ-BUILD\nintegration  provision-lab\nrelease  PROJ-PROV@develop\n", h.stdout.String())
+	assert.Equal(t, "integration  PROJ-BUILD  Build and test\nintegration  provision-lab\nrelease  PROJ-PROV@develop  Provision lab\n", h.stdout.String())
 	data, _ := os.ReadFile(h.env.Paths.MachineConfig)
 	assert.True(t, strings.HasPrefix(string(data), "# mine"))
 
@@ -163,7 +163,7 @@ func TestPinAddListRm(t *testing.T) {
 	require.Equal(t, 0, h.run("pin", "rm", "provision-lab"))
 	assert.Equal(t, 2, h.run("pin", "rm", "provision-lab"))
 	require.Equal(t, 0, h.run("pin", "list", "--json"))
-	assert.JSONEq(t, `[{"group":"integration","pins":["PROJ-BUILD"]},{"group":"release","pins":["PROJ-PROV@develop"]}]`, h.stdout.String())
+	assert.JSONEq(t, `[{"group":"integration","pins":["PROJ-BUILD"],"names":{"PROJ-BUILD":"Build and test"}},{"group":"release","pins":["PROJ-PROV@develop"],"names":{"PROJ-PROV@develop":"Provision lab"}}]`, h.stdout.String())
 }
 
 func TestPinAddPointsAtTheProjectFileForAProjectPin(t *testing.T) {
@@ -184,7 +184,7 @@ func TestTopShowsAPresetUnknownHereOnItsPinAlone(t *testing.T) {
 		[]byte("version: 1\nmonitor:\n  integration: [PROJ-BUILD, deploy-qa]\n"), 0o644))
 	require.Equal(t, 0, h.run("top"))
 	assert.Contains(t, h.stdout.String(), "deploy-qa")
-	assert.Regexp(t, `PROJ-BUILD\s+.*2m11s`, h.stdout.String())
+	assert.Regexp(t, `Build and test\s+.*2m11s`, h.stdout.String())
 	require.Equal(t, 0, h.run("pin", "list"))
 	assert.Contains(t, h.stdout.String(), "integration  deploy-qa")
 }

@@ -31,6 +31,7 @@ type keyMap struct {
 	History                      key.Binding
 	Investigate                  key.Binding
 	RemovePreset                 key.Binding
+	PinPlan                      key.Binding
 }
 
 // helpRow is one line of the help overlay and of the README table.
@@ -99,6 +100,7 @@ func defaultKeys() keyMap {
 		Pager:        b("E", "E", "open the whole log in your pager"),
 		History:      b("H", "H", "past runs of the set"),
 		Investigate:  b("i", "i", "why the build failed"),
+		PinPlan:      b("m", "m", "pin the plan to bam top"),
 	}
 }
 
@@ -111,7 +113,7 @@ func allBindings(k keyMap) []key.Binding {
 		k.Logs, k.AllLogs, k.Follow, k.Filter, k.NextMatch, k.PrevMatch,
 		k.Refresh, k.ExpandErr, k.Open, k.Copy, k.Run, k.Trigger, k.DryRun,
 		k.CycleOption, k.Cancel, k.Resume, k.RerunFailed, k.RemoveRow, k.Server, k.Project, k.Branch, k.Sort, k.Help, k.Quit,
-		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager, k.History, k.RemovePreset, k.Investigate,
+		k.Command, k.Tree, k.SavePreset, k.Wrap, k.Pager, k.History, k.RemovePreset, k.Investigate, k.PinPlan,
 	}
 }
 
@@ -130,6 +132,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"HOME", "D", "remove the selected preset (asks first)"},
 		{"HOME", "s", "next sort column"},
 		{"HOME", ":", "command bar: :plans :presets :sets :projects :tree :stats :top :project :server :sort :q"},
+		{"HOME", "m", "pin the selected plan to bam top (asks for the group); also on a plan's screen"},
 		{"BOARD", "tab", "next panel: Needs you, Your agents, Queue, Pinned"},
 		{"BOARD", "a", "your agents, queue and Needs you only, or the whole server; enter on a pool lists its agents"},
 		{"BOARD", "Needs you", "what to act on: your agents that are down or disabled, builds of yours waiting over 5 minutes, pinned pipelines that failed or run slow"},

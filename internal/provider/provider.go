@@ -56,6 +56,15 @@ type AgentListChecker interface {
 	CannotListAgents(ctx context.Context) bool
 }
 
+// PlanSearcher is an optional Provider extension: it finds plans by name on
+// the server, across every project. SearchPlans answers an error wrapping
+// errs.ErrUnsupported when the server has no plan search, and the caller
+// reads project plan lists instead. Each Plan carries Key, Name and
+// ProjectKey; LastBuild is not filled.
+type PlanSearcher interface {
+	SearchPlans(ctx context.Context, term string) ([]Plan, error)
+}
+
 // StopChecker is RestartChecker for StopBuild.
 type StopChecker interface {
 	CannotStop(ctx context.Context) bool

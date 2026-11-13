@@ -375,6 +375,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.boardLoaded(msg), nil
 	case boardPinnedMsg:
 		m.status = msg.Status
+		if m.screen != screenBoard {
+			return m, nil // pinned from the plans table or a plan's screen
+		}
 		return m, m.loadBoard(true)
 	case connectedMsg:
 		if msg.Gen != m.connGen {
@@ -814,6 +817,8 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openLogs("", true)
 	case key.Matches(msg, keys.SavePreset):
 		return m.startSavePreset()
+	case key.Matches(msg, keys.PinPlan):
+		return m.startPinPlan()
 	case key.Matches(msg, keys.Tree):
 		if b, ok := m.currentBuild(); ok {
 			return m.openTree(b.Key)

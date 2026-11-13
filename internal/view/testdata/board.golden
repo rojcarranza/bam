@@ -17,6 +17,6 @@ QUEUE
 
 PINNED
   integration
-    PIPELINE    LAST 10  NOW               LAST   USUAL
-    PROJ-BUILD  ✓✗✓      #484 running 62%  9m00s  10m00s
+    PIPELINE        LAST 10  NOW               LAST   USUAL
+    Build and test  ✓✗✓      #484 running 62%  9m00s  10m00s
     PROJ-GONE@x could not be read: PROJ-GONE has no plan branch for "x"

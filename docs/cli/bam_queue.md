@@ -8,6 +8,13 @@ List the builds waiting for an agent, first in line first. A queued build
 that does not start is waiting for an agent: bam agent list shows which are
 online, enabled and busy.
 
+The WHY column says why a build waits: no agent can run it, agents can run it
+but all are busy, offline or disabled, or agents are free and it is next. It
+names the agents when three or fewer can run the job. What Bamboo shares
+decides how much it says: whether an agent can run the job is open to every
+user, the agents that can needs edit rights on the plan, and the agent list
+needs an administrator. A refused part is left out, never an error.
+
 ```
 bam queue [flags]
 ```

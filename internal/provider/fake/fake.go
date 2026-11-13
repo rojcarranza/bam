@@ -52,6 +52,9 @@ type Provider struct {
 	QueueErr       error
 	AgentList      []provider.Agent
 	AgentsErr      error
+	Possible       map[string][]string // by job plan key: names of the agents that can run it
+	PossibleErr    error               // returned for a key missing from Possible
+	PossibleCalls  []string            // job keys PossibleAgents was asked about
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -318,4 +321,17 @@ func (f *Provider) Queue(context.Context) ([]provider.QueueEntry, error) {
 
 func (f *Provider) Agents(context.Context) ([]provider.Agent, error) {
 	return f.AgentList, f.AgentsErr
+}
+
+func (f *Provider) PossibleAgents(_ context.Context, jobKey string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.PossibleCalls = append(f.PossibleCalls, jobKey)
+	if names, ok := f.Possible[jobKey]; ok {
+		return names, nil
+	}
+	if f.PossibleErr == nil {
+		return nil, errs.Bamboof("no possible agents for %s", jobKey).Wrap(errs.ErrUnsupported)
+	}
+	return nil, f.PossibleErr
 }

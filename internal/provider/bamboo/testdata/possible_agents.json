@@ -1,0 +1,5 @@
+{"agents": [
+  {"id": 1, "name": "linux-1", "capabilitiesMatch": true},
+  {"id": 2, "name": "linux-2", "capabilitiesMatch": true},
+  {"id": 3, "name": "local-1", "capabilitiesMatch": false}
+]}

@@ -349,3 +349,27 @@ func TestStubServesAgentsAndTheQueue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, q)
 }
+
+// TestWaitingBuildAnswersTheThreeWhySources: a queued build's job says an
+// agent can run it, the job's possible agents are listed, and so is the
+// agent list.
+func TestWaitingBuildAnswersTheThreeWhySources(t *testing.T) {
+	_, c := testStub(t)
+	ctx := context.Background()
+
+	run, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
+	require.NoError(t, err)
+	queued, err := c.GetBuild(ctx, run.Key)
+	require.NoError(t, err)
+	job := queued.Stages[0].Jobs[0]
+	require.NotNil(t, job.AnyAgent)
+	assert.True(t, *job.AnyAgent)
+
+	names, err := c.PossibleAgents(ctx, "PROJ-BUILD-JOB1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"linux-1", "linux-2"}, names)
+
+	as, err := c.Agents(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, as)
+}

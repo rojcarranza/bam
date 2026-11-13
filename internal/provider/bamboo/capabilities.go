@@ -31,6 +31,11 @@ type Capabilities struct {
 	Progress string `json:"progress_status,omitempty"` // yes | no
 	// Queue is whether the server lists its build queue (GET queue).
 	Queue string `json:"queue,omitempty"` // yes | no
+	// Agents is whether the agent list is readable (it needs an administrator).
+	Agents string `json:"agents,omitempty"` // yes | no
+	// PossibleAgents is whether the agents that can run a job are readable
+	// (it needs edit rights on the plan).
+	PossibleAgents string `json:"possible_agents,omitempty"` // yes | no
 }
 
 const capsMaxAge = 7 * 24 * time.Hour

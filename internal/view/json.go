@@ -64,6 +64,8 @@ type BuildDoc struct {
 	QueuePosition int          `json:"queue_position,omitempty"`
 	QueueLength   int          `json:"queue_length,omitempty"`
 	Progress      *ProgressDoc `json:"progress,omitempty"`
+	// WhyDoc says why a queued build waits; its fields are absent otherwise.
+	WhyDoc
 }
 
 // FailedTestDoc is one failed test with the message the server reports.
@@ -194,7 +196,7 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 		Reason: b.Reason, CustomBuild: b.CustomBuild, Labels: nonNil(b.Labels), QueuedAt: timePtr(b.QueuedAt),
 		StartedAt: timePtr(b.StartedAt), FinishedAt: timePtr(b.FinishedAt), QueueDurationMS: ms(b.QueueDuration),
 		DurationMS: ms(b.Duration), Agent: b.Agent, FailedTests: nonNil(b.FailedTests), Progress: progressDoc(pr),
-		QueuePosition: b.QueuePosition, QueueLength: b.QueueLength}
+		QueuePosition: b.QueuePosition, QueueLength: b.QueueLength, WhyDoc: whyDoc(b.Why)}
 	d.FailedTestDetails = Docs(b.FailedTestDetails, func(t provider.FailedTest) FailedTestDoc {
 		return FailedTestDoc{Name: t.Name, Message: MaskMessage(t.Message)}
 	})

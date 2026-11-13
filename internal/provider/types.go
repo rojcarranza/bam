@@ -93,6 +93,9 @@ type Job struct {
 	QueuedAt         time.Time
 	QueueDuration    time.Duration
 	CheckoutDuration time.Duration
+	// AnyAgent is Bamboo's own answer, for a job that has not finished,
+	// to whether any agent can run it; nil when the server did not say.
+	AnyAgent *bool
 	// Branches is the branch each repository built, by repository name, as
 	// the finished job recorded it; nil while the job has not finished.
 	Branches map[string]string
@@ -146,7 +149,10 @@ type Build struct {
 	// and the build tree.
 	QueuePosition int
 	QueueLength   int
-	FailedTests   []string
+	// Why says why a queued build waits; nil when not asked or not queued.
+	// Set by app.Service.BuildWithQueue and the build tree.
+	Why         *Why
+	FailedTests []string
 	// FailedTestDetails is FailedTests with each test's message; GetBuild only.
 	FailedTestDetails []FailedTest
 }
@@ -224,4 +230,22 @@ type Agent struct {
 	Online  bool   // Bamboo's "active": the agent is connected
 	Enabled bool   // the agent accepts builds
 	Busy    bool   // the agent is building now
+}
+
+// The cases Why names, from most to least blocked.
+const (
+	WhyNoAgent = "no_agent" // no agent can run a job of the build
+	WhyBusy    = "busy"     // agents can run it; none is free
+	WhyNext    = "next"     // agents are free and the build is next
+	WhyAhead   = "ahead"    // agents are free, but other builds come first
+)
+
+// Why says why a queued build is not running. Every part is optional: a
+// source the server refused leaves its part empty and the rest stands.
+type Why struct {
+	Case     string   // one of the Why constants; "" when bam cannot tell
+	AnyAgent *bool    // whether any agent can run the build's jobs; nil when unknown
+	Count    int      // how many agents can run it; 0 when unknown
+	Agents   []string // their names, when Count is 3 or fewer
+	Ahead    int      // WhyAhead: builds queued before this one
 }

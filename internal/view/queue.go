@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rojcarranza/bam/internal/app"
@@ -17,6 +18,73 @@ func QueueText(b provider.Build) string {
 	return fmt.Sprintf("queue %d of %d", b.QueuePosition, b.QueueLength)
 }
 
+// WaitText is what a queued build shows beside its state: its place in the
+// queue and why it waits, "queue 3 of 7 · no agent can run it". Either part
+// is left out when bam does not know it.
+func WaitText(b provider.Build) string {
+	var parts []string
+	if q := QueueText(b); q != "" {
+		parts = append(parts, q)
+	}
+	if b.State == provider.StateQueued {
+		if w := WhyText(b.Why); w != "" {
+			parts = append(parts, w)
+		}
+	}
+	return strings.Join(parts, " · ")
+}
+
+// WhyText says why a build waits, or "" when bam could not tell. The agents
+// are named when three or fewer can run the job.
+func WhyText(w *provider.Why) string {
+	if w == nil {
+		return ""
+	}
+	var who string
+	switch {
+	case w.Count == 1:
+		who = "1 agent can run it"
+	case w.Count > 1:
+		who = fmt.Sprintf("%d agents can run it", w.Count)
+	}
+	if who != "" && len(w.Agents) > 0 {
+		who += " (" + strings.Join(w.Agents, ", ") + ")"
+	}
+	switch w.Case {
+	case provider.WhyNoAgent:
+		return "no agent can run it"
+	case provider.WhyBusy:
+		switch {
+		case w.Count == 1:
+			return who + ", busy, offline or disabled"
+		case w.Count > 1:
+			return who + ", all busy, offline or disabled"
+		}
+		return "every agent is busy, offline or disabled"
+	case provider.WhyNext:
+		return "agents are free, it is next"
+	case provider.WhyAhead:
+		return fmt.Sprintf("agents are free, %d before it", w.Ahead)
+	}
+	return who
+}
+
+// WhyDoc is the why-it-waits part of a queued build's JSON. Every field is
+// absent when bam could not tell.
+type WhyDoc struct {
+	Why      string   `json:"why,omitempty"`
+	WhyCase  string   `json:"why_case,omitempty"`
+	AnyAgent *bool    `json:"any_agent_can_run,omitempty"`
+	Agents   []string `json:"agents_that_can_run,omitempty"`
+}
+
+func whyDoc(w *provider.Why) WhyDoc {
+	if w == nil {
+		return WhyDoc{}
+	}
+	return WhyDoc{Why: WhyText(w), WhyCase: w.Case, AnyAgent: w.AnyAgent, Agents: w.Agents}
+}
+
 // QueueDoc is one queued build in bam queue --json.
 type QueueDoc struct {
 	Position int    `json:"position"`
@@ -29,6 +97,7 @@ type QueueDoc struct {
 	// the build's record gave no start and bam counted from when it saw it.
 	WaitedMS      int64 `json:"waited_ms"`
 	WaitedAtLeast bool  `json:"waited_at_least"`
+	WhyDoc
 }
 
 // AgentDoc is one build agent in bam agent list --json.
@@ -47,7 +116,7 @@ func QueueJSON(q []app.QueueRow, url func(string) string) []QueueDoc {
 
 func queueDoc(r app.QueueRow, url func(string) string) QueueDoc {
 	return QueueDoc{Position: r.Position, Key: r.Key, URL: url(r.Key), PlanKey: r.PlanKey, Number: r.Number, Reason: r.Reason,
-		WaitedMS: ms(r.Waited), WaitedAtLeast: r.AtLeast}
+		WaitedMS: ms(r.Waited), WaitedAtLeast: r.AtLeast, WhyDoc: whyDoc(r.Why)}
 }
 
 // waitedText is the time a queued build has waited, "at least" when bam
@@ -75,11 +144,30 @@ func QueueList(o Out, q []app.QueueRow, url func(string) string) error {
 		fmt.Fprintln(o.W, "The queue is empty")
 		return nil
 	}
-	t := Table{Headers: []string{"#", "BUILD", "REASON", "WAITED"}, Flex: []int{2}}
-	for _, r := range q {
-		t.Rows = append(t.Rows, []string{fmt.Sprint(r.Position), o.Key(r.Key, url(r.Key)), r.Reason, waitedText(r)})
-	}
+	t := queueTable(o, q, url, "")
 	return t.Render(o)
+}
+
+// queueTable lays out the queue. The WHY column is there when bam knows the
+// reason of at least one build, so a server that tells nothing keeps the
+// four columns.
+func queueTable(o Out, q []app.QueueRow, url func(string) string, indent string) Table {
+	t := Table{Headers: []string{"#", "BUILD", "REASON", "WAITED"}, Flex: []int{2}, Indent: indent}
+	why := false
+	for _, r := range q {
+		why = why || WhyText(r.Why) != ""
+	}
+	if why {
+		t.Headers = append(t.Headers, "WHY")
+	}
+	for _, r := range q {
+		row := []string{fmt.Sprint(r.Position), o.Key(r.Key, url(r.Key)), r.Reason, waitedText(r)}
+		if why {
+			row = append(row, WhyText(r.Why))
+		}
+		t.Rows = append(t.Rows, row)
+	}
+	return t
 }
 
 // AgentList prints the build agents with whether each is online, enabled

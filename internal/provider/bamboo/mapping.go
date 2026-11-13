@@ -177,6 +177,9 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 				QueueDuration:    millis(j.QueueDuration),
 				CheckoutDuration: millis(j.VcsUpdateDuration),
 			}
+			if !job.State.Finished() {
+				job.AnyAgent = j.HasExecutableAgents
+			}
 			job.Branches = repositoryBranches(j)
 			if job.Duration > st.Duration {
 				st.Duration = job.Duration

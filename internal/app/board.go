@@ -59,6 +59,8 @@ type QueueRow struct {
 	// AtLeast is true when the build's own record gave no time it began
 	// waiting, so Waited counts from when bam first saw it.
 	AtLeast bool
+	// Why says why the build waits; nil when bam could not tell.
+	Why *provider.Why
 }
 
 // PinGroupView is one monitor group with its pipelines.
@@ -99,7 +101,9 @@ func (s *Service) Board(ctx context.Context, groups []config.PinGroup) (Board, e
 	if info, err := s.P.ServerInfo(ctx); err == nil {
 		b.Version = info.Version
 	}
-	if as, err := s.P.Agents(ctx); err != nil {
+	as, err := s.P.Agents(ctx)
+	s.seedAgents(as, err == nil) // the queue reads the same list for its reasons
+	if err != nil {
 		b.AgentsNote = refusal("the agent list", err)
 	} else {
 		b.Agents = summarizeAgents(as)
@@ -177,6 +181,7 @@ func (s *Service) QueueRows(ctx context.Context) ([]QueueRow, error) {
 			if err != nil {
 				return
 			}
+			rows[i].Why = s.WhyWaits(ctx, b, i)
 			since := b.QueuedAt
 			if since.IsZero() {
 				since = b.StartedAt

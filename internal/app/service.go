@@ -45,6 +45,7 @@ type Service struct {
 
 	estimates estimateCache // medians of plan histories, for servers without progress
 	scans     scanCache     // the newest tree scan of each plan, for TreeOptions.Shared
+	why       whyCache      // agent answers behind provider.Why, kept briefly
 }
 
 // ProjectKeys is the projects that scope navigation on this server
@@ -92,6 +93,7 @@ func (s *Service) BuildWithQueue(ctx context.Context, key string) (provider.Buil
 	if q, qerr := s.P.Queue(ctx); qerr == nil {
 		b.QueuePosition, b.QueueLength = queuePlace(q, b.Key)
 	}
+	b.Why = s.WhyWaits(ctx, b, b.QueuePosition-1)
 	return b, nil
 }
 
@@ -124,6 +126,7 @@ func (s *Service) markQueued(ctx context.Context, root *TreeNode) {
 	}
 	for _, n := range queued {
 		n.Build.QueuePosition, n.Build.QueueLength = queuePlace(q, n.Build.Key)
+		n.Build.Why = s.WhyWaits(ctx, n.Build, n.Build.QueuePosition-1)
 	}
 }
 

@@ -206,6 +206,20 @@ monitor:
 - `bam pin add GROUP PIN`, `bam pin rm PIN` and `bam pin list` edit the machine file and keep its comments. A pin in `.bam.yaml` is edited by hand.
 - A bad group name, an empty group, a pin that is not shaped like a plan key or a preset name, an unknown key, or a pin listed twice is a configuration error. A preset that does not exist where bam runs, or that names another server, shows as an error on that pin alone; `bam pin add` refuses a preset it cannot find.
 
+## Your agents (`agents`)
+
+`agents:` lists the name starts of the build agents you support, so `bam top` shows those agents and their health instead of the whole server's:
+
+```yaml
+agents: [team-a-agent, team-b-agent]
+```
+
+- An agent is yours when its name starts with a listed start. The match is case-sensitive, with no wildcards.
+- Where `projects:` is accepted, `agents:` is too: a `repos` entry, the project file, a `servers` entry, then the machine file's own list. The first that is set wins.
+- `bam agent mine add NAME-START...`, `rm`, `list` and `forget` edit and print the machine file's list and keep its comments. A list in `.bam.yaml` is edited by hand.
+- Bamboo adds ` (2)` to an agent's name when it registers again under a name that is taken. bam ignores it, and two records with one base name count once, the online one winning.
+- An agent is building (online, enabled, busy), idle (online, enabled, not busy), disabled (not enabled) or down (enabled and offline). bam remembers the names of your agents it has seen, per server, in its state file; a remembered name Bamboo no longer lists shows as down, and bam forgets it after 30 days or when you run `bam agent mine forget NAME`.
+
 ## Machine file
 
     version: 1

@@ -122,3 +122,36 @@ func TestAddPinCreatesTheFile(t *testing.T) {
 	assert.Contains(t, string(data), "version: 1")
 	assert.Contains(t, string(data), "PROJ-BUILD")
 }
+
+func TestAgentStartsEditKeepsTheFilesComments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("version: 1\n# my servers\nservers:\n  work:\n    url: https://bamboo.example.com\n"), 0o600))
+
+	added, err := AddAgentStart(path, "team-a-agent")
+	require.NoError(t, err)
+	assert.True(t, added)
+	added, err = AddAgentStart(path, "team-a-agent")
+	require.NoError(t, err)
+	assert.False(t, added, "adding twice changes nothing")
+	_, err = AddAgentStart(path, "team-b-agent")
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "# my servers")
+	assert.Contains(t, string(data), "- team-a-agent")
+	assert.Contains(t, string(data), "- team-b-agent")
+
+	removed, err := RemoveAgentStart(path, "nope")
+	require.NoError(t, err)
+	assert.False(t, removed)
+	for _, s := range []string{"team-a-agent", "team-b-agent"} {
+		removed, err = RemoveAgentStart(path, s)
+		require.NoError(t, err)
+		assert.True(t, removed)
+	}
+	data, err = os.ReadFile(path)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "agents")
+	assert.Contains(t, string(data), "# my servers")
+}

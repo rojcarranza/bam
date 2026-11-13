@@ -26,7 +26,7 @@ bam [flags]
 
 ### SEE ALSO
 
-* [bam agent](bam_agent.md)	 - Build agents: list
+* [bam agent](bam_agent.md)	 - Build agents: list, mine
 * [bam build](bam_build.md)	 - Builds: list, show, tree, run, rerun, watch, logs, investigate, cancel
 * [bam cancel](bam_cancel.md)	 - Stop a queued or running build
 * [bam completion](bam_completion.md)	 - Generate the autocompletion script for the specified shell

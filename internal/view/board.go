@@ -40,6 +40,8 @@ type BoardAgentsDoc struct {
 	Offline  int        `json:"offline"`
 	Disabled int        `json:"disabled"`
 	Away     []AgentDoc `json:"away"`
+	// Mine is how the agents you support are; absent when none are listed.
+	Mine *BoardMineDoc `json:"mine,omitempty"`
 }
 
 type BoardGroupDoc struct {
@@ -81,6 +83,9 @@ func BoardJSON(b app.Board, url func(string) string) BoardDoc {
 	}
 	if a := b.Agents; a != nil {
 		d.Agents = &BoardAgentsDoc{Total: a.Total, Online: a.Online, Busy: a.Busy, Offline: a.Offline, Disabled: a.Disabled, Away: AgentsJSON(a.Away)}
+		if b.Mine != nil {
+			d.Agents.Mine = mineDoc(b.Mine)
+		}
 	}
 	for _, g := range b.Groups {
 		gd := BoardGroupDoc{Name: g.Name, Pipelines: []BoardPinDoc{}}
@@ -128,10 +133,16 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		fmt.Fprintln(w, "  "+style.Paint(o.Style, "33", "!")+" "+n.Text)
 	}
 
-	section(o, "AGENTS")
-	if a := b.Agents; a == nil {
+	if b.Mine != nil {
+		section(o, "YOUR AGENTS")
+		for _, l := range MineLines(b.Mine, minePaint(o)) {
+			fmt.Fprintln(w, "  "+l)
+		}
+	} else if a := b.Agents; a == nil {
+		section(o, "AGENTS")
 		fmt.Fprintln(w, "  "+b.AgentsNote)
 	} else {
+		section(o, "AGENTS")
 		fmt.Fprintf(w, "  %d agents: %d online, %d busy, %d offline, %d disabled\n", a.Total, a.Online, a.Busy, a.Offline, a.Disabled)
 		for _, ag := range a.Away {
 			why := "offline"
@@ -139,6 +150,9 @@ func Board(o Out, b app.Board, url func(string) string) error {
 				why = "disabled"
 			}
 			fmt.Fprintf(w, "  %s  %s  %s\n", ag.Name, strings.ToLower(ag.Type), why)
+		}
+		if !b.MineSet {
+			fmt.Fprintln(w, "  "+style.Dim(o.Style, "Show only your agents: bam agent mine add NAME-START"))
 		}
 	}
 

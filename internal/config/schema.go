@@ -16,6 +16,8 @@ type ProjectFile struct {
 	Servers       map[string]Server `yaml:"servers,omitempty"`
 	DefaultServer string            `yaml:"default_server,omitempty"`
 	Projects      []string          `yaml:"projects,omitempty"`
+	// Agents lists the name starts of the build agents you support.
+	Agents []string `yaml:"agents,omitempty"`
 	// DefaultProject is the project the terminal UI opens on.
 	DefaultProject string              `yaml:"default_project,omitempty"`
 	Targets        map[string]Target   `yaml:"targets,omitempty"`
@@ -36,9 +38,12 @@ type MachineFile struct {
 	Children      map[string][]string `yaml:"children,omitempty"`
 	// Monitor holds the pinned pipelines of bam top: group name to pins.
 	Monitor map[string][]string `yaml:"monitor,omitempty"`
-	Color   string              `yaml:"color,omitempty"`
-	Pager   string              `yaml:"pager,omitempty"`
-	Editor  string              `yaml:"editor,omitempty"`
+	// Agents lists the name starts of the build agents you support, for every
+	// server that sets none of its own.
+	Agents []string `yaml:"agents,omitempty"`
+	Color  string   `yaml:"color,omitempty"`
+	Pager  string   `yaml:"pager,omitempty"`
+	Editor string   `yaml:"editor,omitempty"`
 	// Bell is false to silence the terminal UI's bell when a watched build
 	// or tree finishes; unset means it rings.
 	Bell *bool `yaml:"bell,omitempty"`
@@ -48,6 +53,8 @@ type Server struct {
 	URL      string   `yaml:"url,omitempty"`
 	AuthEnv  string   `yaml:"auth_env,omitempty"`
 	Projects []string `yaml:"projects,omitempty"`
+	// Agents lists the name starts of the build agents you support.
+	Agents []string `yaml:"agents,omitempty"`
 	// DefaultProject is the project the terminal UI opens on.
 	DefaultProject string `yaml:"default_project,omitempty"`
 }
@@ -82,6 +89,8 @@ type Target struct {
 type Repo struct {
 	Server   string   `yaml:"server,omitempty"`
 	Projects []string `yaml:"projects,omitempty"`
+	// Agents lists the name starts of the build agents you support.
+	Agents []string `yaml:"agents,omitempty"`
 	// DefaultProject is the project the terminal UI opens on.
 	DefaultProject string              `yaml:"default_project,omitempty"`
 	Targets        map[string]Target   `yaml:"targets,omitempty"`

@@ -10,6 +10,8 @@ Terminals under 20 rows or 60 columns keep a one-line header.
 
 `bam top` on a terminal, and `:top` in the UI, open a live board of the server: a **Needs you** list, the **Agents** (the busy share of the online, enabled agents as a bar, plus every agent that is offline or disabled), the **Queue** with the time each build has waited and why it waits, and your **Pinned** pipelines by group with their last 10 results, the build running now and its time against the usual one. Pin pipelines with `bam pin add` or the `monitor:` setting (see [configuration](configuration.md)). Bare `bam` opens the board once any pipeline is pinned; with no pins it opens the plan table, and `:plans` always does.
 
+With `agents:` set (see [configuration](configuration.md#your-agents-agents)) the Agents panel becomes **Your agents**: the four counts (building, idle, down, disabled), one row per pool of agents whose names differ only in their last number, with one mark for each agent in number order (`●` building, `○` idle, `⊘` disabled, `✗` down), the names of the agents that are down or disabled, and a row for each name start no agent matches. It is a tab stop: `j` and `k` move over the pools, which scroll when they outnumber the panel's lines, and `enter` on a pool lists its agents. Needs you raises each of your agents that is down or disabled, and no other team's. While it is set, the board reads agent details for your agents only. `a` shows every agent of the server, as `bam top --all` does, and again to come back. With no `agents:` set, the Agents panel stays as it was and adds one line saying how to list yours.
+
 The board refreshes by itself, with no key pressed, and never stops for idleness (Home does after 10 idle minutes). Agents, the queue and the pinned builds are read every 15 seconds; every minute the read is in full, which also learns each pin's plan and usual build time again. The header says how old the data is. When a read gets nothing, the old data stays and the header says `stale` until a read works. The two small charts, the busy share and the queue length, cover the time since the board opened and are not saved.
 
 `enter` opens the selected pipeline, or the selected build, in the plan screen; `l`, `t`, `i`, `o` and `y` work as elsewhere, on a pin's running build or else its newest result, or on a queued build. `esc` comes back to the board. `tab` moves between Needs you, Queue and Pinned. `P` unpins the selected pipeline, or, on a queued build, asks for a group and pins that build's plan. No key changes anything on Bamboo; `P` writes only bam's settings file, and a pin that lives in `.bam.yaml` is edited there by hand.
@@ -76,7 +78,8 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `D` | remove the selected preset (asks first) |
 | | `s` | next sort column |
 | | `:` | command bar: :plans :presets :sets :projects :tree :stats :top :project :server :sort :q |
-| Board | `tab` | next panel: Needs you, Queue, Pinned |
+| Board | `tab` | next panel: Needs you, Your agents (when `agents:` is set), Queue, Pinned |
+| | `a` | your agents only, or every agent of the server; `enter` on a pool lists its agents |
 | | `enter` | open the selected pipeline or build; `esc` comes back to the board |
 | | `P` | unpin the selected pipeline, or pin the selected queued build's plan (asks for the group) |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |

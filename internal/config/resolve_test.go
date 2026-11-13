@@ -283,3 +283,21 @@ func TestPresetsUsingServerSkipsProjectPresetsOfTheProjectsOwnAlias(t *testing.T
 	}
 	assert.Equal(t, []string{"api", "deploy", "docs"}, c.PresetsUsingServer("home"))
 }
+
+func TestAgentStartsAreLookedUpWhereProjectsAre(t *testing.T) {
+	c := baseConfig()
+	work := c.Servers()["work"]
+	assert.Empty(t, c.AgentStarts(work))
+
+	c.Machine.Agents = []string{"machine-agent"}
+	assert.Equal(t, []string{"machine-agent"}, c.AgentStarts(work), "the machine file's own list")
+
+	c.Machine.Servers["work"] = Server{Agents: []string{"server-agent"}}
+	assert.Equal(t, []string{"server-agent"}, c.AgentStarts(c.Servers()["work"]), "a server entry beats the machine list")
+
+	c.Project.Agents = []string{"project-agent"}
+	assert.Equal(t, []string{"project-agent"}, c.AgentStarts(c.Servers()["work"]))
+
+	c.Machine.Repos = map[string]Repo{"~/src/repo": {Agents: []string{"repo-agent"}}}
+	assert.Equal(t, []string{"repo-agent"}, c.AgentStarts(c.Servers()["work"]), "a repos entry beats them all")
+}

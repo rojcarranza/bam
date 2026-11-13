@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,7 +43,28 @@ const (
 	boardNeeds boardPanel = iota
 	boardQueue
 	boardPins
+	boardAgents // a tab stop only while Your agents is shown
+	boardPanels
 )
+
+// boardOrder is the panels in tab order: Your agents sits after Needs you
+// when it is shown, and is skipped otherwise.
+func (b *boardState) boardOrder() []boardPanel {
+	if b.data.Mine != nil {
+		return []boardPanel{boardNeeds, boardAgents, boardQueue, boardPins}
+	}
+	return []boardPanel{boardNeeds, boardQueue, boardPins}
+}
+
+// tab moves the focus delta panels along the tab order.
+func (b *boardState) tab(delta int) {
+	order := b.boardOrder()
+	i := slices.Index(order, b.panel)
+	if i < 0 {
+		i = 0
+	}
+	b.panel = order[(i+delta+len(order))%len(order)]
+}
 
 // boardState is the board screen. Nothing in it is saved: the charts cover
 // the time since the board opened.
@@ -56,8 +78,11 @@ type boardState struct {
 	loadedAt, fullAt time.Time
 	tickGen, loadGen int
 	panel            boardPanel
-	cursor           [3]int
-	groups           []app.PinGroup
+	cursor           [boardPanels]int
+	// whole is true while the board shows the whole server, not only your
+	// agents: bam top --all, and the a key.
+	whole  bool
+	groups []app.PinGroup
 	// busy and queued are the chart samples, oldest first.
 	busy, queued []float64
 	// seen holds the Needs you entries already shown, so the bell rings only
@@ -137,6 +162,9 @@ func (m *Model) loadBoard(full bool) tea.Cmd {
 // copy, so a generation bumped there would be lost.
 func (m Model) readBoardCmd(full bool, prev *app.Board, gen int) tea.Cmd {
 	svc, ctx, monitor := m.svc, m.baseCtx(), m.deps.Monitor
+	if m.board.whole {
+		ctx = app.WholeServer(ctx)
+	}
 	return func() tea.Msg {
 		var groups []app.PinGroup
 		if monitor != nil {
@@ -257,6 +285,11 @@ func (b *boardState) rows(p boardPanel) int {
 		return len(b.data.Needs)
 	case boardQueue:
 		return len(b.data.Queue)
+	case boardAgents:
+		if b.data.Mine == nil {
+			return 0
+		}
+		return len(b.data.Mine.Pools)
 	}
 	return len(b.pinRows())
 }
@@ -360,9 +393,9 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Back):
 		return m, nil // the board is the top
 	case key.Matches(msg, keys.NextPanel):
-		m.board.panel = (m.board.panel + 1) % 3
+		m.board.tab(1)
 	case key.Matches(msg, keys.PrevPanel):
-		m.board.panel = (m.board.panel + 2) % 3
+		m.board.tab(-1)
 	case key.Matches(msg, keys.Down):
 		m.board.move(1)
 	case key.Matches(msg, keys.Up):
@@ -371,7 +404,12 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.board.cursor[m.board.panel] = 0
 	case key.Matches(msg, keys.Bottom):
 		m.board.cursor[m.board.panel] = max(m.board.rows(m.board.panel)-1, 0)
+	case key.Matches(msg, keys.AllLogs):
+		return m.boardToggleWhole()
 	case key.Matches(msg, keys.Enter):
+		if m.board.panel == boardAgents {
+			return m.boardPoolInfo()
+		}
 		return m.boardOpen(false)
 	case key.Matches(msg, keys.Logs):
 		return m.boardOpen(true)
@@ -581,6 +619,12 @@ func (m Model) boardBody() []string {
 		awayMax = 4
 	}
 	ah := 4 + min(awayCount(b), awayMax)
+	switch {
+	case b.data.Mine != nil:
+		ah = min(len(m.mineLines())+2, 4+awayMax)
+	case m.hintMine():
+		ah++ // the hint line
+	}
 	nh = max(min(nh, h-ah-7), 3)
 	rest := h - nh - ah
 	queue, queueCursor := m.queueLines(inner)
@@ -595,7 +639,8 @@ func (m Model) boardBody() []string {
 		lines = append(lines, strings.Split(panel(title, focused, m.width, height, strings.Join(body, "\n")), "\n")...)
 	}
 	add("Needs you", b.panel == boardNeeds, nh, window(needs, b.cursor[boardNeeds], nh-2))
-	add("Agents", false, ah, m.agentLines(inner, awayMax))
+	agents := m.agentLines(inner, awayMax)
+	add(m.agentsTitle(), b.panel == boardAgents, ah, window(agents, m.agentCursorLine(), ah-2))
 	add("Queue", b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
 	pins, pinCursor := m.pinLines(false)
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
@@ -642,6 +687,9 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	if a == nil {
 		return []string{"  " + b.data.AgentsNote}
 	}
+	if b.data.Mine != nil {
+		return m.mineLines()
+	}
 	share := 0.0
 	if a.Online > 0 {
 		share = float64(a.Busy) / float64(a.Online)
@@ -665,7 +713,96 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	if more := len(a.Away) - len(shown); more > 0 {
 		out = append(out, fmt.Sprintf("  … and %d more offline or disabled", more))
 	}
+	if m.hintMine() {
+		out = append(out, dimStyle.Render("  Show only your agents: bam agent mine add NAME-START"))
+	}
 	return out
+}
+
+// hintMine says whether the agents panel carries the line that says how to
+// show only your agents: when none are listed and the terminal has the room.
+func (m Model) hintMine() bool {
+	return m.board.have && m.board.data.Agents != nil && !m.board.data.MineSet && m.height >= 24
+}
+
+// mineStyle colors an agent's mark by its state.
+func mineStyle(s app.AgentState) lipgloss.Style {
+	switch s {
+	case app.AgentBuilding:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	case app.AgentDisabled:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+	case app.AgentDown:
+		return errorStyle
+	}
+	return dimStyle
+}
+
+// mineLines is the Your agents panel: the four counts, one row per pool with
+// a mark per agent, the names of the agents that are down or disabled, and a
+// row for each name start no agent matches. The cursor moves over the pools.
+func (m Model) mineLines() []string {
+	b := &m.board
+	mine := b.data.Mine
+	paint := func(s app.AgentState, mark string) string { return mineStyle(s).Render(mark) }
+	out := []string{"  " + view.MineSummary(mine)}
+	for i, p := range mine.Pools {
+		out = append(out, m.cursorFor(b.panel == boardAgents, i == b.cursor[boardAgents])+view.MinePoolLine(p, paint))
+	}
+	for _, a := range mine.Away {
+		out = append(out, "  "+mineStyle(a.State).Render("!")+" "+view.MineAwayLine(a))
+	}
+	for _, s := range mine.NoMatch {
+		out = append(out, dimStyle.Render("  "+view.MineNoMatchLine(s)))
+	}
+	return out
+}
+
+// agentCursorLine is the line of the Your agents panel the cursor is on.
+func (m Model) agentCursorLine() int {
+	if m.board.data.Mine == nil {
+		return 0
+	}
+	return 1 + m.board.cursor[boardAgents]
+}
+
+// agentsTitle names the agents panel by what it shows.
+func (m Model) agentsTitle() string {
+	switch {
+	case m.board.data.Mine != nil:
+		return "Your agents"
+	case m.board.data.MineSet:
+		return "Agents · whole server"
+	}
+	return "Agents"
+}
+
+// boardToggleWhole is a: your agents only, or every agent of the server. It
+// does nothing when no agents are listed.
+func (m Model) boardToggleWhole() (tea.Model, tea.Cmd) {
+	if !m.board.data.MineSet {
+		m.status = "no agents are listed as yours: bam agent mine add NAME-START"
+		return m, nil
+	}
+	m.board.whole = !m.board.whole
+	m.board.data.Mine = nil // the old reading is the other view's
+	m.board.panel = boardNeeds
+	return m, m.loadBoard(true)
+}
+
+// boardPoolInfo is enter on a pool of Your agents: its agents and their health.
+func (m Model) boardPoolInfo() (tea.Model, tea.Cmd) {
+	mine := m.board.data.Mine
+	c := m.board.cursor[boardAgents]
+	if mine == nil || c >= len(mine.Pools) {
+		return m, nil
+	}
+	p := mine.Pools[c]
+	var sb strings.Builder
+	for _, a := range p.Agents {
+		fmt.Fprintf(&sb, "%s %s\n", view.MineMark(a.State), view.MineAwayLineOrName(a))
+	}
+	return m.openInfo(p.Name+"…", sb.String()), nil
 }
 
 // queueLines draws the queue, one line per build, and says which line holds

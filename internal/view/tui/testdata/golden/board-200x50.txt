@@ -12,13 +12,13 @@
 │    busy ▄                         queued █                         since opened        ││                                                                                                            │
 │    linux-2  remote  offline                                                            ││                                                                                                            │
 │    linux-3  remote  disabled                                                           ││                                                                                                            │
+│    Show only your agents: bam agent mine add NAME-START                                ││                                                                                                            │
 │                                                                                        ││                                                                                                            │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯│                                                                                                            │
 ╭─Queue──────────────────────────────────────────────────────────────────────────────────╮│                                                                                                            │
 │                                                                                        ││                                                                                                            │
 │  ▸ 1  PROJ-BUILD-500  7m           Manual build                                        ││                                                                                                            │
 │    2  OPS-NIGHTLY-3   at least 0s  Scheduled                                           ││                                                                                                            │
-│                                                                                        ││                                                                                                            │
 │                                                                                        ││                                                                                                            │
 │                                                                                        ││                                                                                                            │
 │                                                                                        ││                                                                                                            │

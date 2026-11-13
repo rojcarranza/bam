@@ -10,6 +10,7 @@ bam agent list [flags]
 
 ```
   bam agent list
+  bam agent list --mine
   bam agent list --json
 ```
 
@@ -17,6 +18,7 @@ bam agent list [flags]
 
 ```
   -h, --help   help for list
+      --mine   list only the agents whose names start with one you listed (bam agent mine)
 ```
 
 ### Options inherited from parent commands
@@ -31,5 +33,5 @@ bam agent list [flags]
 
 ### SEE ALSO
 
-* [bam agent](bam_agent.md)	 - Build agents: list
+* [bam agent](bam_agent.md)	 - Build agents: list, mine
 

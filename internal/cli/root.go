@@ -129,7 +129,7 @@ func newRoot(r *runtime) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if r.tuiAllowed() {
 				return r.wrap(func(*cobra.Command, []string) error {
-					return r.openUI(cmd.Context(), r.hasPins())
+					return r.openUI(cmd.Context(), r.hasPins(), false)
 				})(cmd, args)
 			}
 			return cmd.Help()

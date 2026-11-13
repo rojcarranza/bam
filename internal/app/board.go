@@ -37,11 +37,17 @@ type Board struct {
 	Version    string
 	Agents     *AgentSummary
 	AgentsNote string
-	Queue      []QueueRow
-	QueueOK    bool // the queue was read; an empty Queue is then really empty
-	QueueNote  string
-	Groups     []PinGroupView
-	Needs      []Need
+	// Mine is how the agents you support are; nil when agents: is not set, the
+	// whole server was asked for, or the agent list could not be read.
+	Mine *MyAgents
+	// MineSet is true when agents: lists name starts, so the board can show
+	// the empty state apart from "not set".
+	MineSet   bool
+	Queue     []QueueRow
+	QueueOK   bool // the queue was read; an empty Queue is then really empty
+	QueueNote string
+	Groups    []PinGroupView
+	Needs     []Need
 }
 
 // AgentSummary counts the agents and lists those that are not working.
@@ -107,6 +113,7 @@ func (s *Service) Board(ctx context.Context, groups []config.PinGroup) (Board, e
 // but the server version, the plans the pins name and each plan's usual build
 // time are kept from prev, which only the full read (prev nil) learns afresh.
 func (s *Service) RefreshBoard(ctx context.Context, groups []config.PinGroup, prev *Board) (Board, error) {
+	ctx = s.boardScope(ctx)
 	now := s.Clock.Now()
 	b := Board{At: now, Server: s.Server.Alias, URL: s.Server.URL}
 	if prev != nil {
@@ -120,7 +127,11 @@ func (s *Service) RefreshBoard(ctx context.Context, groups []config.PinGroup, pr
 		b.AgentsNote = refusal("the agent list", err)
 	} else {
 		b.Agents = summarizeAgents(as)
+		if ctx.Value(agentScopeKey{}) == true {
+			b.Mine = s.myAgents(as)
+		}
 	}
+	b.MineSet = len(s.AgentStarts()) > 0
 	if q, err := s.QueueRows(ctx); err != nil {
 		b.QueueNote = refusal("the queue", err)
 	} else {
@@ -300,12 +311,15 @@ func (s *Service) readPinBuilds(ctx context.Context, v PinView, usual bool) PinV
 	return v
 }
 
-// NeedsYou is the Needs you list: an enabled agent that is offline, a build
+// NeedsYou is the Needs you list: an enabled agent that is offline (with
+// agents: set, one of yours that is down or disabled), a build
 // waiting over NeedsWait, a pinned pipeline whose last build failed, and a
 // pinned build running NeedsSlowFactor past its usual time.
 func NeedsYou(b Board, now time.Time) []Need {
 	var out []Need
-	if b.Agents != nil {
+	if b.Mine != nil {
+		out = append(out, needsAgents(b.Mine)...)
+	} else if b.Agents != nil {
 		for _, a := range b.Agents.Away {
 			if a.Enabled && !a.Online {
 				out = append(out, Need{Kind: "agent_offline", Text: fmt.Sprintf("agent %s is offline", a.Name)})

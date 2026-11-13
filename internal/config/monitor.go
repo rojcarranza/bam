@@ -187,3 +187,47 @@ func RemovePin(path, pin string) (bool, error) {
 	}
 	return true, saveDoc(path, doc)
 }
+
+// AddAgentStart adds start to the agents: list of the YAML file at path,
+// keeping the file's comments. It reports false when the list had it.
+func AddAgentStart(path, start string) (bool, error) {
+	doc, err := loadDoc(path)
+	if err != nil {
+		return false, err
+	}
+	list := mappingValue(doc.Content[0], "agents")
+	if list == nil || list.Kind != yaml.SequenceNode {
+		list = &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
+		setKey(doc.Content[0], scalar("agents"), list)
+	}
+	for _, n := range list.Content {
+		if n.Value == start {
+			return false, nil
+		}
+	}
+	list.Content = append(list.Content, scalar(start))
+	return true, saveDoc(path, doc)
+}
+
+// RemoveAgentStart removes start from the agents: list of the YAML file at
+// path, dropping the list when it is left empty. It reports false when the
+// file did not list it.
+func RemoveAgentStart(path, start string) (bool, error) {
+	doc, err := loadDoc(path)
+	if err != nil {
+		return false, err
+	}
+	list := mappingValue(doc.Content[0], "agents")
+	if list == nil {
+		return false, nil
+	}
+	before := len(list.Content)
+	list.Content = slices.DeleteFunc(list.Content, func(n *yaml.Node) bool { return n.Value == start })
+	if len(list.Content) == before {
+		return false, nil
+	}
+	if len(list.Content) == 0 {
+		deleteKey(doc.Content[0], "agents")
+	}
+	return true, saveDoc(path, doc)
+}

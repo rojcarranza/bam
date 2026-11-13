@@ -20,7 +20,7 @@ When a build fails, the first question is whether the plan is flaky or the chang
 | Window | The last N builds, default 20, at most 100 | Recent enough to reflect the plan today; bounded cost |
 | Success rate | Successful ÷ (successful + failed) | Stopped, not built and skipped are not verdicts on the code |
 | Durations | Over successful builds only | Failed builds often stop early and would pull the median down |
-| Failing jobs | One `GetBuild` per failed build, up to 4 at a time | The build list carries no stages or jobs; passed builds need none |
+| Failing jobs | One `GetBuild` per failed build, up to 4 at a time | The build list carries no stages or jobs; passed builds need none. Since the wait-for-an-agent and slowest-jobs figures (`docs/json.md`), every finished build is read |
 | Rejected | A cross-plan overview | Answers which plan, not where; later work |
 | Rejected | A nested expand on the build list for jobs | Unrecorded on the lab server; one read per failed build is cheap and already works |
 

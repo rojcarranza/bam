@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -15,6 +16,9 @@ import (
 // queueListMax is how many queued builds one Queue call reads. Bamboo lists
 // the queue in order; a position past this is reported as unknown.
 const queueListMax = "1000"
+
+// agentReaders is how many agent details AgentJobs reads at once.
+const agentReaders = 6
 
 type queueListDTO struct {
 	QueuedBuilds struct {
@@ -117,46 +121,62 @@ type agentDetailDTO struct {
 	} `json:"executableJobs"`
 }
 
-// AgentJobs says which jobs each agent can run, by agent name: the jobs
+// AgentJobs says which jobs each of agents can run, by agent name: the jobs
 // whose requirements the agent's capabilities meet. Bamboo shows it only to
-// administrators, one agent at a time; a refusal is learned once and answers
-// ErrUnsupported afterwards.
-func (c *Client) AgentJobs(ctx context.Context) (map[string][]string, error) {
+// administrators, one agent at a time, so up to agentReaders agents are read
+// at once; a refusal is learned once and answers ErrUnsupported afterwards.
+func (c *Client) AgentJobs(ctx context.Context, agents []provider.Agent) (map[string][]string, error) {
 	refused := errs.Bamboof("this Bamboo does not tell which jobs each agent can run").
 		WithWhy("the agent details need an administrator").Wrap(errs.ErrUnsupported)
 	if c.fresh(ctx).AgentJobs == "no" {
 		return nil, refused
 	}
-	as, err := c.Agents(ctx)
-	if err != nil {
-		if errors.Is(err, errs.ErrUnsupported) || errs.KindOf(err) == errs.KindAuth {
-			c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
-			return nil, refused
-		}
-		return nil, err
+	keys := make([][]string, len(agents))
+	errOf := make([]error, len(agents))
+	sem := make(chan struct{}, agentReaders)
+	var wg sync.WaitGroup
+	for i, a := range agents {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			keys[i], errOf[i] = c.agentJobs(ctx, a.ID)
+		})
 	}
-	out := make(map[string][]string, len(as))
-	for _, a := range as {
-		var d agentDetailDTO
-		q := url.Values{"expand": {"executableJobs[0:" + queueListMax + "]"}}
-		if err := c.getJSON(ctx, api+"/agent/"+strconv.Itoa(a.ID), q, &d); err != nil {
+	wg.Wait()
+	out := make(map[string][]string, len(agents))
+	for i, a := range agents {
+		if err := errOf[i]; err != nil {
 			if s := statusOf(err); s == http.StatusForbidden || s == http.StatusUnauthorized || isUnsupportedStatus(err) {
 				c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
 				return nil, refused
 			}
+			if errors.Is(err, errs.ErrUnsupported) {
+				return nil, refused
+			}
 			return nil, err
 		}
-		if d.ExecutableJobs.Size > len(d.ExecutableJobs.Jobs) {
-			return nil, refused // a cut-short list would name too few agents
-		}
-		keys := make([]string, 0, len(d.ExecutableJobs.Jobs))
-		for _, j := range d.ExecutableJobs.Jobs {
-			keys = append(keys, j.Key.Key)
-		}
-		out[a.Name] = keys
+		out[a.Name] = keys[i]
 	}
 	if c.Capabilities().AgentJobs != "yes" {
 		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "yes" })
 	}
 	return out, nil
+}
+
+// agentJobs reads the jobs the agent id can run. A list Bamboo cut short
+// answers ErrUnsupported: it would name too few agents.
+func (c *Client) agentJobs(ctx context.Context, id int) ([]string, error) {
+	var d agentDetailDTO
+	q := url.Values{"expand": {"executableJobs[0:" + queueListMax + "]"}}
+	if err := c.getJSON(ctx, api+"/agent/"+strconv.Itoa(id), q, &d); err != nil {
+		return nil, err
+	}
+	if d.ExecutableJobs.Size > len(d.ExecutableJobs.Jobs) {
+		return nil, errs.ErrUnsupported
+	}
+	keys := make([]string, 0, len(d.ExecutableJobs.Jobs))
+	for _, j := range d.ExecutableJobs.Jobs {
+		keys = append(keys, j.Key.Key)
+	}
+	return keys, nil
 }

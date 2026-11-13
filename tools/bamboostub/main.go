@@ -13,8 +13,8 @@
 // triggered build is simulated: it stays queued, then runs, then succeeds,
 // and bam build cancel stops it. With -child, its end queues a build of the
 // child plan, as Bamboo does, so bam build tree and bam run --watch have a
-// tree to follow. It also lists the agents and the queue, tells a waiting job
-// whether an agent can run it and which jobs each agent can run. Any bearer token is accepted.
+// tree to follow. It also lists the agents and the queue, and which jobs each
+// agent can run. Any bearer token is accepted.
 //
 // Flags:
 //

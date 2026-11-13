@@ -362,7 +362,9 @@ func TestWaitingBuildAnswersTheWhySources(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, provider.StateQueued, queued.Stages[0].Jobs[0].State)
 
-	jobs, err := c.AgentJobs(ctx)
+	agents, err := c.Agents(ctx)
+	require.NoError(t, err)
+	jobs, err := c.AgentJobs(ctx, agents)
 	require.NoError(t, err)
 	assert.Contains(t, jobs["linux-1"], "PROJ-BUILD-JOB1")
 	assert.Contains(t, jobs["linux-2"], "PROJ-BUILD-JOB1")

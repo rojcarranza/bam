@@ -135,13 +135,6 @@ func TestWhyWithoutAdministratorRightsKeepsWhatIsReadable(t *testing.T) {
 	h := whyHarness(t)
 	h.fake.AgentsErr = errs.Authf("403 from bamboo.example.com: the agent list needs an administrator")
 	require.Equal(t, 0, h.run("queue"))
-	assert.Contains(t, h.stdout.String(), "no agent can run it")
-	assert.Contains(t, h.stdout.String(), "2 agents can run it (linux-1, linux-2)")
-	assert.NotContains(t, h.stdout.String(), "busy, offline")
-
-	// Neither the possible agents nor the agent list: bam says nothing about why.
-	h.fake.AgentJobMap = nil
-	require.Equal(t, 0, h.run("queue"))
 	assert.NotContains(t, h.stdout.String(), "WHY")
 	require.Equal(t, 0, h.run("queue", "--json"))
 	assert.NotContains(t, h.stdout.String(), "any_agent_can_run")

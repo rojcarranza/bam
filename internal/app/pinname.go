@@ -70,7 +70,7 @@ func (s *Service) FindPlanByName(ctx context.Context, name string) (provider.Pla
 		lines = append(lines, p.Key+"  "+p.Name)
 	}
 	return provider.Plan{}, errs.Usagef("%q fits %d plans", name, len(fits)).
-		WithWhy("\n  " + strings.Join(lines, "\n  ")).
+		WithWhy(strings.Join(lines, "\n  ")).
 		WithTry("pin one of them by its plan key, or give more of its name")
 }
 

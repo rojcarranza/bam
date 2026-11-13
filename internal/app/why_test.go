@@ -171,3 +171,19 @@ func TestWhyAsksOnceWhenBuildsAskAtTheSameTime(t *testing.T) {
 	wg.Wait()
 	assert.Equal(t, 1, p.AgentJobsCalls)
 }
+
+func TestTreeSaysWhyWhenTheQueueIsRefusedAsBuildShowDoes(t *testing.T) {
+	b := queuedBuild()
+	svc, p := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"linux-1"}})
+	p.QueueErr = errs.Authf("403")
+	shown, err := svc.BuildWithQueue(context.Background(), b.Key)
+	require.NoError(t, err)
+	require.NotNil(t, shown.Why)
+
+	root := &TreeNode{Build: b}
+	svc.markQueued(context.Background(), root)
+	require.NotNil(t, root.Build.Why)
+	assert.Equal(t, *shown.Why, *root.Build.Why)
+	assert.Equal(t, provider.WhyBusy, root.Build.Why.Case)
+	assert.Zero(t, root.Build.QueuePosition)
+}

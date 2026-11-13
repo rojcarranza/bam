@@ -964,3 +964,34 @@ func TestMDoesNothingWithoutAPlanOrWhereItIsNotAPlanTable(t *testing.T) {
 	h, _ = send(h, mkKey("m"))
 	require.Equal(t, inputNone, h.inputFor)
 }
+
+// Intent (BAM-42 P4, issue 193): the branches under a pin are lines of
+// Pinned with a pin line's columns, the cursor walks over them, and enter on
+// one opens that branch's plan.
+func TestBoardListsAPinsBranchesAsLinesTheCursorWalks(t *testing.T) {
+	m := boardModel(120, 40)
+	data := sampleBoard(goldenNow)
+	br := func(name string, n int) app.PinView {
+		key := "PROJ-PROV" + name
+		return app.PinView{Pin: "PROJ-PROV", PlanKey: key, Branch: name, Name: "Provision a lab cluster",
+			Results: []provider.Build{{Key: key + "-" + string(rune('0'+n)), PlanKey: key, Number: n, State: provider.StateSuccess, Duration: time.Minute}},
+			Last:    time.Minute}
+	}
+	data.Groups[0].Pins[1].Branches = []app.PinView{br("12", 4), br("7", 2)}
+	data.Groups[0].Pins[1].BranchesMore = 3
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+
+	view := m.View()
+	require.Contains(t, view, "  Provision a lab cluster@12")
+	require.Contains(t, view, "  Provision a lab cluster@7")
+	require.Contains(t, view, "+3 more branches")
+
+	m = pinCursor(m)
+	m, _ = send(m, mkKey("j")) // Build and test -> Provision a lab cluster
+	m, _ = send(m, mkKey("j")) // -> its first branch
+	m, cmd := send(m, mkKey("enter"))
+	require.NotNil(t, cmd)
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, "PROJ-PROV12", m.plan.key)
+}

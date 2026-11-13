@@ -130,3 +130,28 @@ func TestBoardCutsALongPinnedNameToTheTerminal(t *testing.T) {
 	require.NoError(t, Board(o, b, boardURL))
 	assert.Contains(t, buf.String(), long, "a pipe keeps the full name")
 }
+
+// Intent (BAM-42 P4, issue 193): a pin's branches print under it, indented,
+// then a count of those left out, and --json carries them as branches.
+func TestBoardPrintsAPinsBranchesUnderIt(t *testing.T) {
+	b := sampleBoard()
+	b.Groups[0].Pins[0].Branches = []app.PinView{
+		{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD12", Branch: "develop", Name: "Build and test",
+			Results: []provider.Build{{Key: "PROJ-BUILD12-3", Number: 3, State: provider.StateFailed, Duration: time.Minute}}, Last: time.Minute},
+	}
+	b.Groups[0].Pins[0].BranchesMore = 4
+	var sb strings.Builder
+	require.NoError(t, Board(Out{W: &sb}, b, boardURL))
+	out := sb.String()
+	require.Contains(t, out, "\n      Build and test@develop")
+	require.Contains(t, out, "\n      +4 more branches")
+	require.Less(t, strings.Index(out, "Build and test  "), strings.Index(out, "Build and test@develop"))
+
+	doc := BoardJSON(b, boardURL)
+	pin := doc.Pins[0].Pipelines[0]
+	require.Len(t, pin.Branches, 1)
+	require.Equal(t, "develop", pin.Branches[0].Branch)
+	require.Equal(t, "PROJ-BUILD12", pin.Branches[0].PlanKey)
+	require.Equal(t, 4, pin.BranchesMore)
+	require.Empty(t, pin.Branches[0].Branches)
+}

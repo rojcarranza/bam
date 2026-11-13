@@ -63,6 +63,10 @@ type BoardPinDoc struct {
 	LastDurationMS  int64           `json:"last_duration_ms"`
 	UsualDurationMS int64           `json:"usual_duration_ms"`
 	Error           string          `json:"error,omitempty"`
+	// Branches are the plan branches that built in the last 7 days, newest
+	// first; BranchesMore counts those left out.
+	Branches     []BoardPinDoc `json:"branches"`
+	BranchesMore int           `json:"branches_more"`
 }
 
 type BoardPinBuild struct {
@@ -95,21 +99,31 @@ func BoardJSON(b app.Board, url func(string) string) BoardDoc {
 	for _, g := range b.Groups {
 		gd := BoardGroupDoc{Name: g.Name, Pipelines: []BoardPinDoc{}}
 		for _, p := range g.Pins {
-			pd := BoardPinDoc{Pin: p.Pin, Name: p.Name, PlanKey: p.PlanKey, Branch: p.Branch,
-				Results:        Docs(p.Results, func(b provider.Build) BoardPinBuild { return pinBuildDoc(b, url) }),
-				LastDurationMS: ms(p.Last), UsualDurationMS: ms(p.Usual), Progress: progressDoc(p.Progress)}
-			if p.Current != nil {
-				c := pinBuildDoc(*p.Current, url)
-				pd.Current = &c
+			pd := pinDoc(p, url)
+			pd.Branches = []BoardPinDoc{}
+			for _, br := range p.Branches {
+				pd.Branches = append(pd.Branches, pinDoc(br, url))
 			}
-			if p.Err != nil {
-				pd.Error = p.Err.Error()
-			}
+			pd.BranchesMore = p.BranchesMore
 			gd.Pipelines = append(gd.Pipelines, pd)
 		}
 		d.Pins = append(d.Pins, gd)
 	}
 	return d
+}
+
+func pinDoc(p app.PinView, url func(string) string) BoardPinDoc {
+	pd := BoardPinDoc{Pin: p.Pin, Name: p.Name, PlanKey: p.PlanKey, Branch: p.Branch,
+		Results:        Docs(p.Results, func(b provider.Build) BoardPinBuild { return pinBuildDoc(b, url) }),
+		LastDurationMS: ms(p.Last), UsualDurationMS: ms(p.Usual), Progress: progressDoc(p.Progress)}
+	if p.Current != nil {
+		c := pinBuildDoc(*p.Current, url)
+		pd.Current = &c
+	}
+	if p.Err != nil {
+		pd.Error = p.Err.Error()
+	}
+	return pd
 }
 
 func pinBuildDoc(b provider.Build, url func(string) string) BoardPinBuild {
@@ -195,7 +209,13 @@ func Board(o Out, b app.Board, url func(string) string) error {
 				failed = append(failed, fmt.Sprintf("    %s could not be read: %s", p.Pin, p.Err))
 				continue
 			}
-			t.Rows = append(t.Rows, []string{o.Key(p.Label(), url(p.PlanKey)), results(o, p), now(o, p), Duration(p.Last), Duration(p.Usual)})
+			t.Rows = append(t.Rows, pinRow(o, p, url, ""))
+			for _, br := range p.Branches {
+				t.Rows = append(t.Rows, pinRow(o, br, url, "  "))
+			}
+			if p.BranchesMore > 0 {
+				t.Rows = append(t.Rows, []string{"  " + style.Dim(o.Style, fmt.Sprintf("+%d more branches", p.BranchesMore)), "", "", "", ""})
+			}
 		}
 		if len(t.Rows) > 0 {
 			if err := t.Render(o); err != nil {
@@ -207,6 +227,10 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		}
 	}
 	return nil
+}
+
+func pinRow(o Out, p app.PinView, url func(string) string, indent string) []string {
+	return []string{indent + o.Key(p.Label(), url(p.PlanKey)), results(o, p), now(o, p), Duration(p.Last), Duration(p.Usual)}
 }
 
 func section(o Out, title string) {

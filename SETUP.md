@@ -248,7 +248,8 @@ git config core.hooksPath .githooks     # pre-push refuses pushes that skip the 
 gives each worktree its own gate, but writes the `no-mistakes` remote into the
 config all of them share, so a plain `no-mistakes init` in one worktree sends
 the others' pushes to its gate. `make gate` pins the remote to this worktree's
-own gate, puts the shared value back, and removes the pins of worktrees that
+own gate, puts the shared value back (or removes it again if there was
+none), and removes the pins of worktrees that
 are gone. That needs Git 2.46 or later. In a normal clone it only runs
 `no-mistakes init`.
 

@@ -21,7 +21,8 @@ import (
 // any other worktree, such as one of a bare clone, gets a gate of its own. Init
 // writes the "no-mistakes" remote with git remote add or set-url, which lands
 // in the config every worktree shares. Status prints the gate line as
-// no-mistakes does.
+// no-mistakes does; with STATUS_NO_GATE set it prints no gate line, as a
+// no-mistakes whose status output changed would.
 const standIn = `#!/bin/sh
 set -eu
 common=$(git rev-parse --path-format=absolute --git-common-dir)
@@ -40,6 +41,7 @@ init)
 	fi
 	;;
 status)
+	[ -z "${STATUS_NO_GATE:-}" ] || exit 0
 	[ -d "$gate" ] || { echo "repo not initialized (run 'no-mistakes init' first)"; exit 0; }
 	printf '    repo:  %s\n  remote:  %s\n    gate:  %s\n' "$top" "$(git remote get-url origin)" "$gate"
 	;;
@@ -161,6 +163,76 @@ func TestRemovedWorktreeLeavesNoPinBehind(t *testing.T) {
 	l.makeGate(t, "wa")
 
 	assert.Equal(t, []string{filepath.Join(gitIn(t, l.dir("wa"), "rev-parse", "--absolute-git-dir"), pinFile)}, includes(t, shared))
+}
+
+func TestMakeGateInAFreshCloneLeavesOtherWorktreesWithoutARemote(t *testing.T) {
+	l := newLab(t, "wa", "wb")
+	l.makeGate(t, "wa")
+
+	cmd := exec.Command("git", "remote", "get-url", "no-mistakes")
+	cmd.Dir = l.dir("wb")
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err, "wb has a no-mistakes remote: %s", out)
+	fetch, push := remoteOf(t, l.dir("wa"))
+	assert.Equal(t, l.gate("wa"), fetch, "wa fetches from")
+	assert.Equal(t, l.gate("wa"), push, "wa pushes to")
+	gitIn(t, l.dir("wa"), "push", "-q", "no-mistakes", "HEAD:refs/heads/wa-branch")
+	assert.Equal(t, "wa-branch", branches(t, l.gate("wa")))
+
+	l.plainInit(t, "wb")
+	for _, w := range []string{"wa", "wb"} {
+		fetch, push := remoteOf(t, l.dir(w))
+		assert.Equal(t, l.gate(w), fetch, "%s fetches from", w)
+		assert.Equal(t, l.gate(w), push, "%s pushes to", w)
+	}
+}
+
+func TestMakeGateFailingAfterInitPutsTheSharedRemoteBack(t *testing.T) {
+	l := newLab(t, "wa", "wc")
+	l.plainInit(t, "wc")
+	wantFetch, wantPush := remoteOf(t, l.dir("wc"))
+	t.Setenv("STATUS_NO_GATE", "1")
+
+	var out bytes.Buffer
+	err := setup{dir: l.dir("wa"), noMistakes: l.tool, out: &out, errOut: &out}.run()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "put back as it was")
+	assert.Contains(t, err.Error(), "run make gate again")
+	fetch, push := remoteOf(t, l.dir("wc"))
+	assert.Equal(t, wantFetch, fetch, "wc fetches from")
+	assert.Equal(t, wantPush, push, "wc pushes to")
+}
+
+func TestMakeGateRefusesOnGitOlderThan246(t *testing.T) {
+	l := newLab(t, "wa")
+	realGit, err := exec.LookPath("git")
+	require.NoError(t, err)
+	// Git 2.43 keeps the first URL instead of clearing the list on an
+	// empty value, so the probe answers /first.
+	fake := "#!/bin/sh\n" +
+		"case \"$*\" in\n" +
+		"--version) echo 'git version 2.43.0'; exit 0 ;;\n" +
+		"*'ls-remote --get-url probe') echo /first; exit 0 ;;\n" +
+		"esac\n" +
+		"exec '" + realGit + "' \"$@\"\n"
+	fakeBin := filepath.Join(l.root, "fakegit")
+	require.NoError(t, os.MkdirAll(fakeBin, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(fakeBin, "git"), []byte(fake), 0o755))
+	shared := filepath.Join(l.common, "config")
+	before, err := os.ReadFile(shared)
+	require.NoError(t, err)
+	t.Setenv("PATH", fakeBin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	var out bytes.Buffer
+	err = setup{dir: l.dir("wa"), noMistakes: l.tool, out: &out, errOut: &out}.run()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Git 2.46")
+	assert.NoDirExists(t, l.gate("wa"), "no-mistakes init ran")
+	after, err := os.ReadFile(shared)
+	require.NoError(t, err)
+	assert.Equal(t, string(before), string(after))
 }
 
 // includes lists the files a config file includes conditionally.

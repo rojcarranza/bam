@@ -10,8 +10,8 @@
 // init` in one worktree re-points the remote the others push to. So after
 // init, gate pins the remote to this worktree's own gate, in a file inside the
 // worktree's own git folder that the shared config includes only for this
-// worktree, and puts the shared value back to what it was. The pin goes away
-// with the worktree.
+// worktree, and puts the shared value back to what it was (removing it again
+// if there was none). The pin goes away with the worktree.
 //
 // Git's per-worktree config (extensions.worktreeConfig) is not used: turning it
 // on in a bare clone breaks every linked worktree until core.bare is moved.
@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -81,40 +82,80 @@ func (s setup) run() error {
 	if err := s.init(); err != nil {
 		return err
 	}
-	gate, err := s.gatePath()
-	if err != nil {
-		return err
+	gate, err := s.pinOwnGate(gitDir, shared)
+	if rerr := s.restoreShared(shared, before, gate); rerr != nil {
+		return errors.Join(err, fmt.Errorf("putting back the shared no-mistakes remote: %w", rerr))
 	}
-
-	pin := filepath.Join(gitDir, pinFile)
-	include := "includeIf.gitdir:" + globEscape(gitDir) + ".path"
-	if err := s.writePin(pin, gate); err != nil {
-		return err
-	}
-	if _, err := s.git("config", "--file", shared, include, pin); err != nil {
-		_ = os.Remove(pin)
-		return err
-	}
-	if err := s.checkPin(gate); err != nil {
-		_, _ = s.git("config", "--file", shared, "--unset", include)
-		_ = os.Remove(pin)
-		return err
-	}
-
-	// no-mistakes init pointed the shared remote at this worktree's gate.
-	// Put back what other worktrees had, unless someone changed it since.
-	if len(before) == 1 && before[0] != gate {
-		if now, _ := s.configAll(shared, urlKey); len(now) == 1 && now[0] == gate {
-			if _, err := s.git("config", "--file", shared, urlKey, before[0]); err != nil {
-				return err
-			}
+	if err == nil {
+		err = s.checkPin(gate)
+		if err != nil {
+			s.unpin(gitDir, shared)
 		}
+	}
+	if err != nil {
+		return fmt.Errorf("%w; the no-mistakes remote was put back as it was, run make gate again before pushing", err)
 	}
 	if err := s.pruneStale(shared); err != nil {
 		return err
 	}
 	fmt.Fprintf(s.out, "gate: this worktree pushes to %s\n", gate)
 	fmt.Fprintln(s.out, "gate: other worktrees of this clone keep their own no-mistakes remote")
+	return nil
+}
+
+// pinOwnGate reads this worktree's gate and pins the no-mistakes remote to it.
+// It returns the gate whenever no-mistakes named one, even if pinning failed.
+func (s setup) pinOwnGate(gitDir, shared string) (string, error) {
+	gate, err := s.gatePath()
+	if err != nil {
+		return "", err
+	}
+	pin := filepath.Join(gitDir, pinFile)
+	if err := s.writePin(pin, gate); err != nil {
+		return gate, err
+	}
+	if _, err := s.git("config", "--file", shared, includeKey(gitDir), pin); err != nil {
+		_ = os.Remove(pin)
+		return gate, err
+	}
+	return gate, nil
+}
+
+// unpin removes this worktree's include and pin.
+func (s setup) unpin(gitDir, shared string) {
+	_, _ = s.git("config", "--file", shared, "--unset", includeKey(gitDir))
+	_ = os.Remove(filepath.Join(gitDir, pinFile))
+}
+
+func includeKey(gitDir string) string {
+	return "includeIf.gitdir:" + globEscape(gitDir) + ".path"
+}
+
+// restoreShared puts the shared no-mistakes URLs back to before, undoing what
+// no-mistakes init wrote there: when gate is known, only if the shared value is
+// still exactly that gate, so a later change by someone else is kept; when no
+// gate was named, whenever the value differs from before. If there was no
+// shared URL before, the remote section init added is removed again.
+func (s setup) restoreShared(shared string, before []string, gate string) error {
+	now, err := s.configAll(shared, urlKey)
+	if err != nil {
+		return err
+	}
+	if slices.Equal(now, before) || gate != "" && !slices.Equal(now, []string{gate}) {
+		return nil
+	}
+	if len(before) == 0 {
+		_, err := s.git("config", "--file", shared, "--remove-section", "remote."+remote)
+		return err
+	}
+	if _, err := s.git("config", "--file", shared, "--replace-all", urlKey, before[0]); err != nil {
+		return err
+	}
+	for _, url := range before[1:] {
+		if _, err := s.git("config", "--file", shared, "--add", urlKey, url); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

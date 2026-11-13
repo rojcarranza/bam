@@ -88,6 +88,24 @@ func TestAgentJobsRefusedForOneAgentIsARefusal(t *testing.T) {
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 }
 
+func TestAgentJobsLeavesOutAnAgentRemovedSinceTheListWasRead(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{agentDetailPath: {fixture: "recorded/agent_detail_executable_jobs.json"}})
+	saved := knownCaps(c, Capabilities{})
+	gone := provider.Agent{ID: 9, Name: "elastic-9"} // its detail answers 404
+	jobs, err := c.AgentJobs(ctx, append([]provider.Agent{gone}, recordedAgent...))
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{"linux-1": {"PROJ-HOLD-SL"}}, jobs)
+	assert.Equal(t, "yes", (*saved)[len(*saved)-1].AgentJobs)
+}
+
+func TestAgentJobsWhenEveryAgentIsMissingIsLearnedAsRefused(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{})
+	saved := knownCaps(c, Capabilities{})
+	_, err := c.AgentJobs(ctx, recordedAgent)
+	assert.True(t, errors.Is(err, errs.ErrUnsupported))
+	assert.Equal(t, "no", (*saved)[len(*saved)-1].AgentJobs)
+}
+
 func TestAgentJobsWithACutShortListIsRefusedNotMisleading(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{
 		agentDetailPath: {body: `{"executableJobs":{"size":3,"executableJobs":[{"key":{"key":"PROJ-HOLD-SL"}}]}}`},

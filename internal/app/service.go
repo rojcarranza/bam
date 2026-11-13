@@ -109,7 +109,8 @@ func queuePlace(q []provider.QueueEntry, key string) (pos, length int) {
 }
 
 // markQueued sets the queue place of every queued build under root, root
-// included, with one read of the queue.
+// included, with one read of the queue, and says why each waits. A queue the
+// server refuses leaves the place unset, as in BuildWithQueue.
 func (s *Service) markQueued(ctx context.Context, root *TreeNode) {
 	var queued []*TreeNode
 	root.Walk(func(n *TreeNode, _ int) {
@@ -122,7 +123,7 @@ func (s *Service) markQueued(ctx context.Context, root *TreeNode) {
 	}
 	q, err := s.P.Queue(ctx)
 	if err != nil {
-		return
+		q = nil
 	}
 	for _, n := range queued {
 		n.Build.QueuePosition, n.Build.QueueLength = queuePlace(q, n.Build.Key)

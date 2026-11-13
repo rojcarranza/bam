@@ -103,7 +103,9 @@ func (s *Service) keepScan(plan string, sc *treeScan) {
 	s.scans.m[plan] = sharedScan{scan: sc.clone(), at: s.Clock.Now()}
 }
 
-// clone is a copy of sc that a refresh can change without changing sc.
+// clone is a copy of sc that a refresh can change without changing sc. It
+// leaves out what the lender's last tree held and how far it read its logs:
+// a borrower's tree is its own first one.
 func (sc *treeScan) clone() *treeScan {
 	return &treeScan{
 		plans:    slices.Clone(sc.plans),

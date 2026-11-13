@@ -168,8 +168,8 @@ func TestWatchTreeListsPlansOnceAndReadsASmallWindowAfter(t *testing.T) {
 	collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
 	require.Equal(t, map[string]int{"PROJ": 1, "OPS": 1}, fp.plansCalls, "the candidates are found once per watch")
 	require.Equal(t, 25, fp.limits[0])
-	for _, l := range fp.limits[4:] { // four candidate plans per refresh
-		require.Equal(t, 5, l, "later refreshes read each plan's newest builds only")
+	for _, l := range fp.limits[4:] { // four candidate plans per listing
+		require.Equal(t, 5, l, "a later listing reads each plan's newest builds only")
 	}
 }
 

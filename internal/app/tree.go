@@ -23,8 +23,13 @@ import (
 const (
 	treeWindow  = 25
 	treeDeep    = 1600
-	treeRefresh = 5 // a watch's later refreshes: a new child is among its plan's newest builds
+	treeRefresh = 5 // a watch's later listings: a new child is among its plan's newest builds
 	treeFetch   = 4
+	// treeRelist is how long a watch goes without listing the candidates'
+	// newest builds while its tree runs. A listing follows every build that
+	// ends, since Bamboo queues children then; this one catches a child
+	// Bamboo was slow to queue.
+	treeRelist = 5 * time.Minute
 )
 
 var (
@@ -51,6 +56,7 @@ type TreeOptions struct {
 	Shared     bool               // start from the scan of another recent tree of the root's plan, and lend this one on
 	Plans      []string           // more plans to search for children, such as the plan branches of a run with repository branches
 	NoScan     bool               // with a previous scan, do not list the plans' newest builds again: read only what runs
+	Rescan     bool               // with a previous scan, list the plans' newest builds again; with neither, a refresh lists them when a build in the tree ended or treeRelist passed
 	track      *treeTracker       // set by BuildTree and WatchTree
 }
 
@@ -135,13 +141,35 @@ func (s *Service) BuildTree(ctx context.Context, key string, o TreeOptions) (Tre
 	return t, err
 }
 
+// knownBuild is a build a tree read already has: one that finished on an
+// earlier refresh of a watch, or one this refresh read first. err is set
+// when that read failed.
+type knownBuild struct {
+	b   provider.Build
+	err error
+}
+
 // buildTree is BuildTree reusing what a watch already knows: done holds
 // builds that finished, so they are not read again, and prev is the last
-// search, so the candidates are not listed again and each plan's newest
-// builds are merged into it. It returns the search for the next refresh.
+// refresh's search. A refresh first reads the builds the last tree held
+// unfinished, and lists the candidates' newest builds again only when one
+// of them ended, the last refresh asked for it, or treeRelist has passed
+// (#199); otherwise the tree grows from the builds already found. It
+// returns the search for the next refresh.
 func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done map[string]provider.Build, prev *treeScan) (Tree, *treeScan, error) {
-	root, ok := done[key]
-	if !ok {
+	tr := o.track
+	known := make(map[string]knownBuild, len(done))
+	for k, b := range done {
+		known[k] = knownBuild{b: b}
+	}
+	refresh := prev != nil
+	if refresh {
+		s.treeLive(ctx, tr, prev.open, known)
+	}
+	var root provider.Build
+	if k, ok := known[key]; ok && k.err == nil {
+		root = k.b
+	} else {
 		var err error
 		if root, err = s.Build(ctx, key); err != nil {
 			return Tree{}, nil, err
@@ -151,17 +179,29 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	if err != nil {
 		return Tree{}, nil, err
 	}
-	tr := o.track
 	var warnings []string
-	var known *TreeNode
-	if prev == nil && o.Shared {
+	var saved *TreeNode
+	if !refresh && o.Shared {
 		var release func()
 		if prev, release, err = s.awaitScan(ctx, root); err != nil {
 			return Tree{}, nil, err
 		}
 		defer release()
 		if t, ok := s.CachedTree(key); ok && prev == nil && len(t.Warnings) == 0 && (t.Depth == 0 || (o.Depth > 0 && t.Depth >= o.Depth)) {
-			known = t.Root
+			saved = t.Root
+		}
+	}
+	// list is whether the candidates' newest builds are read: always on a
+	// first search, on a refresh only when a child may have been queued.
+	list := true
+	if refresh {
+		switch {
+		case o.NoScan:
+			list = false
+		case o.Rescan:
+			list = true
+		default:
+			list = prev.relist || prev.ended(root, known) || s.Clock.Now().Sub(prev.listedAt) >= treeRelist
 		}
 	}
 	scan := prev
@@ -176,40 +216,41 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		limit = treeWindow
 	}
 	var got map[string][]provider.Build
-	var failed map[string]error
-	if prev == nil || !o.NoScan {
+	if list {
+		var failed map[string]error
 		got, failed = s.treeRead(ctx, tr, scan.plans, limit)
+		readWarnings := make([]string, 0, len(failed))
+		for _, p := range scan.plans {
+			if err, ok := failed[p]; ok {
+				readWarnings = append(readWarnings, fmt.Sprintf("%s: its builds could not be read: %s", p, describeErr(err)))
+			}
+		}
+		if ctx.Err() == nil && len(scan.plans) > 0 && len(failed) == len(scan.plans) {
+			return Tree{}, nil, errs.Bamboof("no candidate plan's builds could be read").WithWhy(readWarnings[0])
+		}
+		warnings = append(warnings, readWarnings...)
 	}
 	var depths map[string]int
-	if prev == nil && known == nil {
+	if prev == nil && saved == nil {
 		depths = s.treeDeepen(ctx, tr, got, root)
 	}
 	if err := ctx.Err(); err != nil {
 		return Tree{}, nil, err
 	}
-	readWarnings := make([]string, 0, len(failed))
-	for _, p := range scan.plans {
-		if err, ok := failed[p]; ok {
-			readWarnings = append(readWarnings, fmt.Sprintf("%s: its builds could not be read: %s", p, describeErr(err)))
-		}
-	}
-	if len(scan.plans) > 0 && len(failed) == len(scan.plans) {
-		return Tree{}, nil, errs.Bamboof("no candidate plan's builds could be read").WithWhy(readWarnings[0])
-	}
-	warnings = append(warnings, readWarnings...)
-	if prev == nil {
+	switch {
+	case prev == nil:
 		scan = scan.first(got, depths)
-		if known != nil {
-			scan.knew(known)
+		if saved != nil {
+			scan.knew(saved)
 		}
-	} else {
+	case list:
 		scan = scan.merged(got)
 	}
 	warnings = append(warnings, s.treeParents(ctx, tr, scan)...)
 	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}, Depth: o.Depth}
 	treeGrow(t.Root, scan.index(), configured, o.Depth, 0, map[string]bool{root.Key: true})
-	warnings = append(warnings, s.treeDetails(ctx, tr, t.Root, done)...)
-	warnings = append(warnings, s.treeLogLinks(ctx, tr, t.Root, scan, configured, o.Depth, done)...)
+	warnings = append(warnings, s.treeDetails(ctx, tr, t.Root, known)...)
+	warnings = append(warnings, s.treeLogLinks(ctx, tr, t.Root, scan, configured, o.Depth, known)...)
 	if scan.covered != root.Key {
 		warnings = append(warnings, windowWarnings(scan.windows, root)...)
 	}
@@ -218,10 +259,42 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	sort.Strings(warnings)
 	t.Warnings, t.State = warnings, TreeState(t.Root)
-	if o.Shared {
+	if list {
+		scan.listedAt = s.Clock.Now()
+	}
+	scan.remember(t.Root)
+	if o.Shared && list {
+		// Lent only as listed: a borrower reads each plan's newest
+		// treeRefresh builds, which must reach back to this listing.
 		s.keepScan(root.PlanKey, scan)
 	}
 	return t, scan, nil
+}
+
+// treeLive reads each build of keys, treeFetch at a time, into known: a
+// refresh reads the builds the last tree held unfinished first, to learn
+// whether one ended. A read that fails is kept as failed, so the tree
+// warns about it rather than read it twice.
+func (s *Service) treeLive(ctx context.Context, tr *treeTracker, keys []string, known map[string]knownBuild) {
+	reads := make([]knownBuild, len(keys))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, treeFetch)
+	tr.add(treeBuilds, len(keys))
+	for i, k := range keys {
+		wg.Add(1)
+		go func(i int, k string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			b, err := s.P.GetBuild(ctx, k)
+			tr.done(treeBuilds)
+			reads[i] = knownBuild{b: b, err: err}
+		}(i, k)
+	}
+	wg.Wait()
+	for i, k := range keys {
+		known[k] = reads[i]
+	}
 }
 
 // treeCandidates is every plan of the scoped projects and of the root's
@@ -348,6 +421,53 @@ type treeScan struct {
 	misses   map[string]int      // failed parent reads in a row, by build key
 	logLinks map[string][]string // build keys a finished job's log links to, by job key
 	covered  string              // root whose saved tree supplied its older children, so its windows warn of nothing
+
+	// What the last tree held, for the next refresh of a watch (#199).
+	open     []string           // builds below the root that had not finished
+	finished map[string]bool    // builds, root included, that had finished
+	relist   bool               // a build ended, so the next refresh lists again
+	listedAt time.Time          // when the candidates' newest builds were last read
+	logs     map[string]logRead // how far each running job's log was read, by job key
+}
+
+// ended reports whether a build of the last tree ended since: the root, now
+// read again, or a build known reads first on this refresh. Bamboo queues a
+// build's children when it ends, so the candidates are listed then.
+func (sc *treeScan) ended(root provider.Build, known map[string]knownBuild) bool {
+	if TreeFinished(root.State) && !sc.finished[root.Key] {
+		return true
+	}
+	for _, k := range sc.open {
+		if b, ok := known[k]; ok && b.err == nil && TreeFinished(b.b.State) {
+			return true
+		}
+	}
+	return false
+}
+
+// remember records which builds of t's tree, rooted at root, had finished
+// and which had not, for the next refresh: one that ended since this scan's
+// last tree asks that refresh to list again, as Bamboo may queue its
+// children only after this listing.
+func (sc *treeScan) remember(root *TreeNode) {
+	before := sc.finished
+	sc.open, sc.finished = nil, map[string]bool{}
+	sc.relist = false
+	root.Walk(func(n *TreeNode, depth int) {
+		if n.NotRun || n.Loop {
+			return
+		}
+		if !TreeFinished(n.Build.State) {
+			if depth > 0 {
+				sc.open = append(sc.open, n.Build.Key)
+			}
+			return
+		}
+		sc.finished[n.Build.Key] = true
+		if !before[n.Build.Key] {
+			sc.relist = true
+		}
+	})
 }
 
 // knew lays the builds of root's saved final tree under the scan's, so its
@@ -379,9 +499,11 @@ func (sc *treeScan) first(got map[string][]provider.Build, depths map[string]int
 
 // merged is the scan with a refresh's builds laid over it: a build read
 // again replaces its older copy, a new build is added, and a plan that
-// could not be read keeps what was found before.
+// could not be read keeps what was found before. It keeps what the last
+// tree held and how far its logs were read.
 func (sc *treeScan) merged(got map[string][]provider.Build) *treeScan {
-	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks, covered: sc.covered}
+	out := &treeScan{plans: sc.plans, listed: sc.listed, builds: map[string][]provider.Build{}, windows: sc.windows, parents: maps.Clone(sc.parents), misses: maps.Clone(sc.misses), logLinks: sc.logLinks, covered: sc.covered,
+		finished: sc.finished, logs: sc.logs}
 	maps.Copy(out.builds, sc.builds)
 	for plan, fresh := range got {
 		byKey := map[string]provider.Build{}
@@ -573,8 +695,9 @@ func treeGrow(n *TreeNode, idx map[string][]provider.Build, configured map[strin
 }
 
 // treeDetails reads every build node below the root with GetBuild, for its
-// stages, jobs and failed tests; done builds are reused.
-func (s *Service) treeDetails(ctx context.Context, tr *treeTracker, root *TreeNode, done map[string]provider.Build) []string {
+// stages, jobs and failed tests; known builds are reused, and one whose
+// read failed warns without a second read.
+func (s *Service) treeDetails(ctx context.Context, tr *treeTracker, root *TreeNode, known map[string]knownBuild) []string {
 	var nodes []*TreeNode
 	root.Walk(func(n *TreeNode, depth int) {
 		if depth > 0 && !n.NotRun && !n.Loop {
@@ -584,7 +707,7 @@ func (s *Service) treeDetails(ctx context.Context, tr *treeTracker, root *TreeNo
 	warnings := make([]string, len(nodes))
 	reads := 0
 	for _, n := range nodes {
-		if _, ok := done[n.Build.Key]; !ok {
+		if _, ok := known[n.Build.Key]; !ok {
 			reads++
 		}
 	}
@@ -592,8 +715,12 @@ func (s *Service) treeDetails(ctx context.Context, tr *treeTracker, root *TreeNo
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, treeFetch)
 	for i, n := range nodes {
-		if b, ok := done[n.Build.Key]; ok {
-			n.Build = b
+		if k, ok := known[n.Build.Key]; ok {
+			if k.err == nil {
+				n.Build = k.b
+			} else if ctx.Err() == nil {
+				warnings[i] = fmt.Sprintf("%s: its stages could not be read: %s", n.Build.Key, describeErr(k.err))
+			}
 			continue
 		}
 		wg.Add(1)

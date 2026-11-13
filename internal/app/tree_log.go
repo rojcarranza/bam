@@ -76,7 +76,7 @@ type logLink struct {
 // that project's plans to sc, so its children by reason are found, and a
 // watch keeps reading them. Finished jobs' links are kept in sc, so a watch
 // reads each finished log once.
-func (s *Service) treeLogLinks(ctx context.Context, tr *treeTracker, root *TreeNode, sc *treeScan, configured map[string][]string, depth int, done map[string]provider.Build) []string {
+func (s *Service) treeLogLinks(ctx context.Context, tr *treeTracker, root *TreeNode, sc *treeScan, configured map[string][]string, depth int, known map[string]knownBuild) []string {
 	inTree := map[string]bool{}
 	frontier := treeOpen(root, 0, nil, inTree)
 	var warnings []string
@@ -85,7 +85,7 @@ func (s *Service) treeLogLinks(ctx context.Context, tr *treeTracker, root *TreeN
 		links, w := s.treeReadLinks(ctx, tr, open, sc)
 		warnings = append(warnings, w...)
 		todo := newLinks(open, links, inTree)
-		s.readLinked(ctx, tr, todo, done)
+		s.readLinked(ctx, tr, todo, known)
 
 		var fetched []provider.Build
 		for _, f := range todo {
@@ -95,7 +95,7 @@ func (s *Service) treeLogLinks(ctx context.Context, tr *treeTracker, root *TreeN
 		}
 		warnings = append(warnings, s.treeAddProjects(ctx, tr, sc, fetched, root.Build)...)
 		var w2 []string
-		frontier, w2 = s.attachLinked(ctx, tr, todo, sc.index(), configured, depth, done, inTree)
+		frontier, w2 = s.attachLinked(ctx, tr, todo, sc.index(), configured, depth, known, inTree)
 		warnings = append(warnings, w2...)
 	}
 	return warnings
@@ -140,12 +140,12 @@ func newLinks(open []treeAt, links [][]logLink, inTree map[string]bool) []linked
 	return todo
 }
 
-// readLinked fills in each linked build, from done when it is there, else
+// readLinked fills in each linked build, from known when it is there, else
 // read from Bamboo, treeFetch at a time.
-func (s *Service) readLinked(ctx context.Context, tr *treeTracker, todo []linkedBuild, done map[string]provider.Build) {
+func (s *Service) readLinked(ctx context.Context, tr *treeTracker, todo []linkedBuild, known map[string]knownBuild) {
 	reads := 0
 	for _, f := range todo {
-		if _, ok := done[f.link.key]; !ok {
+		if _, ok := known[f.link.key]; !ok {
 			reads++
 		}
 	}
@@ -154,8 +154,8 @@ func (s *Service) readLinked(ctx context.Context, tr *treeTracker, todo []linked
 	sem := make(chan struct{}, treeFetch)
 	for i := range todo {
 		f := &todo[i]
-		if b, ok := done[f.link.key]; ok {
-			f.build = b
+		if k, ok := known[f.link.key]; ok {
+			f.build, f.err = k.b, k.err
 			continue
 		}
 		wg.Add(1)
@@ -174,7 +174,7 @@ func (s *Service) readLinked(ctx context.Context, tr *treeTracker, todo []linked
 // before the build whose log names it, as a child of that build, grows its
 // children by reason and reads its details. It returns the new nodes whose
 // logs are read next, and the warnings.
-func (s *Service) attachLinked(ctx context.Context, tr *treeTracker, todo []linkedBuild, idx map[string][]provider.Build, configured map[string][]string, depth int, done map[string]provider.Build, inTree map[string]bool) ([]treeAt, []string) {
+func (s *Service) attachLinked(ctx context.Context, tr *treeTracker, todo []linkedBuild, idx map[string][]provider.Build, configured map[string][]string, depth int, known map[string]knownBuild, inTree map[string]bool) ([]treeAt, []string) {
 	var frontier []treeAt
 	var warnings []string
 	grown := map[*TreeNode]bool{}
@@ -195,7 +195,7 @@ func (s *Service) attachLinked(ctx context.Context, tr *treeTracker, todo []link
 			path[k] = true
 		}
 		treeGrow(kid, idx, configured, depth, f.at.level+1, path)
-		warnings = append(warnings, s.treeDetails(ctx, tr, kid, done)...)
+		warnings = append(warnings, s.treeDetails(ctx, tr, kid, known)...)
 		f.at.n.Children = append(f.at.n.Children, kid)
 		grown[f.at.n] = true
 		frontier = append(frontier, treeOpen(kid, f.at.level+1, f.at.path, inTree)...)
@@ -254,9 +254,18 @@ func (s *Service) treeAddProjects(ctx context.Context, tr *treeTracker, sc *tree
 	return warnings
 }
 
+// logRead is how far a watch has read a running job's log: the line its
+// next read starts from, and the builds the lines read so far link to.
+type logRead struct {
+	next  int
+	links []string
+}
+
 // treeReadLinks reads the logs of the started jobs of each node, treeFetch
 // at a time, and returns the builds each node's logs link to. A job with no
-// log yet adds nothing; one whose log cannot be read adds a warning.
+// log yet adds nothing; one whose log cannot be read adds a warning. A
+// running job's log is read from where the last refresh stopped, and a
+// finished job's links are kept, so a watch reads each line once (#199).
 func (s *Service) treeReadLinks(ctx context.Context, tr *treeTracker, nodes []treeAt, sc *treeScan) ([][]logLink, []string) {
 	type jobAt struct {
 		node  int
@@ -273,6 +282,9 @@ func (s *Service) treeReadLinks(ctx context.Context, tr *treeTracker, nodes []tr
 			}
 		}
 	}
+	if sc.logs == nil {
+		sc.logs = map[string]logRead{}
+	}
 	reads := 0
 	for _, j := range jobs {
 		if _, ok := sc.logLinks[j.job.Key]; !ok {
@@ -280,21 +292,23 @@ func (s *Service) treeReadLinks(ctx context.Context, tr *treeTracker, nodes []tr
 		}
 	}
 	tr.add(treeJobs, reads)
-	keys := make([][]string, len(jobs))
+	got := make([]logRead, len(jobs))
 	readErrs := make([]error, len(jobs))
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, treeFetch)
 	for i, j := range jobs {
 		if k, ok := sc.logLinks[j.job.Key]; ok {
-			keys[i] = k
+			got[i] = logRead{links: k}
 			continue
 		}
+		from := sc.logs[j.job.Key]
+		got[i] = from
 		wg.Add(1)
 		go func(i int, j jobAt) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			chunk, err := s.P.FetchLog(ctx, j.job.Key, provider.LogOptions{})
+			chunk, err := s.P.FetchLog(ctx, j.job.Key, provider.LogOptions{Offset: from.next})
 			tr.done(treeJobs)
 			if err != nil {
 				if !errors.Is(err, errs.ErrNotFound) {
@@ -302,7 +316,13 @@ func (s *Service) treeReadLinks(ctx context.Context, tr *treeTracker, nodes []tr
 				}
 				return
 			}
-			keys[i] = BuildLinks(chunk.Lines)
+			links := slices.Clone(from.links)
+			for _, k := range BuildLinks(chunk.Lines) {
+				if !slices.Contains(links, k) {
+					links = append(links, k)
+				}
+			}
+			got[i] = logRead{next: chunk.Next, links: links}
 		}(i, j)
 	}
 	wg.Wait()
@@ -316,11 +336,16 @@ func (s *Service) treeReadLinks(ctx context.Context, tr *treeTracker, nodes []tr
 			}
 			continue
 		}
-		if _, cached := sc.logLinks[j.job.Key]; !cached && j.job.State.Finished() {
-			sc.logLinks[j.job.Key] = keys[i]
+		if _, cached := sc.logLinks[j.job.Key]; !cached {
+			if j.job.State.Finished() {
+				sc.logLinks[j.job.Key] = got[i].links
+				delete(sc.logs, j.job.Key)
+			} else {
+				sc.logs[j.job.Key] = got[i]
+			}
 		}
 		own := nodes[j.node].n.Build.Key
-		for _, k := range keys[i] {
+		for _, k := range got[i].links {
 			if k != own {
 				out[j.node] = append(out[j.node], logLink{k, j.stage})
 			}

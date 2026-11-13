@@ -119,6 +119,7 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 		// A finished build is read again until a read comes after it settled;
 		// a running one only every pinRescanEvery.
 		o.NoScan = (!TreeFinished(root.State) || m.settled) && now.Sub(m.scannedAt) < pinRescanEvery
+		o.Rescan = !o.NoScan // the pin keeps its own times to list the plans
 	}
 	t, scan, err := s.buildTree(ctx, root.Key, o, m.done, m.scan)
 	if err != nil {

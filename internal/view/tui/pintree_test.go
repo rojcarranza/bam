@@ -230,7 +230,7 @@ func TestFoldedPinKeepsItsBranchRowsAddressable(t *testing.T) {
 	pin, ok = m.boardPin()
 	require.True(t, ok)
 	require.Equal(t, "PROJ-TOP0", pin.PlanKey, "the next line is the branch row")
-	require.Contains(t, plain(m), "▸ Top pipeline@", "and it is the line marked")
+	require.Contains(t, plain(m), "▸   Top pipeline@", "and it is the line marked")
 	m, _ = send(m, mkKey("j"))
 	pin, _ = m.boardPin()
 	require.Equal(t, "PROJ-BUILD", pin.PlanKey, "then the next pin")

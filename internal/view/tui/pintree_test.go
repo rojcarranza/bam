@@ -268,3 +268,24 @@ func TestCursorStaysOnItsPinWhenATreeAboveLosesItsRows(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "PROJ-BUILD", pin.PlanKey)
 }
+
+// Intent (review of this change): the hint of a tree folded to fit a short
+// panel says space opens it, so space opens it.
+func TestSpaceOpensATreeFoldedToFitAShortPanel(t *testing.T) {
+	doneRoot, doneTree := okTree("PROJ-DONE-5", 4)
+	m := pinCursor(treeBoardModel(120, 40, func(b *app.Board) {
+		b.Groups[0].Pins = append(b.Groups[0].Pins, app.PinView{Pin: "PROJ-DONE", PlanKey: "PROJ-DONE", Name: "Finished one",
+			Results: []provider.Build{doneRoot}, Tree: doneTree})
+	}))
+	m.board.cursor[boardPins] = 5 // the finished pin's own row
+	lines, _ := m.pinLines(100, false, 16)
+	require.Contains(t, ansi.Strip(strings.Join(lines, "\n")), "▸ 4 child pipelines · space opens")
+	m, _ = send(m, mkKey(" "))
+	lines, _ = m.pinLines(100, false, 16)
+	text := ansi.Strip(strings.Join(lines, "\n"))
+	require.NotContains(t, text, "4 child pipelines · space opens", "the tree is open now")
+	require.Contains(t, text, "PROJ-OKA-1")
+	m, _ = send(m, mkKey(" "))
+	lines, _ = m.pinLines(100, false, 16)
+	require.Contains(t, ansi.Strip(strings.Join(lines, "\n")), "▸ 4 child pipelines · space opens", "and space folds it again")
+}

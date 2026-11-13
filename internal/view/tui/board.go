@@ -91,6 +91,9 @@ type boardState struct {
 	pinFor string // the plan the group prompt will pin
 	// folded holds the pins whose tree space folded, until bam exits.
 	folded map[string]bool
+	// opened holds the pins whose tree space opened although Pinned is too
+	// short for it; fitFolded is what the last drawing folded to fit.
+	opened, fitFolded map[string]bool
 }
 
 type boardTickMsg struct{ Gen int }
@@ -231,6 +234,9 @@ func (m Model) boardLoaded(msg boardLoadedMsg) Model {
 		if b.have && !b.seen[id] {
 			fresh = true
 		}
+	}
+	if b.fitFolded == nil {
+		b.fitFolded = map[string]bool{} // shared with the copies of the model that draw it
 	}
 	held := b.pinSelKey()
 	b.seen, b.data, b.have = next, data, true

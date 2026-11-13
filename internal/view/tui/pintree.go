@@ -169,7 +169,7 @@ func (m Model) pinLines(inner int, roomy bool, capLines int) ([]string, int) {
 			if total() <= capLines {
 				break
 			}
-			if !p.fold && len(p.tree) > 0 && pinFoldable(pins[i]) && holds(i) < 0 {
+			if !p.fold && len(p.tree) > 0 && pinFoldable(pins[i]) && holds(i) < 0 && !b.opened[pins[i].Pin] {
 				p.fold, p.count, trimmed = true, pinPipelines(pins[i]), true
 			}
 		}
@@ -191,6 +191,15 @@ func (m Model) pinLines(inner int, roomy bool, capLines int) ([]string, int) {
 			excess := total() - capLines
 			p.shown = max(len(p.tree)-excess-1, holds(best)+1)
 			p.cut, trimmed = true, true
+		}
+	}
+	if b.fitFolded == nil {
+		b.fitFolded = map[string]bool{}
+	}
+	clear(b.fitFolded)
+	for i, p := range parts {
+		if p.fold && !b.folded[pins[i].Pin] {
+			b.fitFolded[pins[i].Pin] = true
 		}
 	}
 	spaced := roomy && !trimmed && capLines > 0 && total()+len(b.data.Groups)-1 <= capLines
@@ -265,9 +274,18 @@ func (m Model) toggleFold() Model {
 	for k, v := range b.folded {
 		folded[k] = v
 	}
-	if folded[pin.Pin] {
+	opened := map[string]bool{}
+	for k, v := range b.opened {
+		opened[k] = v
+	}
+	switch {
+	case b.fitFolded[pin.Pin]:
+		// Folded only to fit the panel: space opens it, and the fit rule leaves it open.
+		opened[pin.Pin] = true
+	case folded[pin.Pin]:
 		delete(folded, pin.Pin)
-	} else {
+	default:
+		delete(opened, pin.Pin)
 		folded[pin.Pin] = true
 		// The cursor was on a line of the tree that is gone: back to the pin.
 		for i, s := range sels {
@@ -277,7 +295,7 @@ func (m Model) toggleFold() Model {
 			}
 		}
 	}
-	b.folded = folded
+	b.folded, b.opened = folded, opened
 	b.clamp()
 	return m
 }
@@ -294,7 +312,7 @@ func (b *boardState) pinSelKey() string {
 	s := sels[c]
 	key := s.pin.Pin + "|" + s.pin.PlanKey + "|" + s.pin.Branch
 	if s.node != nil {
-		key += "|" + s.node.PlanKey
+		key += "|" + s.node.Build.Key
 	}
 	return key
 }
@@ -311,7 +329,7 @@ func (b *boardState) followPinSel(key string) {
 	for i, s := range b.pinSels() {
 		k := s.pin.Pin + "|" + s.pin.PlanKey + "|" + s.pin.Branch
 		if s.node != nil {
-			k += "|" + s.node.PlanKey
+			k += "|" + s.node.Build.Key
 		}
 		if k == key {
 			b.cursor[boardPins] = i

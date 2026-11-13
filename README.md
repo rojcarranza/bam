@@ -2,6 +2,8 @@
 
 The command line for Atlassian Bamboo: run a plan, follow the build, read why it failed and open it in Bamboo, without the browser. See [`VISION.md`](VISION.md) for what bam is and is not.
 
+The repository is private for now, so the release download below needs a GitHub sign-in with access to it until the repository goes public.
+
     bam run BAMCI-BUILD --watch
     bam logs --last --failed
     bam open --last

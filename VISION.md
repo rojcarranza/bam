@@ -1,14 +1,14 @@
 # Vision
 
 `bam` exists so that a developer spends less manual effort on Bamboo pipelines, from triggering them while building features to building, testing and improving them, and gets insight into how to make them better.
-It serves developers and DevOps engineers who run Bamboo Data Center plans with variables, often many at once, and it turns their intent ("build my branch", "test these pipelines", "why did it fail") into the right REST calls, readable output and stable exit codes.
+It is built for its author and their team, who run Bamboo Data Center plans with variables, often many at once, and it turns their intent ("build my branch", "test these pipelines", "why did it fail") into the right REST calls, readable output and stable exit codes.
 It owns exactly one thing: the command line for working with Bamboo pipelines, from intent to the Bamboo link when the browser is needed.
 
 ## Many pipelines at once
 
 DevOps work means testing many pipelines at the same time, so running and watching several is a core use, not an extra.
 Presets, sets, matrix runs and build trees exist so that one command starts a group and one view shows all of it.
-Monitoring happens in the terminal first, and a web dashboard follows (see Three faces).
+Monitoring happens in the terminal.
 A feature that only helps one pipeline at a time is weighed against whether it scales to a group.
 
 ## Bamboo stays the source of truth
@@ -16,15 +16,12 @@ A feature that only helps one pipeline at a time is weighed against whether it s
 `bam` never treats its own cache as authoritative.
 Every entity it shows carries its Bamboo URL, and `bam open` is always one step away.
 When a run depends on state that lives in Bamboo, such as the branch a repository builds, `bam` checks it and sends the person to the Bamboo page that changes it.
-What a DevOps engineer does in Bamboo, `bam` is meant to do: create plans and plan branches, add or change tasks, attach test scripts, and disable a task to isolate a new one.
-The capability is not capped by what `bam` does today.
 A change to Bamboo is something the person asks for by name, never a side effect of running a build.
 Bamboo features the server does not report are learned lazily and cached with an expiry, never assumed.
 
-## Three faces, one core
+## Two faces, one core
 
 The commands and the terminal UI call the same use cases, so they cannot disagree.
-A web dashboard is planned as the third face, where pipelines are seen and arranged by drag and drop, to raise developer productivity and give insight into how pipelines behave and how to improve them.
 Every face adds nothing the core lacks.
 Presentation lives in the view layer; the core never prints and never reads stdin.
 A second CI provider would be one new package behind the provider interface, and it is not planned.
@@ -43,17 +40,17 @@ Restarting builds on a shared Bamboo asks first, and `--yes` is required without
 A set run checks every run before the first trigger and cancels nothing when a stage fails.
 Intent is resolved and validated before anything is sent: missing variables, bad options and unset references are usage errors.
 
-## Secrets and the public repository
+## Secrets and publishing
 
 Secret values print as `********` everywhere, including JSON and `--debug`.
 A token is keyed by its server origin and is never sent to another host.
 Credentials live in the OS keychain, a named environment variable, or a 0600 file, and nowhere else.
-This repository is public: code, fixtures, docs and commits use placeholder hosts, keys and users only.
+This repository is private for now. It becomes public only after its history is scanned for work names (hosts, project keys, plan keys and user names) and the scan finds none; until then, code, fixtures, docs and commits still use placeholder hosts, keys and users only, because that history is what would be published.
 
 ## Scope
 
 `bam` is not a REST wrapper that exposes every endpoint, and it is organised around what a person intends, not around Bamboo's endpoints.
-Bamboo agents and the web dashboard are coming into scope.
+Bamboo agents are coming into scope. It does not create or edit Bamboo plans, and it has no web dashboard.
 It does not handle deployment projects, Bamboo Server, basic authentication or Bamboo before 9.x.
 It does not run Terraform, Ansible, Helm or kubectl, and it does not read clusters; deploy pipelines already wait for their own rollouts.
 Features come from a written user story and a design, and a rejected design stays on record with its reason.

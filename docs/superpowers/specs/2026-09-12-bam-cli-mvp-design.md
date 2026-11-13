@@ -603,6 +603,7 @@ Capabilities are discovered lazily and cached per server origin with the Bamboo 
 - plan variable listing
 - build variable read-back
 - log path (`logEntries` or download)
+- which end of a long log `logEntries` returns (`log_end`: `last` on Bamboo 12, so `--follow` and a watched tree read only the entries a log gained; `first` reads it whole)
 - failed-test detail
 - build stop
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -753,5 +754,45 @@ func TestBoardQueueSaysWhyABuildWaits(t *testing.T) {
 		require.Contains(t, v, c.busy+" ", "width %d", c.w)
 		require.Contains(t, v, "no agent can run it", "width %d", c.w)
 		require.Contains(t, v, "Manual build", "width %d", c.w)
+	}
+}
+
+// Finding tui-queue-scroll-orphan: with more queued builds than the Queue
+// panel holds, scrolling must never leave a build's reason line at the top of
+// the panel with its build scrolled out of view, and the cursor's build stays
+// in view wherever the cursor goes.
+func TestBoardQueueScrollKeepsEachReasonWithItsBuild(t *testing.T) {
+	data := sampleBoard(goldenNow)
+	data.Queue = nil
+	for i := 1; i <= 6; i++ {
+		key := fmt.Sprintf("PROJ-Q%d-%d", i, i)
+		data.Queue = append(data.Queue, app.QueueRow{Position: i, QueueEntry: provider.QueueEntry{Key: key, PlanKey: fmt.Sprintf("PROJ-Q%d", i), Number: i, Reason: "Manual build"}, Waited: time.Minute,
+			Why: &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}})
+	}
+	for h := 22; h <= 30; h++ {
+		m := boardModel(80, h)
+		m.board.loadGen++
+		m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+		m.board.panel = boardQueue
+		queueScrollCheck(t, m, len(data.Queue))
+	}
+}
+
+func queueScrollCheck(t *testing.T, m Model, n int) {
+	t.Helper()
+	for c := range n {
+		m.board.cursor[boardQueue] = c
+		lines := strings.Split(ansi.Strip(m.View()), "\n")
+		top := -1
+		for i, l := range lines {
+			if strings.Contains(l, "━Queue━") {
+				top = i + 1
+				break
+			}
+		}
+		require.GreaterOrEqual(t, top, 1, "queue panel in:\n%s", strings.Join(lines, "\n"))
+		first := lines[top]
+		require.Contains(t, first, "PROJ-Q", "height %d cursor %d: queue panel starts on %q", m.height, c, first)
+		require.Contains(t, strings.Join(lines, "\n"), fmt.Sprintf("▸ %d  PROJ-Q%d-%d", c+1, c+1, c+1), "height %d cursor %d", m.height, c)
 	}
 }

@@ -304,3 +304,21 @@ func TestTOnAPinRowWithATreeOpensTheBuildOfItsTree(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "PROJ-TOP-9", got.Key)
 }
+
+// Intent (review of this change): the Needs you line of a failed child
+// pipeline opens that child like every other Needs you line.
+func TestEnterOnAFailedChildNeedsLineOpensTheChild(t *testing.T) {
+	m := treeBoardModel(120, 45, nil)
+	idx := -1
+	for i, n := range m.board.data.Needs {
+		if n.Kind == "pin_child_failed" {
+			idx = i
+		}
+	}
+	require.GreaterOrEqual(t, idx, 0)
+	m.board.panel, m.board.cursor[boardNeeds] = boardNeeds, idx
+	opened, cmd := send(m, mkKey("enter"))
+	require.NotNil(t, cmd)
+	require.Equal(t, screenPlan, opened.screen)
+	require.Equal(t, "PROJ-SUB", opened.plan.key)
+}

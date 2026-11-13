@@ -325,6 +325,17 @@ func (b *boardState) buildByKey(key string) (provider.Build, bool) {
 					return r, true
 				}
 			}
+			if p.HasChildren() {
+				var found *app.TreeNode
+				p.Tree.Root.Walk(func(n *app.TreeNode, _ int) {
+					if found == nil && !n.NotRun && !n.Loop && n.Build.Key == key {
+						found = n
+					}
+				})
+				if found != nil {
+					return found.Build, true
+				}
+			}
 		}
 	}
 	return provider.Build{}, false

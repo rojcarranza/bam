@@ -579,7 +579,8 @@ func (m Model) boardBody() []string {
 	ah := 4 + min(awayCount(b), awayMax)
 	nh = max(min(nh, h-ah-7), 3)
 	rest := h - nh - ah
-	qh := max(min(max(len(b.data.Queue), 1)+2, rest-4), 3)
+	queue, queueCursor := m.queueLines(inner)
+	qh := max(min(len(queue)+2, rest-4), 3)
 	ph := rest - qh
 
 	var lines []string
@@ -591,7 +592,7 @@ func (m Model) boardBody() []string {
 	}
 	add("Needs you", b.panel == boardNeeds, nh, window(needs, b.cursor[boardNeeds], nh-2))
 	add("Agents", false, ah, m.agentLines(inner, awayMax))
-	add("Queue", b.panel == boardQueue, qh, window(m.queueLines(), b.cursor[boardQueue], qh-2))
+	add("Queue", b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
 	pins, pinCursor := m.pinLines()
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
 	return lines
@@ -663,17 +664,22 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	return out
 }
 
-func (m Model) queueLines() []string {
+// queueLines draws the queue, and says which line holds the cursor. Why a
+// build waits goes on its own line under the build, so it is not cut off at
+// the panel's edge; the agents' names go when even that line is too wide.
+func (m Model) queueLines(inner int) ([]string, int) {
 	b := &m.board
 	switch {
 	case !b.have:
-		return []string{dimStyle.Render("  reading the queue…")}
+		return []string{dimStyle.Render("  reading the queue…")}, 0
 	case !b.data.QueueOK:
-		return []string{"  " + b.data.QueueNote}
+		return []string{"  " + b.data.QueueNote}, 0
 	case len(b.data.Queue) == 0:
-		return []string{dimStyle.Render("  The queue is empty")}
+		return []string{dimStyle.Render("  The queue is empty")}, 0
 	}
+	const whyIndent = "     "
 	var out []string
+	cursorLine := 0
 	for i, r := range b.data.Queue {
 		// Waited is as of the last read; it keeps counting until the next.
 		w := r.Waited + max(m.now().Sub(b.loadedAt), 0)
@@ -684,13 +690,27 @@ func (m Model) queueLines() []string {
 		if r.AtLeast {
 			waited = "at least " + waited
 		}
-		reason := r.Reason
-		if why := view.WhyText(r.Why); why != "" {
-			reason += " · " + why
+		sel := i == b.cursor[boardQueue]
+		if sel {
+			cursorLine = len(out)
 		}
-		out = append(out, fmt.Sprintf("%s%d  %-18s %-14s %s", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), r.Position, r.Key, waited, dimStyle.Render(reason)))
+		out = append(out, fmt.Sprintf("%s%d  %-18s %-14s %s", m.cursorFor(b.panel == boardQueue, sel), r.Position, r.Key, waited, dimStyle.Render(r.Reason)))
+		why := view.WhyText(r.Why)
+		if why == "" {
+			continue
+		}
+		if len(r.Why.Agents) > 0 && lipgloss.Width(whyIndent+why) > inner {
+			short := *r.Why
+			short.Agents = nil
+			why = view.WhyText(&short)
+		}
+		if sel {
+			// Keep the reason in view along with its build.
+			cursorLine = len(out)
+		}
+		out = append(out, whyIndent+dimStyle.Render(why))
 	}
-	return out
+	return out, cursorLine
 }
 
 // pinLines draws the groups, and says which line holds the cursor.

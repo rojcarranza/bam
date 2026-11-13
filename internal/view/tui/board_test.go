@@ -729,23 +729,29 @@ func TestBoardStartsOnTheBoardWhenAsked(t *testing.T) {
 }
 
 // Intent (BAM-34 P3): the live board's queue says why each build waits, as
-// bam queue's WHY column does, and a narrow board still keeps every line
-// inside its panel.
+// bam queue's WHY column does, readable in full at 80 columns rather than cut
+// off at the panel's edge, and a narrow board still keeps every line inside
+// its panel, dropping the agents' names rather than the reason.
 func TestBoardQueueSaysWhyABuildWaits(t *testing.T) {
 	data := sampleBoard(goldenNow)
 	data.Queue[0].Why = &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}
 	data.Queue[1].Why = &provider.Why{Case: provider.WhyNoAgent}
-	for _, w := range []int{140, 60} {
-		m := boardModel(w, 30)
+	for _, c := range []struct {
+		w    int
+		busy string
+	}{
+		{80, "2 agents can run it (linux-1, linux-2), all busy, offline or disabled"},
+		{60, "2 agents can run it, all busy, offline or disabled"},
+	} {
+		m := boardModel(c.w, 30)
 		m.board.loadGen++
 		m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
 		v := ansi.Strip(m.View())
 		for _, l := range strings.Split(v, "\n") {
-			require.LessOrEqual(t, ansi.StringWidth(l), w, "width %d: %q", w, l)
+			require.LessOrEqual(t, ansi.StringWidth(l), c.w, "width %d: %q", c.w, l)
 		}
-		if w == 140 {
-			require.Contains(t, v, "Manual build · 2 agents can run it (linux-1, linux-2), all busy, offline or disabled")
-			require.Contains(t, v, "Scheduled · no agent can run it")
-		}
+		require.Contains(t, v, c.busy+" ", "width %d", c.w)
+		require.Contains(t, v, "no agent can run it", "width %d", c.w)
+		require.Contains(t, v, "Manual build", "width %d", c.w)
 	}
 }

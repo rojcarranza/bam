@@ -188,3 +188,26 @@ func TestCutTreeKeepsTheLineHoldingTheCursor(t *testing.T) {
 	require.Contains(t, ansi.Strip(lines[cur]), "Top pipeline")
 	require.Regexp(t, `\+\d+ more`, ansi.Strip(strings.Join(lines, "\n")))
 }
+
+// Intent (BAM-42 P5 with the pin's branch rows): a pin that has a tree and
+// branches draws the tree, then its branches, and the cursor reaches every
+// line in the order it is drawn.
+func TestBoardPinWithATreeAndBranchesKeepsBothInOrder(t *testing.T) {
+	m := pinCursor(treeBoardModel(120, 45, func(b *app.Board) {
+		br := app.PinView{Pin: "PROJ-TOP", PlanKey: "PROJ-TOP0", Branch: "feature-y", Name: "Top pipeline",
+			Results: []provider.Build{{Key: "PROJ-TOP0-2", PlanKey: "PROJ-TOP0", Number: 2, State: provider.StateSuccess}}}
+		b.Groups[0].Pins[0].Branches = []app.PinView{br}
+		b.Groups[0].Pins[0].BranchesMore = 2
+	}))
+	out := plain(m)
+	tree, branch, more := strings.Index(out, "Smoke"), strings.Index(out, "Top pipeline@"), strings.Index(out, "+2 more branches")
+	require.Greater(t, tree, 0)
+	require.Greater(t, branch, tree, "the branch comes after the tree")
+	require.Greater(t, more, branch)
+	for range 4 { // DOCS, K8S0, SUB, then the branch row
+		m, _ = send(m, mkKey("j"))
+	}
+	pin, ok := m.boardPin()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-TOP0", pin.PlanKey, "the fourth line below the pin is its branch")
+}

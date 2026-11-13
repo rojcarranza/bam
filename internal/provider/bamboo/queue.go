@@ -126,10 +126,14 @@ type agentDetailDTO struct {
 // administrators, one agent at a time, so up to agentReaders agents are read
 // at once. A refusal, or a list Bamboo cut short, is learned once and answers
 // ErrUnsupported afterwards with no request. An agent removed since the list
-// was read is left out. When every agent asked about is missing, the endpoint
-// is taken to be absent only while that is not yet known; once the endpoint
-// is known to work, those agents were removed and the answer is an empty map.
-// The first other failure stops the agents not read yet.
+// was read is left out. When every agent asked about is missing and the
+// endpoint is not yet known to work, the agent list is read once to tell the
+// causes apart: if none of them is listed they were removed and the answer is
+// an empty map; if any is still listed the endpoint is absent and that is
+// learned; if the list cannot be read the answer is a refusal, learned not.
+// Once the endpoint is known to work, those agents were removed and the
+// answer is an empty map. The first other failure stops the agents not read
+// yet.
 func (c *Client) AgentJobs(ctx context.Context, agents []provider.Agent) (map[string][]string, error) {
 	refused := errs.Bamboof("this Bamboo does not tell which jobs each agent can run").
 		WithWhy("the agent details need an administrator").Wrap(errs.ErrUnsupported)
@@ -189,6 +193,13 @@ func (c *Client) AgentJobs(ctx context.Context, agents []provider.Agent) (map[st
 	}
 	known := c.Capabilities().AgentJobs == "yes"
 	if len(agents) > 0 && len(out) == 0 && !known {
+		listed, err := c.Agents(ctx)
+		if err != nil {
+			return nil, refused
+		}
+		if !anyListed(agents, listed) {
+			return out, nil
+		}
 		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
 		return nil, refused
 	}
@@ -196,6 +207,20 @@ func (c *Client) AgentJobs(ctx context.Context, agents []provider.Agent) (map[st
 		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "yes" })
 	}
 	return out, nil
+}
+
+// anyListed reports whether any of agents is still in listed, by ID.
+func anyListed(agents, listed []provider.Agent) bool {
+	ids := make(map[int]bool, len(listed))
+	for _, a := range listed {
+		ids[a.ID] = true
+	}
+	for _, a := range agents {
+		if ids[a.ID] {
+			return true
+		}
+	}
+	return false
 }
 
 // agentJobs reads the jobs the agent id can run. A list Bamboo cut short

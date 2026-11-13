@@ -100,11 +100,27 @@ func TestAgentJobsLeavesOutAnAgentRemovedSinceTheListWasRead(t *testing.T) {
 }
 
 func TestAgentJobsWhenEveryAgentIsMissingIsLearnedAsRefused(t *testing.T) {
-	c, _ := newTestServer(t, map[string]*route{})
+	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/agent": {fixture: "recorded/agents_one_remote.json"}})
 	saved := knownCaps(c, Capabilities{})
 	_, err := c.AgentJobs(ctx, recordedAgent)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Equal(t, "no", (*saved)[len(*saved)-1].AgentJobs)
+}
+
+// Intent (BAM-43): while bam does not yet know the agent details work (the
+// capabilities were reset after a week or an upgrade), an agent removed since
+// the caller's list was read must not turn the check off for a week: the
+// agent list no longer names it, so the 404 means it is gone.
+func TestAgentJobsWhenEveryAgentAskedWasRemovedLearnsNothing(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/agent": {fixture: "agents.json"}})
+	saved := knownCaps(c, Capabilities{})
+	got, err := c.AgentJobs(ctx, recordedAgent)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	for _, cp := range *saved {
+		assert.NotEqual(t, "no", cp.AgentJobs)
+	}
+	assert.NotEqual(t, "no", c.Capabilities().AgentJobs)
 }
 
 // Intent (BAM-43): bam now asks only for agents it has no recent answer for,

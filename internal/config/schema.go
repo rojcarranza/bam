@@ -21,6 +21,8 @@ type ProjectFile struct {
 	Targets        map[string]Target   `yaml:"targets,omitempty"`
 	Sets           map[string]Set      `yaml:"sets,omitempty"`
 	Children       map[string][]string `yaml:"children,omitempty"`
+	// Monitor holds the pinned pipelines of bam top: group name to pins.
+	Monitor map[string][]string `yaml:"monitor,omitempty"`
 }
 
 // MachineFile is the per-machine config.yaml, never committed.
@@ -32,9 +34,11 @@ type MachineFile struct {
 	Sets          map[string]Set      `yaml:"sets,omitempty"`
 	Repos         map[string]Repo     `yaml:"repos,omitempty"`
 	Children      map[string][]string `yaml:"children,omitempty"`
-	Color         string              `yaml:"color,omitempty"`
-	Pager         string              `yaml:"pager,omitempty"`
-	Editor        string              `yaml:"editor,omitempty"`
+	// Monitor holds the pinned pipelines of bam top: group name to pins.
+	Monitor map[string][]string `yaml:"monitor,omitempty"`
+	Color   string              `yaml:"color,omitempty"`
+	Pager   string              `yaml:"pager,omitempty"`
+	Editor  string              `yaml:"editor,omitempty"`
 	// Bell is false to silence the terminal UI's bell when a watched build
 	// or tree finishes; unset means it rings.
 	Bell *bool `yaml:"bell,omitempty"`

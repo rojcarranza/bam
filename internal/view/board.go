@@ -1,0 +1,218 @@
+package view
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view/style"
+)
+
+// BoardDoc is bam top --json.
+type BoardDoc struct {
+	GeneratedAt string          `json:"generated_at"`
+	Server      BoardServerDoc  `json:"server"`
+	Needs       []NeedDoc       `json:"needs_you"`
+	Agents      *BoardAgentsDoc `json:"agents"`
+	AgentsNote  string          `json:"agents_note,omitempty"`
+	Queue       []QueueDoc      `json:"queue"`
+	QueueNote   string          `json:"queue_note,omitempty"`
+	Pins        []BoardGroupDoc `json:"pins"`
+}
+
+type BoardServerDoc struct {
+	Alias   string `json:"alias"`
+	URL     string `json:"url"`
+	Version string `json:"version"`
+}
+
+type NeedDoc struct {
+	Kind string `json:"kind"`
+	Text string `json:"text"`
+}
+
+// BoardAgentsDoc counts the agents; Away lists those offline or disabled.
+type BoardAgentsDoc struct {
+	Total    int        `json:"total"`
+	Online   int        `json:"online"`
+	Busy     int        `json:"busy"`
+	Offline  int        `json:"offline"`
+	Disabled int        `json:"disabled"`
+	Away     []AgentDoc `json:"away"`
+}
+
+type BoardGroupDoc struct {
+	Name      string        `json:"name"`
+	Pipelines []BoardPinDoc `json:"pipelines"`
+}
+
+type BoardPinDoc struct {
+	Pin             string          `json:"pin"`
+	PlanKey         string          `json:"plan_key,omitempty"`
+	Branch          string          `json:"branch,omitempty"`
+	Results         []BoardPinBuild `json:"results"`
+	Current         *BoardPinBuild  `json:"current"`
+	Progress        *ProgressDoc    `json:"progress,omitempty"`
+	LastDurationMS  int64           `json:"last_duration_ms"`
+	UsualDurationMS int64           `json:"usual_duration_ms"`
+	Error           string          `json:"error,omitempty"`
+}
+
+type BoardPinBuild struct {
+	Key        string  `json:"key"`
+	URL        string  `json:"url"`
+	Number     int     `json:"number"`
+	State      string  `json:"state"`
+	StartedAt  *string `json:"started_at"`
+	DurationMS int64   `json:"duration_ms"`
+}
+
+// BoardJSON is the document for b; url builds a page address.
+func BoardJSON(b app.Board, url func(string) string) BoardDoc {
+	d := BoardDoc{
+		GeneratedAt: b.At.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		Server:      BoardServerDoc{Alias: b.Server, URL: b.URL, Version: b.Version},
+		Needs:       Docs(b.Needs, func(n app.Need) NeedDoc { return NeedDoc{Kind: n.Kind, Text: n.Text} }),
+		AgentsNote:  b.AgentsNote,
+		Queue:       QueueJSON(b.Queue, url),
+		QueueNote:   b.QueueNote,
+		Pins:        []BoardGroupDoc{},
+	}
+	if a := b.Agents; a != nil {
+		d.Agents = &BoardAgentsDoc{Total: a.Total, Online: a.Online, Busy: a.Busy, Offline: a.Offline, Disabled: a.Disabled, Away: AgentsJSON(a.Away)}
+	}
+	for _, g := range b.Groups {
+		gd := BoardGroupDoc{Name: g.Name, Pipelines: []BoardPinDoc{}}
+		for _, p := range g.Pins {
+			pd := BoardPinDoc{Pin: p.Pin, PlanKey: p.PlanKey, Branch: p.Branch,
+				Results:        Docs(p.Results, func(b provider.Build) BoardPinBuild { return pinBuildDoc(b, url) }),
+				LastDurationMS: ms(p.Last), UsualDurationMS: ms(p.Usual), Progress: progressDoc(p.Progress)}
+			if p.Current != nil {
+				c := pinBuildDoc(*p.Current, url)
+				pd.Current = &c
+			}
+			if p.Err != nil {
+				pd.Error = p.Err.Error()
+			}
+			gd.Pipelines = append(gd.Pipelines, pd)
+		}
+		d.Pins = append(d.Pins, gd)
+	}
+	return d
+}
+
+func pinBuildDoc(b provider.Build, url func(string) string) BoardPinBuild {
+	return BoardPinBuild{Key: b.Key, URL: url(b.Key), Number: b.Number, State: string(b.State),
+		StartedAt: timePtr(b.StartedAt), DurationMS: ms(b.Duration)}
+}
+
+// Board prints the board: the server, what needs you, the agents, the queue
+// and the pinned pipelines by group.
+func Board(o Out, b app.Board, url func(string) string) error {
+	w := o.W
+	head := b.Server
+	if b.URL != "" {
+		head += "  " + b.URL
+	}
+	if b.Version != "" {
+		head += "  Bamboo " + b.Version
+	}
+	fmt.Fprintln(w, style.Bold(o.Style, head))
+
+	section(o, "NEEDS YOU")
+	if len(b.Needs) == 0 {
+		fmt.Fprintln(w, "  Nothing needs you")
+	}
+	for _, n := range b.Needs {
+		fmt.Fprintln(w, "  "+style.Paint(o.Style, "33", "!")+" "+n.Text)
+	}
+
+	section(o, "AGENTS")
+	if a := b.Agents; a == nil {
+		fmt.Fprintln(w, "  "+b.AgentsNote)
+	} else {
+		fmt.Fprintf(w, "  %d agents: %d online, %d busy, %d offline, %d disabled\n", a.Total, a.Online, a.Busy, a.Offline, a.Disabled)
+		for _, ag := range a.Away {
+			why := "offline"
+			if !ag.Enabled {
+				why = "disabled"
+			}
+			fmt.Fprintf(w, "  %s  %s  %s\n", ag.Name, strings.ToLower(ag.Type), why)
+		}
+	}
+
+	section(o, "QUEUE")
+	switch {
+	case !b.QueueOK:
+		fmt.Fprintln(w, "  "+b.QueueNote)
+	case len(b.Queue) == 0:
+		fmt.Fprintln(w, "  The queue is empty")
+	default:
+		t := Table{Headers: []string{"#", "BUILD", "REASON", "WAITED"}, Flex: []int{2}, Indent: "  "}
+		for _, r := range b.Queue {
+			t.Rows = append(t.Rows, []string{fmt.Sprint(r.Position), o.Key(r.Key, url(r.Key)), r.Reason, waitedText(r)})
+		}
+		if err := t.Render(o); err != nil {
+			return err
+		}
+	}
+
+	section(o, "PINNED")
+	if len(b.Groups) == 0 {
+		fmt.Fprintln(w, "  No pipelines pinned. Pin one with: bam pin add GROUP PLAN")
+		return nil
+	}
+	for _, g := range b.Groups {
+		fmt.Fprintln(w, "  "+style.Bold(o.Style, g.Name))
+		t := Table{Headers: []string{"PIPELINE", "LAST 10", "NOW", "LAST", "USUAL"}, Indent: "    "}
+		var failed []string
+		for _, p := range g.Pins {
+			if p.Err != nil {
+				failed = append(failed, fmt.Sprintf("    %s could not be read: %s", p.Pin, p.Err))
+				continue
+			}
+			t.Rows = append(t.Rows, []string{o.Key(p.Pin, url(p.PlanKey)), results(o, p), now(o, p), Duration(p.Last), Duration(p.Usual)})
+		}
+		if len(t.Rows) > 0 {
+			if err := t.Render(o); err != nil {
+				return err
+			}
+		}
+		for _, f := range failed {
+			fmt.Fprintln(w, f)
+		}
+	}
+	return nil
+}
+
+func section(o Out, title string) {
+	fmt.Fprintln(o.W)
+	fmt.Fprintln(o.W, style.Dim(o.Style, title))
+}
+
+// results is one glyph per finished build, the oldest first, so the newest
+// is at the right.
+func results(o Out, p app.PinView) string {
+	if len(p.Results) == 0 {
+		return "–"
+	}
+	var sb strings.Builder
+	for i := len(p.Results) - 1; i >= 0; i-- {
+		sb.WriteString(style.StateGlyph(o.Style, p.Results[i].State))
+	}
+	return sb.String()
+}
+
+// now is the build queued or running now, with its progress.
+func now(o Out, p app.PinView) string {
+	c := p.Current
+	if c == nil {
+		return "–"
+	}
+	s := fmt.Sprintf("#%d %s", c.Number, style.Label(c.State))
+	if c.State == provider.StateRunning && p.Progress.Valid {
+		s += fmt.Sprintf(" %.0f%%", p.Progress.Percent*100)
+	}
+	return s
+}

@@ -1,0 +1,126 @@
+{
+  "generated_at": "2026-09-12T12:00:00Z",
+  "server": {
+    "alias": "work",
+    "url": "https://bamboo.example.com",
+    "version": "12.1.8"
+  },
+  "needs_you": [
+    {
+      "kind": "agent_offline",
+      "text": "agent linux-2 is offline"
+    },
+    {
+      "kind": "queue_wait",
+      "text": "PROJ-PROV-9 has waited 7m in the queue"
+    }
+  ],
+  "agents": {
+    "total": 4,
+    "online": 2,
+    "busy": 1,
+    "offline": 1,
+    "disabled": 1,
+    "away": [
+      {
+        "id": 2,
+        "name": "linux-2",
+        "type": "REMOTE",
+        "online": false,
+        "enabled": true,
+        "busy": false
+      },
+      {
+        "id": 3,
+        "name": "linux-3",
+        "type": "REMOTE",
+        "online": true,
+        "enabled": false,
+        "busy": false
+      }
+    ]
+  },
+  "queue": [
+    {
+      "position": 1,
+      "key": "PROJ-PROV-9",
+      "url": "https://bamboo.example.com/browse/PROJ-PROV-9",
+      "plan_key": "PROJ-PROV",
+      "number": 9,
+      "reason": "Code has changed",
+      "waited_ms": 420000,
+      "waited_at_least": false
+    },
+    {
+      "position": 2,
+      "key": "PROJ-OTHER-3",
+      "url": "https://bamboo.example.com/browse/PROJ-OTHER-3",
+      "plan_key": "PROJ-OTHER",
+      "number": 3,
+      "reason": "Manual build",
+      "waited_ms": 0,
+      "waited_at_least": true
+    }
+  ],
+  "pins": [
+    {
+      "name": "integration",
+      "pipelines": [
+        {
+          "pin": "PROJ-BUILD",
+          "plan_key": "PROJ-BUILD",
+          "results": [
+            {
+              "key": "PROJ-BUILD-483",
+              "url": "https://bamboo.example.com/browse/PROJ-BUILD-483",
+              "number": 483,
+              "state": "success",
+              "started_at": null,
+              "duration_ms": 540000
+            },
+            {
+              "key": "PROJ-BUILD-482",
+              "url": "https://bamboo.example.com/browse/PROJ-BUILD-482",
+              "number": 482,
+              "state": "failed",
+              "started_at": null,
+              "duration_ms": 180000
+            },
+            {
+              "key": "PROJ-BUILD-481",
+              "url": "https://bamboo.example.com/browse/PROJ-BUILD-481",
+              "number": 481,
+              "state": "success",
+              "started_at": null,
+              "duration_ms": 600000
+            }
+          ],
+          "current": {
+            "key": "PROJ-BUILD-484",
+            "url": "https://bamboo.example.com/browse/PROJ-BUILD-484",
+            "number": 484,
+            "state": "running",
+            "started_at": "2026-09-12T11:46:00Z",
+            "duration_ms": 0
+          },
+          "progress": {
+            "percent": 0.62,
+            "average_ms": 600000,
+            "elapsed_ms": 0,
+            "remaining_ms": 0
+          },
+          "last_duration_ms": 540000,
+          "usual_duration_ms": 600000
+        },
+        {
+          "pin": "PROJ-GONE@x",
+          "results": [],
+          "current": null,
+          "last_duration_ms": 0,
+          "usual_duration_ms": 0,
+          "error": "PROJ-GONE has no plan branch for \"x\""
+        }
+      ]
+    }
+  ]
+}

@@ -86,7 +86,7 @@ func TestGroupWordsHoldOnHelpAndFlagErrors(t *testing.T) {
 func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 	for args, want := range map[string]string{
 		"biuld":           "try: did you mean bam build? bam --help shows them all",
-		"pln":             "try: did you mean bam plan? bam --help shows them all",
+		"plna":            "try: did you mean bam plan? bam --help shows them all",
 		"build lsit":      "try: did you mean bam build list? bam build --help shows them all",
 		"server xyzzy":    "try: bam server --help\n",
 		"build history":   "try: did you mean bam build list? bam build --help shows them all",
@@ -104,7 +104,7 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"preset edit api": "error: bam preset has no \"edit\" command\n  presets are edited in YAML, in the file that defines them\n  try: bam preset show api prints the file that defines it\n",
 		"view":            "try: did you mean bam build show, bam plan show, bam preset show or bam set show? bam --help shows them all",
 		"get":             "try: did you mean bam build show, bam plan show, bam preset show or bam set show? bam --help shows them all",
-		"list":            "try: did you mean bam agent list, bam build list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
+		"list":            "try: did you mean bam agent list, bam build list, bam pin list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
 		"rerun":           "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
 		"retry":           "try: did you mean bam build rerun or bam set rerun? bam --help shows them all",
 		"build status":    "try: did you mean bam build show? bam build --help shows them all",
@@ -112,7 +112,7 @@ func TestUnknownCommandSuggestsTheClosest(t *testing.T) {
 		"log":             "try: did you mean bam logs? bam --help shows them all",
 		"del":             "try: bam --help\n",
 		"go":              "error: unknown command \"go\" for \"bam\"\n  try: bam --help\n",
-		"ls":              "try: did you mean bam agent list, bam build list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
+		"ls":              "try: did you mean bam agent list, bam build list, bam pin list, bam plan list, bam preset list, bam project list, bam server list or bam set list?",
 		"branch":          "try: did you mean bam plan branches? bam --help shows them all",
 		"branches":        "try: did you mean bam plan branches? bam --help shows them all",
 		"plan branch":     "try: did you mean bam plan branches? bam plan --help shows them all",

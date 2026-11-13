@@ -1,0 +1,21 @@
+work  https://bamboo.example.com  Bamboo 12.1.8
+
+NEEDS YOU
+  ! agent linux-2 is offline
+  ! PROJ-PROV-9 has waited 7m in the queue
+
+AGENTS
+  4 agents: 2 online, 1 busy, 1 offline, 1 disabled
+  linux-2  remote  offline
+  linux-3  remote  disabled
+
+QUEUE
+  #  BUILD         REASON            WAITED
+  1  PROJ-PROV-9   Code has changed  7m00s
+  2  PROJ-OTHER-3  Manual build      at least 0s
+
+PINNED
+  integration
+    PIPELINE    LAST 10  NOW               LAST   USUAL
+    PROJ-BUILD  ✓✗✓      #484 running 62%  9m00s  10m00s
+    PROJ-GONE@x could not be read: PROJ-GONE has no plan branch for "x"

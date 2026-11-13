@@ -149,4 +149,14 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 ## Queue and agents
 
-`bam queue --json` is a list of `{"position":1,"key":"PROJ-BUILD-45","url":"...","plan_key":"PROJ-BUILD","number":45,"reason":"Manual build"}`, first in line first; `[]` when nothing waits. `bam agent list --json` is a list of `{"id":1,"name":"linux-1","type":"REMOTE","online":true,"enabled":true,"busy":false}`. A queued build waits for an agent that is online, enabled and not busy.
+`bam queue --json` is a list of `{"position":1,"key":"PROJ-BUILD-45","url":"...","plan_key":"PROJ-BUILD","number":45,"reason":"Manual build","waited_ms":420000,"waited_at_least":false}`, first in line first; `waited_ms` is how long the build has waited, read from the build's own record, and `waited_at_least` is true when the record gave no start and bam counted from when it first saw the build; `[]` when nothing waits. `bam agent list --json` is a list of `{"id":1,"name":"linux-1","type":"REMOTE","online":true,"enabled":true,"busy":false}`. A queued build waits for an agent that is online, enabled and not busy.
+
+## Board
+
+`bam top --json` is one document: `generated_at`, `server` (`alias`, `url`, `version`), `needs_you` (a list of `{"kind","text"}`; kind is `agent_offline`, `queue_wait`, `pin_failed` or `pin_slow`), `agents`, `queue` and `pins`.
+
+- `agents` is `{"total","online","busy","offline","disabled","away":[...]}`, where `away` lists the agents that are offline or disabled in the shape of `bam agent list --json`. `online` and `busy` count enabled agents that are connected. When Bamboo refused the agent list, `agents` is `null` and `agents_note` says so.
+- `queue` is the list `bam queue --json` prints. When Bamboo refused the queue it is `[]` and `queue_note` says so.
+- `pins` is a list of `{"name","pipelines":[...]}`. A pipeline has `pin`, `plan_key`, `branch`, `results` (the last 10 finished builds, newest first, each `key`, `url`, `number`, `state`, `started_at`, `duration_ms`), `current` (the queued or running build, or `null`), `progress` (as under Build, when the running build has an estimate), `last_duration_ms`, `usual_duration_ms` (0 when the history is too short) and `error` when the pipeline could not be read.
+
+`bam pin list --json` is a list of `{"group","pins":[...]}`.

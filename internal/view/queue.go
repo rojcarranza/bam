@@ -2,7 +2,9 @@ package view
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
 )
 
@@ -23,6 +25,10 @@ type QueueDoc struct {
 	PlanKey  string `json:"plan_key"`
 	Number   int    `json:"number"`
 	Reason   string `json:"reason"`
+	// WaitedMS is how long the build has waited; WaitedAtLeast is true when
+	// the build's record gave no start and bam counted from when it saw it.
+	WaitedMS      int64 `json:"waited_ms"`
+	WaitedAtLeast bool  `json:"waited_at_least"`
 }
 
 // AgentDoc is one build agent in bam agent list --json.
@@ -35,12 +41,26 @@ type AgentDoc struct {
 	Busy    bool   `json:"busy"`
 }
 
-func QueueJSON(q []provider.QueueEntry, url func(string) string) []QueueDoc {
-	out := make([]QueueDoc, 0, len(q))
-	for i, e := range q {
-		out = append(out, QueueDoc{Position: i + 1, Key: e.Key, URL: url(e.Key), PlanKey: e.PlanKey, Number: e.Number, Reason: e.Reason})
+func QueueJSON(q []app.QueueRow, url func(string) string) []QueueDoc {
+	return Docs(q, func(r app.QueueRow) QueueDoc { return queueDoc(r, url) })
+}
+
+func queueDoc(r app.QueueRow, url func(string) string) QueueDoc {
+	return QueueDoc{Position: r.Position, Key: r.Key, URL: url(r.Key), PlanKey: r.PlanKey, Number: r.Number, Reason: r.Reason,
+		WaitedMS: ms(r.Waited), WaitedAtLeast: r.AtLeast}
+}
+
+// waitedText is the time a queued build has waited, "at least" when bam
+// could only count from when it first saw the build.
+func waitedText(r app.QueueRow) string {
+	d := "0s"
+	if r.Waited >= time.Second {
+		d = Duration(r.Waited)
 	}
-	return out
+	if r.AtLeast {
+		return "at least " + d
+	}
+	return d
 }
 
 func AgentsJSON(as []provider.Agent) []AgentDoc {
@@ -50,14 +70,14 @@ func AgentsJSON(as []provider.Agent) []AgentDoc {
 }
 
 // QueueList prints the queued builds, first in line first.
-func QueueList(o Out, q []provider.QueueEntry, url func(string) string) error {
+func QueueList(o Out, q []app.QueueRow, url func(string) string) error {
 	if len(q) == 0 {
 		fmt.Fprintln(o.W, "The queue is empty")
 		return nil
 	}
-	t := Table{Headers: []string{"#", "BUILD", "REASON"}, Flex: []int{2}}
-	for i, e := range q {
-		t.Rows = append(t.Rows, []string{fmt.Sprint(i + 1), o.Key(e.Key, url(e.Key)), e.Reason})
+	t := Table{Headers: []string{"#", "BUILD", "REASON", "WAITED"}, Flex: []int{2}}
+	for _, r := range q {
+		t.Rows = append(t.Rows, []string{fmt.Sprint(r.Position), o.Key(r.Key, url(r.Key)), r.Reason, waitedText(r)})
 	}
 	return t.Render(o)
 }

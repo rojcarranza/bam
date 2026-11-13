@@ -36,6 +36,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -496,6 +497,35 @@ func (s *stub) handleQueue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleQueueList answers the build queue: the simulated builds that are
+// still waiting for an agent, first in line first.
+func (s *stub) handleQueueList(w http.ResponseWriter, _ *http.Request) {
+	s.mu.Lock()
+	var waiting []*build
+	keys := map[*build]string{}
+	for k, b := range s.live {
+		if s.visible(b) {
+			if life, _ := s.phase(b); life == "Queued" {
+				waiting = append(waiting, b)
+				keys[b] = k
+			}
+		}
+	}
+	s.mu.Unlock()
+	sort.Slice(waiting, func(i, j int) bool { return waiting[i].started.Before(waiting[j].started) })
+	entries := make([]any, 0, len(waiting))
+	for _, b := range waiting {
+		entries = append(entries, map[string]any{
+			"planKey": b.planKey, "buildNumber": b.number, "buildResultKey": keys[b], "triggerReason": "Manual build",
+		})
+	}
+	out, _ := json.Marshal(map[string]any{
+		"size": len(entries), "start-index": 0, "max-result": len(entries),
+		"queuedBuilds": map[string]any{"size": len(entries), "start-index": 0, "max-result": len(entries), "queuedBuild": entries},
+	})
+	writeJSON(w, out)
+}
+
 func (s *stub) handlePlan(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(r.URL.Path, api+"/plan/")
 	key, sub, _ := strings.Cut(rest, "/")
@@ -554,6 +584,8 @@ func (s *stub) handler() http.Handler {
 	mux.HandleFunc(api+"/result/status/", s.handleStatus)
 	mux.HandleFunc(api+"/result/", s.handleResult)
 	mux.HandleFunc(api+"/queue/", s.handleQueue)
+	mux.HandleFunc(api+"/queue", s.handleQueueList)
+	mux.HandleFunc(api+"/agent", func(w http.ResponseWriter, _ *http.Request) { s.serve(w, "agents.json", "", "") })
 	mux.HandleFunc("/download/", func(w http.ResponseWriter, _ *http.Request) {
 		body := s.fixture(w, filepath.Join("recorded", "log_download.log"))
 		if body == nil {

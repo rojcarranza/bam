@@ -191,6 +191,21 @@ children:
 - Listed plans are searched even outside your projects.
 - The project file, the machine file and a machine `repos` entry may each set it; a later one replaces a plan's list (project, then machine, then `repos`).
 
+## Pinned pipelines (`monitor`)
+
+`bam top` prints a board of the server and your pinned pipelines. `monitor:` holds the pins in named groups:
+
+```yaml
+monitor:
+  integration: [PROJ-BUILD, PROJ-DEPLOY@release/1.2]
+  nightly: [provision-lab]
+```
+
+- A group name is lowercase letters, digits, `-` and `_`. A pin is a plan key, a plan key with a branch after `@`, or the name of a preset.
+- The project file and the machine file may each set it; groups with the same name are joined, project first. A pin may appear once, in one group.
+- `bam pin add GROUP PIN`, `bam pin rm PIN` and `bam pin list` edit the machine file and keep its comments. A pin in `.bam.yaml` is edited by hand.
+- A bad group name, an empty group, a pin that is not a plan key or a preset, an unknown key, or a pin listed twice is a configuration error.
+
 ## Machine file
 
     version: 1

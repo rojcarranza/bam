@@ -236,3 +236,56 @@ func TestAPinKeepsOnlyTheMemoOfItsNewestBuild(t *testing.T) {
 	require.Contains(t, c.m, "PROJ-TOP-9")
 	require.Contains(t, c.m, "PROJ-OTHER-1")
 }
+
+// Intent (review of this change): the tree of a queued build is not drawn in
+// place of the newest finished one; a tree saved just as its build ended is
+// read again; a tree that cannot be read is asked for again on the full
+// refresh only.
+func TestPinRootIsARunningBuildNotAQueuedOne(t *testing.T) {
+	queued := provider.Build{Key: "PROJ-TOP-10", State: provider.StateQueued}
+	done := provider.Build{Key: "PROJ-TOP-9", State: provider.StateSuccess}
+	root, ok := PinView{Current: &queued, Results: []provider.Build{done}}.PinRoot()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-TOP-9", root.Key)
+	running := provider.Build{Key: "PROJ-TOP-10", State: provider.StateRunning}
+	root, _ = PinView{Current: &running, Results: []provider.Build{done}}.PinRoot()
+	require.Equal(t, "PROJ-TOP-10", root.Key)
+}
+
+func TestASavedPinTreeFromJustAsItsBuildEndedIsReadAgain(t *testing.T) {
+	p := pinTreeFake()
+	for _, k := range []string{"PROJ-TOP", "PROJ-DOCS", "PROJ-KID0"} {
+		for i := range p.History[k] {
+			p.History[k][i].State = provider.StateSuccess
+		}
+	}
+	p.History["PROJ-TOP"][0].Stages = nil
+	svc := pinTreeService(t, p)
+	root := p.History["PROJ-TOP"][0]
+	root.FinishedAt = svc.Clock.Now().Add(-10 * time.Second)
+	early := Tree{State: provider.StateSuccess, Root: &TreeNode{PlanKey: "PROJ-TOP", Build: root}}
+	svc.Trees.Keep(svc.Origin, root.Key, early, svc.Clock.Now())
+	got := svc.PinTree(context.Background(), root)
+	require.NotNil(t, got)
+	require.NotEmpty(t, got.Root.Children, "the children Bamboo queued after the build ended are found")
+}
+
+func TestATreeThatCouldNotBeReadIsNotAskedForAgainOnAQuickRefresh(t *testing.T) {
+	p := pinTreeFake()
+	svc := pinTreeService(t, p)
+	ctx := WithPinTrees(context.Background())
+	v := PinView{Pin: "PROJ-TOP", PlanKey: "PROJ-TOP", treeRoot: "PROJ-TOP-9"}
+	root := p.History["PROJ-TOP"][0]
+	v.Current = &root
+	before := 0
+	for _, pl := range p.Plans["PROJ"] {
+		before += p.ListCalls(pl.Key)
+	}
+	got := svc.readPinTree(ctx, v, false, &v)
+	after := 0
+	for _, pl := range p.Plans["PROJ"] {
+		after += p.ListCalls(pl.Key)
+	}
+	require.Nil(t, got.Tree)
+	require.Equal(t, before, after, "no plan is listed on a quick refresh")
+}

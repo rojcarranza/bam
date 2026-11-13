@@ -110,6 +110,8 @@ type PinView struct {
 	// build running now, else of the newest finished one. Nil when it could
 	// not be read; use HasChildren to know whether there is anything to draw.
 	Tree *Tree
+	// treeRoot is the build whose tree was asked for last.
+	treeRoot string
 	// Last is how long the newest finished build took; Usual is the plan's
 	// usual build time, 0 when its history is too short.
 	Last, Usual time.Duration
@@ -545,10 +547,11 @@ func (s *Service) readPinTree(ctx context.Context, v PinView, full bool, prev *P
 	if !ok || ctx.Value(pinTreeKey{}) != true {
 		return v
 	}
-	if !full && prev != nil && prev.Tree != nil && prev.Tree.Root != nil && prev.Tree.Root.Build.Key == root.Key {
-		v.Tree = prev.Tree
+	if !full && prev != nil && prev.treeRoot == root.Key {
+		v.Tree, v.treeRoot = prev.Tree, root.Key // also a tree that could not be read: asked again on the full refresh
 		return v
 	}
+	v.treeRoot = root.Key
 	v.Tree = s.PinTree(ctx, root)
 	return v
 }

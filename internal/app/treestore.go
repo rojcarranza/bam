@@ -102,13 +102,19 @@ func (s *TreeStore) Server(origin, version string, now time.Time) {
 
 // Get returns the saved tree for root key on origin.
 func (s *TreeStore) Get(origin, key string, now time.Time) (Tree, bool) {
+	t, _, ok := s.GetAt(origin, key, now)
+	return t, ok
+}
+
+// GetAt is Get with the time the tree was saved.
+func (s *TreeStore) GetAt(origin, key string, now time.Time) (Tree, time.Time, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	t, ok := s.trees(origin, now)[key]
 	if !ok || now.Sub(t.Saved) > treeTTL {
-		return Tree{}, false
+		return Tree{}, time.Time{}, false
 	}
-	return t.Tree, true
+	return t.Tree, t.Saved, true
 }
 
 // Keep saves t for key when it is final, and otherwise forgets key: a rerun
@@ -145,6 +151,14 @@ func (s *Service) CachedTree(key string) (Tree, bool) {
 		return Tree{}, false
 	}
 	return s.Trees.Get(s.Origin, key, s.Clock.Now())
+}
+
+// cachedTreeAt is CachedTree with the time the tree was saved.
+func (s *Service) cachedTreeAt(key string) (Tree, time.Time, bool) {
+	if s.Trees == nil {
+		return Tree{}, time.Time{}, false
+	}
+	return s.Trees.GetAt(s.Origin, key, s.Clock.Now())
 }
 
 // TreeServer tells the tree store which Bamboo version this server runs, so

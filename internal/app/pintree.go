@@ -27,7 +27,7 @@ type pinTreeMemo struct {
 	scan      *treeScan
 	done      map[string]provider.Build
 	scannedAt time.Time
-	rootEnded bool // the root had ended, and settled, when the plans were last listed
+	settled   bool // the plans were last listed after the finished tree had settled
 }
 
 // pinTreeCache holds one memo per root build key.
@@ -81,7 +81,7 @@ func noPinTrees(ctx context.Context) context.Context {
 // the latest finished one.
 func (p PinView) PinRoot() (provider.Build, bool) {
 	switch {
-	case p.Current != nil:
+	case p.Current != nil && p.Current.State == provider.StateRunning:
 		return *p.Current, true
 	case len(p.Results) > 0:
 		return p.Results[0], true
@@ -103,8 +103,8 @@ func (p PinView) HasChildren() bool {
 // could not be read; the pin then keeps its single row.
 func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 	if TreeFinished(root.State) {
-		if t, ok := s.CachedTree(root.Key); ok {
-			return &t
+		if t, saved, ok := s.cachedTreeAt(root.Key); ok && !saved.Before(treeLatest(t, root).Add(pinSettle)) {
+			return &t // saved after the tree had settled, not just as the build ended
 		}
 	}
 	m := s.pinTrees.memo(root.PlanKey, root.Key)
@@ -112,31 +112,46 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 	defer m.mu.Unlock()
 	now := s.Clock.Now()
 	o := TreeOptions{}
-	settled := TreeFinished(root.State) && (root.FinishedAt.IsZero() || now.Sub(root.FinishedAt) >= pinSettle)
-	prev := m.scan
-	if prev != nil {
-		ended := settled && !m.rootEnded || TreeFinished(root.State) && !settled
-		stale := now.Sub(m.scannedAt) >= pinRescanEvery
-		o.NoScan = !ended && !stale
+	if m.scan != nil {
+		// A finished build is read again until a read comes after it settled;
+		// a running one only every pinRescanEvery.
+		o.NoScan = (!TreeFinished(root.State) || m.settled) && now.Sub(m.scannedAt) < pinRescanEvery
 	}
-	t, scan, err := s.buildTree(ctx, root.Key, o, m.done, prev)
+	t, scan, err := s.buildTree(ctx, root.Key, o, m.done, m.scan)
 	if err != nil {
 		return nil
 	}
-	if !o.NoScan {
-		m.scannedAt, m.rootEnded = now, settled
-	}
 	m.scan = scan
+	if !o.NoScan {
+		latest := treeLatest(t, root)
+		m.scannedAt = now
+		m.settled = TreeFinished(root.State) && now.Sub(latest) >= pinSettle
+	}
 	t.Root.Walk(func(n *TreeNode, _ int) {
 		if !n.NotRun && !n.Loop && TreeFinished(n.Build.State) {
 			m.done[n.Build.Key] = n.Build
 		}
 	})
-	if settled && TreeFinal(t) {
+	if m.settled && TreeFinal(t) {
 		s.KeepTree(root.Key, t)
 		s.pinTrees.forget(root.Key)
 	}
 	return &t
+}
+
+// treeLatest is when the newest pipeline of t, or root, finished: Bamboo
+// queues a pipeline's own child plans a moment after it ends, so a tree is
+// complete only some time after that. Zero when none has finished.
+func treeLatest(t Tree, root provider.Build) time.Time {
+	latest := root.FinishedAt
+	if t.Root != nil {
+		t.Root.Walk(func(n *TreeNode, _ int) {
+			if !n.NotRun && !n.Loop && n.Build.FinishedAt.After(latest) {
+				latest = n.Build.FinishedAt
+			}
+		})
+	}
+	return latest
 }
 
 // StageProgress says which stage a build is in, "3/5 Run integration builds":

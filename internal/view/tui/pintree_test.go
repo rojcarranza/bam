@@ -247,3 +247,24 @@ func TestPinNowShowsAStageOnlyForItsOwnBuild(t *testing.T) {
 	pin.Current = &queued
 	require.NotContains(t, m.pinNow(pin), "3/5", "build 10 is not in the stage build 9 was in")
 }
+
+// Intent (review of this change): the rows of a tree come and go on refreshes,
+// so the cursor follows the line it was on, not its row number, and P, enter
+// and l never act on another pin.
+func TestCursorStaysOnItsPinWhenATreeAboveLosesItsRows(t *testing.T) {
+	m := pinCursor(treeBoardModel(120, 45, nil))
+	for range 5 { // down past the tree to the next pin
+		m, _ = send(m, mkKey("j"))
+	}
+	pin, ok := m.boardPin()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-BUILD", pin.PlanKey)
+	data := m.board.data
+	data.Groups = []app.PinGroupView{{Name: "integration", Pins: append([]app.PinView(nil), data.Groups[0].Pins...)}}
+	data.Groups[0].Pins[0].Tree = nil // build 10 started: its tree has no children yet
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: false, Board: data})
+	pin, ok = m.boardPin()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-BUILD", pin.PlanKey)
+}

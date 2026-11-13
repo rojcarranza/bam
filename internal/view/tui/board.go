@@ -232,7 +232,9 @@ func (m Model) boardLoaded(msg boardLoadedMsg) Model {
 			fresh = true
 		}
 	}
+	held := b.pinSelKey()
 	b.seen, b.data, b.have = next, data, true
+	b.followPinSel(held)
 	b.clamp()
 	if fresh {
 		m.ringBell()

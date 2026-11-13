@@ -38,7 +38,7 @@ The presets table shows the repository branch in its BRANCH column, such as `rep
 
 ## Plan stats
 
-`:stats` shows the success rate, durations and failing jobs over the last 20 builds of the plan or preset under the cursor, as `bam plan stats` does; `:stats PROJ-BUILD` or `:stats provision` names one. `esc` closes it.
+`:stats` shows the success rate, durations, the wait for an agent, the slowest stages and jobs, and failing jobs over the last 20 builds of the plan or preset under the cursor, as `bam plan stats` does; `:stats PROJ-BUILD` or `:stats provision` names one. `esc` closes it.
 
 ## Build trees
 

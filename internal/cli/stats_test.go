@@ -55,3 +55,27 @@ func TestPlanStatsUsesThePresetsBranch(t *testing.T) {
 	require.Equal(t, "PROJ-PROV12", doc["plan_key"])
 	require.Equal(t, "develop", doc["branch"])
 }
+
+func TestPlanStatsCommandShowsTheWaitForAnAgent(t *testing.T) {
+	h := statsHarness(t)
+	for i, b := range h.fake.History["PROJ-BUILD"] {
+		b.State = provider.StateSuccess
+		b.Stages = []provider.Stage{{Name: "Test", State: provider.StateSuccess, Duration: time.Minute, Jobs: []provider.Job{
+			{Key: b.Key + "-T", Name: "Unit", State: provider.StateSuccess, Duration: time.Minute, QueueDuration: time.Duration(i+1) * time.Second},
+		}}}
+		h.fake.History["PROJ-BUILD"][i] = b
+	}
+	require.Equal(t, 0, h.run("plan", "stats", "build"), h.stderr.String())
+	require.Contains(t, h.stdout.String(), "Waiting   median 2s  p90 3s")
+	require.Contains(t, h.stdout.String(), "Slowest jobs")
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("plan", "stats", "build", "--json"), h.stderr.String())
+	var doc struct {
+		Wait struct {
+			MedianMS int64 `json:"median_ms"`
+		} `json:"wait"`
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	require.Equal(t, int64(2000), doc.Wait.MedianMS)
+}

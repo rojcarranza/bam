@@ -1,6 +1,6 @@
 ## bam plan stats
 
-Success rate, durations and failing jobs over a plan's last builds
+Success rate, durations, waiting for an agent, slowest jobs and failing jobs over a plan's last builds
 
 ```
 bam plan stats <plan|preset> [flags]

@@ -74,6 +74,12 @@ func durationOf(r resultDTO) time.Duration {
 	return time.Duration(r.BuildDurationInSeconds) * time.Second
 }
 
+// millis is a duration Bamboo reports in milliseconds. Bamboo records -1 or
+// -3 for a checkout that did not happen; that is no time, not negative time.
+func millis(ms int64) time.Duration {
+	return time.Duration(max(ms, 0)) * time.Millisecond
+}
+
 func resultKey(r resultDTO) string {
 	if r.BuildResultKey != "" {
 		return r.BuildResultKey
@@ -127,6 +133,8 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 		Duration:   durationOf(r),
 		Revision:   r.VcsRevisionKey,
 	}
+	b.QueuedAt = parseTime(r.QueueStartedTime)
+	b.QueueDuration = millis(r.QueueDuration)
 	if b.PlanKey == "" {
 		if i := strings.LastIndex(key, "-"); i > 0 {
 			b.PlanKey = key[:i]
@@ -164,6 +172,10 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 				State:    jobState(j),
 				Duration: durationOf(j),
 				URL:      c.URL(resultKey(j)),
+
+				QueuedAt:         parseTime(j.QueueStartedTime),
+				QueueDuration:    millis(j.QueueDuration),
+				CheckoutDuration: millis(j.VcsUpdateDuration),
 			}
 			job.Branches = repositoryBranches(j)
 			if job.Duration > st.Duration {
@@ -173,6 +185,7 @@ func (c *Client) mapBuild(r resultDTO) provider.Build {
 		}
 		b.Stages = append(b.Stages, st)
 	}
+	fillQueueFromJobs(&b)
 	return b
 }
 
@@ -213,4 +226,29 @@ func repositoryBranches(j resultDTO) map[string]string {
 		}
 	}
 	return out
+}
+
+// fillQueueFromJobs gives a build the queue figures its jobs carry when its
+// own record has none (Bamboo puts them on the jobs): it was queued when its
+// first job was, and it waited for an agent as long as its stages' slowest
+// jobs did, one stage after another.
+func fillQueueFromJobs(b *provider.Build) {
+	var wait time.Duration
+	var first time.Time
+	for _, s := range b.Stages {
+		var longest time.Duration
+		for _, j := range s.Jobs {
+			if !j.QueuedAt.IsZero() && (first.IsZero() || j.QueuedAt.Before(first)) {
+				first = j.QueuedAt
+			}
+			longest = max(longest, j.QueueDuration)
+		}
+		wait += longest
+	}
+	if b.QueuedAt.IsZero() {
+		b.QueuedAt = first
+	}
+	if b.QueueDuration == 0 {
+		b.QueueDuration = wait
+	}
 }

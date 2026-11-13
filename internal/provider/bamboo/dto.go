@@ -58,6 +58,9 @@ type resultDTO struct {
 	BuildCompletedTime     string        `json:"buildCompletedTime"`
 	BuildDuration          int64         `json:"buildDuration"`
 	BuildDurationInSeconds int64         `json:"buildDurationInSeconds"`
+	QueueStartedTime       string        `json:"queueStartedTime"`
+	QueueDuration          int64         `json:"queueDuration"`     // ms waiting for an agent
+	VcsUpdateDuration      int64         `json:"vcsUpdateDuration"` // ms of checkout
 	BuildReason            string        `json:"buildReason"`
 	ReasonSummary          string        `json:"reasonSummary"`
 	VcsRevisionKey         string        `json:"vcsRevisionKey"`

@@ -226,6 +226,7 @@ Also used later:
 | `make stub` | serves a fake Bamboo from the fixtures, so bam can be driven without a server (see below) |
 | `make record ARGS='-target provision'` | records scrubbed fixtures from your own Bamboo (see below) |
 | `make e2e ARGS='-target smoke'` | end-to-end test against a real Bamboo |
+| `make gate` | sets up the no-mistakes push gate in this clone or worktree (see [Before you push](#before-you-push)) |
 | `goreleaser build --snapshot --clean` | cross-platform release build into `dist/`; release work only |
 | `make release VERSION=x.y.z` | publishes a release; see [Releasing](#releasing) |
 
@@ -234,12 +235,23 @@ Also used later:
 Pushes go through the [no-mistakes](https://github.com/kunchenguid/no-mistakes)
 gate, which runs review, tests, lint and the checks in `.no-mistakes.yaml`
 (race tests, lint, gofmt, fixture guard, fresh `docs/cli`, Linux vet), then pushes and
-opens the pull request. There is no GitHub Actions CI. Once per clone:
+opens the pull request. There is no GitHub Actions CI. Once per clone, and
+once in each worktree you push from:
 
 ```bash
-no-mistakes init                        # adds the no-mistakes remote
+make gate                               # runs no-mistakes init and adds the no-mistakes remote
 git config core.hooksPath .githooks     # pre-push refuses pushes that skip the gate
 ```
+
+`make gate` is `no-mistakes init` plus one fix for worktrees of a bare clone
+(`git clone --bare`, then `git worktree add` per branch). There no-mistakes
+gives each worktree its own gate, but writes the `no-mistakes` remote into the
+config all of them share, so a plain `no-mistakes init` in one worktree sends
+the others' pushes to its gate. `make gate` pins the remote to this worktree's
+own gate, puts the shared value back (or removes it again if there was
+none), and removes the pins of worktrees that
+are gone. That needs Git 2.46 or later. In a normal clone it only runs
+`no-mistakes init`.
 
 Then push with `git push no-mistakes <branch>`, or drive it from an agent with
 `/no-mistakes`. To run the same checks by hand:

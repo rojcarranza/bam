@@ -41,7 +41,7 @@ func newTopCmd(r *runtime) *cobra.Command {
 			"line counts the builds that wait for other agents. --all shows every agent and\n" +
 			"the whole queue of the server.\n\n" +
 			"With --tree, each pin that started other pipelines prints them as bam build\n" +
-			"tree does, under its row; with --json each pin gains tree. The live board\n" +
+			"tree does, under its group's table; with --json each pin gains tree. The live board\n" +
 			"always draws them (space folds a tree).\n\n" +
 			"Pin pipelines with bam pin add, or list groups under monitor: in the machine file\n" +
 			"or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list\n" +

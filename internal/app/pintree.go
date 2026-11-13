@@ -104,7 +104,9 @@ func (p PinView) HasChildren() bool {
 // could not be read; the pin then keeps its single row.
 func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 	if TreeFinished(root.State) {
-		if t, saved, ok := s.cachedTreeAt(root.Key); ok && !saved.Before(treeLatest(t, root).Add(pinSettle)) {
+		// A tree with a failed pipeline is read again: a rerun of that pipeline
+		// keeps its build key, so a saved tree cannot show it.
+		if t, saved, ok := s.cachedTreeAt(root.Key); ok && len(failedChildren(&t)) == 0 && !saved.Before(treeLatest(t, root).Add(pinSettle)) {
 			return &t // saved after the tree had settled, not just as the build ended
 		}
 	}
@@ -129,11 +131,11 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 		m.settled = TreeFinished(root.State) && now.Sub(latest) >= pinSettle
 	}
 	t.Root.Walk(func(n *TreeNode, _ int) {
-		if !n.NotRun && !n.Loop && TreeFinished(n.Build.State) {
+		if !n.NotRun && !n.Loop && TreeFinished(n.Build.State) && n.Build.State != provider.StateFailed {
 			m.done[n.Build.Key] = n.Build
 		}
 	})
-	if m.settled && TreeFinal(t) {
+	if m.settled && TreeFinal(t) && len(failedChildren(&t)) == 0 {
 		s.KeepTree(root.Key, t)
 		s.pinTrees.forget(root.Key)
 	}

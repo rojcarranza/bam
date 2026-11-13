@@ -21,7 +21,7 @@ line counts the builds that wait for other agents. --all shows every agent and
 the whole queue of the server.
 
 With --tree, each pin that started other pipelines prints them as bam build
-tree does, under its row; with --json each pin gains tree. The live board
+tree does, under its group's table; with --json each pin gains tree. The live board
 always draws them (space folds a tree).
 
 Pin pipelines with bam pin add, or list groups under monitor: in the machine file

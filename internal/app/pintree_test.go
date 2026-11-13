@@ -289,3 +289,26 @@ func TestATreeThatCouldNotBeReadIsNotAskedForAgainOnAQuickRefresh(t *testing.T) 
 	require.Nil(t, got.Tree)
 	require.Equal(t, before, after, "no plan is listed on a quick refresh")
 }
+
+// Intent (review of this change): a saved tree that shows a failed child is
+// read again, since rerunning that child keeps its build key.
+func TestASavedPinTreeWithAFailedChildIsReadAgain(t *testing.T) {
+	p := pinTreeFake()
+	for _, k := range []string{"PROJ-TOP", "PROJ-DOCS", "PROJ-KID0"} {
+		for i := range p.History[k] {
+			p.History[k][i].State = provider.StateSuccess
+		}
+	}
+	p.History["PROJ-TOP"][0].Stages = nil
+	svc := pinTreeService(t, p)
+	root := p.History["PROJ-TOP"][0]
+	root.FinishedAt = svc.Clock.Now().Add(-time.Hour)
+	failed := p.History["PROJ-DOCS"][0]
+	failed.State = provider.StateFailed
+	failed.FinishedAt = svc.Clock.Now().Add(-time.Hour)
+	stale := Tree{State: provider.StateFailed, Root: &TreeNode{PlanKey: "PROJ-TOP", Build: root, Children: []*TreeNode{{PlanKey: "PROJ-DOCS", Build: failed}}}}
+	svc.Trees.Keep(svc.Origin, root.Key, stale, svc.Clock.Now())
+	got := svc.PinTree(context.Background(), root)
+	require.NotNil(t, got)
+	require.Empty(t, failedChildren(got), "the rerun that succeeded is what the pin shows")
+}

@@ -279,7 +279,7 @@ func TreeNodeNote(n *app.TreeNode, underStage bool) string {
 	} else if c > 1 {
 		parts = append(parts, fmt.Sprintf("%d tests failed", c))
 	}
-	if q := QueueText(n.Build); q != "" {
+	if q := WaitText(n.Build); q != "" {
 		parts = append(parts, q)
 	}
 	return strings.Join(parts, " · ")

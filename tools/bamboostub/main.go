@@ -13,7 +13,8 @@
 // triggered build is simulated: it stays queued, then runs, then succeeds,
 // and bam build cancel stops it. With -child, its end queues a build of the
 // child plan, as Bamboo does, so bam build tree and bam run --watch have a
-// tree to follow. Any bearer token is accepted.
+// tree to follow. It also lists the agents and the queue, tells a waiting job
+// whether an agent can run it and which agents can. Any bearer token is accepted.
 //
 // Flags:
 //
@@ -213,6 +214,11 @@ func (s *stub) liveDoc(key string, b *build) map[string]any {
 	}
 	if life == "Finished" {
 		doc["buildCompletedTime"] = stamp(s.ended(b))
+	}
+	if life == "Queued" { // Bamboo tells a waiting job whether any agent can run it
+		stages := doc["stages"].(map[string]any)["stage"].([]any)
+		job := stages[0].(map[string]any)["results"].(map[string]any)["result"].([]any)[0].(map[string]any)
+		job["hasExecutableAgents"] = true
 	}
 	return doc
 }
@@ -585,6 +591,13 @@ func (s *stub) handler() http.Handler {
 	mux.HandleFunc(api+"/result/", s.handleResult)
 	mux.HandleFunc(api+"/queue/", s.handleQueue)
 	mux.HandleFunc(api+"/queue", s.handleQueueList)
+	mux.HandleFunc(api+"/config/job/", func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/agent-assignment/possible-agent-assignment") {
+			http.NotFound(w, r)
+			return
+		}
+		s.serve(w, "possible_agents.json", "", "")
+	})
 	mux.HandleFunc(api+"/agent", func(w http.ResponseWriter, _ *http.Request) { s.serve(w, "agents.json", "", "") })
 	mux.HandleFunc("/download/", func(w http.ResponseWriter, _ *http.Request) {
 		body := s.fixture(w, filepath.Join("recorded", "log_download.log"))

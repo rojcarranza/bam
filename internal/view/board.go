@@ -149,10 +149,7 @@ func Board(o Out, b app.Board, url func(string) string) error {
 	case len(b.Queue) == 0:
 		fmt.Fprintln(w, "  The queue is empty")
 	default:
-		t := Table{Headers: []string{"#", "BUILD", "REASON", "WAITED"}, Flex: []int{2}, Indent: "  "}
-		for _, r := range b.Queue {
-			t.Rows = append(t.Rows, []string{fmt.Sprint(r.Position), o.Key(r.Key, url(r.Key)), r.Reason, waitedText(r)})
-		}
+		t := queueTable(o, b.Queue, url, "  ")
 		if err := t.Render(o); err != nil {
 			return err
 		}

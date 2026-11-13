@@ -119,7 +119,7 @@ func BuildDetailWithProgress(o Out, b provider.Build, p provider.Progress) error
 	if b.QueueDuration > 0 {
 		field(o, "Queued", Duration(b.QueueDuration))
 	}
-	field(o, "Waiting", QueueText(b))
+	field(o, "Waiting", WaitText(b))
 	field(o, "Agent", b.Agent)
 	if b.CustomBuild {
 		field(o, "Flags", "CUSTOM BUILD")

@@ -429,10 +429,13 @@ func (m Model) boardInvestigate() (tea.Model, tea.Cmd) {
 
 // boardSelectionURL is the Bamboo URL for o and y on the board.
 func (m Model) boardSelectionURL() string {
+	if m.svc == nil {
+		return ""
+	}
 	if pin, ok := m.boardPin(); ok && pin.PlanKey != "" {
 		return m.svc.P.URL(pin.PlanKey)
 	}
-	if b, ok := m.boardBuild(); ok && m.svc != nil {
+	if b, ok := m.boardBuild(); ok {
 		return m.svc.P.URL(b.Key)
 	}
 	return ""

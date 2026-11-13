@@ -1191,6 +1191,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	m.presetsGen++
 	m.cancelGen++
 	m.home.live = nil
+	m.board = boardState{tickGen: m.board.tickGen + 1, loadGen: m.board.loadGen + 1}
 
 	cmds := []tea.Cmd{}
 	cmds = append(cmds, m.restartHomeTick())

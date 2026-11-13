@@ -2,6 +2,7 @@ package tui
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -525,6 +526,28 @@ func TestBoardOAndYActOnTheSelection(t *testing.T) {
 	_, cmd = send(m, mkKey("o"))
 	cmd()
 	require.Equal(t, labOrigin+"/browse/PROJ-BUILD-500", opened, "a queued build opens its own page")
+}
+
+// A server switch from the board drops the old server's board at once: until
+// the new server answers, if it ever does, nothing of the old one shows and o
+// has nothing to open.
+func TestBoardServerSwitchDropsTheOldServersBoard(t *testing.T) {
+	var opened string
+	m := pinCursor(boardModel(100, 30))
+	m.deps.Open = func(u string) error { opened = u; return nil }
+	m.deps.Connect = func(context.Context, string) (*app.Service, error) { return nil, errors.New("unreachable") }
+	next, _ := m.switchServer("other")
+	m = next.(Model)
+	require.Equal(t, screenBoard, m.screen)
+	v := m.View()
+	require.NotContains(t, v, "PROJ-BUILD")
+	require.NotContains(t, v, "linux-2")
+
+	m, cmd := send(m, mkKey("o"))
+	if cmd != nil {
+		cmd()
+	}
+	require.Empty(t, opened)
 }
 
 func TestBoardEscOnTheBoardDoesNothing(t *testing.T) {

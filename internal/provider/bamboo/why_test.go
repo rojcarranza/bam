@@ -107,6 +107,24 @@ func TestAgentJobsWhenEveryAgentIsMissingIsLearnedAsRefused(t *testing.T) {
 	assert.Equal(t, "no", (*saved)[len(*saved)-1].AgentJobs)
 }
 
+// Intent (BAM-43): bam now asks only for agents it has no recent answer for,
+// often a single agent, so one agent removed since the list was read must
+// not turn the check off for a week once the endpoint is known to work.
+func TestAgentJobsWhenAKnownEndpointMissesEveryAgentAsked(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{})
+	saved := knownCaps(c, Capabilities{AgentJobs: "yes"})
+	got, err := c.AgentJobs(ctx, recordedAgent)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+	assert.Empty(t, *saved, "a removed agent teaches nothing")
+	assert.Equal(t, "yes", c.Capabilities().AgentJobs)
+
+	before := len(rec.all())
+	_, err = c.AgentJobs(ctx, recordedAgent)
+	require.NoError(t, err)
+	assert.Greater(t, len(rec.all()), before, "the next call still asks")
+}
+
 // Intent (BAM-43): a list Bamboo cut short stays short, so it is learned as a
 // refusal and later runs read no agent's details only to be cut short again.
 func TestAgentJobsWithACutShortListIsRefusedNotMisleading(t *testing.T) {

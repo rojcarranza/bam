@@ -126,8 +126,10 @@ type agentDetailDTO struct {
 // administrators, one agent at a time, so up to agentReaders agents are read
 // at once. A refusal, or a list Bamboo cut short, is learned once and answers
 // ErrUnsupported afterwards with no request. An agent removed since the list
-// was read is left out; only when every agent is missing is the endpoint
-// taken to be absent. The first other failure stops the agents not read yet.
+// was read is left out. When every agent asked about is missing, the endpoint
+// is taken to be absent only while that is not yet known; once the endpoint
+// is known to work, those agents were removed and the answer is an empty map.
+// The first other failure stops the agents not read yet.
 func (c *Client) AgentJobs(ctx context.Context, agents []provider.Agent) (map[string][]string, error) {
 	refused := errs.Bamboof("this Bamboo does not tell which jobs each agent can run").
 		WithWhy("the agent details need an administrator").Wrap(errs.ErrUnsupported)
@@ -185,11 +187,12 @@ func (c *Client) AgentJobs(ctx context.Context, agents []provider.Agent) (map[st
 			out[a.Name] = keys[i]
 		}
 	}
-	if len(agents) > 0 && len(out) == 0 {
+	known := c.Capabilities().AgentJobs == "yes"
+	if len(agents) > 0 && len(out) == 0 && !known {
 		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
 		return nil, refused
 	}
-	if c.Capabilities().AgentJobs != "yes" {
+	if !known {
 		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "yes" })
 	}
 	return out, nil

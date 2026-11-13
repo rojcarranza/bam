@@ -64,6 +64,10 @@ func PlanStatsView(o Out, s app.PlanStats) error {
 		fmt.Fprintf(o.W, "%-9s no successful builds\n", "Duration")
 	}
 
+	if err := writeTimeStats(o, s); err != nil {
+		return err
+	}
+
 	if len(s.FailingJobs) == 0 {
 		fmt.Fprintf(o.W, "%-12s none\n", "Failing jobs")
 		return nil
@@ -124,6 +128,26 @@ type PlanStatsDoc struct {
 	Streak      *StreakDoc        `json:"streak"`
 	FailingJobs []JobFailuresDoc  `json:"failing_jobs"`
 	Warnings    []string          `json:"warnings"`
+	// Added with the queue figures: all null or empty when no job could be read.
+	Wait         *WaitStatsDoc `json:"wait"`
+	WaitEarlier  *WaitStatsDoc `json:"wait_earlier"`
+	SlowStages   []SlowestDoc  `json:"slowest_stages"`
+	SlowJobs     []SlowestDoc  `json:"slowest_jobs"`
+	UnreadBuilds int           `json:"unread_builds"`
+}
+
+type WaitStatsDoc struct {
+	MedianMS int64   `json:"median_ms"`
+	P90MS    int64   `json:"p90_ms"`
+	Share    float64 `json:"share"`
+	Jobs     int     `json:"jobs"`
+}
+
+type SlowestDoc struct {
+	Name      string `json:"name"`
+	MedianMS  int64  `json:"median_ms"`
+	Runs      int    `json:"runs"`
+	EarlierMS int64  `json:"earlier_median_ms"`
 }
 
 type DurationStatsDoc struct {
@@ -171,5 +195,60 @@ func PlanStatsJSON(s app.PlanStats) PlanStatsDoc {
 	for _, j := range s.FailingJobs {
 		d.FailingJobs = append(d.FailingJobs, JobFailuresDoc{Name: j.Name, Failures: j.Failures, LastBuild: j.LastBuild})
 	}
+	d.Wait, d.WaitEarlier = waitDoc(s.Wait), waitDoc(s.Earlier)
+	d.SlowStages, d.SlowJobs = slowDocs(s.SlowStages), slowDocs(s.SlowJobs)
+	d.UnreadBuilds = s.UnreadBuilds
 	return d
 }
+
+func waitDoc(w *app.WaitStats) *WaitStatsDoc {
+	if w == nil {
+		return nil
+	}
+	return &WaitStatsDoc{MedianMS: w.Median.Milliseconds(), P90MS: w.P90.Milliseconds(), Share: w.Share, Jobs: w.Jobs}
+}
+
+func slowDocs(rows []app.Slowest) []SlowestDoc {
+	return Docs(rows, func(r app.Slowest) SlowestDoc {
+		return SlowestDoc{Name: r.Name, MedianMS: r.Median.Milliseconds(), Runs: r.Runs, EarlierMS: r.Earlier.Milliseconds()}
+	})
+}
+
+// writeTimeStats prints the wait for an agent and the slowest stages and
+// jobs; nothing for a window whose jobs could not be read.
+func writeTimeStats(o Out, s app.PlanStats) error {
+	if w := s.Wait; w != nil {
+		line := fmt.Sprintf("%-9s median %s  p90 %s  %s of job time spent waiting for an agent", "Waiting",
+			Duration(w.Median), Duration(w.P90), percent(w.Share))
+		if e := s.Earlier; e != nil {
+			line += fmt.Sprintf("   earlier: median %s  p90 %s  %s", Duration(e.Median), Duration(e.P90), percent(e.Share))
+		}
+		fmt.Fprintln(o.W, line)
+	}
+	if s.UnreadBuilds > 0 {
+		fmt.Fprintf(o.W, "%-9s %d of %d finished builds could not be read\n", "Jobs", s.UnreadBuilds, s.Passed+s.Failed)
+	}
+	for _, list := range []struct {
+		title string
+		rows  []app.Slowest
+	}{{"Slowest stages", s.SlowStages}, {"Slowest jobs", s.SlowJobs}} {
+		if len(list.rows) == 0 {
+			continue
+		}
+		fmt.Fprintln(o.W, list.title)
+		t := Table{Indent: "  ", Headers: []string{"", "", ""}}
+		for _, r := range list.rows {
+			earlier := ""
+			if r.Earlier > 0 {
+				earlier = "earlier " + Duration(r.Earlier)
+			}
+			t.Rows = append(t.Rows, []string{r.Name, "median " + Duration(r.Median), earlier})
+		}
+		if err := RenderRows(o, t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func percent(f float64) string { return fmt.Sprintf("%d%%", int(math.Round(f*100))) }

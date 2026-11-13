@@ -23,6 +23,10 @@ type JobDoc struct {
 	Name       string `json:"name"`
 	State      string `json:"state"`
 	DurationMS int64  `json:"duration_ms"`
+	// QueueDurationMS is the job's wait for an agent and CheckoutDurationMS
+	// its checkout time; 0 when Bamboo does not say.
+	QueueDurationMS    int64 `json:"queue_duration_ms"`
+	CheckoutDurationMS int64 `json:"checkout_duration_ms"`
 }
 
 type StageDoc struct {
@@ -199,7 +203,8 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 	})
 	d.Stages = Docs(b.Stages, func(s provider.Stage) StageDoc {
 		return StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: Docs(s.Jobs, func(j provider.Job) JobDoc {
-			return JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration)}
+			return JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration),
+				QueueDurationMS: ms(j.QueueDuration), CheckoutDurationMS: ms(j.CheckoutDuration)}
 		})}
 	})
 	return d

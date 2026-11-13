@@ -28,7 +28,35 @@ type PlanStats struct {
 	Durations       *DurationStats         // nil without passed builds
 	Streak          *Streak                // nil without a passed or failed build
 	FailingJobs     []JobFailures
-	Warnings        []string
+	// Wait is the jobs' wait for an agent; nil when no job of the window
+	// could be read. Earlier is the same over the window before it, nil when
+	// -n left no room for one or it had nothing to compare.
+	Wait         *WaitStats
+	Earlier      *WaitStats
+	SlowStages   []Slowest // by median run time of successful runs, slowest first
+	SlowJobs     []Slowest
+	UnreadBuilds int // finished builds whose jobs could not be read
+	Warnings     []string
+}
+
+// maxSlowest is how many stages and jobs the slowest lists hold.
+const maxSlowest = 3
+
+// WaitStats is the time jobs waited for an agent. Share is the part of all
+// job time (waiting plus running) spent waiting.
+type WaitStats struct {
+	Median, P90 time.Duration
+	Share       float64
+	Jobs        int // jobs counted
+}
+
+// Slowest is a stage or job and its median run time over successful runs.
+// Earlier is the same median over the window before; 0 when there is none.
+type Slowest struct {
+	Name    string
+	Median  time.Duration
+	Runs    int
+	Earlier time.Duration
 }
 
 // DurationStats are over successful builds only: failed builds often stop
@@ -63,9 +91,19 @@ func (p PlanStats) SuccessRate() (float64, bool) {
 // running builds are left out of every other figure. Not-built builds, which
 // Bamboo lists only when asked for every state, count under Other.
 func (s *Service) PlanStats(ctx context.Context, ref PlanRef, n int) (PlanStats, error) {
-	builds, err := s.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: n, Unfinished: true})
+	// When twice n fits in the 100 builds -n allows, read the window before
+	// as well, to compare with.
+	limit := n
+	if 2*n <= 100 {
+		limit = 2 * n
+	}
+	all, err := s.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: limit, Unfinished: true})
 	if err != nil {
 		return PlanStats{}, err
+	}
+	builds, before := all, []provider.Build(nil)
+	if len(all) > n {
+		builds, before = all[:n], all[n:]
 	}
 	st := PlanStats{PlanKey: ref.PlanKey, MasterKey: ref.MasterKey, Branch: ref.Branch, Builds: len(builds), Other: map[provider.State]int{}}
 	type dur struct {
@@ -125,7 +163,30 @@ func (s *Service) PlanStats(ctx context.Context, ref PlanRef, n int) (PlanStats,
 			Max:    max.d, MaxBuild: max.n, Of: len(durs),
 		}
 	}
-	st.FailingJobs, st.Warnings = s.failingJobs(ctx, failed)
+	cur, prev := ranBuilds(builds), ranBuilds(before)
+	reads := s.readBuilds(ctx, append(append([]provider.Build{}, cur...), prev...))
+	got := func(bs []provider.Build) []provider.Build {
+		var out []provider.Build
+		for _, b := range bs {
+			if r := reads[b.Key]; r.err == nil {
+				out = append(out, r.b)
+			}
+		}
+		return out
+	}
+	st.FailingJobs, st.Warnings = failingJobs(failed, reads)
+	for _, b := range cur {
+		if r := reads[b.Key]; r.err != nil {
+			st.UnreadBuilds++
+			if b.State != provider.StateFailed { // failed ones warn in failingJobs
+				st.Warnings = append(st.Warnings, "could not read "+b.Key+": "+describeErr(r.err))
+			}
+		}
+	}
+	curRead, prevRead := got(cur), got(prev)
+	st.Wait = waitStats(curRead)
+	st.Earlier = waitStats(prevRead)
+	st.SlowStages, st.SlowJobs = slowest(curRead, prevRead)
 	// An interrupt during the reads is an interrupt: its failed reads are
 	// not "could not read" warnings, and partial figures are not stats.
 	if err := ctx.Err(); err != nil {
@@ -134,38 +195,52 @@ func (s *Service) PlanStats(ctx context.Context, ref PlanRef, n int) (PlanStats,
 	return st, nil
 }
 
-// failingJobs reads each failed build, statsReaders at a time, and groups
-// its failed jobs by name.
-func (s *Service) failingJobs(ctx context.Context, failed []provider.Build) ([]JobFailures, []string) {
-	type read struct {
-		jobs []string
-		err  error
+// buildRead is one finished build read in full.
+type buildRead struct {
+	b   provider.Build
+	err error
+}
+
+// ranBuilds keeps the builds that ran to a verdict: their jobs have times.
+func ranBuilds(bs []provider.Build) []provider.Build {
+	var out []provider.Build
+	for _, b := range bs {
+		if b.State == provider.StateSuccess || b.State == provider.StateFailed {
+			out = append(out, b)
+		}
 	}
-	reads := make([]read, len(failed))
+	return out
+}
+
+// readBuilds reads each build, statsReaders at a time, keyed by build key.
+func (s *Service) readBuilds(ctx context.Context, bs []provider.Build) map[string]buildRead {
+	reads := make([]buildRead, len(bs))
 	sem := make(chan struct{}, statsReaders)
 	var wg sync.WaitGroup
-	for i, b := range failed {
+	for i, b := range bs {
 		select {
 		case sem <- struct{}{}:
 		case <-ctx.Done():
 			wg.Wait()
-			return nil, nil
+			return nil
 		}
 		wg.Add(1)
 		go func(i int, key string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			d, err := s.P.GetBuild(ctx, key)
-			if err != nil {
-				reads[i].err = err
-				return
-			}
-			for _, j := range d.FailedJobs() {
-				reads[i].jobs = append(reads[i].jobs, j.Name)
-			}
+			reads[i].b, reads[i].err = s.P.GetBuild(ctx, key)
 		}(i, b.Key)
 	}
 	wg.Wait()
+	out := make(map[string]buildRead, len(bs))
+	for i, b := range bs {
+		out[b.Key] = reads[i]
+	}
+	return out
+}
+
+// failingJobs groups the failed jobs of the failed builds by name.
+func failingJobs(failed []provider.Build, reads map[string]buildRead) ([]JobFailures, []string) {
 	byName := map[string]*JobFailures{}
 	var warnings []string
 	note := func(name string, n int) {
@@ -177,17 +252,21 @@ func (s *Service) failingJobs(ctx context.Context, failed []provider.Build) ([]J
 		f.Failures++
 		f.LastBuild = max(f.LastBuild, n)
 	}
-	for i, b := range failed {
-		r := reads[i]
+	for _, b := range failed {
+		r := reads[b.Key]
+		var names []string
+		for _, j := range r.b.FailedJobs() {
+			names = append(names, j.Name)
+		}
 		switch {
 		case r.err != nil:
 			warnings = append(warnings, "could not read "+b.Key+": "+describeErr(r.err))
 			note(UnknownJob, b.Number)
-		case len(r.jobs) == 0:
+		case len(names) == 0:
 			note(UnknownJob, b.Number)
 		default:
 			seen := map[string]bool{}
-			for _, j := range r.jobs {
+			for _, j := range names {
 				if !seen[j] {
 					seen[j] = true
 					note(j, b.Number)
@@ -217,4 +296,89 @@ func (s *Service) failingJobs(ctx context.Context, failed []provider.Build) ([]J
 // skipped before it ever starts, but which never changes again either.
 func settled(s provider.State) bool {
 	return s.Finished() || s == provider.StateSkipped
+}
+
+// ranJobs are the jobs of bs that ran to a verdict.
+func ranJobs(bs []provider.Build) (jobs []provider.Job) {
+	for _, b := range bs {
+		for _, s := range b.Stages {
+			for _, j := range s.Jobs {
+				if j.State == provider.StateSuccess || j.State == provider.StateFailed {
+					jobs = append(jobs, j)
+				}
+			}
+		}
+	}
+	return jobs
+}
+
+// waitStats is the wait for an agent over the jobs of bs, nil without jobs.
+func waitStats(bs []provider.Build) *WaitStats {
+	jobs := ranJobs(bs)
+	if len(jobs) == 0 {
+		return nil
+	}
+	waits := make([]time.Duration, len(jobs))
+	var wait, total time.Duration
+	for i, j := range jobs {
+		waits[i] = j.QueueDuration
+		wait += j.QueueDuration
+		total += j.QueueDuration + j.Duration
+	}
+	w := &WaitStats{Jobs: len(jobs)}
+	w.Median, w.P90 = percentiles(waits)
+	if total > 0 {
+		w.Share = float64(wait) / float64(total)
+	}
+	return w
+}
+
+// percentiles are the median and 90th percentile, the way PlanStats counts
+// them for durations.
+func percentiles(ds []time.Duration) (median, p90 time.Duration) {
+	sorted := append([]time.Duration(nil), ds...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	return sorted[(len(sorted)-1)/2], sorted[int(math.Ceil(0.9*float64(len(sorted))))-1]
+}
+
+// slowest lists the stages and jobs with the longest median run time over
+// the successful runs in cur, with the same median over prev.
+func slowest(cur, prev []provider.Build) (stages, jobs []Slowest) {
+	medians := func(bs []provider.Build) (stage, job map[string][]time.Duration) {
+		stage, job = map[string][]time.Duration{}, map[string][]time.Duration{}
+		for _, b := range bs {
+			for _, s := range b.Stages {
+				if s.State == provider.StateSuccess {
+					stage[s.Name] = append(stage[s.Name], s.Duration)
+				}
+				for _, j := range s.Jobs {
+					if j.State == provider.StateSuccess {
+						job[j.Name] = append(job[j.Name], j.Duration)
+					}
+				}
+			}
+		}
+		return stage, job
+	}
+	pick := func(now, before map[string][]time.Duration) []Slowest {
+		var out []Slowest
+		for name, ds := range now {
+			m, _ := percentiles(ds)
+			e := Slowest{Name: name, Median: m, Runs: len(ds)}
+			if b := before[name]; len(b) > 0 {
+				e.Earlier, _ = percentiles(b)
+			}
+			out = append(out, e)
+		}
+		sort.Slice(out, func(i, j int) bool {
+			if out[i].Median != out[j].Median {
+				return out[i].Median > out[j].Median
+			}
+			return out[i].Name < out[j].Name
+		})
+		return out[:min(len(out), maxSlowest)]
+	}
+	cs, cj := medians(cur)
+	ps, pj := medians(prev)
+	return pick(cs, ps), pick(cj, pj)
 }

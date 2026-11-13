@@ -404,7 +404,7 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 	var last int
 	cmd := &cobra.Command{
 		Use:               "stats <plan|preset>",
-		Short:             "Success rate, durations and failing jobs over a plan's last builds",
+		Short:             "Success rate, durations, waiting for an agent, slowest jobs and failing jobs over a plan's last builds",
 		Example:           "  bam plan stats PROJ-BUILD\n  bam plan stats PROJ-BUILD -n 50\n  bam plan stats provision --branch develop",
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,

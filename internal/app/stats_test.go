@@ -205,3 +205,95 @@ func TestPlanStatsCountsSkippedBuilds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, st.Other[provider.StateSkipped], "a window of only skipped builds still has finished builds")
 }
+
+// waitedBuild is a successful build of PROJ-BUILD with one job per stage, each
+// waiting wait for an agent and running run.
+func waitedBuild(n int, wait, run time.Duration, stages ...string) provider.Build {
+	b := sb(n, provider.StateSuccess, run)
+	for _, name := range stages {
+		b.Stages = append(b.Stages, provider.Stage{Name: name, State: provider.StateSuccess, Duration: run, Jobs: []provider.Job{
+			{Key: b.Key + "-" + name, Name: name + " job", State: provider.StateSuccess, Duration: run, QueueDuration: wait},
+		}})
+	}
+	return b
+}
+
+func TestPlanStatsWaitForAnAgent(t *testing.T) {
+	var hist []provider.Build
+	// waits 1s..10s over 10 builds of one 90s job: median 5s, p90 9s,
+	// 55s of 955s spent waiting.
+	for i := 10; i >= 1; i-- {
+		hist = append(hist, waitedBuild(i, time.Duration(i)*time.Second, 90*time.Second, "Build"))
+	}
+	s, _ := statsService(t, hist...)
+	st, err := s.PlanStats(bg, statsRef(), 10)
+	require.NoError(t, err)
+	require.NotNil(t, st.Wait)
+	require.Equal(t, 5*time.Second, st.Wait.Median)
+	require.Equal(t, 9*time.Second, st.Wait.P90)
+	require.Equal(t, 10, st.Wait.Jobs)
+	require.InDelta(t, 55.0/955, st.Wait.Share, 1e-9)
+	require.Nil(t, st.Earlier, "no builds before the window")
+}
+
+func TestPlanStatsSlowestStagesAndJobs(t *testing.T) {
+	s, _ := statsService(t,
+		waitedBuild(3, 0, 10*time.Minute, "Test", "Package"),
+		waitedBuild(2, 0, 2*time.Minute, "Test", "Package"),
+		waitedBuild(1, 0, 4*time.Minute, "Test", "Package"),
+	)
+	st, err := s.PlanStats(bg, statsRef(), 3)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(st.SlowStages))
+	require.Equal(t, Slowest{Name: "Package", Median: 4 * time.Minute, Runs: 3}, st.SlowStages[0])
+	require.Equal(t, "Package job", st.SlowJobs[0].Name)
+}
+
+func TestPlanStatsComparesWithTheWindowBefore(t *testing.T) {
+	s, _ := statsService(t,
+		waitedBuild(4, 8*time.Second, time.Minute, "Test"),
+		waitedBuild(3, 8*time.Second, time.Minute, "Test"),
+		waitedBuild(2, 2*time.Second, 30*time.Second, "Test"),
+		waitedBuild(1, 2*time.Second, 30*time.Second, "Test"),
+	)
+	st, err := s.PlanStats(bg, statsRef(), 2)
+	require.NoError(t, err)
+	require.Equal(t, 2, st.Builds, "the window before is not counted in the figures")
+	require.Equal(t, 8*time.Second, st.Wait.Median)
+	require.NotNil(t, st.Earlier)
+	require.Equal(t, 2*time.Second, st.Earlier.Median)
+	require.Equal(t, 30*time.Second, st.SlowStages[0].Earlier)
+}
+
+func TestPlanStatsNoEarlierWindowWhenNLeavesNoRoom(t *testing.T) {
+	var hist []provider.Build
+	for i := 100; i >= 1; i-- {
+		hist = append(hist, waitedBuild(i, time.Second, time.Minute, "Test"))
+	}
+	s, _ := statsService(t, hist...)
+	st, err := s.PlanStats(bg, statsRef(), 60)
+	require.NoError(t, err)
+	require.Equal(t, 60, st.Builds)
+	require.Nil(t, st.Earlier)
+}
+
+func TestPlanStatsBuildsWhoseJobsCouldNotBeRead(t *testing.T) {
+	gone := waitedBuild(3, 0, time.Minute, "Test")
+	s, p := statsService(t, gone, waitedBuild(2, 6*time.Second, time.Minute, "Test"))
+	s.P = &failingGet{Provider: p, key: gone.Key}
+	st, err := s.PlanStats(bg, statsRef(), 5)
+	require.NoError(t, err)
+	require.Equal(t, 1, st.UnreadBuilds)
+	require.Equal(t, 6*time.Second, st.Wait.Median, "only the build that was read counts")
+	require.Len(t, st.Warnings, 1)
+	require.Contains(t, st.Warnings[0], "could not read PROJ-BUILD-3")
+	require.Empty(t, st.FailingJobs)
+}
+
+func TestPlanStatsNoWaitWithoutReadableJobs(t *testing.T) {
+	s, _ := statsService(t, sb(1, provider.StateSuccess, time.Minute))
+	st, err := s.PlanStats(bg, statsRef(), 5)
+	require.NoError(t, err)
+	require.Nil(t, st.Wait)
+	require.Empty(t, st.SlowJobs)
+}

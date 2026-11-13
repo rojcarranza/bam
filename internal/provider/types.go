@@ -87,6 +87,12 @@ type Job struct {
 	State    State
 	Duration time.Duration
 	URL      string
+	// QueuedAt is when the job joined the queue, QueueDuration how long it
+	// waited for an agent and CheckoutDuration how long checkout took. All
+	// are zero when Bamboo's record does not say.
+	QueuedAt         time.Time
+	QueueDuration    time.Duration
+	CheckoutDuration time.Duration
 	// Branches is the branch each repository built, by repository name, as
 	// the finished job recorded it; nil while the job has not finished.
 	Branches map[string]string

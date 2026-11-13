@@ -20,10 +20,11 @@ Within a major version fields are only added, never renamed, retyped or removed.
      "started_at":"2026-09-12T11:56:20Z","finished_at":"2026-09-12T12:00:00Z","queue_duration_ms":0,
      "duration_ms":220000,"agent":"","revisions":[],"stages":[{"name":"Test","state":"failed",
      "duration_ms":31000,"jobs":[{"key":"PROJ-BUILD-INT-45","url":"...","name":"Integration",
-     "state":"failed","duration_ms":31000}]}],"failed_tests":[],"failed_test_details":[]}
+     "state":"failed","duration_ms":31000,"queue_duration_ms":0,"checkout_duration_ms":0}]}],"failed_tests":[],"failed_test_details":[]}
 
 - `failed_test_details`: each failed test as `{"name":"...","message":"..."}`, in the order of `failed_tests`. `message` is the error text Bamboo reports, with secret-looking values masked as `********`, and is `""` when the server gives none.
 - `queue_position` and `queue_length`: a queued build's place in the server's queue, counted from 1, and how many builds are queued. Both are absent when the build is not queued or the server cannot list its queue.
+- `queued_at` and `queue_duration_ms`: when the build joined the queue and how long it waited for an agent, taken from its jobs (the wait is the longest job of each stage, summed over the stages); `null` and `0` when Bamboo does not say. Each job has `queue_duration_ms` (its wait for an agent) and `checkout_duration_ms` (its checkout), `0` when unknown.
 - `plan_name`: the plan's short name, as Bamboo shows it. For a branch build it is the master plan's name; `branch` holds the branch.
 
 `state` is one of `queued`, `running`, `success`, `failed`, `stopped`, `skipped`, `not_built`, `unknown`.
@@ -71,6 +72,8 @@ When the plan branch does not build the wanted branches and the output is JSON, 
      "streak":{"state":"success","count":3},
      "failing_jobs":[{"name":"Integration tests","failures":3,"last_build":397}],
      "warnings":[]}
+
+`wait` is the jobs' wait for an agent over the window: `{"median_ms":4000,"p90_ms":38000,"share":0.12,"jobs":40}`, where `share` is the part of all job time (waiting plus running) spent waiting. `wait_earlier` is the same over the window before it, present only when `--last` is at most 50 and that window had builds. `slowest_stages` and `slowest_jobs` list up to three by median run time of successful runs: `{"name":"Test","median_ms":300000,"runs":16,"earlier_median_ms":240000}`, with `earlier_median_ms` `0` when the window before has no run. `unread_builds` counts finished builds whose jobs could not be read; `wait` is `null` when no job could be.
 
 Queued and running builds are not counted. `other` counts stopped, not built and skipped builds by state; `success_rate` is passed ÷ (passed + failed). `duration` is over passed builds only, and the median and p90 are real build durations. `success_rate`, `duration` and `streak` are `null` when there is nothing to compute them from, and `from`/`to` when no build was read. A failed build whose jobs could not be read counts under the job name `(unknown)` and adds a warning.
 

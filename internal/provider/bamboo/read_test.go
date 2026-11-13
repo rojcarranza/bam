@@ -278,3 +278,43 @@ func TestCreateBranchURLIsThePlanBranchCreatePage(t *testing.T) {
 	base := c.URL("")[:len(c.URL(""))-len("/browse/")]
 	assert.Equal(t, base+"/chain/admin/createPlanBranch!doDefault.action?buildKey=PROJ-PLAN", c.CreateBranchURL("PROJ-PLAN"))
 }
+
+// Bamboo carries the queue figures on the job records of a build: the
+// recorded failed build's job waited 73 s for an agent, and a recorded job
+// that skipped checkout reports -3.
+func TestRecordedJobQueueFigures(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/LAB-PROV-10": {fixture: "recorded/result_detail.json"},
+		"GET /rest/api/latest/result/LAB-PROV-11": {fixture: "recorded/result_stopped.json"},
+	})
+	b, err := c.GetBuild(ctx, "LAB-PROV-10")
+	require.NoError(t, err)
+	require.Len(t, b.Stages, 2)
+	j := b.Stages[0].Jobs[0]
+	assert.Equal(t, 65*time.Millisecond, j.QueueDuration)
+	assert.Equal(t, time.Date(2026, 9, 17, 15, 28, 56, 333_000_000, time.UTC), j.QueuedAt.UTC())
+	assert.Equal(t, time.Duration(0), j.CheckoutDuration)
+	// The build waited as long as each stage's slowest job did, stage after
+	// stage, and was queued when its first job was.
+	assert.Equal(t, (65+59)*time.Millisecond, b.QueueDuration)
+	assert.Equal(t, j.QueuedAt, b.QueuedAt)
+
+	// A job that never queued reports none, and a checkout of -3 is no time.
+	b, err = c.GetBuild(ctx, "LAB-PROV-11")
+	require.NoError(t, err)
+	require.Len(t, b.Stages, 2)
+	first, never := b.Stages[0].Jobs[0], b.Stages[1].Jobs[0]
+	assert.Equal(t, 115*time.Millisecond, first.QueueDuration)
+	assert.Equal(t, time.Duration(0), first.CheckoutDuration)
+	assert.True(t, never.QueuedAt.IsZero())
+	assert.Equal(t, time.Duration(0), never.QueueDuration)
+}
+
+func TestRecordedFailedJobWaitAndCheckout(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result/LAB-FLAKY-3": {fixture: "recorded/job_failed_tests.json"},
+	})
+	b, err := c.GetBuild(ctx, "LAB-FLAKY-3")
+	require.NoError(t, err)
+	assert.Equal(t, 73459*time.Millisecond, b.QueueDuration)
+}

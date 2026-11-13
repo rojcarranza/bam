@@ -312,3 +312,24 @@ func TestASavedPinTreeWithAFailedChildIsReadAgain(t *testing.T) {
 	require.NotNil(t, got)
 	require.Empty(t, failedChildren(got), "the rerun that succeeded is what the pin shows")
 }
+
+// Intent (review of this change): a saved tree read one level deep, or with a
+// warning, is not the pin's tree.
+func TestASavedPinTreeReadOneLevelDeepIsReadAgain(t *testing.T) {
+	p := pinTreeFake()
+	for _, k := range []string{"PROJ-TOP", "PROJ-DOCS", "PROJ-KID0"} {
+		for i := range p.History[k] {
+			p.History[k][i].State = provider.StateSuccess
+		}
+	}
+	p.History["PROJ-TOP"][0].Stages = nil
+	svc := pinTreeService(t, p)
+	root := p.History["PROJ-TOP"][0]
+	root.FinishedAt = svc.Clock.Now().Add(-time.Hour)
+	shallow := Tree{State: provider.StateSuccess, Depth: 1, Root: &TreeNode{PlanKey: "PROJ-TOP", Build: root}}
+	svc.Trees.Keep(svc.Origin, root.Key, shallow, svc.Clock.Now())
+	got := svc.PinTree(context.Background(), root)
+	require.NotNil(t, got)
+	require.NotEmpty(t, got.Root.Children, "the tree is read in full, not drawn from the one-level copy")
+	require.Zero(t, got.Depth)
+}

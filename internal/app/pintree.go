@@ -106,7 +106,7 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 	if TreeFinished(root.State) {
 		// A tree with a failed pipeline is read again: a rerun of that pipeline
 		// keeps its build key, so a saved tree cannot show it.
-		if t, saved, ok := s.cachedTreeAt(root.Key); ok && len(failedChildren(&t)) == 0 && !saved.Before(treeLatest(t, root).Add(pinSettle)) {
+		if t, saved, ok := s.cachedTreeAt(root.Key); ok && completeTree(t) && len(failedChildren(&t)) == 0 && !saved.Before(treeLatest(t, root).Add(pinSettle)) {
 			return &t // saved after the tree had settled, not just as the build ended
 		}
 	}
@@ -135,7 +135,7 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 			m.done[n.Build.Key] = n.Build
 		}
 	})
-	if m.settled && TreeFinal(t) && len(failedChildren(&t)) == 0 {
+	if m.settled && TreeFinal(t) && completeTree(t) && len(failedChildren(&t)) == 0 {
 		s.KeepTree(root.Key, t)
 		s.pinTrees.forget(root.Key)
 	}
@@ -190,3 +190,8 @@ func failedChildren(t *Tree) []*TreeNode {
 	})
 	return out
 }
+
+// completeTree says t was read to every depth with nothing left out: the plan
+// screen saves trees read one level deep, and a read can warn that a plan could
+// not be read; neither may stand in for the whole tree.
+func completeTree(t Tree) bool { return t.Depth == 0 && len(t.Warnings) == 0 }

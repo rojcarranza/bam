@@ -547,7 +547,7 @@ func (s *Service) readPinTree(ctx context.Context, v PinView, full bool, prev *P
 	if !ok || ctx.Value(pinTreeKey{}) != true {
 		return v
 	}
-	if !full && prev != nil && prev.treeRoot == root.Key {
+	if !full && prev != nil && prev.treeRoot == root.Key && !treeRootMoved(prev, root) {
 		v.Tree, v.treeRoot = prev.Tree, root.Key // also a tree that could not be read: asked again on the full refresh
 		return v
 	}
@@ -674,3 +674,10 @@ func shortDuration(d time.Duration) string {
 
 // PinGroup is a monitor group, so the UI can name it without importing config.
 type PinGroup = config.PinGroup
+
+// treeRootMoved says the build of a pin's tree has ended since the tree was
+// read, so the quick refresh reads it again rather than keep a tree that still
+// calls it running.
+func treeRootMoved(prev *PinView, root provider.Build) bool {
+	return prev.Tree != nil && prev.Tree.Root != nil && TreeFinished(root.State) != TreeFinished(prev.Tree.Root.Build.State)
+}

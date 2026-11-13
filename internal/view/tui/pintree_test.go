@@ -289,3 +289,18 @@ func TestSpaceOpensATreeFoldedToFitAShortPanel(t *testing.T) {
 	lines, _ = m.pinLines(100, false, 16)
 	require.Contains(t, ansi.Strip(strings.Join(lines, "\n")), "▸ 4 child pipelines · space opens", "and space folds it again")
 }
+
+// Intent (review of this change): t on a pin's row opens the tree drawn under
+// it, the build that runs or else the newest result, not a queued build.
+func TestTOnAPinRowWithATreeOpensTheBuildOfItsTree(t *testing.T) {
+	m := pinCursor(treeBoardModel(120, 45, func(b *app.Board) {
+		queued := provider.Build{Key: "PROJ-TOP-10", PlanKey: "PROJ-TOP", Number: 10, State: provider.StateQueued}
+		b.Groups[0].Pins[0].Current = &queued
+		done := b.Groups[0].Pins[0].Tree.Root.Build
+		done.State = provider.StateSuccess
+		b.Groups[0].Pins[0].Results = []provider.Build{done}
+	}))
+	got, ok := m.boardBuild()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-TOP-9", got.Key)
+}

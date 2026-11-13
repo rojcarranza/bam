@@ -350,6 +350,9 @@ func (m Model) boardBuild() (provider.Build, bool) {
 				return n.Build, true
 			}
 			p := rows[c].pin
+			if root, ok := p.PinRoot(); ok && p.HasChildren() {
+				return root, true // the build whose tree is drawn under the row
+			}
 			switch {
 			case p.Current != nil:
 				return *p.Current, true

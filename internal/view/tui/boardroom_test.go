@@ -222,3 +222,20 @@ func TestBoardPinnedNameFitsItsPanelInEveryLayout(t *testing.T) {
 		require.Contains(t, v, "usual 3m", "%dx%d: the row's end is not cut off:\n%s", size[0], size[1], v)
 	}
 }
+
+// At 80 columns, with no pin running, the Pinned names get the room the NOW
+// column does not need and end in … when cut, so two long names that share a
+// start still read apart.
+func TestBoardPinnedNamesReadApartAt80(t *testing.T) {
+	groups := []app.PinGroupView{{Name: "integration", Pins: []app.PinView{
+		{Pin: "PROJ-FT", PlanKey: "PROJ-FT", Name: "Run Feature Tests", Usual: 3 * time.Minute},
+		{Pin: "PROJ-FTN", PlanKey: "PROJ-FTN", Name: "Run Feature Tests Nightly", Usual: 3 * time.Minute},
+		{Pin: "PROJ-INT", PlanKey: "PROJ-INT", Name: "Integrate For Next Release Of The Whole Platform", Usual: 3 * time.Minute},
+	}}}
+	v := ansi.Strip(boardWith(80, 24, 0, groups).View())
+	require.Contains(t, v, "Run Feature Tests ", v)
+	require.Contains(t, v, "Run Feature Tests Nightly", v)
+	require.Contains(t, v, "Integrate For Next", v)
+	require.Contains(t, v, "…", "a cut name ends in …:\n%s", v)
+	require.Contains(t, v, "usual 3m", v)
+}

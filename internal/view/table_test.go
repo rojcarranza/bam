@@ -45,3 +45,20 @@ func TestTableNeverTruncatesOnPipe(t *testing.T) {
 	require.NoError(t, Table{Headers: []string{"KEY", "REASON"}, Flex: []int{1}, Rows: [][]string{{"PROJ-PLAN-1", long}}}.Render(o))
 	assert.Contains(t, buf.String(), long)
 }
+
+// A Flex cell that is a hyperlink stays a hyperlink to the same URL when the
+// table cuts it to the terminal width, so a cut name is still clickable.
+func TestTableKeepsHyperlinkOnCutCell(t *testing.T) {
+	o, buf := testOut(true)
+	o.Width = 30
+	o.Style = style.Mode{Links: true}
+	url := "https://bamboo.example.com/browse/PROJ-LONG"
+	cell := style.Link(o.Style, url, "A really long pipeline name that goes on and on")
+	require.NoError(t, Table{Headers: []string{"PIPELINE", "USUAL"}, Flex: []int{0}, Rows: [][]string{{cell, "3m"}}}.Render(o))
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	require.Len(t, lines, 2)
+	assert.LessOrEqual(t, style.Width(lines[1]), 30, lines[1])
+	assert.Contains(t, style.Strip(lines[1]), "…")
+	assert.True(t, strings.HasPrefix(lines[1], "\x1b]8;;"+url+"\x1b\\A really"), "cut cell opens the plan link: %q", lines[1])
+	assert.Contains(t, lines[1], "…\x1b]8;;\x1b\\", "the link closes after the cut text")
+}

@@ -2,6 +2,7 @@ package view
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/rojcarranza/bam/internal/view/style"
@@ -56,7 +57,7 @@ func (t Table) Render(o Out) error {
 				cell = row[i]
 			}
 			if style.Width(cell) > widths[i] {
-				cell = cut(style.Strip(cell), widths[i])
+				cell = cutCell(cell, widths[i])
 			}
 			b.WriteString(cell)
 			if i < n-1 {
@@ -69,6 +70,19 @@ func (t Table) Render(o Out) error {
 		}
 	}
 	return nil
+}
+
+// linkRe matches a cell that opens with an OSC 8 hyperlink, capturing its URL.
+var linkRe = regexp.MustCompile("^\x1b\\]8;;([^\x1b]*)\x1b\\\\")
+
+// cutCell cuts a cell to w columns; a cell that is a hyperlink stays one
+// around the cut text, so a cut name still opens its page.
+func cutCell(cell string, w int) string {
+	text := cut(style.Strip(cell), w)
+	if m := linkRe.FindStringSubmatch(cell); m != nil {
+		return style.Link(style.Mode{Links: true}, m[1], text)
+	}
+	return text
 }
 
 func cut(s string, w int) string {

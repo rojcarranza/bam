@@ -976,7 +976,8 @@ func (m Model) pinLines(inner int, spaced bool) ([]string, int) {
 	}
 	var out []string
 	cursorLine, n := 0, 0
-	labelW := m.pinLabelWidth(inner)
+	nowW := m.pinNowWidth()
+	labelW := m.pinLabelWidth(inner, nowW)
 	for gi, g := range b.data.Groups {
 		if spaced && gi > 0 {
 			out = append(out, "")
@@ -987,21 +988,36 @@ func (m Model) pinLines(inner int, spaced bool) ([]string, int) {
 			if sel {
 				cursorLine = len(out)
 			}
-			out = append(out, m.cursorFor(b.panel == boardPins, n == b.cursor[boardPins])+m.pinText(p, labelW))
+			out = append(out, m.cursorFor(b.panel == boardPins, n == b.cursor[boardPins])+m.pinText(p, labelW, nowW))
 			n++
 		}
 	}
 	return out, cursorLine
 }
 
-// pinRest is the width of a pin's row besides its name: the results, the
-// current build, and the last and usual times, with the spaces between.
-const pinRest = 61
+// pinRest is the width of a pin's row besides its name and its current
+// build: the results, and the last and usual times, with the spaces between.
+const pinRest = 37
+
+// pinNowWidth is the width of the current-build column of Pinned: the widest
+// current build of a pin, so a board where nothing runs gives that room to
+// the names.
+func (m Model) pinNowWidth() int {
+	w := 1
+	for _, g := range m.board.data.Groups {
+		for _, p := range g.Pins {
+			if p.Err == nil {
+				w = max(w, lipgloss.Width(m.pinNow(p)))
+			}
+		}
+	}
+	return w
+}
 
 // pinLabelWidth is the width of the name column of Pinned: the longest name
 // of a pin, at least 14, and no wider than what the panel's inner width leaves
 // after the rest of the row.
-func (m Model) pinLabelWidth(inner int) int {
+func (m Model) pinLabelWidth(inner, nowW int) int {
 	w := 14
 	for _, g := range m.board.data.Groups {
 		for _, p := range g.Pins {
@@ -1010,10 +1026,25 @@ func (m Model) pinLabelWidth(inner int) int {
 			}
 		}
 	}
-	return min(w, max(14, inner-2-pinRest))
+	return min(w, max(14, inner-2-pinRest-nowW))
 }
 
-func (m Model) pinText(p app.PinView, labelW int) string {
+// pinNow is a pin's current build: its number and state, with a progress bar
+// while it runs, or a dash.
+func (m Model) pinNow(p app.PinView) string {
+	c := p.Current
+	if c == nil {
+		return "–"
+	}
+	now := fmt.Sprintf("#%d %s", c.Number, strings.ToLower(string(c.State)))
+	if c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
+		run := max(m.now().Sub(c.StartedAt), 0)
+		now += fmt.Sprintf(" %s %s/%s", bar(float64(run)/float64(p.Usual), 6), brief(run), brief(p.Usual))
+	}
+	return now
+}
+
+func (m Model) pinText(p app.PinView, labelW, nowW int) string {
 	if p.Err != nil {
 		return fmt.Sprintf("%-22s %s", p.Label(), errorStyle.Render("could not be read: "+p.Err.Error()))
 	}
@@ -1021,17 +1052,11 @@ func (m Model) pinText(p app.PinView, labelW int) string {
 	for i := len(p.Results) - 1; i >= 0; i-- {
 		sb.WriteString(stateStyle(p.Results[i].State).Render(stateGlyph(p.Results[i].State)))
 	}
-	now := "–"
-	if c := p.Current; c != nil {
-		now = fmt.Sprintf("#%d %s", c.Number, strings.ToLower(string(c.State)))
-		if c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
-			run := max(m.now().Sub(c.StartedAt), 0)
-			now += fmt.Sprintf(" %s %s/%s", bar(float64(run)/float64(p.Usual), 6), brief(run), brief(p.Usual))
-		}
-	}
-	label := truncate(p.Label(), labelW)
+	now := m.pinNow(p)
+	now += strings.Repeat(" ", max(nowW-lipgloss.Width(now), 0))
+	label := cut(p.Label(), labelW)
 	label += strings.Repeat(" ", max(labelW-lipgloss.Width(label), 0))
-	return fmt.Sprintf("%s %s %-24s last %s · usual %s", label, results(sb.String(), len(p.Results)), now, brief(p.Last), brief(p.Usual))
+	return fmt.Sprintf("%s %s %s last %s · usual %s", label, results(sb.String(), len(p.Results)), now, brief(p.Last), brief(p.Usual))
 }
 
 // bar draws frac (0 to 1, more is full) as w cells.

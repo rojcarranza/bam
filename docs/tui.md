@@ -82,7 +82,7 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `:` | command bar: :plans :presets :sets :projects :tree :stats :top :project :server :sort :q |
 | Board | `tab` | next panel: Needs you, Your agents (when `agents:` is set), Queue, Pinned |
 | | Needs you, Agents, Queue, Pinned | one sentence each in the help overlay: what the panel lists |
-| | `a` | your agents only, or every agent of the server; `enter` on a pool lists its agents |
+| | `a` | your agents, queue and Needs you only, or the whole server; `enter` on a pool lists its agents |
 | | `enter` | open the selected pipeline or build; `esc` comes back to the board |
 | | `P` | unpin the selected pipeline, or pin the selected queued build's plan (asks for the group) |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |

@@ -14,14 +14,14 @@ bam [flags]
 ### Options
 
 ```
-      --color string     color output: auto, always or never
-      --debug            log HTTP requests to stderr
-  -h, --help             help for bam
-      --json             print JSON
-      --no-tui           never open the terminal UI
-      --project string   project the UI opens on (all: every project; default: default_project)
-      --server string    server alias to use
-  -v, --version          version for bam
+      --color string           color output: auto, always or never
+      --debug[=true|false]     log HTTP requests to stderr
+  -h, --help[=true|false]      help for bam
+      --json[=true|false]      print JSON
+      --no-tui[=true|false]    never open the terminal UI
+      --project string         project the UI opens on (all: every project; default: default_project)
+      --server string          server alias to use
+  -v, --version[=true|false]   version for bam
 ```
 
 ### SEE ALSO

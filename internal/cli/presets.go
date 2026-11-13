@@ -64,9 +64,9 @@ func defaultTargetName(planKey string) string {
 
 func newTargetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "list [text]",
-		SuggestFor: []string{"ls"},
-		Short:      "List run presets from your presets files, .bam.yaml and the machine config",
+		Use:     "list [text]",
+		Aliases: []string{"ls"},
+		Short:   "List run presets from your presets files, .bam.yaml and the machine config",
 		Long: "List run presets from your presets files, .bam.yaml and the machine config.\n" +
 			"With text, list only the presets whose name or plan contains it, ignoring case.",
 		Example: "  bam preset list\n  bam preset list prov",
@@ -340,7 +340,14 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"  bam preset add deploy-package --plan PROJ-PKG --file custom-presets\n" +
 			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
 			"  bam run deploy-qa --dry-run",
-		Args: cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			// "bam preset add web PROJ-PLAN": the plan stands in for --plan.
+			if len(args) == 2 && fl.plan == "" && app.IsPlanKey(args[1]) {
+				fl.plan = args[1]
+				return nil
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			return fl.run(r, cmd, args[0])
 		}),
@@ -348,7 +355,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&fl.plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
 	f.StringVar(&fl.from, "from", "", "build whose variable values fill the preset: number, key or last")
-	f.StringVar(&fl.branch, "branch", "", "default branch for the preset; defaults to the --from build's branch")
+	f.StringVarP(&fl.branch, "branch", "b", "", "default branch for the preset; defaults to the --from build's branch")
 	f.BoolVar(&fl.shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
 	f.StringVar(&fl.file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")
 	f.BoolVar(&fl.printOnly, "print", false, "print the YAML and write nothing")

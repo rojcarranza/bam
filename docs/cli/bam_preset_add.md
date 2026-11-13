@@ -34,7 +34,7 @@ bam preset add <name> --plan KEY [flags]
 ### Options
 
 ```
-      --branch string   default branch for the preset; defaults to the --from build's branch
+  -b, --branch string   default branch for the preset; defaults to the --from build's branch
       --file string     write NAME.yaml in your presets directory instead of the plan's project file
       --force           replace an existing preset
       --from string     build whose variable values fill the preset: number, key or last

@@ -184,7 +184,7 @@ func (r *runtime) connectFor(ctx context.Context, arg string) (*app.Service, Bac
 		return nil, nil, err
 	}
 	targetServer := ""
-	if config.ValidTargetName(arg) {
+	if arg = app.PresetName(cfg, arg); config.ValidTargetName(arg) {
 		if t, ok, err := cfg.Target(arg); err != nil {
 			return nil, nil, err
 		} else if ok {

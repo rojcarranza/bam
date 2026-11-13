@@ -39,6 +39,7 @@ func newQueueCmd(r *runtime) *cobra.Command {
 func newAgentListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
 		Use:     "list",
+		Aliases: []string{"ls"},
 		Short:   "List the build agents: online, enabled and busy",
 		Example: "  bam agent list\n  bam agent list --json",
 		Args:    cobra.NoArgs,

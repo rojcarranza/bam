@@ -25,10 +25,10 @@ bam build cancel [<build>|<plan>|<preset>] [flags]
 ### Options
 
 ```
-      --branch string   plan branch when a plan or preset is given
+  -b, --branch string   plan branch when a plan or preset is given
       --dry-run         show which build would stop, stop nothing
   -h, --help            help for cancel
-      --last            the last build bam triggered from this repository
+      --last            the last build bam triggered from this repository (the default for commands that only read)
 ```
 
 ### Options inherited from parent commands

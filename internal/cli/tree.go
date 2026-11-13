@@ -32,7 +32,7 @@ A children: map in the configuration narrows a plan's children and shows a
 configured child that never ran. Interrupting --watch never stops a build.
 On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 		Example:           "  bam build tree PROJ-BUILD-482\n  bam build tree --last --watch\n  bam build tree provision --failed --depth 2\n  bam build tree PROJ-BUILD-482 --rerun-failed --yes",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if rerun && !yes && (!r.env.StdinTTY || r.flags.json) {
@@ -42,7 +42,12 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 				return errs.Usagef("--depth takes 1 or more, not %d", depth).WithTry("leave out --depth to show every level")
 			}
 			ctx := cmd.Context()
-			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
+			resolve := r.resolveBuildArg
+			if rerun {
+				// --rerun-failed changes builds: name one, never guess.
+				resolve = r.resolveNamedBuild
+			}
+			svc, key, err := resolve(ctx, args, last, branch)
 			if err != nil {
 				return err
 			}
@@ -79,7 +84,7 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 	}
 	f := cmd.Flags()
 	addBuildArgFlags(cmd, &last, &branch)
-	f.BoolVar(&watch, "watch", false, "follow the tree until every build has finished")
+	f.BoolVarP(&watch, "watch", "w", false, "follow the tree until every build has finished")
 	f.BoolVar(&failed, "failed", false, "show only the branches that lead to a failure")
 	f.BoolVar(&rerun, "rerun-failed", false, "restart the failed builds whose parents succeeded, then follow the tree")
 	f.BoolVar(&yes, "yes", false, "with --rerun-failed, do not ask first")

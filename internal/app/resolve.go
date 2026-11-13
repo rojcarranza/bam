@@ -83,6 +83,7 @@ func BuildLabel(key string) string {
 // overrides the target's branch.
 func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef, error) {
 	var ref PlanRef
+	arg = PresetName(s.Cfg, arg)
 	switch {
 	case config.ValidTargetName(arg):
 		t, ok, err := s.Cfg.Target(arg)
@@ -103,15 +104,13 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 			WithTry("its plan, " + arg[:strings.LastIndex(arg, "-")])
 	case projectRe.MatchString(arg):
 		try := "bam plan list " + arg + " to see its plans"
-		if p := s.lowerPreset(arg); p != "" {
+		if p := lowerPreset(s.Cfg, arg); p != "" {
 			try += ", or the preset " + p
 		}
 		return PlanRef{}, errs.Usagef("%q is a project key, not a plan key", arg).WithTry(try)
 	default:
 		try := "bam preset list, or a plan key such as PROJ-PLAN"
-		if p := s.lowerPreset(arg); p != "" {
-			try = "preset names are lowercase: did you mean " + p + "?"
-		} else if k := tidyBuildKey(arg); IsPlanKey(k) {
+		if k := tidyBuildKey(arg); IsPlanKey(k) {
 			try = "did you mean " + k + "?"
 		} else if IsBuildKey(k) {
 			try = "its plan, " + k[:strings.LastIndex(k, "-")]
@@ -132,14 +131,27 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 	return ref, nil
 }
 
+// PresetName is arg in lowercase when that names a preset, so "Deploy-QA"
+// names deploy-qa; a plan, build or project key and anything else is
+// returned unchanged.
+func PresetName(cfg *config.Config, arg string) string {
+	if IsPlanKey(arg) || IsBuildKey(arg) || projectRe.MatchString(arg) {
+		return arg
+	}
+	if p := lowerPreset(cfg, arg); p != "" {
+		return p
+	}
+	return arg
+}
+
 // lowerPreset returns arg in lowercase when that names a preset, for a
 // preset typed in the wrong case; otherwise "".
-func (s *Service) lowerPreset(arg string) string {
+func lowerPreset(cfg *config.Config, arg string) string {
 	low := strings.ToLower(arg)
 	if low == arg || !config.ValidTargetName(low) {
 		return ""
 	}
-	if _, ok, _ := s.Cfg.Target(low); ok {
+	if _, ok, _ := cfg.Target(low); ok {
 		return low
 	}
 	return ""
@@ -264,29 +276,20 @@ type BuildArg struct {
 // ResolveBuild returns a build key: the key itself, the latest build of a
 // plan or target, or the last build bam triggered from this repository.
 func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) {
+	a.Arg = PresetName(s.Cfg, a.Arg)
+	bare := s.bareNumberBuild(a.Arg)
 	switch {
 	case a.Last:
-		rec, ok, err := s.State.Last(s.Cfg.RepoRoot)
-		if err != nil {
-			return "", err
-		}
-		if !ok {
-			return "", errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
-		}
-		if rec.Origin != "" && rec.Origin != s.Origin {
-			return "", errs.Configf("the last build %s ran on %s, not on server %q", rec.BuildKey, rec.Origin, s.Server.Alias).
-				WithTry("pass --server with the alias of " + rec.Origin)
-		}
-		return rec.BuildKey, nil
+		rec, err := s.LastBuild()
+		return rec.BuildKey, err
 	case IsBuildKey(a.Arg):
 		return CanonicalBuildKey(a.Arg)
+	case bare != "":
+		return CanonicalBuildKey(bare)
 	case a.Arg == "":
 		return "", errs.Usagef("which build?").WithTry("pass a build key, a plan key, a preset, or --last")
 	case !config.ValidTargetName(a.Arg) && !IsPlanKey(a.Arg) && !projectRe.MatchString(a.Arg):
 		try := "a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list"
-		if p := s.lowerPreset(a.Arg); p != "" {
-			try = "preset names are lowercase: did you mean " + p + "?"
-		}
 		if n := strings.TrimPrefix(a.Arg, "#"); digitsRe.MatchString(n) {
 			try = "a build number needs its plan, as in PROJ-PLAN-" + n
 			if rec, ok, _ := s.State.Last(s.Cfg.RepoRoot); ok && IsBuildKey(rec.BuildKey) {
@@ -313,6 +316,39 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		return "", errs.Bamboof("no builds of %s yet", ref.PlanKey).WithTry("bam run " + a.Arg)
 	}
 	return builds[0].Key, nil
+}
+
+// LastBuild is the last build bam triggered from this repository. It is a
+// usage error when there is none, and a config error when it ran on another
+// server than this one.
+func (s *Service) LastBuild() (LastRecord, error) {
+	rec, ok, err := s.State.Last(s.Cfg.RepoRoot)
+	if err != nil {
+		return LastRecord{}, err
+	}
+	if !ok {
+		return LastRecord{}, errs.Usagef("no build triggered from this repository yet").WithTry("bam run <preset>")
+	}
+	if rec.Origin != "" && rec.Origin != s.Origin {
+		return LastRecord{}, errs.Configf("the last build %s ran on %s, not on server %q", rec.BuildKey, rec.Origin, s.Server.Alias).
+			WithTry("pass --server with the alias of " + rec.Origin)
+	}
+	return rec, nil
+}
+
+// bareNumberBuild is the build key for a bare build number (482 or #482):
+// that number of the plan of the last build triggered from this repository on
+// this server. It is "" for anything else, and when there is no such build.
+func (s *Service) bareNumberBuild(arg string) string {
+	n := strings.TrimPrefix(arg, "#")
+	if !digitsRe.MatchString(n) {
+		return ""
+	}
+	rec, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	if !ok || !IsBuildKey(rec.BuildKey) || (rec.Origin != "" && rec.Origin != s.Origin) {
+		return ""
+	}
+	return rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + n
 }
 
 // canonicalBuildKey drops leading zeros from a build key's number

@@ -94,7 +94,7 @@ flowchart LR
     everyrun -->|"a build failed"| fails
 ```
 
-Where a command takes a build, `--last` means the build you started last from this directory. Every read command takes `--json`. `bam <command> --help` shows all flags; the full reference is in [docs/cli](docs/cli/bam.md).
+Where a command takes a build, `--last` means the build you started last from this directory. Commands that only read, such as `bam watch`, `bam logs`, `bam why` and `bam build list`, use it when you name no build; `bam cancel` and `bam build rerun` still need a key or `--last`. Every read command takes `--json`. `bam <command> --help` shows all flags; the full reference is in [docs/cli](docs/cli/bam.md).
 
 ### Find your plan
 

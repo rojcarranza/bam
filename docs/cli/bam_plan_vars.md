@@ -21,7 +21,7 @@ bam plan vars <plan|preset> [text] [flags]
 ### Options
 
 ```
-      --branch string   plan branch whose builds supply last-used values
+  -b, --branch string   plan branch whose builds supply last-used values
       --from string     build for last-used values: number, key or last
   -h, --help            help for vars
 ```

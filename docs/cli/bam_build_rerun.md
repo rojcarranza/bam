@@ -23,13 +23,13 @@ bam build rerun [<build>|<plan>|<preset>] [flags]
 ### Options
 
 ```
-      --branch string      plan branch when a plan or preset is given
+  -b, --branch string      plan branch when a plan or preset is given
       --dry-run            show which build would rerun, restart nothing
   -h, --help               help for rerun
-      --last               the last build bam triggered from this repository
+      --last               the last build bam triggered from this repository (the default for commands that only read)
       --notify             when the watched build finishes, ring the terminal bell and raise a desktop notification where the system has one
       --timeout duration   with --watch, stop watching after this long (the build keeps running)
-      --watch              follow the build and the builds it triggers until they finish
+  -w, --watch              follow the build and the builds it triggers until they finish
 ```
 
 ### Options inherited from parent commands

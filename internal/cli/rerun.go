@@ -22,12 +22,12 @@ func newBuildRerunCmd(r *runtime) *cobra.Command {
 does: same build key, same variables and commit. A build that is running or
 succeeded is refused.`,
 		Example:           "  bam build rerun PROJ-BUILD-482\n  bam build rerun --last --watch\n  bam build rerun provision --branch feature-x --dry-run",
-		Args:              cobra.MaximumNArgs(1),
+		Args:              buildArgs,
 		SuggestFor:        []string{"retry", "restart"},
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			svc, key, err := r.resolveBuildArg(ctx, args, last, branch)
+			svc, key, err := r.resolveNamedBuild(ctx, args, last, branch)
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ succeeded is refused.`,
 	}
 	f := cmd.Flags()
 	addBuildArgFlags(cmd, &last, &branch)
-	f.BoolVar(&watch, "watch", false, "follow the build and the builds it triggers until they finish")
+	f.BoolVarP(&watch, "watch", "w", false, "follow the build and the builds it triggers until they finish")
 	f.BoolVar(&dryRun, "dry-run", false, "show which build would rerun, restart nothing")
 	f.DurationVar(&timeout, "timeout", 0, "with --watch, stop watching after this long (the build keeps running)")
 	addNotifyFlag(cmd, r)

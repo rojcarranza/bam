@@ -125,8 +125,8 @@ func (r *runtime) completeBranch(cmd *cobra.Command, args []string, _ string) ([
 		return nil, none
 	}
 	// Not ResolvePlan: it would also resolve a preset's stored branch, one more request that can fail.
-	master := arg
-	if t, ok, err := r.cfg.Target(arg); err == nil && ok {
+	master := app.PresetName(r.cfg, arg)
+	if t, ok, err := r.cfg.Target(master); err == nil && ok {
 		master = t.Plan
 	}
 	if !app.IsPlanKey(master) {
@@ -237,7 +237,7 @@ func (r *runtime) completeVar(cmd *cobra.Command, args []string, toComplete stri
 	if err != nil {
 		return nil, none
 	}
-	t, ok, err := cfg.Target(args[0])
+	t, ok, err := cfg.Target(app.PresetName(cfg, args[0]))
 	if err == nil && ok {
 		return targetVars(toComplete, t)
 	}

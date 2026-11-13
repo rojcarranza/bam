@@ -41,9 +41,9 @@ func (r *runtime) setStore() *app.SetStore {
 
 func newSetListCmd(r *runtime) *cobra.Command {
 	return &cobra.Command{
-		Use:        "list [text]",
-		SuggestFor: []string{"ls"},
-		Short:      "List release train sets",
+		Use:     "list [text]",
+		Aliases: []string{"ls"},
+		Short:   "List release train sets",
 		Long: "List release train sets.\n" +
 			"With text, list only the sets whose name or one of whose presets contains it, ignoring case.",
 		Example: "  bam set list\n  bam set list prov",

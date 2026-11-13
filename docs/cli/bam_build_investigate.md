@@ -17,11 +17,11 @@ bam build investigate [<build>|<plan>|<preset>] [flags]
 ### Options
 
 ```
-      --branch string   plan branch when a plan or preset is given
+  -b, --branch string   plan branch when a plan or preset is given
       --compare         show revisions and variables changed since the last successful build
       --context int     lines of context around each error (default 3)
   -h, --help            help for investigate
-      --last            the last build bam triggered from this repository
+      --last            the last build bam triggered from this repository (the default for commands that only read)
       --max int         error blocks per job; 0 for all (default 5)
 ```
 

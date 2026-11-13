@@ -15,6 +15,10 @@ three or fewer can run the job. Bamboo shows which agents can run a job, and
 whether they are free, only to an administrator. A part Bamboo refuses is left
 out, never an error.
 
+bam reads which jobs each agent can run once an hour and keeps them in its
+cache, so a change to an agent's capabilities shows within the hour, and a
+build queued since then that no agent lists has no WHY until then.
+
 ```
 bam queue [flags]
 ```

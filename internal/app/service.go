@@ -35,7 +35,10 @@ type Service struct {
 	State  *StateStore
 	Sets   *SetStore
 	Trees  *TreeStore // finished trees seen before; nil keeps none
-	Getenv func(string) string
+	// AgentJobs keeps the jobs each agent can run between runs; nil keeps
+	// them for this process only.
+	AgentJobs *AgentJobStore
+	Getenv    func(string) string
 	// Checkout returns the branch checked out in the working directory; nil
 	// when bam has no repository to ask. "@" in a branch means this branch.
 	Checkout func() (string, error)
@@ -45,7 +48,7 @@ type Service struct {
 
 	estimates estimateCache // medians of plan histories, for servers without progress
 	scans     scanCache     // the newest tree scan of each plan, for TreeOptions.Shared
-	why       whyCache      // agent answers behind provider.Why, kept briefly
+	why       whyCache      // agent answers behind provider.Why
 }
 
 // ProjectKeys is the projects that scope navigation on this server

@@ -25,7 +25,10 @@ func newQueueCmd(r *runtime) *cobra.Command {
 			"agents are free and other builds come before it. It names the agents when\n" +
 			"three or fewer can run the job. Bamboo shows which agents can run a job, and\n" +
 			"whether they are free, only to an administrator. A part Bamboo refuses is left\n" +
-			"out, never an error.",
+			"out, never an error.\n\n" +
+			"bam reads which jobs each agent can run once an hour and keeps them in its\n" +
+			"cache, so a change to an agent's capabilities shows within the hour, and a\n" +
+			"build queued since then that no agent lists has no WHY until then.",
 		Example: "  bam queue\n  bam queue --json",
 		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {

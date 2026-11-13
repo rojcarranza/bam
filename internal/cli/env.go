@@ -35,6 +35,7 @@ type Paths struct {
 	State         string
 	Sets          string // directory of set run records and locks
 	Trees         string // directory of saved build trees, one file per server
+	AgentJobs     string // directory of the jobs each agent can run, one file per server
 	// LegacyConfigDir is where bam kept its config before it used
 	// ~/.config/bam on every platform; Execute moves files from it. Empty
 	// means nothing to move.
@@ -127,6 +128,7 @@ func SystemEnv() Env {
 			State:           filepath.Join(dirs.State, "state.json"),
 			Sets:            filepath.Join(dirs.State, "sets"),
 			Trees:           filepath.Join(dirs.Cache, "tree"),
+			AgentJobs:       filepath.Join(dirs.Cache, "agent-jobs"),
 			LegacyConfigDir: dirs.OldConfig,
 		},
 		Clock:   app.SystemClock{},

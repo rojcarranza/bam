@@ -383,18 +383,17 @@ func (m Model) boardOpen(logs bool) (tea.Model, tea.Cmd) {
 	if m.svc == nil {
 		return m, nil
 	}
-	b, ok := m.boardBuild()
-	if !ok {
-		return m, nil
-	}
-	pin, isPin := m.boardPin()
-	if isPin && !logs {
+	if pin, isPin := m.boardPin(); isPin && !logs {
 		if pin.PlanKey == "" {
 			return m, nil
 		}
 		next, cmd := m.enterPlan(m.masterOf(pin.PlanKey), pin.PlanKey, nil, focusBuilds)
 		next.fromBoard = true
 		return next, cmd
+	}
+	b, ok := m.boardBuild()
+	if !ok {
+		return m, nil
 	}
 	next, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 	next.fromBoard = true

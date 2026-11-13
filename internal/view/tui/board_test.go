@@ -392,6 +392,23 @@ func TestBoardJKMoveWithinThePanel(t *testing.T) {
 	require.Zero(t, m.board.cursor[boardPins])
 }
 
+// A pinned plan that has not built yet still opens on enter: the plan
+// screen is the pipeline, whether or not it has builds.
+func TestBoardEnterOnAPinWithNoBuildsOpensItsPlan(t *testing.T) {
+	m := boardModel(100, 30)
+	data := sampleBoard(goldenNow)
+	data.Groups = []app.PinGroupView{{Name: "integration", Pins: []app.PinView{{Pin: "PROJ-NEW", PlanKey: "PROJ-NEW"}}}}
+	data.Needs = app.NeedsYou(data, goldenNow)
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+	m = pinCursor(m)
+	m, cmd := send(m, mkKey("enter"))
+	require.NotNil(t, cmd)
+	require.Equal(t, screenPlan, m.screen)
+	require.Equal(t, "PROJ-NEW", m.plan.key)
+	require.True(t, m.fromBoard)
+}
+
 func TestBoardEnterOnAPinOpensItsPlanAndEscComesBack(t *testing.T) {
 	m := pinCursor(boardModel(100, 30))
 	m, cmd := send(m, mkKey("enter"))

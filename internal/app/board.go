@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,10 @@ const (
 	NeedsSlowFactor = 1.5
 	// PinResults is how many results a pinned pipeline shows.
 	PinResults = 10
+	// BranchWindow is how recently a plan branch must have built for a pin to
+	// list it, and PinBranches how many branches a pin lists.
+	BranchWindow = 7 * 24 * time.Hour
+	PinBranches  = 10
 
 	boardReaders = 6  // reads in flight at once
 	waitReads    = 25 // queued builds whose own record is read for the time waited
@@ -93,6 +98,14 @@ type PinView struct {
 	// Current is the build queued or running now, or nil.
 	Current  *provider.Build
 	Progress provider.Progress
+	// Branches are the plan branches that built in the last BranchWindow,
+	// newest first, at most PinBranches, each read like a pin of its own;
+	// only a pin written as a plan key without a branch has them.
+	// BranchesMore counts the branches left out.
+	Branches     []PinView
+	BranchesMore int
+	// follow is true for a pin that lists its branches.
+	follow bool
 	// Last is how long the newest finished build took; Usual is the plan's
 	// usual build time, 0 when its history is too short.
 	Last, Usual time.Duration
@@ -109,6 +122,17 @@ func (p PinView) Label() string {
 		return p.Name + "@" + p.Branch
 	}
 	return p.Name
+}
+
+// Rows is the group's pipelines as the board lists them: each pin, then the
+// branches under it.
+func (g PinGroupView) Rows() []PinView {
+	var out []PinView
+	for _, p := range g.Pins {
+		out = append(out, p)
+		out = append(out, p.Branches...)
+	}
+	return out
 }
 
 // Need is one line of the Needs you list.
@@ -349,8 +373,9 @@ func findPin(groups []PinGroupView, pin string) *PinView {
 func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinView {
 	v := PinView{Pin: pin}
 	if prev != nil {
-		v.PlanKey, v.Branch, v.Name, v.Usual = prev.PlanKey, prev.Branch, prev.Name, prev.Usual
-		return s.readPinBuilds(ctx, v, false)
+		v.PlanKey, v.Branch, v.Name, v.Usual, v.follow = prev.PlanKey, prev.Branch, prev.Name, prev.Usual, prev.follow
+		v = s.readPinBuilds(ctx, v, false)
+		return s.followBranches(ctx, v, prev)
 	}
 	plan, branch := config.SplitPin(pin)
 	if t, ok, _ := s.Cfg.Target(PresetName(s.Cfg, plan)); ok && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
@@ -366,7 +391,114 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 	if IsPlanKey(plan) {
 		v.Name, _ = s.PlanName(ctx, ref.MasterKey)
 	}
-	return s.readPinBuilds(ctx, v, true)
+	v.follow = IsPlanKey(plan) && ref.Branch == ""
+	v = s.readPinBuilds(ctx, v, true)
+	return s.followBranches(ctx, v, nil)
+}
+
+// followBranches fills the branches of a pin that lists them. The full read
+// (prev nil) lists the plan's branches and reads the builds of each, one
+// request per branch; the quick read reads again only the branches prev
+// listed. A branch that cannot be read is left out.
+func (s *Service) followBranches(ctx context.Context, v PinView, prev *PinView) PinView {
+	if !v.follow || v.Err != nil {
+		return v
+	}
+	var targets []provider.Branch
+	if prev != nil {
+		for _, b := range prev.Branches {
+			targets = append(targets, provider.Branch{Key: b.PlanKey, ShortName: b.Branch})
+		}
+		v.BranchesMore = prev.BranchesMore
+	} else {
+		bs, err := s.P.ListBranches(ctx, v.PlanKey)
+		if err != nil {
+			return v
+		}
+		targets = bs
+	}
+	read := make([]PinView, len(targets))
+	usual := make([]time.Duration, len(targets))
+	if prev != nil {
+		for i, b := range prev.Branches {
+			usual[i] = b.Usual
+		}
+	}
+	sem := make(chan struct{}, boardReaders)
+	var wg sync.WaitGroup
+	for i, br := range targets {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			name := v.Name
+			if name == "" {
+				name = v.Pin
+			}
+			read[i] = s.readPinBuilds(ctx, PinView{Pin: v.Pin, PlanKey: br.Key, Branch: br.ShortName, Name: name, Usual: usual[i]}, false)
+		}()
+	}
+	wg.Wait()
+	cutoff := s.Clock.Now().Add(-BranchWindow)
+	type dated struct {
+		view PinView
+		at   time.Time
+	}
+	var recent []dated
+	for _, b := range read {
+		if b.Err != nil {
+			continue
+		}
+		if at := branchActivity(b); at.After(cutoff) {
+			recent = append(recent, dated{b, at})
+		}
+	}
+	sort.SliceStable(recent, func(i, j int) bool { return recent[i].at.After(recent[j].at) })
+	if prev == nil {
+		v.BranchesMore = max(len(recent)-PinBranches, 0)
+	}
+	for i, r := range recent {
+		if i == PinBranches {
+			break
+		}
+		v.Branches = append(v.Branches, r.view)
+	}
+	// A branch is slow against its own usual time, learned once, and only
+	// when it runs: the plan's own history may be empty.
+	for i, b := range v.Branches {
+		if b.Usual == 0 && b.Current != nil && b.Current.State == provider.StateRunning {
+			if med, err := s.historyMedian(ctx, b.PlanKey); err == nil {
+				v.Branches[i].Usual = med
+			}
+		}
+	}
+	return v
+}
+
+// branchActivity is when a branch last had a build: the newest of the one
+// running now and its last result; zero when it never built.
+func branchActivity(b PinView) time.Time {
+	var at time.Time
+	for _, c := range append([]*provider.Build{b.Current}, resultPtrs(b.Results)...) {
+		if c == nil {
+			continue
+		}
+		for _, t := range []time.Time{c.FinishedAt, c.StartedAt, c.QueuedAt} {
+			if t.After(at) {
+				at = t
+			}
+		}
+	}
+	return at
+}
+
+func resultPtrs(bs []provider.Build) []*provider.Build {
+	out := make([]*provider.Build, len(bs))
+	for i := range bs {
+		out[i] = &bs[i]
+	}
+	return out
 }
 
 // readPinBuilds reads the builds of v's plan. usual says whether the plan's
@@ -419,7 +551,7 @@ func NeedsYou(b Board, now time.Time) []Need {
 	}
 	out = append(out, needsQueue(b.Queue)...)
 	for _, g := range b.Groups {
-		for _, p := range g.Pins {
+		for _, p := range g.Rows() {
 			if p.Err != nil {
 				continue
 			}

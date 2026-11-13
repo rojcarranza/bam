@@ -257,7 +257,7 @@ func appendSample(s []float64, v float64) []float64 {
 func (b *boardState) pinRows() []app.PinView {
 	var out []app.PinView
 	for _, g := range b.data.Groups {
-		out = append(out, g.Pins...)
+		out = append(out, g.Rows()...)
 	}
 	return out
 }
@@ -315,7 +315,7 @@ func (b *boardState) buildByKey(key string) (provider.Build, bool) {
 		}
 	}
 	for _, g := range b.data.Groups {
-		for _, p := range g.Pins {
+		for _, p := range g.Rows() {
 			if p.Current != nil && p.Current.Key == key {
 				return *p.Current, true
 			}
@@ -984,12 +984,21 @@ func (m Model) pinLines(inner int, spaced bool) ([]string, int) {
 		}
 		out = append(out, "  "+titleStyle.Render(g.Name))
 		for _, p := range g.Pins {
-			sel := b.panel == boardPins && n == b.cursor[boardPins]
-			if sel {
-				cursorLine = len(out)
+			for i, row := range append([]app.PinView{p}, p.Branches...) {
+				sel := b.panel == boardPins && n == b.cursor[boardPins]
+				if sel {
+					cursorLine = len(out)
+				}
+				indent := ""
+				if i > 0 {
+					indent = "  "
+				}
+				out = append(out, m.cursorFor(b.panel == boardPins, n == b.cursor[boardPins])+m.pinText(row, indent, labelW, nowW))
+				n++
 			}
-			out = append(out, m.cursorFor(b.panel == boardPins, n == b.cursor[boardPins])+m.pinText(p, labelW, nowW))
-			n++
+			if p.BranchesMore > 0 {
+				out = append(out, dimStyle.Render(fmt.Sprintf("    +%d more branches", p.BranchesMore)))
+			}
 		}
 	}
 	return out, cursorLine
@@ -1005,7 +1014,7 @@ const pinRest = 37
 func (m Model) pinNowWidth() int {
 	w := 1
 	for _, g := range m.board.data.Groups {
-		for _, p := range g.Pins {
+		for _, p := range g.Rows() {
 			if p.Err == nil {
 				w = max(w, lipgloss.Width(m.pinNow(p)))
 			}
@@ -1023,6 +1032,9 @@ func (m Model) pinLabelWidth(inner, nowW int) int {
 		for _, p := range g.Pins {
 			if p.Err == nil {
 				w = max(w, lipgloss.Width(p.Label()))
+			}
+			for _, br := range p.Branches {
+				w = max(w, 2+lipgloss.Width(br.Label()))
 			}
 		}
 	}
@@ -1044,7 +1056,7 @@ func (m Model) pinNow(p app.PinView) string {
 	return now
 }
 
-func (m Model) pinText(p app.PinView, labelW, nowW int) string {
+func (m Model) pinText(p app.PinView, indent string, labelW, nowW int) string {
 	if p.Err != nil {
 		return fmt.Sprintf("%-22s %s", p.Label(), errorStyle.Render("could not be read: "+p.Err.Error()))
 	}
@@ -1054,7 +1066,7 @@ func (m Model) pinText(p app.PinView, labelW, nowW int) string {
 	}
 	now := m.pinNow(p)
 	now += strings.Repeat(" ", max(nowW-lipgloss.Width(now), 0))
-	label := cut(p.Label(), labelW)
+	label := cut(indent+p.Label(), labelW)
 	label += strings.Repeat(" ", max(labelW-lipgloss.Width(label), 0))
 	return fmt.Sprintf("%s %s %s last %s · usual %s", label, results(sb.String(), len(p.Results)), now, brief(p.Last), brief(p.Usual))
 }

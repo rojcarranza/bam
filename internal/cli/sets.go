@@ -181,7 +181,7 @@ with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 			if err != nil {
 				return err
 			}
-			return r.setLoop(ctx, id, p, nil, events)
+			return r.setLoop(ctx, svc, id, p, nil, events)
 		}),
 	}
 	f := cmd.Flags()
@@ -295,7 +295,7 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return r.setLoop(ctx, rec.ID, planFromRecord(rec), &rec, events)
+			return r.setLoop(ctx, svc, rec.ID, planFromRecord(rec), &rec, events)
 		}),
 	}
 	f := cmd.Flags()
@@ -341,7 +341,7 @@ alone, and no build is ever stopped.`,
 			if err != nil {
 				return err
 			}
-			return r.setLoop(ctx, rec.ID, planFromRecord(rec), &rec, events)
+			return r.setLoop(ctx, svc, rec.ID, planFromRecord(rec), &rec, events)
 		}),
 	}
 	f := cmd.Flags()
@@ -525,7 +525,7 @@ func setRunTry(cfg *config.Config, set string) string {
 
 // setLoop renders a set run until it ends. An interrupt or timeout stops
 // watching only; the builds keep running and the run can be resumed.
-func (r *runtime) setLoop(ctx context.Context, id string, p app.SetPlan, seed *app.SetRecord, events <-chan app.SetEvent) error {
+func (r *runtime) setLoop(ctx context.Context, svc *app.Service, id string, p app.SetPlan, seed *app.SetRecord, events <-chan app.SetEvent) error {
 	var rend view.SetRenderer
 	var tick <-chan time.Time
 	if r.flags.json {
@@ -537,6 +537,7 @@ func (r *runtime) setLoop(ctx context.Context, id string, p app.SetPlan, seed *a
 		}
 		if o.TTY {
 			live := view.NewSetLive(o, p)
+			live.Cause = func(b provider.Build) string { return svc.ExplainBuild(ctx, b) }
 			if seed != nil {
 				live.Seed(*seed)
 			}
@@ -545,7 +546,9 @@ func (r *runtime) setLoop(ctx context.Context, id string, p app.SetPlan, seed *a
 			defer t.Stop()
 			tick = t.C
 		} else {
-			rend = view.NewSetLines(o)
+			lines := view.NewSetLines(o)
+			lines.Cause = func(b provider.Build) string { return svc.ExplainBuild(ctx, b) }
+			rend = lines
 		}
 	}
 	for {

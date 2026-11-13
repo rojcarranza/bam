@@ -327,7 +327,8 @@ func newWatchCmd(r *runtime) *cobra.Command {
 		Long: `Follow a build and the builds it triggers; exit 1 if any fails.
 
 bam draws the build tree, as "bam build tree <build> --watch" does, until
-every build in it has finished, then lists each build that did not succeed.
+every build in it has finished, then lists each build that did not succeed
+with its likely cause (up to five builds).
 Interrupting or timing out never stops a build. --json follows the one
 build and writes its events as NDJSON.
 
@@ -523,6 +524,12 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if !r.flags.json {
+				// A build whose child failed is not itself failed: investigate the tree.
+				if more := r.failedInTree(ctx, svc, b); len(more) > 0 && (b.State != provider.StateFailed || len(more) > 1 || more[0].Key != b.Key) {
+					return r.investigateAll(ctx, svc, more, opts, compare)
+				}
+			}
 			if b.State != provider.StateFailed && !r.flags.json {
 				if b.State.Finished() {
 					r.note(fmt.Sprintf("%s did not fail (%s), nothing to investigate", key, b.State), "")
@@ -551,6 +558,46 @@ func newInvestigateCmd(r *runtime) *cobra.Command {
 	f.IntVar(&opts.Max, "max", 5, "error blocks per job; 0 for all")
 	f.BoolVar(&compare, "compare", false, "show revisions and variables changed since the last successful build")
 	return cmd
+}
+
+// failedInTree is every failed build with a failed job in b's tree, in tree
+// order; empty when the tree cannot be read.
+func (r *runtime) failedInTree(ctx context.Context, svc *app.Service, b provider.Build) []provider.Build {
+	t, err := r.loadTree(ctx, svc, b.Key, app.TreeOptions{})
+	if err != nil || t.Root == nil {
+		return nil
+	}
+	var out []provider.Build
+	t.Root.Walk(func(n *app.TreeNode, _ int) {
+		if !n.NotRun && !n.Loop && !n.Superseded && n.Build.State == provider.StateFailed && len(n.Build.FailedJobs()) > 0 {
+			out = append(out, n.Build)
+		}
+	})
+	return out
+}
+
+// investigateAll prints the investigation of each build, one after another.
+func (r *runtime) investigateAll(ctx context.Context, svc *app.Service, builds []provider.Build, opts app.InvestigateOptions, compare bool) error {
+	for i, b := range builds {
+		inv, err := svc.Investigate(ctx, b, opts)
+		if err != nil {
+			return err
+		}
+		if compare {
+			c, err := svc.CompareLastSuccess(ctx, b)
+			if err != nil {
+				return err
+			}
+			inv.Changes = &c
+		}
+		if i > 0 {
+			fmt.Fprintln(r.env.Stdout)
+		}
+		if err := r.show(view.InvestigationJSON(inv), func(o view.Out) error { return view.Investigation(o, inv) }); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *runtime) followLogs(ctx context.Context, svc *app.Service, b provider.Build, job string, tail int) error {

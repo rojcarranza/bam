@@ -19,7 +19,7 @@ type SetRenderer interface {
 }
 
 // summary is the closing lines: the result, then what to try per failed run.
-func summary(o Out, b *app.SetBoard) {
+func summary(o Out, b *app.SetBoard, cause func(provider.Build) string) {
 	final := b.Final()
 	if final == nil {
 		return
@@ -47,12 +47,21 @@ func summary(o Out, b *app.SetBoard) {
 	}
 	fmt.Fprintln(o.W, style.Colored(o.Style, provider.StateFailed,
 		fmt.Sprintf("set failed: stage %d (%d of %d runs failed)", final.Stage+1, failed, len(st))))
+	explained := 0
 	for _, r := range st {
 		switch {
 		case r.Build.Key == "" && r.Err != nil:
 			fmt.Fprintf(o.W, "  %s: %s\n", r.Name, errWhat(r.Err))
 		case r.Build.Key != "" && r.Build.State != provider.StateSuccess:
 			fmt.Fprintf(o.W, "  try: bam logs %s --failed\n", r.Build.Key)
+			if cause != nil && r.Build.State == provider.StateFailed && len(r.Build.FailedJobs()) > 0 && explained < app.ExplainLimit {
+				explained++
+				c := cause(r.Build)
+				if c == "" {
+					c = "unknown, no log line matched a known error pattern"
+				}
+				fmt.Fprintf(o.W, "  cause of %s: %s\n", r.Name, c)
+			}
 		}
 	}
 	if !final.NoRerun {
@@ -72,6 +81,7 @@ func errWhat(err error) string {
 type SetLive struct {
 	o     Out
 	b     *app.SetBoard
+	Cause func(provider.Build) string // likely cause of a failed run's build; nil prints none
 	lines int
 	done  bool
 }
@@ -93,7 +103,7 @@ func (l *SetLive) Event(e app.SetEvent) {
 	if l.b.Final() != nil {
 		l.done = true
 		fmt.Fprintln(l.o.W)
-		summary(l.o, l.b)
+		summary(l.o, l.b, l.Cause)
 	}
 }
 
@@ -139,8 +149,9 @@ func (l *SetLive) draw() {
 
 // SetLines prints one timestamped line per change, for pipes and CI logs.
 type SetLines struct {
-	o Out
-	b *app.SetBoard
+	o     Out
+	b     *app.SetBoard
+	Cause func(provider.Build) string // likely cause of a failed run's build; nil prints none
 }
 
 func NewSetLines(o Out) *SetLines { return &SetLines{o: o, b: app.NewSetBoard(app.SetPlan{})} }
@@ -175,7 +186,7 @@ func (l *SetLines) Event(e app.SetEvent) {
 		}
 		fmt.Fprintln(l.o.W, line)
 	case app.SetDone, app.SetError:
-		summary(l.o, l.b)
+		summary(l.o, l.b, l.Cause)
 	}
 }
 

@@ -74,6 +74,8 @@ func TestMaskMessage(t *testing.T) {
 		`secretKey=x`:                             `secretKey=********`,
 		`DbPassword=x`:                            `DbPassword=********`,
 		`authorization: basic dXNlcg==`:           `authorization: basic ********`,
+		`PGPASSWORD=hunter2 psql`:                 `PGPASSWORD=******** psql`,
+		`client-secret-value: abc`:                `client-secret-value: ********`,
 	} {
 		assert.Equal(t, want, MaskMessage(in), in)
 	}

@@ -3,10 +3,10 @@ package view
 import (
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
 )
 
@@ -17,15 +17,10 @@ const (
 	maxJSONMessage   = 4000
 )
 
-// secretPairRe is a secret-looking name followed by its value: password=x,
-// "token": "x", Authorization: Bearer x, accessToken=x. The name and
-// separator stay.
-var secretPairRe = regexp.MustCompile(`((?:(?:^|[^A-Za-z])(?i:pass(?:word|phrase)|secret|sshkey|token|api[_-]?key|authorization)|[a-z](?:Pass(?:word|phrase)|Secret|Ssh[Kk]ey|Token|Api[_-]?Key|Authorization))(?:[_-]\w*|[A-Z]\w*)?["']?\s*[=:]\s*)(?:("(?:(?i:bearer|basic)\s+)?)[^"\n]+|('(?:(?i:bearer|basic)\s+)?)[^'\n]+|((?:(?i:bearer|basic)\s+)?)[^\s"',;]+)`)
-
 // MaskMessage hides the values of secret-looking name/value pairs in a test
 // message, the same names bam masks in variables, and bounds its length.
 func MaskMessage(m string) string {
-	m = secretPairRe.ReplaceAllString(m, "${1}${2}${3}${4}********")
+	m = app.MaskSecretText(m)
 	if len(m) > maxJSONMessage {
 		m = truncate(m, maxJSONMessage) + "..."
 	}

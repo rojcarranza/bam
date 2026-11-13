@@ -58,6 +58,9 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 				return err
 			}
 			view.PrintWarnings(r.env.Stderr, t.Warnings)
+			if !r.flags.json && t.State == provider.StateFailed {
+				svc.ExplainTree(ctx, t)
+			}
 			if r.flags.json {
 				if err := view.WriteJSON(r.env.Stdout, view.TreeJSON(t, failed)); err != nil {
 					return err
@@ -169,6 +172,9 @@ loop:
 		case e, ok := <-events:
 			if !ok {
 				break loop
+			}
+			if e.Type == app.TreeDone && !r.flags.json && e.Tree.State == provider.StateFailed {
+				svc.ExplainTree(ctx, e.Tree)
 			}
 			rend.Event(e)
 			switch e.Type {

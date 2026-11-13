@@ -53,6 +53,15 @@ func TreeText(o Out, t app.Tree, failedOnly bool) error {
 			return err
 		}
 	}
+	if w.explained && len(w.unexplained) > 0 {
+		builds := "builds"
+		if len(w.unexplained) == 1 {
+			builds = "build"
+		}
+		if _, err := fmt.Fprintf(o.W, "%d more failed %s without a cause: bam build investigate %s\n", len(w.unexplained), builds, w.unexplained[0]); err != nil {
+			return err
+		}
+	}
 	for _, k := range w.next {
 		if _, err := fmt.Fprintf(o.W, "next: bam logs %s --failed\n", k); err != nil {
 			return err
@@ -68,6 +77,8 @@ type treeWriter struct {
 	tb           Table
 	running      map[int]*app.TreeNode
 	failed, next []string
+	explained    bool     // some failed build has a cause line
+	unexplained  []string // failed builds with a failed job and none
 }
 
 // row adds a build's line, noting a running one for its estimate.
@@ -87,9 +98,15 @@ func (w *treeWriter) note(n *app.TreeNode) {
 	}
 	if treeBad(n) {
 		w.failed = append(w.failed, treeFailedLine(n.Build))
+		w.failed = append(w.failed, treeCauseLines(n)...)
 	}
 	if n.Build.State == provider.StateFailed && len(n.Build.FailedJobs()) > 0 {
 		w.next = append(w.next, n.Build.Key)
+		if n.Explained {
+			w.explained = true
+		} else {
+			w.unexplained = append(w.unexplained, n.Build.Key)
+		}
 	}
 }
 
@@ -134,6 +151,24 @@ func treeBranch(i, n int) (branch, more string) {
 // "failed: OPS-SMOKE-51 https://bamboo.example.com/browse/OPS-SMOKE-51".
 func treeFailedLine(b provider.Build) string {
 	return strings.TrimSpace(style.Label(b.State) + ": " + b.Key + " " + b.URL)
+}
+
+// treeCauseLines are the lines under a failed: line once ExplainTree has
+// looked: the failed tests, then the likely cause.
+func treeCauseLines(n *app.TreeNode) []string {
+	if !n.Explained {
+		return nil
+	}
+	var out []string
+	if t := n.Build.FailedTests; len(t) > 3 {
+		out = append(out, fmt.Sprintf("  failed tests: %s (+%d more)", strings.Join(t[:3], ", "), len(t)-3))
+	} else if len(t) > 0 {
+		out = append(out, "  failed tests: "+strings.Join(t, ", "))
+	}
+	if n.Cause != "" {
+		return append(out, "  cause: "+n.Cause)
+	}
+	return append(out, "  cause: unknown, no log line matched a known error pattern")
 }
 
 // TreeItem is one line under a build in a tree: a stage, with the builds

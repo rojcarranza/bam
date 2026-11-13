@@ -171,11 +171,15 @@ func TestAFinishedPinTreeIsDrawnFromTheSavedOne(t *testing.T) {
 	for _, k := range []string{"PROJ-TOP", "PROJ-DOCS", "PROJ-KID0"} {
 		for i := range p.History[k] {
 			p.History[k][i].State = provider.StateSuccess
-			p.History[k][i].FinishedAt = treeT0.Add(-time.Hour)
 		}
 	}
 	p.History["PROJ-TOP"][0].Stages = nil
 	svc := pinTreeService(t, p)
+	for _, k := range []string{"PROJ-TOP", "PROJ-DOCS", "PROJ-KID0"} {
+		for i := range p.History[k] {
+			p.History[k][i].FinishedAt = svc.Clock.Now().Add(-time.Hour)
+		}
+	}
 	ctx := context.Background()
 	first := svc.PinTree(ctx, p.History["PROJ-TOP"][0])
 	require.NotNil(t, first)
@@ -191,4 +195,32 @@ func TestAFinishedPinTreeIsDrawnFromTheSavedOne(t *testing.T) {
 	}
 	require.Equal(t, lists, again, "no request for a tree bam saved")
 	require.Equal(t, shape(first.Root), shape(second.Root))
+}
+
+func TestAPinTreeIsNotSavedUntilItsBuildHasSettled(t *testing.T) {
+	p := pinTreeFake()
+	for _, k := range []string{"PROJ-TOP", "PROJ-DOCS", "PROJ-KID0"} {
+		for i := range p.History[k] {
+			p.History[k][i].State = provider.StateSuccess
+		}
+	}
+	p.History["PROJ-TOP"][0].Stages = nil
+	svc := pinTreeService(t, p)
+	root := p.History["PROJ-TOP"][0]
+	root.FinishedAt = svc.Clock.Now().Add(-10 * time.Second)
+	lists := func() (n int) {
+		for _, pl := range p.Plans["PROJ"] {
+			n += p.ListCalls(pl.Key)
+		}
+		return n
+	}
+	require.NotNil(t, svc.PinTree(context.Background(), root))
+	before := lists()
+	require.NotNil(t, svc.PinTree(context.Background(), root))
+	require.Greater(t, lists(), before, "a build that just ended has its plans listed again: Bamboo queues children a moment later")
+	svc.Clock.(*fakeClock).After(pinSettle)
+	svc.PinTree(context.Background(), root)
+	before = lists()
+	svc.PinTree(context.Background(), root)
+	require.Equal(t, before, lists(), "once settled the tree is saved and not read again")
 }

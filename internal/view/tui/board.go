@@ -89,6 +89,8 @@ type boardState struct {
 	// for one that is new.
 	seen   map[string]bool
 	pinFor string // the plan the group prompt will pin
+	// folded holds the pins whose tree space folded, until bam exits.
+	folded map[string]bool
 }
 
 type boardTickMsg struct{ Gen int }
@@ -159,7 +161,7 @@ func (m *Model) loadBoard(full bool) tea.Cmd {
 // readBoardCmd is the read itself. Init uses it directly: its receiver is a
 // copy, so a generation bumped there would be lost.
 func (m Model) readBoardCmd(full bool, prev *app.Board, gen int) tea.Cmd {
-	svc, ctx, monitor := m.svc, m.baseCtx(), m.deps.Monitor
+	svc, ctx, monitor := m.svc, app.WithPinTrees(m.baseCtx()), m.deps.Monitor
 	if m.board.whole {
 		ctx = app.WholeServer(ctx)
 	}
@@ -253,15 +255,6 @@ func appendSample(s []float64, v float64) []float64 {
 	return s
 }
 
-// pinRows flattens the groups' pins in screen order.
-func (b *boardState) pinRows() []app.PinView {
-	var out []app.PinView
-	for _, g := range b.data.Groups {
-		out = append(out, g.Rows()...)
-	}
-	return out
-}
-
 func (b *boardState) rows(p boardPanel) int {
 	switch p {
 	case boardNeeds:
@@ -274,7 +267,7 @@ func (b *boardState) rows(p boardPanel) int {
 		}
 		return len(b.data.Mine.Pools)
 	}
-	return len(b.pinRows())
+	return len(b.pinSels())
 }
 
 func (b *boardState) clamp() {
@@ -344,8 +337,11 @@ func (m Model) boardBuild() (provider.Build, bool) {
 			return b.buildByKey(b.data.Queue[c].Key)
 		}
 	default:
-		if rows := b.pinRows(); c < len(rows) {
-			p := rows[c]
+		if rows := b.pinSels(); c < len(rows) {
+			if n := rows[c].node; n != nil {
+				return n.Build, true
+			}
+			p := rows[c].pin
 			switch {
 			case p.Current != nil:
 				return *p.Current, true
@@ -359,12 +355,12 @@ func (m Model) boardBuild() (provider.Build, bool) {
 
 // boardPlan is the plan under the cursor of the pins panel.
 func (m Model) boardPin() (app.PinView, bool) {
-	rows := m.board.pinRows()
+	rows := m.board.pinSels()
 	c := m.board.cursor[boardPins]
-	if m.board.panel != boardPins || c >= len(rows) {
+	if m.board.panel != boardPins || c >= len(rows) || rows[c].node != nil {
 		return app.PinView{}, false
 	}
-	return rows[c], true
+	return rows[c].pin, true
 }
 
 // handleBoardKey owns the keys of the board screen. No key changes anything
@@ -408,6 +404,8 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.copySelection()
 	case key.Matches(msg, keys.Project):
 		return m.boardPinKey()
+	case key.Matches(msg, keys.CycleOption):
+		return m.toggleFold(), nil
 	case key.Matches(msg, keys.Command):
 		return m.startCommand()
 	case key.Matches(msg, keys.Refresh):
@@ -654,7 +652,7 @@ func (m Model) boardBody() []string {
 	}
 	add(m.agentsTitle(), b.panel == boardAgents, ah, window(agents, m.agentCursorLine(), ah-2))
 	add(m.queueTitle(), b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
-	pins, pinCursor := m.pinLines(inner, false)
+	pins, pinCursor := m.pinLines(inner, false, ph-2)
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
 	return lines
 }
@@ -965,45 +963,6 @@ func (m Model) queueLines(inner int) ([]string, int) {
 	return out, b.cursor[boardQueue]
 }
 
-// pinLines draws the groups, and says which line holds the cursor.
-func (m Model) pinLines(inner int, spaced bool) ([]string, int) {
-	b := &m.board
-	if !b.have {
-		return []string{dimStyle.Render("  reading the pipelines…")}, 0
-	}
-	if len(b.data.Groups) == 0 {
-		return []string{dimStyle.Render("  No pipelines pinned. Pin one with: bam pin add GROUP PLAN")}, 0
-	}
-	var out []string
-	cursorLine, n := 0, 0
-	nowW := m.pinNowWidth()
-	labelW := m.pinLabelWidth(inner, nowW)
-	for gi, g := range b.data.Groups {
-		if spaced && gi > 0 {
-			out = append(out, "")
-		}
-		out = append(out, "  "+titleStyle.Render(g.Name))
-		for _, p := range g.Pins {
-			for i, row := range append([]app.PinView{p}, p.Branches...) {
-				sel := b.panel == boardPins && n == b.cursor[boardPins]
-				if sel {
-					cursorLine = len(out)
-				}
-				indent := ""
-				if i > 0 {
-					indent = "  "
-				}
-				out = append(out, m.cursorFor(b.panel == boardPins, n == b.cursor[boardPins])+m.pinText(row, indent, labelW, nowW))
-				n++
-			}
-			if p.BranchesMore > 0 {
-				out = append(out, dimStyle.Render(fmt.Sprintf("    +%d more branches", p.BranchesMore)))
-			}
-		}
-	}
-	return out, cursorLine
-}
-
 // pinRest is the width of a pin's row besides its name and its current
 // build: the results, and the last and usual times, with the spaces between.
 const pinRest = 37
@@ -1046,12 +1005,22 @@ func (m Model) pinLabelWidth(inner, nowW int) int {
 func (m Model) pinNow(p app.PinView) string {
 	c := p.Current
 	if c == nil {
+		if p.HasChildren() {
+			if root := p.Tree.Root.Build; root.State == provider.StateFailed && app.StageProgress(root) != "" {
+				return fmt.Sprintf("#%d failed · %s", root.Number, app.StageProgress(root))
+			}
+		}
 		return "–"
 	}
 	now := fmt.Sprintf("#%d %s", c.Number, strings.ToLower(string(c.State)))
 	if c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
 		run := max(m.now().Sub(c.StartedAt), 0)
 		now += fmt.Sprintf(" %s %s/%s", bar(float64(run)/float64(p.Usual), 6), brief(run), brief(p.Usual))
+	}
+	if p.HasChildren() {
+		if st := app.StageProgress(p.Tree.Root.Build); st != "" {
+			now += " · " + st
+		}
 	}
 	return now
 }

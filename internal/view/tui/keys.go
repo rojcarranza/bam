@@ -140,6 +140,7 @@ func (k keyMap) helpRows() []helpRow {
 		{"BOARD", "Queue", "the builds waiting for your agents, pipelines or projects, with their place in the whole queue; the line under it counts the rest"},
 		{"BOARD", "Pinned", "the pipelines you pinned, with their last ten builds and the one running now"},
 		{"BOARD", "enter", "open the selected pipeline or build; esc comes back to the board"},
+		{"BOARD", "space", "fold or unfold a pin's child pipelines; j k move over them"},
 		{"BOARD", "P", "unpin the selected pipeline, or pin the selected queued build's plan (asks for the group)"},
 		{"VIEW", "l", "logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live"},
 		{"VIEW", "a", "all logs, not only failed; in the run form or set vars prompt, add a variable"},

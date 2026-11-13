@@ -106,6 +106,10 @@ type PinView struct {
 	BranchesMore int
 	// follow is true for a pin that lists its branches.
 	follow bool
+	// Tree is the pipelines the pin's build started, nested: the tree of the
+	// build running now, else of the newest finished one. Nil when it could
+	// not be read; use HasChildren to know whether there is anything to draw.
+	Tree *Tree
 	// Last is how long the newest finished build took; Usual is the plan's
 	// usual build time, 0 when its history is too short.
 	Last, Usual time.Duration
@@ -374,7 +378,7 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 	v := PinView{Pin: pin}
 	if prev != nil {
 		v.PlanKey, v.Branch, v.Name, v.Usual, v.follow = prev.PlanKey, prev.Branch, prev.Name, prev.Usual, prev.follow
-		v = s.readPinBuilds(ctx, v, false)
+		v = s.readPinBuilds(ctx, v, false, prev)
 		return s.followBranches(ctx, v, prev)
 	}
 	plan, branch := config.SplitPin(pin)
@@ -392,7 +396,7 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 		v.Name, _ = s.PlanName(ctx, ref.MasterKey)
 	}
 	v.follow = IsPlanKey(plan) && ref.Branch == ""
-	v = s.readPinBuilds(ctx, v, true)
+	v = s.readPinBuilds(ctx, v, true, nil)
 	return s.followBranches(ctx, v, nil)
 }
 
@@ -436,7 +440,7 @@ func (s *Service) followBranches(ctx context.Context, v PinView, prev *PinView) 
 			if name == "" {
 				name = v.Pin
 			}
-			read[i] = s.readPinBuilds(ctx, PinView{Pin: v.Pin, PlanKey: br.Key, Branch: br.ShortName, Name: name, Usual: usual[i]}, false)
+			read[i] = s.readPinBuilds(noPinTrees(ctx), PinView{Pin: v.Pin, PlanKey: br.Key, Branch: br.ShortName, Name: name, Usual: usual[i]}, false, nil)
 		}()
 	}
 	wg.Wait()
@@ -503,7 +507,7 @@ func resultPtrs(bs []provider.Build) []*provider.Build {
 
 // readPinBuilds reads the builds of v's plan. usual says whether the plan's
 // usual build time is read too.
-func (s *Service) readPinBuilds(ctx context.Context, v PinView, usual bool) PinView {
+func (s *Service) readPinBuilds(ctx context.Context, v PinView, usual bool, prev *PinView) PinView {
 	builds, err := s.P.ListBuilds(ctx, v.PlanKey, provider.ListOptions{Limit: PinResults + 1, Unfinished: true})
 	if err != nil {
 		v.Err = err
@@ -531,12 +535,28 @@ func (s *Service) readPinBuilds(ctx context.Context, v PinView, usual bool) PinV
 	if v.Current != nil && v.Current.State == provider.StateRunning {
 		v.Progress, _ = s.Progress(ctx, *v.Current)
 	}
+	return s.readPinTree(ctx, v, usual, prev)
+}
+
+// readPinTree adds the pin's tree. The quick refresh keeps the tree it has
+// while the pin shows the same build; the full refresh reads it again.
+func (s *Service) readPinTree(ctx context.Context, v PinView, full bool, prev *PinView) PinView {
+	root, ok := v.PinRoot()
+	if !ok || ctx.Value(pinTreeKey{}) != true {
+		return v
+	}
+	if !full && prev != nil && prev.Tree != nil && prev.Tree.Root != nil && prev.Tree.Root.Build.Key == root.Key {
+		v.Tree = prev.Tree
+		return v
+	}
+	v.Tree = s.PinTree(ctx, root)
 	return v
 }
 
 // NeedsYou is the Needs you list: an enabled agent that is offline (with
 // agents: set, one of yours that is down or disabled), a build
-// waiting over NeedsWait, a pinned pipeline whose last build failed, and a
+// waiting over NeedsWait, a pinned pipeline whose last build failed, a child
+// pipeline of a pin that failed, and a
 // pinned build running NeedsSlowFactor past its usual time.
 func NeedsYou(b Board, now time.Time) []Need {
 	var out []Need
@@ -557,6 +577,9 @@ func NeedsYou(b Board, now time.Time) []Need {
 			}
 			if len(p.Results) > 0 && p.Results[0].State == provider.StateFailed {
 				out = append(out, Need{Kind: "pin_failed", Text: fmt.Sprintf("%s: the last build, %s, failed", p.Label(), p.Results[0].Key), Build: p.Results[0].Key})
+			}
+			for _, k := range failedChildren(p.Tree) {
+				out = append(out, Need{Kind: "pin_child_failed", Text: fmt.Sprintf("%s: the child pipeline %s failed", p.Label(), k.Build.Key), Build: k.Build.Key})
 			}
 			if c := p.Current; c != nil && c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
 				if run := now.Sub(c.StartedAt); float64(run) > NeedsSlowFactor*float64(p.Usual) {

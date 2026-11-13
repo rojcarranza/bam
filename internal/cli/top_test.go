@@ -319,3 +319,51 @@ func TestPinListCutsALongNameOnATerminal(t *testing.T) {
 	assert.True(t, strings.HasPrefix(lines[1], "integration  PROJ-BUILD  Integrate every"), lines[1])
 	assert.True(t, strings.HasSuffix(lines[1], "…"), lines[1])
 }
+
+// Intent (BAM-42 P5): bam top --once --tree prints the pipelines a pin's
+// build started under the pin, as bam build tree does, and --json gains
+// tree on that pin; without --tree the board is as before and reads no tree.
+func treeTopHarness(t *testing.T) *harness {
+	h := topHarness(t)
+	pinned(t, h)
+	h.fake.History["PROJ-PROV"] = []provider.Build{{Key: "PROJ-PROV-3", PlanKey: "PROJ-PROV", Number: 3, State: provider.StateSuccess, Reason: "Child of PROJ-BUILD-482"}}
+	return h
+}
+
+func TestTopOnceTreePrintsChildPipelinesUnderThePin(t *testing.T) {
+	h := treeTopHarness(t)
+	require.Equal(t, 0, h.run("top", "--once", "--tree"))
+	out := h.stdout.String()
+	assert.Contains(t, out, "Build and test · child pipelines")
+	assert.Regexp(t, `PROJ-BUILD-482\b.*success`, out)
+	assert.Regexp(t, `└─ PROJ-PROV-3\b.*success`, out)
+}
+
+func TestTopOnceWithoutTreePrintsNoTreeAndReadsNone(t *testing.T) {
+	h := treeTopHarness(t)
+	require.Equal(t, 0, h.run("top", "--once"))
+	assert.NotContains(t, h.stdout.String(), "child pipelines")
+	assert.Zero(t, h.fake.ListCalls("PROJ-PROV"), "no plan is listed for a tree nobody asked for")
+}
+
+func TestTopJSONTreeGainsTreeOnThePin(t *testing.T) {
+	h := treeTopHarness(t)
+	require.Equal(t, 0, h.run("top", "--json", "--tree"))
+	var doc struct {
+		Pins []struct {
+			Pipelines []struct {
+				Pin  string          `json:"pin"`
+				Tree json.RawMessage `json:"tree"`
+			} `json:"pipelines"`
+		} `json:"pins"`
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	pipes := doc.Pins[0].Pipelines
+	require.NotEmpty(t, pipes[0].Tree)
+	assert.Contains(t, string(pipes[0].Tree), "PROJ-PROV-3")
+	assert.Empty(t, pipes[1].Tree, "a pin whose build started nothing has no tree")
+
+	h = treeTopHarness(t)
+	require.Equal(t, 0, h.run("top", "--json"))
+	assert.NotContains(t, h.stdout.String(), `"tree"`)
+}

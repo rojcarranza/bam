@@ -290,6 +290,31 @@ func TestWhySaysLessOfAJobQueuedAfterTheAgentsWereRead(t *testing.T) {
 	assert.Equal(t, []string{"win-1"}, got.Agents)
 }
 
+// Intent (BAM-43): a build whose record gives only the time it was started,
+// as the project's stand-in Bamboo answers, or no time at all, is not taken
+// to be older than the agents' lists, so a new plan's build is not said to
+// be one no agent can run.
+func TestWhySaysLessOfANewPlanWhoseBuildGivesNoQueuedTime(t *testing.T) {
+	b := queuedBuild()
+	svc, _ := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}})
+	ctx := context.Background()
+	read := svc.Clock.Now()
+	require.NotNil(t, svc.WhyWaits(ctx, b, 0))
+	advanceClock(svc, 10*time.Minute)
+
+	newPlan := func(started time.Time) provider.Build {
+		return provider.Build{Key: "PROJ-NEW-7", PlanKey: "PROJ-NEW", State: provider.StateQueued, StartedAt: started,
+			Stages: []provider.Stage{{Name: "Build", State: provider.StateQueued, Jobs: []provider.Job{
+				{Key: "PROJ-NEW-JOB1-7", State: provider.StateQueued}}}}}
+	}
+	assert.Nil(t, svc.WhyWaits(ctx, newPlan(read.Add(5*time.Minute)), 0), "started after the agents were read")
+	assert.Nil(t, svc.WhyWaits(ctx, newPlan(time.Time{}), 0), "no time: bam cannot tell")
+
+	got := svc.WhyWaits(ctx, newPlan(read.Add(-time.Minute)), 0)
+	require.NotNil(t, got)
+	assert.Equal(t, provider.WhyNoAgent, got.Case, "the lists were read while it waited")
+}
+
 func TestWhyWaitsFiveMinutesAfterAFailedReadOfAgentDetails(t *testing.T) {
 	b := queuedBuild()
 	svc, p := whyService(t, b, linuxAgents, nil)

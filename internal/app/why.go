@@ -71,7 +71,8 @@ func (s *Service) whyAgents(ctx context.Context) ([]provider.Agent, bool) {
 // name order, or false when bam cannot tell: the server refuses to say, or
 // no agent's list names the job and some list was read before the job was
 // queued at queuedAt, so the job's plan may be newer than the lists. A zero
-// queuedAt trusts every list.
+// queuedAt, a job whose queued time is not known, trusts only a list read
+// now.
 //
 // Each agent's list is kept for agentJobsTTL, in the Service and in its
 // AgentJobs store, so only an agent bam has no list for, or an old list, is
@@ -82,6 +83,9 @@ func (s *Service) whyPossible(ctx context.Context, agents []provider.Agent, plan
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := s.Clock.Now()
+	if queuedAt.IsZero() {
+		queuedAt = now
+	}
 	if !c.loaded {
 		c.loaded, c.jobsOK = true, true
 		c.jobs = map[string]agentJobs{}
@@ -134,7 +138,7 @@ func (s *Service) whyPossible(ctx context.Context, agents []provider.Agent, plan
 			unsure = true // listed since bam last asked: not read yet
 		case e.canRun(planKey):
 			names = append(names, a.Name)
-		case !queuedAt.IsZero() && e.Read.Before(queuedAt):
+		case e.Read.Before(queuedAt):
 			unsure = true
 		}
 	}
@@ -182,6 +186,9 @@ func (s *Service) WhyWaits(ctx context.Context, b provider.Build, ahead int) *pr
 		queuedAt := j.QueuedAt
 		if queuedAt.IsZero() {
 			queuedAt = b.QueuedAt
+		}
+		if queuedAt.IsZero() {
+			queuedAt = b.StartedAt // a queued build can carry only the time it was started, as on the board
 		}
 		w := s.whyJob(ctx, j, ahead, queuedAt)
 		if worst == nil || whyRank(w.Case) < whyRank(worst.Case) {

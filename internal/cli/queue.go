@@ -28,7 +28,7 @@ func newQueueCmd(r *runtime) *cobra.Command {
 			"out, never an error.\n\n" +
 			"bam reads which jobs each agent can run once an hour and keeps them in its\n" +
 			"cache, so a change to an agent's capabilities shows within the hour, and a\n" +
-			"build queued since then that no agent lists has no WHY until then.",
+			"build queued since then that no agent lists may have no WHY until then.",
 		Example: "  bam queue\n  bam queue --json",
 		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {

@@ -36,6 +36,14 @@ func (a agentJobs) canRun(planKey string) bool {
 	return ok
 }
 
+// runsPlan reports whether the agent's list names a job of the plan planKey,
+// whose jobs are keyed PLAN-JOB1.
+func (a agentJobs) runsPlan(planKey string) bool {
+	prefix := planKey + "-"
+	i, _ := slices.BinarySearch(a.Jobs, prefix)
+	return i < len(a.Jobs) && strings.HasPrefix(a.Jobs[i], prefix)
+}
+
 // AgentJobStore keeps the jobs each agent can run on disk, one file per
 // server origin, so bam queue, a watched build and the board share one read
 // of every agent an hour. It is a cache: a missing, corrupt or old file is

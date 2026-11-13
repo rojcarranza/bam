@@ -36,38 +36,7 @@ func WaitText(b provider.Build) string {
 
 // WhyText says why a build waits, or "" when bam could not tell. The agents
 // are named when three or fewer can run the job.
-func WhyText(w *provider.Why) string {
-	if w == nil {
-		return ""
-	}
-	var who string
-	switch {
-	case w.Count == 1:
-		who = "1 agent can run it"
-	case w.Count > 1:
-		who = fmt.Sprintf("%d agents can run it", w.Count)
-	}
-	if who != "" && len(w.Agents) > 0 {
-		who += " (" + strings.Join(w.Agents, ", ") + ")"
-	}
-	switch w.Case {
-	case provider.WhyNoAgent:
-		return "no agent can run it"
-	case provider.WhyBusy:
-		switch {
-		case w.Count == 1:
-			return who + ", busy, offline or disabled"
-		case w.Count > 1:
-			return who + ", all busy, offline or disabled"
-		}
-		return "every agent is busy, offline or disabled"
-	case provider.WhyNext:
-		return "agents are free, it is next"
-	case provider.WhyAhead:
-		return fmt.Sprintf("agents are free, %d before it", w.Ahead)
-	}
-	return who
-}
+func WhyText(w *provider.Why) string { return w.Text() }
 
 // WhyDoc is the why-it-waits part of a queued build's JSON. Every field is
 // absent when bam could not tell.
@@ -95,8 +64,12 @@ type QueueDoc struct {
 	Reason   string `json:"reason"`
 	// WaitedMS is how long the build has waited; WaitedAtLeast is true when
 	// the build's record gave no start and bam counted from when it saw it.
+	// Waited is not known, and shows as a dash, for a build bam did not read.
 	WaitedMS      int64 `json:"waited_ms"`
 	WaitedAtLeast bool  `json:"waited_at_least"`
+	// Mine is true for a build that waits for your agents, pipelines or
+	// projects; bam top --json lists only those, bam queue --json leaves it out.
+	Mine *bool `json:"mine,omitempty"`
 	WhyDoc
 }
 
@@ -114,22 +87,43 @@ func QueueJSON(q []app.QueueRow, url func(string) string) []QueueDoc {
 	return Docs(q, func(r app.QueueRow) QueueDoc { return queueDoc(r, url) })
 }
 
+// BoardQueueJSON is the queue of the board: every row waits for you.
+func BoardQueueJSON(q []app.QueueRow, url func(string) string) []QueueDoc {
+	yes := true
+	d := QueueJSON(q, url)
+	for i := range d {
+		d[i].Mine = &yes
+	}
+	return d
+}
+
+// OthersText is the line after the queue that counts the builds not shown:
+// "37 more builds wait for other agents".
+func OthersText(n int) string {
+	if n == 1 {
+		return "1 more build waits for other agents"
+	}
+	return fmt.Sprintf("%d more builds wait for other agents", n)
+}
+
 func queueDoc(r app.QueueRow, url func(string) string) QueueDoc {
 	return QueueDoc{Position: r.Position, Key: r.Key, URL: url(r.Key), PlanKey: r.PlanKey, Number: r.Number, Reason: r.Reason,
 		WaitedMS: ms(r.Waited), WaitedAtLeast: r.AtLeast, WhyDoc: whyDoc(r.Why)}
 }
 
-// waitedText is the time a queued build has waited, "at least" when bam
-// could only count from when it first saw the build.
+// waitedText is the time a queued build has waited; a dash when bam did not
+// read it. From 48 hours it reads as days and hours.
 func waitedText(r app.QueueRow) string {
-	d := "0s"
-	if r.Waited >= time.Second {
-		d = Duration(r.Waited)
-	}
 	if r.AtLeast {
-		return "at least " + d
+		return "–"
 	}
-	return d
+	if l, ok := app.LongWait(r.Waited); ok {
+		return l
+	}
+	if r.Waited < time.Second {
+		return "0s"
+	}
+	return Duration(r.Waited)
 }
 
 func AgentsJSON(as []provider.Agent) []AgentDoc {

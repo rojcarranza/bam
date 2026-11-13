@@ -98,7 +98,7 @@ func (m Model) roomyBoardBody() []string {
 
 	nd := roomyPanel(needsTitle, b.panel == boardNeeds, sz.leftW, sz.needs, needs, b.cursor[boardNeeds])
 	ag := roomyPanel(m.agentsTitle(), b.panel == boardAgents, sz.leftW, sz.agents, agents, m.agentCursorLine())
-	qu := roomyPanel("Queue", b.panel == boardQueue, sz.leftW, sz.queue, queue, queueCursor)
+	qu := roomyPanel(m.queueTitle(), b.panel == boardQueue, sz.leftW, sz.queue, queue, queueCursor)
 	pn := roomyPanel("Pinned", b.panel == boardPins, sz.rightW, sz.pins, pins, pinCursor)
 
 	left := strings.Split(nd+"\n"+ag+"\n"+qu, "\n")

@@ -102,8 +102,8 @@ func TestQueueNamesWhyEachBuildWaits(t *testing.T) {
 	require.Equal(t, 0, h.run("queue"))
 	out := h.stdout.String()
 	assert.Regexp(t, `WAITED\s+WHY`, out)
-	assert.Regexp(t, `PROJ-PROV-9\s+Code has changed\s+at least 0s\s+no agent can run it`, out)
-	assert.Regexp(t, `PROJ-BUILD-45\s+Manual build\s+at least 0s\s+2 agents can run it \(linux-1, linux-2\), all busy, offline or disabled`, out)
+	assert.Regexp(t, `PROJ-PROV-9\s+Code has changed\s+–\s+no agent can run it`, out)
+	assert.Regexp(t, `PROJ-BUILD-45\s+Manual build\s+–\s+2 agents can run it \(linux-1, linux-2\), all busy, offline or disabled`, out)
 
 	require.Equal(t, 0, h.run("queue", "--json"))
 	var docs []map[string]any

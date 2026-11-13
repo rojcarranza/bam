@@ -86,11 +86,9 @@ type boardState struct {
 	// busy and queued are the chart samples, oldest first.
 	busy, queued []float64
 	// seen holds the Needs you entries already shown, so the bell rings only
-	// for one that is new. firstSeen is when a queued build was first seen,
-	// for builds whose own record gives no time they began waiting.
-	seen      map[string]bool
-	firstSeen map[string]time.Time
-	pinFor    string // the plan the group prompt will pin
+	// for one that is new.
+	seen   map[string]bool
+	pinFor string // the plan the group prompt will pin
 }
 
 type boardTickMsg struct{ Gen int }
@@ -215,28 +213,13 @@ func (m Model) boardLoaded(msg boardLoadedMsg) Model {
 	}
 	b.groups = msg.Groups
 	data := msg.Board
-	// A build whose record gave no time it began waiting counts from when
-	// the board first saw it, and keeps counting across reads.
-	seen := map[string]time.Time{}
-	for i, r := range data.Queue {
-		if !r.AtLeast {
-			continue
-		}
-		t, ok := b.firstSeen[r.Key]
-		if !ok {
-			t = now
-		}
-		seen[r.Key] = t
-		data.Queue[i].Waited = max(now.Sub(t), 0)
-	}
-	b.firstSeen = seen
 	data.Needs = app.NeedsYou(data, now)
 
 	if a := data.Agents; a != nil && a.Online > 0 {
 		b.busy = appendSample(b.busy, float64(a.Busy)/float64(a.Online))
 	}
 	if data.QueueOK {
-		b.queued = appendSample(b.queued, float64(len(data.Queue)))
+		b.queued = appendSample(b.queued, float64(len(data.Queue)+data.QueueOthers))
 	}
 	fresh := false
 	next := map[string]bool{}
@@ -644,7 +627,7 @@ func (m Model) boardBody() []string {
 		agents = fitMine(agents, b.data.Mine, ah-2)
 	}
 	add(m.agentsTitle(), b.panel == boardAgents, ah, window(agents, m.agentCursorLine(), ah-2))
-	add("Queue", b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
+	add(m.queueTitle(), b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
 	pins, pinCursor := m.pinLines(false)
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
 	return lines
@@ -697,10 +680,11 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	if a.Online > 0 {
 		share = float64(a.Busy) / float64(a.Online)
 	}
-	sw := max(min((inner-32)/2, 24), 6)
+	sw := max(min((inner-60)/2, 12), 4)
 	out := []string{
-		fmt.Sprintf("  busy %s %d of %d online · %d offline · %d disabled", bar(share, 10), a.Busy, a.Online, a.Offline, a.Disabled),
-		fmt.Sprintf("  busy %s  queued %s  since opened", spark(b.busy, 1, sw), spark(b.queued, 0, sw)),
+		fmt.Sprintf("  %s %s", bar(share, 10), view.AgentSummaryText(a)),
+		fmt.Sprintf("  busy %s %s  queued %s %s  since opened, lowest–highest",
+			strings.TrimRight(spark(b.busy, 1, sw), " "), sparkRange(b.busy, pct), strings.TrimRight(spark(b.queued, 0, sw), " "), sparkRange(b.queued, count)),
 	}
 	shown := a.Away
 	if len(shown) > awayMax {
@@ -720,6 +704,18 @@ func (m Model) agentLines(inner, awayMax int) []string {
 		out = append(out, dimStyle.Render("  Show only your agents: bam agent mine add NAME-START"))
 	}
 	return out
+}
+
+func pct(v float64) string   { return fmt.Sprintf("%.0f%%", v*100) }
+func count(v float64) string { return fmt.Sprintf("%.0f", v) }
+
+// sparkRange is the lowest and highest value a chart has drawn since the
+// board opened, so its blocks have a scale.
+func sparkRange(s []float64, f func(float64) string) string {
+	if len(s) == 0 {
+		return "–"
+	}
+	return f(slices.Min(s)) + "–" + f(slices.Max(s))
 }
 
 // hintMine says whether the agents panel carries the line that says how to
@@ -794,6 +790,18 @@ func (m Model) agentCursorLine() int {
 	return 1 + m.board.cursor[boardAgents]
 }
 
+// queueTitle names the queue panel by what it lists.
+func (m Model) queueTitle() string {
+	d := m.board.data
+	switch {
+	case !m.board.have || !d.QueueOK:
+		return "Queue"
+	case d.QueueFiltered:
+		return fmt.Sprintf("Your queue · %d of %d", len(d.Queue), len(d.Queue)+d.QueueOthers)
+	}
+	return fmt.Sprintf("Queue · %d", len(d.Queue))
+}
+
 // agentsTitle names the agents panel by what it shows.
 func (m Model) agentsTitle() string {
 	switch {
@@ -808,8 +816,8 @@ func (m Model) agentsTitle() string {
 // boardToggleWhole is a: your agents only, or every agent of the server. It
 // does nothing when no agents are listed.
 func (m Model) boardToggleWhole() (tea.Model, tea.Cmd) {
-	if !m.board.data.MineSet {
-		m.status = "no agents are listed as yours: bam agent mine add NAME-START"
+	if !m.board.data.MineSet && !m.board.data.QueueFiltered && !m.board.whole {
+		m.status = "nothing is listed as yours: bam agent mine add NAME-START"
 		return m, nil
 	}
 	m.board.whole = !m.board.whole
@@ -845,8 +853,10 @@ func (m Model) queueLines(inner int) ([]string, int) {
 		return []string{dimStyle.Render("  reading the queue…")}, 0
 	case !b.data.QueueOK:
 		return []string{"  " + b.data.QueueNote}, 0
-	case len(b.data.Queue) == 0:
+	case len(b.data.Queue) == 0 && b.data.QueueOthers == 0:
 		return []string{dimStyle.Render("  The queue is empty")}, 0
+	case len(b.data.Queue) == 0:
+		return []string{dimStyle.Render("  Nothing waits for you"), dimStyle.Render("  " + view.OthersText(b.data.QueueOthers))}, 0
 	}
 	waits := make([]string, len(b.data.Queue))
 	posW, keyW, waitW := 0, 0, 0
@@ -854,11 +864,14 @@ func (m Model) queueLines(inner int) ([]string, int) {
 		// Waited is as of the last read; it keeps counting until the next.
 		w := r.Waited + max(m.now().Sub(b.loadedAt), 0)
 		waits[i] = brief(w)
+		if l, ok := app.LongWait(w); ok {
+			waits[i] = l
+		}
 		if w <= 0 {
 			waits[i] = "0s"
 		}
 		if r.AtLeast {
-			waits[i] = "at least " + waits[i]
+			waits[i] = "–" // bam did not read this build's wait
 		}
 		posW = max(posW, len(fmt.Sprint(r.Position)))
 		keyW = max(keyW, lipgloss.Width(r.Key))
@@ -902,6 +915,9 @@ func (m Model) queueLines(inner int) ([]string, int) {
 			}
 		}
 		out = append(out, head+dimStyle.Render(text))
+	}
+	if b.data.QueueOthers > 0 {
+		out = append(out, dimStyle.Render("  "+view.OthersText(b.data.QueueOthers)))
 	}
 	return out, b.cursor[boardQueue]
 }

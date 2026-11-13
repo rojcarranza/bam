@@ -77,7 +77,7 @@ func (m Model) roomyBoardBody() []string {
 	if wide {
 		leftW = m.width * 45 / 100
 	}
-	needs := m.needsLines()
+	needs := m.needsLines(leftW - 2 - 2*roomyPad)
 	const awayMax = 4
 	agents := m.agentLines(leftW-2-2*roomyPad, awayMax)
 	queue, queueCursor := m.queueLines(leftW - 2 - 2*roomyPad)

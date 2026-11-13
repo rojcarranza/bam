@@ -873,3 +873,23 @@ func TestBoardChartLineFitsThePanel(t *testing.T) {
 	}
 	require.Contains(t, chartLine(b, 76), "since opened, lowest–highest")
 }
+
+// A Needs you line too long for its panel ends in "…" at the panel edge,
+// as Queue rows do, rather than being cut mid-word, in the tight, roomy and
+// two-column layouts.
+func TestBoardNeedsYouLongLineEndsInEllipsis(t *testing.T) {
+	long := "22 builds have waited over 5m in the queue, the longest OTHR-APP-124 for 3h25m: 2 agents can run it, all busy, offline or disabled"
+	for _, size := range [][2]int{{80, 24}, {120, 45}, {170, 45}} {
+		m := boardModel(size[0], size[1])
+		m.board.data.Needs = []app.Need{{Kind: "queue_wait", Build: "OTHR-APP-124", Text: long}}
+		var line string
+		for _, l := range strings.Split(ansi.Strip(m.View()), "\n") {
+			if strings.Contains(l, "22 builds have waited") {
+				line = l
+			}
+		}
+		require.NotEmpty(t, line, "%v", size)
+		require.NotContains(t, line, "disabled", "%v: the line should not fit: %q", size, line)
+		require.Regexp(t, `…\s*┃`, line, "%v: %q", size, line)
+	}
+}

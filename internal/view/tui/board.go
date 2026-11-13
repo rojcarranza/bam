@@ -587,7 +587,7 @@ func (m Model) boardView() string {
 func (m Model) boardBody() []string {
 	b := &m.board
 	h := m.height - 2 // header and status bar
-	needs := m.needsLines()
+	needs := m.needsLines(m.width - 2)
 	if m.boardTooSmall() {
 		lines := strings.Split(panel("Needs you", b.panel == boardNeeds, m.width, min(len(needs)+2, h-1), strings.Join(needs, "\n")), "\n")
 		return append(lines, dimStyle.Render(" more at 60 columns by 20 rows"))
@@ -649,7 +649,9 @@ func window(lines []string, cursor, h int) []string {
 	return lines[start : start+h]
 }
 
-func (m Model) needsLines() []string {
+// needsLines is Needs you's lines for a panel w columns wide inside; a line
+// too long for it ends in an ellipsis, as queue rows do.
+func (m Model) needsLines(w int) []string {
 	b := &m.board
 	if !b.have {
 		return []string{dimStyle.Render("  reading the server…")}
@@ -659,7 +661,8 @@ func (m Model) needsLines() []string {
 	}
 	var out []string
 	for i, n := range b.data.Needs {
-		out = append(out, m.cursorFor(b.panel == boardNeeds, i == b.cursor[boardNeeds])+errorStyle.Render("!")+" "+n.Text)
+		head := m.cursorFor(b.panel == boardNeeds, i == b.cursor[boardNeeds]) + errorStyle.Render("!") + " "
+		out = append(out, head+ansi.Truncate(n.Text, max(w-lipgloss.Width(head), 1), "…"))
 	}
 	return out
 }

@@ -1,0 +1,224 @@
+{
+  "expand": "changes,metadata,plan,artifacts,comments,labels,jiraIssues,variables,stages",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/result/PROJ-NOCAP-1",
+    "rel": "self"
+  },
+  "plan": {
+    "id": 786437,
+    "shortName": "Needs a capability",
+    "shortKey": "NOCAP",
+    "type": "chain",
+    "enabled": true,
+    "link": {
+      "href": "http://bamboo.example.com/rest/api/latest/plan/PROJ-NOCAP",
+      "rel": "self"
+    },
+    "key": "PROJ-NOCAP",
+    "name": "demo - Needs a capability",
+    "planKey": {
+      "key": "PROJ-NOCAP"
+    }
+  },
+  "planName": "Needs a capability",
+  "projectName": "demo",
+  "buildResultKey": "PROJ-NOCAP-1",
+  "id": 1048585,
+  "buildDurationInSeconds": 0,
+  "buildDuration": 0,
+  "buildDurationDescription": "global.unknown",
+  "buildRelativeTime": "",
+  "continuable": false,
+  "onceOff": false,
+  "restartable": false,
+  "notRunYet": false,
+  "finished": false,
+  "successful": false,
+  "buildReason": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+  "reasonSummary": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+  "specsResult": false,
+  "comments": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "labels": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "jiraIssues": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "variables": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "stages": {
+    "size": 1,
+    "expand": "stage",
+    "start-index": 0,
+    "max-result": 1,
+    "stage": [
+      {
+        "expand": "results",
+        "name": "Hold",
+        "description": "",
+        "id": 1081349,
+        "lifeCycleState": "InProgress",
+        "state": "Unknown",
+        "displayClass": "InProgress",
+        "displayMessage": "1 job currently building",
+        "collapsedByDefault": false,
+        "manual": false,
+        "restartable": false,
+        "runnable": false,
+        "results": {
+          "size": 1,
+          "expand": "result",
+          "start-index": 0,
+          "max-result": 1,
+          "result": [
+            {
+              "expand": "changes,metadata,plan,jiraIssues,variables",
+              "link": {
+                "href": "http://bamboo.example.com/rest/api/latest/result/PROJ-NOCAP-SL-1",
+                "rel": "self"
+              },
+              "plan": {
+                "id": 786438,
+                "shortName": "Sleep",
+                "shortKey": "NOCAP-SL",
+                "type": "job",
+                "enabled": true,
+                "link": {
+                  "href": "http://bamboo.example.com/rest/api/latest/plan/PROJ-NOCAP-SL",
+                  "rel": "self"
+                },
+                "key": "PROJ-NOCAP-SL",
+                "name": "demo - Needs a capability - Sleep",
+                "planKey": {
+                  "key": "PROJ-NOCAP-SL"
+                }
+              },
+              "planName": "Sleep",
+              "projectName": "demo",
+              "stage": "Hold",
+              "buildResultKey": "PROJ-NOCAP-SL-1",
+              "id": 1048586,
+              "buildDurationInSeconds": 0,
+              "buildDuration": 0,
+              "buildDurationDescription": "global.unknown",
+              "buildRelativeTime": "",
+              "queueStartedTime": "2026-11-13T09:42:13.695Z",
+              "prettyQueueStartedTime": "Fri, 13 Nov, 09:42 AM",
+              "queueTimeInSeconds": 124,
+              "queueDuration": 124282,
+              "prettyQueueDuration": "2 mins",
+              "vcsUpdateInSeconds": 0,
+              "vcsUpdateDuration": 0,
+              "prettyVcsUpdateDuration": "< 1 sec",
+              "onceOff": false,
+              "buildReason": "Manual build",
+              "reasonSummary": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+              "hasExecutableAgents": true,
+              "specsResult": false,
+              "jiraIssues": {
+                "size": 0,
+                "start-index": 0,
+                "max-result": 0
+              },
+              "variables": {
+                "size": 0,
+                "start-index": 0,
+                "max-result": 0
+              },
+              "changes": {
+                "size": 0,
+                "start-index": 0,
+                "max-result": 0
+              },
+              "metadata": {
+                "size": 2,
+                "start-index": 0,
+                "max-result": 2
+              },
+              "progress": {
+                "isValid": false,
+                "isUnderAverageTime": false,
+                "percentageCompleted": 1.0,
+                "percentageCompletedPretty": "100%",
+                "prettyTimeRemaining": "< 1 sec slower than usual",
+                "prettyTimeRemainingLong": "< 1 second slower than usual",
+                "averageBuildDuration": 0,
+                "prettyAverageBuildDuration": "< 1 sec",
+                "buildTime": 0,
+                "prettyBuildTime": "< 1 sec"
+              },
+              "parent": {
+                "href": "http://bamboo.example.com/rest/api/latest/result/PROJ-NOCAP-1",
+                "rel": "parent"
+              },
+              "key": "PROJ-NOCAP-SL-1",
+              "planResultKey": {
+                "key": "PROJ-NOCAP-SL-1",
+                "entityKey": {
+                  "key": "PROJ-NOCAP-SL"
+                },
+                "resultNumber": 1
+              },
+              "state": "Unknown",
+              "buildState": "Unknown",
+              "lifeCycleState": "Queued",
+              "number": 1,
+              "buildNumber": 1
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "changes": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "metadata": {
+    "size": 2,
+    "start-index": 0,
+    "max-result": 2
+  },
+  "progress": {
+    "isValid": false,
+    "isUnderAverageTime": false,
+    "percentageCompleted": 1.0,
+    "percentageCompletedPretty": "100%",
+    "prettyTimeRemaining": "< 1 sec slower than usual",
+    "prettyTimeRemainingLong": "< 1 second slower than usual",
+    "averageBuildDuration": 0,
+    "prettyAverageBuildDuration": "< 1 sec",
+    "buildTime": 0,
+    "prettyBuildTime": "< 1 sec"
+  },
+  "key": "PROJ-NOCAP-1",
+  "planResultKey": {
+    "key": "PROJ-NOCAP-1",
+    "entityKey": {
+      "key": "PROJ-NOCAP"
+    },
+    "resultNumber": 1
+  },
+  "state": "Unknown",
+  "buildState": "Unknown",
+  "lifeCycleState": "Queued",
+  "number": 1,
+  "buildNumber": 1,
+  "artifacts": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  }
+}

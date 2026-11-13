@@ -52,9 +52,9 @@ type Provider struct {
 	QueueErr       error
 	AgentList      []provider.Agent
 	AgentsErr      error
-	Possible       map[string][]string // by job plan key: names of the agents that can run it
-	PossibleErr    error               // returned for a key missing from Possible
-	PossibleCalls  []string            // job keys PossibleAgents was asked about
+	AgentJobMap    map[string][]string // by agent name: the jobs it can run
+	AgentJobsErr   error               // returned when AgentJobMap is nil
+	AgentJobsCalls int
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -323,15 +323,15 @@ func (f *Provider) Agents(context.Context) ([]provider.Agent, error) {
 	return f.AgentList, f.AgentsErr
 }
 
-func (f *Provider) PossibleAgents(_ context.Context, jobKey string) ([]string, error) {
+func (f *Provider) AgentJobs(context.Context) (map[string][]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.PossibleCalls = append(f.PossibleCalls, jobKey)
-	if names, ok := f.Possible[jobKey]; ok {
-		return names, nil
+	f.AgentJobsCalls++
+	if f.AgentJobMap != nil {
+		return f.AgentJobMap, nil
 	}
-	if f.PossibleErr == nil {
-		return nil, errs.Bamboof("no possible agents for %s", jobKey).Wrap(errs.ErrUnsupported)
+	if f.AgentJobsErr != nil {
+		return nil, f.AgentJobsErr
 	}
-	return nil, f.PossibleErr
+	return nil, errs.Bamboof("no agent jobs").Wrap(errs.ErrUnsupported)
 }

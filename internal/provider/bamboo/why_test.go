@@ -10,47 +10,86 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const possiblePath = "GET /rest/api/latest/config/job/PROJ-BUILD-JOB1/agent-assignment/possible-agent-assignment"
+// Intent (BAM-34 P3): the facts that say why a build waits, read from what a
+// real Bamboo 12.1.8 answered (testdata/recorded). Each source is learned
+// once and a refusal never fails the command.
+
+const agentDetailPath = "GET /rest/api/latest/agent/622593?expand=executableJobs[0:1000]"
 
 func TestQueuedJobsCarryBambooAnswerToHasExecutableAgents(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/result/PROJ-BUILD-483?expand=" + buildExpand: {fixture: "result_queued_job.json"}})
-	b, err := c.GetBuild(ctx, "PROJ-BUILD-483")
+		"GET /rest/api/latest/result/PROJ-HOLD-2?expand=" + buildExpand: {fixture: "recorded/result_queued_hold.json"}})
+	b, err := c.GetBuild(ctx, "PROJ-HOLD-2")
 	require.NoError(t, err)
-	jobs := b.Stages[0].Jobs
-	require.Len(t, jobs, 2)
-	require.NotNil(t, jobs[0].AnyAgent)
-	assert.True(t, *jobs[0].AnyAgent)
-	require.NotNil(t, jobs[1].AnyAgent)
-	assert.False(t, *jobs[1].AnyAgent)
+	require.Equal(t, provider.StateQueued, b.Stages[0].Jobs[0].State)
+	require.NotNil(t, b.Stages[0].Jobs[0].AnyAgent)
+	assert.True(t, *b.Stages[0].Jobs[0].AnyAgent)
 }
 
-func TestPossibleAgentsNamesOnlyTheOnesWhoseCapabilitiesMatch(t *testing.T) {
-	c, _ := newTestServer(t, map[string]*route{possiblePath: {fixture: "possible_agents.json"}})
-	saved := knownCaps(c, Capabilities{})
-	names, err := c.PossibleAgents(ctx, "PROJ-BUILD-JOB1")
+func TestQueueNamesTheBuildBehindAWaitingJob(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/queue": {fixture: "recorded/queue_jobs_waiting.json"}})
+	q, err := c.Queue(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"linux-1", "linux-2"}, names)
-	assert.Equal(t, "yes", (*saved)[len(*saved)-1].PossibleAgents)
+	require.Len(t, q, 1)
+	// Bamboo queues the job PROJ-NOCAP-SL-1 of the build PROJ-NOCAP-1.
+	assert.Equal(t, provider.QueueEntry{Key: "PROJ-NOCAP-1", PlanKey: "PROJ-NOCAP", Number: 1, Reason: "Manual build"}, q[0])
 }
 
-func TestPossibleAgentsRefusalIsLearnedOnceAndNeverAsksAgain(t *testing.T) {
-	c, rec := newTestServer(t, map[string]*route{possiblePath: {status: 403, body: `{"message":"forbidden"}`}})
+func TestQueueHoldsOnePlaceForABuildWithSeveralWaitingJobs(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/queue": {body: `{"queuedBuilds":{"queuedBuild":[
+		{"planKey":"PROJ-BUILD-JOB1","buildNumber":9,"buildResultKey":"PROJ-BUILD-JOB1-9"},
+		{"planKey":"PROJ-BUILD-JOB2","buildNumber":9,"buildResultKey":"PROJ-BUILD-JOB2-9"},
+		{"planKey":"PROJ-BUILD12-JOB1","buildNumber":3,"buildResultKey":"PROJ-BUILD12-JOB1-3"}]}}`}})
+	q, err := c.Queue(ctx)
+	require.NoError(t, err)
+	require.Len(t, q, 2)
+	assert.Equal(t, "PROJ-BUILD-9", q[0].Key)
+	assert.Equal(t, "PROJ-BUILD12-3", q[1].Key)
+}
+
+func TestAgentJobsListsWhatEachAgentCanRun(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/agent": {fixture: "recorded/agents_one_remote.json"},
+		agentDetailPath:              {fixture: "recorded/agent_detail_executable_jobs.json"},
+	})
 	saved := knownCaps(c, Capabilities{})
-	_, err := c.PossibleAgents(ctx, "PROJ-BUILD-JOB1")
+	jobs, err := c.AgentJobs(ctx)
+	require.NoError(t, err)
+	// The agent can run the demo job; it cannot run the one that needs a capability it lacks.
+	assert.Equal(t, map[string][]string{"linux-1": {"PROJ-HOLD-SL"}}, jobs)
+	assert.Equal(t, "yes", (*saved)[len(*saved)-1].AgentJobs)
+}
+
+func TestAgentJobsRefusalIsLearnedOnceAndNeverAsksAgain(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/agent": {status: 403, body: `{"message":"forbidden"}`}})
+	saved := knownCaps(c, Capabilities{})
+	_, err := c.AgentJobs(ctx)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
-	assert.Equal(t, "no", (*saved)[len(*saved)-1].PossibleAgents)
+	assert.Equal(t, "no", (*saved)[len(*saved)-1].AgentJobs)
 	before := len(rec.all())
-	_, err = c.PossibleAgents(ctx, "PROJ-BUILD-JOB1")
+	_, err = c.AgentJobs(ctx)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Equal(t, before, len(rec.all()), "a learned no does not ask again")
 }
 
-func TestPossibleAgentsOfAnUnknownJobIsRefusedToo(t *testing.T) {
-	c, _ := newTestServer(t, map[string]*route{})
+func TestAgentJobsRefusedForOneAgentIsARefusal(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/agent": {fixture: "recorded/agents_one_remote.json"},
+		agentDetailPath:              {status: 403, body: `{"message":"forbidden"}`},
+	})
 	knownCaps(c, Capabilities{})
-	_, err := c.PossibleAgents(ctx, "PROJ-BUILD-JOB1")
+	_, err := c.AgentJobs(ctx)
+	assert.True(t, errors.Is(err, errs.ErrUnsupported))
+}
+
+func TestAgentJobsWithACutShortListIsRefusedNotMisleading(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/agent": {fixture: "recorded/agents_one_remote.json"},
+		agentDetailPath:              {body: `{"executableJobs":{"size":3,"executableJobs":[{"key":{"key":"PROJ-HOLD-SL"}}]}}`},
+	})
+	knownCaps(c, Capabilities{})
+	_, err := c.AgentJobs(ctx)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 }
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -22,13 +23,9 @@ type whyCache struct {
 	agentsAt time.Time
 	agents   []provider.Agent
 	agentsOK bool
-	possible map[string]possibleAnswer // by job plan key
-}
-
-type possibleAnswer struct {
-	at    time.Time
-	names []string
-	ok    bool
+	jobsAt   time.Time
+	jobs     map[string][]string // agent name → the jobs it can run
+	jobsOK   bool
 }
 
 // seedAgents keeps an agent list the caller has just read, or its refusal.
@@ -62,27 +59,36 @@ func (s *Service) whyAgents(ctx context.Context) ([]provider.Agent, bool) {
 	return as, err == nil
 }
 
-// whyPossible names the agents that can run the job planKey, or false when
-// the server refuses to say.
+// whyPossible names the agents that can run the job planKey, in name order,
+// or false when the server refuses to say.
 func (s *Service) whyPossible(ctx context.Context, planKey string) ([]string, bool) {
 	c := &s.why
 	c.mu.Lock()
-	if a, ok := c.possible[planKey]; ok && s.Clock.Now().Sub(a.at) < whyTTL {
-		c.mu.Unlock()
-		return a.names, a.ok
-	}
+	fresh := !c.jobsAt.IsZero() && s.Clock.Now().Sub(c.jobsAt) < whyTTL
+	jobs, ok := c.jobs, c.jobsOK
 	c.mu.Unlock()
-	names, err := s.P.PossibleAgents(ctx, planKey)
-	if ctx.Err() != nil {
+	if !fresh {
+		var err error
+		jobs, err = s.P.AgentJobs(ctx)
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		ok = err == nil
+		c.mu.Lock()
+		c.jobsAt, c.jobs, c.jobsOK = s.Clock.Now(), jobs, ok
+		c.mu.Unlock()
+	}
+	if !ok {
 		return nil, false
 	}
-	c.mu.Lock()
-	if c.possible == nil {
-		c.possible = map[string]possibleAnswer{}
+	names := []string{}
+	for name, keys := range jobs {
+		if slices.Contains(keys, planKey) {
+			names = append(names, name)
+		}
 	}
-	c.possible[planKey] = possibleAnswer{at: s.Clock.Now(), names: names, ok: err == nil}
-	c.mu.Unlock()
-	return names, err == nil
+	slices.Sort(names)
+	return names, true
 }
 
 // jobPlanKey is the job's plan key, PROJ-PLAN-JOB1, from its result key
@@ -164,7 +170,7 @@ func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int) *provid
 	if !agentsOK {
 		return w
 	}
-	canRun := func(a provider.Agent) bool { return !possibleOK || slicesContains(names, a.Name) }
+	canRun := func(a provider.Agent) bool { return !possibleOK || slices.Contains(names, a.Name) }
 	if !possibleOK && j.AnyAgent == nil {
 		return w // without either answer an idle agent says nothing about this job
 	}
@@ -185,13 +191,4 @@ func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int) *provid
 		w.Case, w.Ahead = provider.WhyAhead, ahead
 	}
 	return w
-}
-
-func slicesContains(ss []string, s string) bool {
-	for _, x := range ss {
-		if x == s {
-			return true
-		}
-	}
-	return false
 }

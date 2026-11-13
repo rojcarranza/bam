@@ -94,7 +94,7 @@ func whyHarness(t *testing.T) *harness {
 	pb.Stages = []provider.Stage{{Name: "Provision", State: provider.StateQueued, Jobs: []provider.Job{
 		{Key: "PROJ-PROV-WIN-9", Name: "Windows", State: provider.StateQueued, AnyAgent: &no}}}}
 	h.fake.Sequences["PROJ-PROV-9"] = []provider.Build{pb}
-	h.fake.Possible = map[string][]string{"PROJ-BUILD-JOB1": {"linux-1", "linux-2"}}
+	h.fake.AgentJobMap = map[string][]string{"linux-1": {"PROJ-BUILD-JOB1"}, "linux-2": {"PROJ-BUILD-JOB1"}}
 	return h
 }
 
@@ -141,7 +141,7 @@ func TestWhyWithoutAdministratorRightsKeepsWhatIsReadable(t *testing.T) {
 	assert.NotContains(t, h.stdout.String(), "busy, offline")
 
 	// Neither the possible agents nor the agent list: the job's own answer stands.
-	h.fake.Possible = nil
+	h.fake.AgentJobMap = nil
 	require.Equal(t, 0, h.run("queue"))
 	assert.Contains(t, h.stdout.String(), "no agent can run it")
 	require.Equal(t, 0, h.run("build", "show", "PROJ-BUILD-45"))

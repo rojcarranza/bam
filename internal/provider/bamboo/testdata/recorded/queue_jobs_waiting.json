@@ -1,0 +1,25 @@
+{
+  "expand": "queuedBuilds",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/queue",
+    "rel": "self"
+  },
+  "queuedBuilds": {
+    "size": 1,
+    "expand": "queuedBuild",
+    "queuedBuild": [
+      {
+        "planKey": "PROJ-NOCAP-SL",
+        "buildNumber": 1,
+        "buildResultKey": "PROJ-NOCAP-SL-1",
+        "triggerReason": "Manual build",
+        "link": {
+          "href": "http://bamboo.example.com/rest/api/latest/result/PROJ-NOCAP-SL-1",
+          "rel": "self"
+        }
+      }
+    ],
+    "start-index": 0,
+    "max-result": 1
+  }
+}

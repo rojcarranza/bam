@@ -1,6 +1,0 @@
-{"key": "PROJ-BUILD-483", "buildResultKey": "PROJ-BUILD-483", "buildNumber": 483, "state": "Unknown", "lifeCycleState": "Queued", "buildReason": "Manual build", "planName": "Build and test",
- "plan": {"key": "PROJ-BUILD", "shortName": "Build and test"},
- "stages": {"size": 1, "stage": [{"name": "Build", "state": "Unknown", "lifeCycleState": "Queued", "results": {"size": 2, "result": [
-   {"buildResultKey": "PROJ-BUILD-JOB1-483", "state": "Unknown", "lifeCycleState": "Queued", "hasExecutableAgents": true, "plan": {"key": "PROJ-BUILD-JOB1", "shortName": "Compile"}},
-   {"buildResultKey": "PROJ-BUILD-WIN-483", "state": "Unknown", "lifeCycleState": "Queued", "hasExecutableAgents": false, "plan": {"key": "PROJ-BUILD-WIN", "shortName": "Windows"}}
- ]}}]}}

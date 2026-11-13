@@ -347,7 +347,7 @@ func (m Model) Init() tea.Cmd {
 	if m.screen == screenBoard {
 		// Init's receiver is a copy, so the first read is issued by the
 		// connectedMsg or here from the handshake's service.
-		cmds = append(cmds, boardTickCmd(m.board.tickGen), m.readBoardCmd(true, nil, m.board.loadGen))
+		cmds = append(cmds, boardBeats(m.board.tickGen), m.readBoardCmd(true, nil, m.board.loadGen))
 	}
 	return tea.Batch(cmds...)
 }
@@ -368,6 +368,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.homeTick(msg)
 	case boardTickMsg:
 		return m.boardTick(msg)
+	case boardRedrawMsg:
+		return m.boardRedraw(msg)
 	case boardLoadedMsg:
 		return m.boardLoaded(msg), nil
 	case boardPinnedMsg:
@@ -384,7 +386,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.screen == screenBoard {
 			// A server switch: the board on screen belongs to the old server.
 			m.board = boardState{tickGen: m.board.tickGen + 1, loadGen: m.board.loadGen}
-			return m, tea.Batch(cmd, m.loadBoard(true), boardTickCmd(m.board.tickGen))
+			return m, tea.Batch(cmd, m.loadBoard(true), boardBeats(m.board.tickGen))
 		}
 		if m.home.view == homeProjects {
 			projects := m.loadProjects()

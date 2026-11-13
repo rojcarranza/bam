@@ -30,6 +30,11 @@ const (
 // read again on each. A variable only so tests can make the beat fire at once.
 var boardEvery = 15 * time.Second
 
+// boardRedrawEvery is the board's redraw beat: it only draws the screen
+// again, so the data age and queue waits count up between reads. It never
+// reads the server. A variable only so tests can make it fire at once.
+var boardRedrawEvery = time.Second
+
 type boardPanel int
 
 const (
@@ -64,6 +69,10 @@ type boardState struct {
 
 type boardTickMsg struct{ Gen int }
 
+// boardRedrawMsg is one redraw beat; it shares the read beat's generation,
+// so both loops end together.
+type boardRedrawMsg struct{ Gen int }
+
 type boardLoadedMsg struct {
 	Gen    int
 	Full   bool
@@ -76,6 +85,24 @@ func boardTickCmd(gen int) tea.Cmd {
 	return tea.Tick(boardEvery, func(time.Time) tea.Msg { return boardTickMsg{Gen: gen} })
 }
 
+func boardRedrawCmd(gen int) tea.Cmd {
+	return tea.Tick(boardRedrawEvery, func(time.Time) tea.Msg { return boardRedrawMsg{Gen: gen} })
+}
+
+// boardBeats starts both of the board's loops for one generation.
+func boardBeats(gen int) tea.Cmd {
+	return tea.Batch(boardTickCmd(gen), boardRedrawCmd(gen))
+}
+
+// boardRedraw is one redraw beat: returning from Update is all a redraw
+// needs. A beat off the board or of an older generation ends the loop.
+func (m Model) boardRedraw(msg boardRedrawMsg) (tea.Model, tea.Cmd) {
+	if msg.Gen != m.board.tickGen || m.screen != screenBoard {
+		return m, nil
+	}
+	return m, boardRedrawCmd(m.board.tickGen)
+}
+
 // showBoard opens the board, and reads it at once. It starts one beat loop;
 // a loop is ended by bumping the generation, so there are never two.
 func (m Model) showBoard() (tea.Model, tea.Cmd) {
@@ -86,7 +113,7 @@ func (m Model) showBoard() (tea.Model, tea.Cmd) {
 	m.fromSet, m.fromTree, m.logsFromTree, m.fromBoard = false, false, false, false
 	m.board.tickGen++
 	load := m.loadBoard(true)
-	return m, tea.Batch(load, boardTickCmd(m.board.tickGen))
+	return m, tea.Batch(load, boardBeats(m.board.tickGen))
 }
 
 // loadBoard reads the board. full also reads each pin's plan and usual time;
@@ -648,8 +675,10 @@ func (m Model) queueLines() []string {
 	}
 	var out []string
 	for i, r := range b.data.Queue {
-		waited := brief(r.Waited)
-		if r.Waited <= 0 {
+		// Waited is as of the last read; it keeps counting until the next.
+		w := r.Waited + max(m.now().Sub(b.loadedAt), 0)
+		waited := brief(w)
+		if w <= 0 {
 			waited = "0s"
 		}
 		if r.AtLeast {

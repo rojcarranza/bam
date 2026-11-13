@@ -26,9 +26,9 @@ import (
 // does for Home. tea.Tick reads the duration when the command is built.
 func instantBoardTick(t *testing.T) {
 	t.Helper()
-	old := boardEvery
-	boardEvery = 0
-	t.Cleanup(func() { boardEvery = old })
+	old, oldRedraw := boardEvery, boardRedrawEvery
+	boardEvery, boardRedrawEvery = 0, 0
+	t.Cleanup(func() { boardEvery, boardRedrawEvery = old, oldRedraw })
 }
 
 func sampleBoard(at time.Time) app.Board {
@@ -118,6 +118,40 @@ func TestBoardHeaderSaysHowOldTheDataIs(t *testing.T) {
 	now := goldenNow.Add(40 * time.Second)
 	m.now = func() time.Time { return now }
 	require.Contains(t, m.View(), "updated 40s ago")
+}
+
+// Between reads a redraw beat each second keeps the data age and the queue
+// waits counting up on a board nobody touches, without reading the server.
+func TestBoardRedrawBeatCountsUpBetweenReadsWithoutReading(t *testing.T) {
+	instantBoardTick(t)
+	m := boardModel(100, 30)
+	_, cmd := m.showBoard()
+	var redraws int
+	for _, msg := range runBatch(cmd) {
+		if _, ok := msg.(boardRedrawMsg); ok {
+			redraws++
+		}
+	}
+	require.Equal(t, 1, redraws, "opening the board starts the redraw beat")
+
+	m.board.tickGen = 1
+	require.Contains(t, m.View(), "updated 0s ago")
+	require.Contains(t, ansi.Strip(m.View()), "at least 0s", "a wait first seen by this read starts at zero")
+	now := goldenNow.Add(8 * time.Second)
+	m.now = func() time.Time { return now }
+	m, cmd = send(m, boardRedrawMsg{Gen: 1})
+	msgs := runBatch(cmd)
+	require.Len(t, msgs, 1, "a redraw beat schedules only the next one")
+	require.IsType(t, boardRedrawMsg{}, msgs[0], "and never reads the server")
+	v := ansi.Strip(m.View())
+	require.Contains(t, v, "updated 8s ago")
+	require.Contains(t, v, "at least 8s", "a queue wait counts up between reads")
+
+	_, cmd = send(m, boardRedrawMsg{Gen: 0})
+	require.Nil(t, cmd, "a redraw beat of an older generation ends its loop")
+	m.screen = screenHome
+	_, cmd = send(m, boardRedrawMsg{Gen: 1})
+	require.Nil(t, cmd, "a redraw beat off the board ends its loop")
 }
 
 // runBoardCmd runs a command batch and returns the board reads in it.

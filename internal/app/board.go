@@ -88,15 +88,28 @@ type PinView struct {
 type Need struct {
 	Kind string // agent_offline, queue_wait, pin_failed or pin_slow
 	Text string
+	// Build is the build the line is about, "" for an agent. The text
+	// changes as time passes; Kind and Build name the same line throughout.
+	Build string
 }
 
 // Board reads the board for groups. It never fails for a refused agent list
 // or queue, or for a pipeline it cannot read: those are noted on the board.
 // Only an interrupt is an error.
 func (s *Service) Board(ctx context.Context, groups []config.PinGroup) (Board, error) {
+	return s.RefreshBoard(ctx, groups, nil)
+}
+
+// RefreshBoard is Board for a board that is already on screen. With prev it
+// is the quick refresh: agents, queue and the pinned builds are read again,
+// but the server version, the plans the pins name and each plan's usual build
+// time are kept from prev, which only the full read (prev nil) learns afresh.
+func (s *Service) RefreshBoard(ctx context.Context, groups []config.PinGroup, prev *Board) (Board, error) {
 	now := s.Clock.Now()
 	b := Board{At: now, Server: s.Server.Alias, URL: s.Server.URL}
-	if info, err := s.P.ServerInfo(ctx); err == nil {
+	if prev != nil {
+		b.Version = prev.Version
+	} else if info, err := s.P.ServerInfo(ctx); err == nil {
 		b.Version = info.Version
 	}
 	if as, err := s.P.Agents(ctx); err != nil {
@@ -110,11 +123,15 @@ func (s *Service) Board(ctx context.Context, groups []config.PinGroup) (Board, e
 		b.QueueOK = true
 		b.Queue = q
 	}
-	b.Groups = s.readPins(ctx, groups)
+	var known []PinGroupView
+	if prev != nil {
+		known = prev.Groups
+	}
+	b.Groups = s.readPins(ctx, groups, known)
 	if err := ctx.Err(); err != nil {
 		return Board{}, err
 	}
-	b.Needs = needsYou(b, now)
+	b.Needs = NeedsYou(b, now)
 	return b, nil
 }
 
@@ -191,7 +208,9 @@ func (s *Service) QueueRows(ctx context.Context) ([]QueueRow, error) {
 }
 
 // readPins reads every pinned pipeline, boardReaders at a time.
-func (s *Service) readPins(ctx context.Context, groups []config.PinGroup) []PinGroupView {
+// A pin that known holds, resolved and without an error, is not resolved
+// again and keeps its usual time.
+func (s *Service) readPins(ctx context.Context, groups []config.PinGroup, known []PinGroupView) []PinGroupView {
 	out := make([]PinGroupView, len(groups))
 	sem := make(chan struct{}, boardReaders)
 	var wg sync.WaitGroup
@@ -203,7 +222,7 @@ func (s *Service) readPins(ctx context.Context, groups []config.PinGroup) []PinG
 				defer wg.Done()
 				sem <- struct{}{}
 				defer func() { <-sem }()
-				out[gi].Pins[pi] = s.readPin(ctx, pin)
+				out[gi].Pins[pi] = s.readPin(ctx, pin, findPin(known, pin))
 			}()
 		}
 	}
@@ -211,8 +230,24 @@ func (s *Service) readPins(ctx context.Context, groups []config.PinGroup) []PinG
 	return out
 }
 
-func (s *Service) readPin(ctx context.Context, pin string) PinView {
+// findPin is the earlier reading of pin, or nil.
+func findPin(groups []PinGroupView, pin string) *PinView {
+	for _, g := range groups {
+		for i := range g.Pins {
+			if g.Pins[i].Pin == pin && g.Pins[i].Err == nil && g.Pins[i].PlanKey != "" {
+				return &g.Pins[i]
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinView {
 	v := PinView{Pin: pin}
+	if prev != nil {
+		v.PlanKey, v.Branch, v.Usual = prev.PlanKey, prev.Branch, prev.Usual
+		return s.readPinBuilds(ctx, v, false)
+	}
 	plan, branch := config.SplitPin(pin)
 	if t, ok, _ := s.Cfg.Target(PresetName(s.Cfg, plan)); ok && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
 		v.Err = errs.Usagef("preset %s is on server %s; bam top shows one server, %s", t.Name, t.Server, s.Server.Alias)
@@ -224,7 +259,13 @@ func (s *Service) readPin(ctx context.Context, pin string) PinView {
 		return v
 	}
 	v.PlanKey, v.Branch = ref.PlanKey, ref.Branch
-	builds, err := s.P.ListBuilds(ctx, ref.PlanKey, provider.ListOptions{Limit: PinResults + 1, Unfinished: true})
+	return s.readPinBuilds(ctx, v, true)
+}
+
+// readPinBuilds reads the builds of v's plan. usual says whether the plan's
+// usual build time is read too.
+func (s *Service) readPinBuilds(ctx context.Context, v PinView, usual bool) PinView {
+	builds, err := s.P.ListBuilds(ctx, v.PlanKey, provider.ListOptions{Limit: PinResults + 1, Unfinished: true})
 	if err != nil {
 		v.Err = err
 		return v
@@ -243,8 +284,10 @@ func (s *Service) readPin(ctx context.Context, pin string) PinView {
 	if len(v.Results) > 0 {
 		v.Last = v.Results[0].Duration
 	}
-	if med, err := s.historyMedian(ctx, ref.PlanKey); err == nil {
-		v.Usual = med
+	if usual {
+		if med, err := s.historyMedian(ctx, v.PlanKey); err == nil {
+			v.Usual = med
+		}
 	}
 	if v.Current != nil && v.Current.State == provider.StateRunning {
 		v.Progress, _ = s.Progress(ctx, *v.Current)
@@ -252,21 +295,21 @@ func (s *Service) readPin(ctx context.Context, pin string) PinView {
 	return v
 }
 
-// needsYou is the Needs you list: an enabled agent that is offline, a build
+// NeedsYou is the Needs you list: an enabled agent that is offline, a build
 // waiting over NeedsWait, a pinned pipeline whose last build failed, and a
 // pinned build running NeedsSlowFactor past its usual time.
-func needsYou(b Board, now time.Time) []Need {
+func NeedsYou(b Board, now time.Time) []Need {
 	var out []Need
 	if b.Agents != nil {
 		for _, a := range b.Agents.Away {
 			if a.Enabled && !a.Online {
-				out = append(out, Need{"agent_offline", fmt.Sprintf("agent %s is offline", a.Name)})
+				out = append(out, Need{Kind: "agent_offline", Text: fmt.Sprintf("agent %s is offline", a.Name)})
 			}
 		}
 	}
 	for _, r := range b.Queue {
 		if r.Waited > NeedsWait {
-			out = append(out, Need{"queue_wait", fmt.Sprintf("%s has waited %s in the queue", r.Key, shortDuration(r.Waited))})
+			out = append(out, Need{Kind: "queue_wait", Text: fmt.Sprintf("%s has waited %s in the queue", r.Key, shortDuration(r.Waited)), Build: r.Key})
 		}
 	}
 	for _, g := range b.Groups {
@@ -275,11 +318,11 @@ func needsYou(b Board, now time.Time) []Need {
 				continue
 			}
 			if len(p.Results) > 0 && p.Results[0].State == provider.StateFailed {
-				out = append(out, Need{"pin_failed", fmt.Sprintf("%s: the last build, %s, failed", p.Pin, p.Results[0].Key)})
+				out = append(out, Need{Kind: "pin_failed", Text: fmt.Sprintf("%s: the last build, %s, failed", p.Pin, p.Results[0].Key), Build: p.Results[0].Key})
 			}
 			if c := p.Current; c != nil && c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
 				if run := now.Sub(c.StartedAt); float64(run) > NeedsSlowFactor*float64(p.Usual) {
-					out = append(out, Need{"pin_slow", fmt.Sprintf("%s: %s has run %s, usually %s", p.Pin, c.Key, shortDuration(run), shortDuration(p.Usual))})
+					out = append(out, Need{Kind: "pin_slow", Text: fmt.Sprintf("%s: %s has run %s, usually %s", p.Pin, c.Key, shortDuration(run), shortDuration(p.Usual)), Build: c.Key})
 				}
 			}
 		}
@@ -297,3 +340,6 @@ func shortDuration(d time.Duration) string {
 	}
 	return fmt.Sprintf("%dh%02dm", int(d.Hours()), int(d.Minutes())%60)
 }
+
+// PinGroup is a monitor group, so the UI can name it without importing config.
+type PinGroup = config.PinGroup

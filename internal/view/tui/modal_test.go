@@ -314,7 +314,7 @@ func TestHelpScrollsToItsLastRow(t *testing.T) {
 	m, _ = send(m, mkKey("?"))
 	require.NotContains(t, m.View(), "q ctrl-c", "the table does not fit, so it starts at the top")
 
-	for i := 0; i < 40; i++ {
+	for i := 0; i < 80; i++ {
 		m, _ = send(m, mkKey("j"))
 	}
 	require.Contains(t, m.View(), "q ctrl-c", "j must reach the last row")

@@ -60,12 +60,12 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 		// A build opened on the tree starts a fresh plan screen; esc off the
 		// tree draws this one again, stack, cursor and watch included.
 		back = &planReturn{frame: m.currentFrame(m.focus), stack: slices.Clone(m.plan.stack),
-			fromSet: m.fromSet, fromTree: m.fromTree}
+			fromSet: m.fromSet, fromTree: m.fromTree, fromBoard: m.fromBoard}
 		if m.fromTree {
 			prev := m.buildTree
 			back.tree = &prev
 		}
-		m.fromSet, m.fromTree = false, false
+		m.fromSet, m.fromTree, m.fromBoard = false, false, false
 	}
 	m.stopWatch()
 	m.rerunGen++ // a rerun started on another tree reports to that one only
@@ -110,7 +110,7 @@ func (m Model) closeTree() (tea.Model, tea.Cmd) {
 	m.fromTree, m.logsFromTree = false, false
 	if back := m.buildTree.back; back != nil {
 		m.buildTree.back = nil
-		m.fromSet = back.fromSet
+		m.fromSet, m.fromBoard = back.fromSet, back.fromBoard
 		f := back.frame
 		next, cmd := m.enterPlan(f.key, f.buildsPlan, f.wantOf(), f.focus)
 		next.plan.stack = back.stack
@@ -133,6 +133,9 @@ func (m Model) closeTree() (tea.Model, tea.Cmd) {
 		if m.screen == screenHome {
 			return m.goHome()
 		}
+	case screenBoard:
+		m.closePlan()
+		return m.showBoard()
 	case screenTree:
 		m.screen = screenPlan
 	}
@@ -357,7 +360,7 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 	}
 	b := n.Build
 	m.stopTree()
-	m.fromTree, m.fromSet = true, false
+	m.fromTree, m.fromSet, m.fromBoard = true, false, false
 	next, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 	if !logs {
 		return next, cmd

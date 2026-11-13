@@ -149,6 +149,9 @@ func (m Model) keyLine() string {
 		}
 		return strings.Join(append(parts, "r refresh", "esc back"), "  ")
 	}
+	if m.screen == screenBoard {
+		return "enter open  l logs  t tree  i why  P pin  tab panel  : cmd  ?help  q quit"
+	}
 	if m.screen == screenHome {
 		if m.home.view == homeProjects {
 			return "enter plans  / filter  s sort  : cmd  ?help  q quit"

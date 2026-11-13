@@ -1,10 +1,20 @@
 # Terminal UI
 
-Running `bam` alone on a terminal opens a k9s-style table of every plan, with a plan screen behind it to browse detail, watch a build live, read its logs, run a preset, and cancel. The README shows the daily use; this page has the whole key list and the details.
+Running `bam` alone on a terminal opens a k9s-style table of every plan (or the live board, once you have pinned pipelines; see "The board"), with a plan screen behind it to browse detail, watch a build live, read its logs, run a preset, and cancel. The README shows the daily use; this page has the whole key list and the details.
 
 `bam ui` opens it explicitly. To keep the UI out of the way, use `--no-tui`, set `BAM_NO_TUI=1`, or pipe bam's output. On a pipe, on a dumb terminal, or without a terminal, bare `bam` prints help.
 
 Terminals under 20 rows or 60 columns keep a one-line header.
+
+## The board
+
+`bam top` on a terminal, and `:top` in the UI, open a live board of the server: a **Needs you** list, the **Agents** (the busy share of the online, enabled agents as a bar, plus every agent that is offline or disabled), the **Queue** with the time each build has waited, and your **Pinned** pipelines by group with their last 10 results, the build running now and its time against the usual one. Pin pipelines with `bam pin add` or the `monitor:` setting (see [configuration](configuration.md)). Bare `bam` opens the board once any pipeline is pinned; with no pins it opens the plan table, and `:plans` always does.
+
+The board refreshes by itself, with no key pressed, and never stops for idleness (Home does after 10 idle minutes). Agents, the queue and the pinned builds are read every 15 seconds; every minute the read is in full, which also learns each pin's plan and usual build time again. The header says how old the data is. When a read gets nothing, the old data stays and the header says `stale` until a read works. The two small charts, the busy share and the queue length, cover the time since the board opened and are not saved.
+
+`enter` opens the selected pipeline, or the selected build, in the plan screen; `l`, `t`, `i`, `o` and `y` work as elsewhere, on a pin's running build or else its newest result, or on a queued build. `esc` comes back to the board. `tab` moves between Needs you, Queue and Pinned. `P` unpins the selected pipeline, or, on a queued build, asks for a group and pins that build's plan. No key changes anything on Bamboo; `P` writes only bam's settings file, and a pin that lives in `.bam.yaml` is edited there by hand.
+
+The bell rings once when a new line joins Needs you (not when a line only changes its numbers); `bell: false` turns it off. Under 20 rows or 60 columns the board shows its header and Needs you only. `bam top --once`, `--json` and a pipe print the board once instead.
 
 ## Projects
 
@@ -63,7 +73,10 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `E` | edit the selected preset's file |
 | | `D` | remove the selected preset (asks first) |
 | | `s` | next sort column |
-| | `:` | command bar: :plans :presets :sets :projects :tree :stats :project :server :sort :q |
+| | `:` | command bar: :plans :presets :sets :projects :tree :stats :top :project :server :sort :q |
+| Board | `tab` | next panel: Needs you, Queue, Pinned |
+| | `enter` | open the selected pipeline or build; `esc` comes back to the board |
+| | `P` | unpin the selected pipeline, or pin the selected queued build's plan (asks for the group) |
 | View | `l` | logs for the selection: a stage, a job, or failed jobs; a running build: its current stage, live |
 | | `a` | all logs, not only failed; in the run form or set vars prompt, add a variable |
 | | `f` | follow the jobs on the log screen |

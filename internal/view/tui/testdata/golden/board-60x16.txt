@@ -1,0 +1,16 @@
+ lab · Bamboo 12.1.8                         updated 0s ago
+┏━Needs you━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃▸ ! agent linux-2 is offline                              ┃
+┃  ! PROJ-BUILD-500 has waited 7m in the queue             ┃
+┃  ! PROJ-BUILD: the last build, PROJ-BUILD-44, failed     ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+ more at 60 columns by 20 rows
+
+
+
+
+
+
+
+
+lab         enter open  l logs  t tree  i why  P pin  q quit

@@ -50,6 +50,14 @@ type Deps struct {
 	Clipboard io.Writer
 	Output    io.Writer // the tea.Program's output; nil means os.Stdout
 	Version   string    // bam's own version, shown beside Bamboo's in the header
+	// Monitor reads the pinned groups, fresh on every call. PinAdd and
+	// PinRemove write bam's settings file, as bam pin add and rm do; they
+	// are the only writes the board makes. Nil turns P off.
+	Monitor   func() ([]app.PinGroup, error)
+	PinAdd    func(group, plan string) error
+	PinRemove func(pin string) error
+	// StartOnBoard opens the board instead of the plans table.
+	StartOnBoard bool
 }
 
 // Run opens the UI and returns when the user quits. Ending ctx closes the UI;

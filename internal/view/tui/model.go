@@ -26,6 +26,7 @@ const (
 	inputSearch
 	inputCommand
 	inputPreset
+	inputPin // the group a pin is added to
 )
 
 // screen is what fills the terminal. The log screen takes the whole width.
@@ -38,7 +39,8 @@ const (
 	screenHome // the plans table bam opens on (home spec §2)
 	screenSet  // one run set: its stages and runs
 	screenSetVars
-	screenTree // one build's tree: every build it triggered
+	screenTree  // one build's tree: every build it triggered
+	screenBoard // the live board bam top opens
 )
 
 // focus is which panel or table takes keys. Plans, Presets, Sets and
@@ -182,7 +184,8 @@ type Model struct {
 	// connection opens on its own server's default_project.
 	projectStarted bool
 
-	home homeState
+	home  homeState
+	board boardState
 
 	train        trainState
 	setView      setScreen
@@ -194,6 +197,7 @@ type Model struct {
 	logsFromTree bool // the log screen was opened from the tree screen; esc returns there
 	fromProjects bool // Home's plans were reached from the projects view; esc returns there
 	fromSet      bool // the panels were opened from a set screen run; esc returns there
+	fromBoard    bool // the panels were opened from the board; esc returns there
 
 	formFrom screen // where esc from the run form returns
 }
@@ -214,6 +218,9 @@ func New(d Deps) Model {
 		picker:   newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
 		now:      time.Now,
 		input:    textinput.New(),
+	}
+	if d.StartOnBoard {
+		m.screen = screenBoard
 	}
 	m.plans.setOrder(planLess(m.home.sort))
 	m.projects.setOrder(projectLess(homeSort{}))
@@ -315,6 +322,7 @@ func (m Model) connected(msg connectedMsg) Model {
 	// Init loads the plans of this connection, so the panel is already
 	// waiting on them here. Init's receiver is a copy, so it cannot say so.
 	m.plans.loading = true
+	m.board.loading = m.screen == screenBoard
 	return m
 }
 
@@ -336,6 +344,11 @@ func (m Model) Init() tea.Cmd {
 	if m.screen == screenHome {
 		cmds = append(cmds, homeTickCmd(m.home.tickGen))
 	}
+	if m.screen == screenBoard {
+		// Init's receiver is a copy, so the first read is issued by the
+		// connectedMsg or here from the handshake's service.
+		cmds = append(cmds, boardBeats(m.board.tickGen), m.readBoardCmd(true, nil, m.board.loadGen))
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -353,6 +366,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouse(msg)
 	case homeTickMsg:
 		return m.homeTick(msg)
+	case boardTickMsg:
+		return m.boardTick(msg)
+	case boardRedrawMsg:
+		return m.boardRedraw(msg)
+	case boardLoadedMsg:
+		return m.boardLoaded(msg), nil
+	case boardPinnedMsg:
+		m.status = msg.Status
+		return m, m.loadBoard(true)
 	case connectedMsg:
 		if msg.Gen != m.connGen {
 			return m, nil
@@ -361,6 +383,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.startProject()
 		m.err = nil
 		cmd := m.loadPlans()
+		if m.screen == screenBoard {
+			// A server switch: the board on screen belongs to the old server.
+			m.board = boardState{tickGen: m.board.tickGen + 1, loadGen: m.board.loadGen}
+			return m, tea.Batch(cmd, m.loadBoard(true), boardBeats(m.board.tickGen))
+		}
 		if m.home.view == homeProjects {
 			projects := m.loadProjects()
 			return m, tea.Batch(cmd, projects)
@@ -716,6 +743,9 @@ func (m Model) dispatchKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.screen == screenTree {
 		return m.handleTreeKey(msg)
 	}
+	if m.screen == screenBoard {
+		return m.handleBoardKey(msg)
+	}
 	if m.screen == screenHome {
 		if next, cmd, handled := m.handleHomeKey(msg); handled {
 			return next, cmd
@@ -846,6 +876,10 @@ func (m Model) handleInputKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if mode == inputSearch {
 			m.logs.search(q)
 			return m, nil
+		}
+		if mode == inputPin {
+			m.input.SetValue("")
+			return m.pinTo(strings.TrimSpace(q))
 		}
 		if mode == inputPreset {
 			m.input.SetValue("")
@@ -1118,7 +1152,8 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 			})
 	}
 	m.leaveBuild()
-	m.fromSet, m.fromTree, m.logsFromTree = false, false, false
+	wasBoard := m.fromBoard
+	m.fromSet, m.fromTree, m.logsFromTree, m.fromBoard = false, false, false, false
 	if m.screen == screenTree {
 		// The tree is the old server's; a build key means another build here.
 		m.stopTree()
@@ -1131,9 +1166,13 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	m.trees = nil
 	if m.screen == screenPlan {
 		m.screen = screenHome
+		if wasBoard {
+			m.screen = screenBoard
+		}
 		m.focus = m.homeFocus()
 	}
 	m.server, m.svc = alias, nil
+	m.info, m.user = provider.ServerInfo{}, provider.User{} // the new server's come with connectedMsg
 	m.buildsPlan = ""
 	// The project filter names a project of the server being left; keeping it
 	// would hide every plan on the new one.
@@ -1155,6 +1194,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	m.presetsGen++
 	m.cancelGen++
 	m.home.live = nil
+	m.board = boardState{tickGen: m.board.tickGen + 1, loadGen: m.board.loadGen + 1}
 
 	cmds := []tea.Cmd{}
 	cmds = append(cmds, m.restartHomeTick())
@@ -1508,6 +1548,9 @@ func (m Model) selectionURL() string {
 	}
 	if m.screen == screenSet {
 		return m.setSelectionURL()
+	}
+	if m.screen == screenBoard {
+		return m.boardSelectionURL()
 	}
 	if m.screen == screenTree {
 		return m.treeSelectionURL()
@@ -1972,6 +2015,8 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		return m, nil
 	case m.screen == screenPlan && len(m.plan.stack) > 0:
 		return m.popPlan()
+	case m.screen == screenPlan && m.fromBoard:
+		return m.showBoard()
 	case m.screen == screenPlan && m.fromSet:
 		// Closing the plan screen stops its watch and drops its loads still
 		// in flight, so none lands on a plan the user has left.
@@ -2051,6 +2096,8 @@ func (m Model) View() string {
 		return m.overlayView(m.formView())
 	case screenHome:
 		return m.homeView()
+	case screenBoard:
+		return m.boardView()
 	case screenSet:
 		return m.overlayView(m.setScreenView())
 	case screenSetVars:

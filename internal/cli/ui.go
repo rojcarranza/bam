@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/config"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/view"
 	"github.com/rojcarranza/bam/internal/view/tui"
@@ -27,7 +28,7 @@ func newUICmd(r *runtime) *cobra.Command {
 					WithWhy("stdin and stdout are not both a terminal").
 					WithTry("run bam ui from an interactive shell, or use bam's commands on a pipe")
 			}
-			return r.openUI(cmd.Context())
+			return r.openUI(cmd.Context(), false)
 		}),
 	}
 	addProjectFlag(cmd, r)
@@ -59,7 +60,7 @@ func (r *runtime) tuiAllowed() bool {
 
 // openUI builds the UI's dependencies from the same configuration and the
 // same connect function the commands use, then hands them over.
-func (r *runtime) openUI(ctx context.Context) error {
+func (r *runtime) openUI(ctx context.Context, board bool) error {
 	cfg, err := r.config()
 	if err != nil {
 		return err
@@ -125,7 +126,19 @@ func (r *runtime) openUI(ctx context.Context) error {
 			}
 			return removePreset(fresh, name)
 		},
-		Open: r.env.OpenBrowser,
+		// The board reads the pins fresh on every refresh and writes only
+		// bam's own settings file.
+		Monitor: func() ([]config.PinGroup, error) {
+			fresh, err := r.loadConfig()
+			if err != nil {
+				return nil, err
+			}
+			return fresh.Monitor()
+		},
+		PinAdd:       r.pinAdd,
+		PinRemove:    r.pinRemove,
+		StartOnBoard: board,
+		Open:         r.env.OpenBrowser,
 		Bell: func() func() {
 			if cfg.Machine.Bell != nil && !*cfg.Machine.Bell {
 				return nil
@@ -164,4 +177,16 @@ func (r *runtime) openUI(ctx context.Context) error {
 // sortServers keeps the picker's order stable across runs; Servers() is a map.
 func sortServers(ss []tui.Server) {
 	sort.Slice(ss, func(i, j int) bool { return ss[i].Alias < ss[j].Alias })
+}
+
+// hasPins says whether any pipeline is pinned, which is when bare bam opens
+// the board instead of the plans table. A settings file that cannot be read
+// is not a reason to stop: the plans table reports it as it always did.
+func (r *runtime) hasPins() bool {
+	cfg, err := r.config()
+	if err != nil {
+		return false
+	}
+	groups, err := cfg.Monitor()
+	return err == nil && len(groups) > 0
 }

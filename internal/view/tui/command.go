@@ -47,6 +47,10 @@ func commands() []command {
 		{name: "sort", arg: "column", desc: "sort the table; -column reverses", run: Model.commandSort},
 		{name: "tree", arg: "build", optional: true, desc: "the build tree of a build, or of the selected build", run: Model.commandTree},
 		{name: "stats", arg: "plan", optional: true, desc: "success rate, durations and failing jobs of a plan or preset (or the selected one)", run: Model.commandStats},
+		{name: "top", desc: "the live board: agents, queue and pinned pipelines", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
+			next, cmd := m.showBoard()
+			return next, cmd, nil
+		}},
 		{name: "quit", desc: "quit", run: func(m Model, _ string) (tea.Model, tea.Cmd, error) {
 			next, cmd := m.quit()
 			return next, cmd, nil
@@ -97,7 +101,7 @@ func didYouMean(prefix, input string, candidates []string) string {
 
 // startCommand opens the : prompt on Home or the panels.
 func (m Model) startCommand() (tea.Model, tea.Cmd) {
-	if m.screen != screenHome && m.screen != screenPlan {
+	if m.screen != screenHome && m.screen != screenPlan && m.screen != screenBoard {
 		return m, nil
 	}
 	m.clearCmdErr()

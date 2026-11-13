@@ -1,0 +1,20 @@
+ lab · Bamboo 12.1.8                         updated 0s ago
+┏━Needs you━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃▸ ! agent linux-2 is offline                              ┃
+┃  ! agent linux-4 is offline                              ┃
+┃  ! PROJ-BUILD-500 has waited 7m in the queue             ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+╭─Agents───────────────────────────────────────────────────╮
+│  busy █████░░░░░ 1 of 2 online · 2 offline · 1 disabled  │
+│  busy ▄▄             queued ██             since opened  │
+│  linux-2  remote  offline                                │
+│  … and 2 more offline or disabled                        │
+╰──────────────────────────────────────────────────────────╯
+╭─Queue────────────────────────────────────────────────────╮
+│▸ 1  PROJ-BUILD-500     7m             Manual build       │
+╰──────────────────────────────────────────────────────────╯
+╭─Pinned───────────────────────────────────────────────────╮
+│  integration                                             │
+│▸ PROJ-BUILD     ✓✗         –                        last │
+╰──────────────────────────────────────────────────────────╯
+lab         enter open  l logs  t tree  i why  P pin  q quit

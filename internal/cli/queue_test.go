@@ -85,14 +85,13 @@ func TestAgentList(t *testing.T) {
 // show and the tree, and never fails when a source is refused.
 func whyHarness(t *testing.T) *harness {
 	h := queueHarness(t)
-	yes, no := true, false
 	b := h.fake.Sequences["PROJ-BUILD-45"][0]
 	b.Stages = []provider.Stage{{Name: "Build", State: provider.StateQueued, Jobs: []provider.Job{
-		{Key: "PROJ-BUILD-JOB1-45", Name: "Compile", State: provider.StateQueued, AnyAgent: &yes}}}}
+		{Key: "PROJ-BUILD-JOB1-45", Name: "Compile", State: provider.StateQueued}}}}
 	h.fake.Sequences["PROJ-BUILD-45"] = []provider.Build{b}
 	pb := queuedBuild("PROJ-PROV-9")
 	pb.Stages = []provider.Stage{{Name: "Provision", State: provider.StateQueued, Jobs: []provider.Job{
-		{Key: "PROJ-PROV-WIN-9", Name: "Windows", State: provider.StateQueued, AnyAgent: &no}}}}
+		{Key: "PROJ-PROV-WIN-9", Name: "Windows", State: provider.StateQueued}}}}
 	h.fake.Sequences["PROJ-PROV-9"] = []provider.Build{pb}
 	h.fake.AgentJobMap = map[string][]string{"linux-1": {"PROJ-BUILD-JOB1"}, "linux-2": {"PROJ-BUILD-JOB1"}}
 	return h
@@ -140,10 +139,12 @@ func TestWhyWithoutAdministratorRightsKeepsWhatIsReadable(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "2 agents can run it (linux-1, linux-2)")
 	assert.NotContains(t, h.stdout.String(), "busy, offline")
 
-	// Neither the possible agents nor the agent list: the job's own answer stands.
+	// Neither the possible agents nor the agent list: bam says nothing about why.
 	h.fake.AgentJobMap = nil
 	require.Equal(t, 0, h.run("queue"))
-	assert.Contains(t, h.stdout.String(), "no agent can run it")
+	assert.NotContains(t, h.stdout.String(), "WHY")
+	require.Equal(t, 0, h.run("queue", "--json"))
+	assert.NotContains(t, h.stdout.String(), "any_agent_can_run")
 	require.Equal(t, 0, h.run("build", "show", "PROJ-BUILD-45"))
 	assert.NotContains(t, h.stdout.String(), "agents can run it")
 	assert.Contains(t, h.stdout.String(), "queue 3 of 3")

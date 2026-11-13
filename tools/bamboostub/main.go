@@ -215,11 +215,6 @@ func (s *stub) liveDoc(key string, b *build) map[string]any {
 	if life == "Finished" {
 		doc["buildCompletedTime"] = stamp(s.ended(b))
 	}
-	if life == "Queued" { // Bamboo tells a waiting job whether any agent can run it
-		stages := doc["stages"].(map[string]any)["stage"].([]any)
-		job := stages[0].(map[string]any)["results"].(map[string]any)["result"].([]any)[0].(map[string]any)
-		job["hasExecutableAgents"] = true
-	}
 	return doc
 }
 

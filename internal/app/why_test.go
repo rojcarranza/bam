@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/rojcarranza/bam/internal/errs"
@@ -14,10 +15,10 @@ import (
 func ptr[T any](v T) *T { return &v }
 
 // queuedBuild is a queued build whose one queued job is PROJ-BUILD-JOB1.
-func queuedBuild(anyAgent *bool) provider.Build {
+func queuedBuild() provider.Build {
 	return provider.Build{Key: "PROJ-BUILD-483", PlanKey: "PROJ-BUILD", State: provider.StateQueued,
 		Stages: []provider.Stage{{Name: "Build", State: provider.StateQueued, Jobs: []provider.Job{
-			{Key: "PROJ-BUILD-JOB1-483", Name: "Compile", State: provider.StateQueued, AnyAgent: anyAgent}}}}}
+			{Key: "PROJ-BUILD-JOB1-483", Name: "Compile", State: provider.StateQueued}}}}}
 }
 
 func whyService(t *testing.T, b provider.Build, agents []provider.Agent, jobs map[string][]string) (*Service, *fake.Provider) {
@@ -46,27 +47,24 @@ var linuxAgents = []provider.Agent{
 func TestWhyNamesTheThreeCases(t *testing.T) {
 	cases := []struct {
 		name     string
-		anyAgent *bool
 		possible map[string][]string
 		ahead    int
 		want     provider.Why
 	}{
-		{"the server says no agent can run it", ptr(false), nil, 0,
+		{"no agent matches the job's requirements", map[string][]string{"PROJ-BUILD-JOB1": {}}, 0,
 			provider.Why{Case: provider.WhyNoAgent, AnyAgent: ptr(false)}},
-		{"no agent matches the job's requirements", ptr(true), map[string][]string{"PROJ-BUILD-JOB1": {}}, 0,
-			provider.Why{Case: provider.WhyNoAgent, AnyAgent: ptr(false)}},
-		{"agents can run it and all are busy or away", ptr(true), map[string][]string{"PROJ-BUILD-JOB1": {"linux-1", "linux-2"}}, 0,
+		{"agents can run it and all are busy or away", map[string][]string{"PROJ-BUILD-JOB1": {"linux-1", "linux-2"}}, 0,
 			provider.Why{Case: provider.WhyBusy, AnyAgent: ptr(true), Count: 2, Agents: []string{"linux-1", "linux-2"}}},
-		{"an agent is free and it is next", ptr(true), map[string][]string{"PROJ-BUILD-JOB1": {"linux-1", "win-1"}}, 0,
+		{"an agent is free and it is next", map[string][]string{"PROJ-BUILD-JOB1": {"linux-1", "win-1"}}, 0,
 			provider.Why{Case: provider.WhyNext, AnyAgent: ptr(true), Count: 2, Agents: []string{"linux-1", "win-1"}}},
-		{"an agent is free but others come first", ptr(true), map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}}, 2,
+		{"an agent is free but others come first", map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}}, 2,
 			provider.Why{Case: provider.WhyAhead, AnyAgent: ptr(true), Count: 1, Agents: []string{"win-1"}, Ahead: 2}},
-		{"more than three agents are counted, not named", ptr(true), map[string][]string{"PROJ-BUILD-JOB1": {"a", "b", "c", "linux-1"}}, 0,
+		{"more than three agents are counted, not named", map[string][]string{"PROJ-BUILD-JOB1": {"a", "b", "c", "linux-1"}}, 0,
 			provider.Why{Case: provider.WhyBusy, AnyAgent: ptr(true), Count: 4}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			b := queuedBuild(c.anyAgent)
+			b := queuedBuild()
 			svc, _ := whyService(t, b, linuxAgents, c.possible)
 			got := svc.WhyWaits(context.Background(), b, c.ahead)
 			require.NotNil(t, got)
@@ -76,7 +74,7 @@ func TestWhyNamesTheThreeCases(t *testing.T) {
 }
 
 func TestWhyWithoutTheAgentListStillCountsWhoCanRun(t *testing.T) {
-	b := queuedBuild(ptr(true))
+	b := queuedBuild()
 	svc, p := whyService(t, b, nil, map[string][]string{"PROJ-BUILD-JOB1": {"linux-1", "win-1"}})
 	p.AgentsErr = errs.Authf("403: the agent list needs an administrator")
 	got := svc.WhyWaits(context.Background(), b, 0)
@@ -85,7 +83,7 @@ func TestWhyWithoutTheAgentListStillCountsWhoCanRun(t *testing.T) {
 }
 
 func TestWhyWithOnlyTheAgentListNamesBusyAgentsButNotNext(t *testing.T) {
-	b := queuedBuild(ptr(true))
+	b := queuedBuild()
 	allBusy := []provider.Agent{{Name: "linux-1", Online: true, Enabled: true, Busy: true}, {Name: "linux-2"}}
 	svc, _ := whyService(t, b, allBusy, nil)
 	got := svc.WhyWaits(context.Background(), b, 0)
@@ -95,39 +93,37 @@ func TestWhyWithOnlyTheAgentListNamesBusyAgentsButNotNext(t *testing.T) {
 
 	// An idle agent may not match the job, and without the possible agents bam cannot tell.
 	svc, _ = whyService(t, b, linuxAgents, nil)
-	got = svc.WhyWaits(context.Background(), b, 0)
-	require.NotNil(t, got)
-	assert.Empty(t, got.Case)
+	assert.Nil(t, svc.WhyWaits(context.Background(), b, 0))
 }
 
 func TestWhyWithNoSourceSaysNothing(t *testing.T) {
-	b := queuedBuild(nil) // the server gave no answer for the job
+	b := queuedBuild()
 	svc, p := whyService(t, b, nil, nil)
 	p.AgentsErr = errs.Authf("403")
 	assert.Nil(t, svc.WhyWaits(context.Background(), b, 0))
 }
 
 func TestWhyLooksOnlyAtTheJobsOfTheCurrentStage(t *testing.T) {
-	b := queuedBuild(ptr(true))
+	b := queuedBuild()
 	b.Stages = append(b.Stages, provider.Stage{Name: "Deploy", Jobs: []provider.Job{
-		{Key: "PROJ-BUILD-JOB2-483", State: provider.StateQueued, AnyAgent: ptr(false)}}})
-	svc, _ := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}})
+		{Key: "PROJ-BUILD-JOB2-483", State: provider.StateQueued}}})
+	svc, _ := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}, "PROJ-BUILD-JOB2": {}})
 	got := svc.WhyWaits(context.Background(), b, 0)
 	require.NotNil(t, got)
 	assert.Equal(t, provider.WhyNext, got.Case)
 }
 
 func TestWhyReportsTheMostBlockedJob(t *testing.T) {
-	b := queuedBuild(ptr(true))
-	b.Stages[0].Jobs = append(b.Stages[0].Jobs, provider.Job{Key: "PROJ-BUILD-JOB2-483", State: provider.StateQueued, AnyAgent: ptr(false)})
-	svc, _ := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}})
+	b := queuedBuild()
+	b.Stages[0].Jobs = append(b.Stages[0].Jobs, provider.Job{Key: "PROJ-BUILD-JOB2-483", State: provider.StateQueued})
+	svc, _ := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}, "PROJ-BUILD-JOB2": {}})
 	got := svc.WhyWaits(context.Background(), b, 0)
 	require.NotNil(t, got)
 	assert.Equal(t, provider.WhyNoAgent, got.Case)
 }
 
 func TestWhyAsksEachSourceOncePerPoll(t *testing.T) {
-	b := queuedBuild(ptr(true))
+	b := queuedBuild()
 	svc, p := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}})
 	for range 3 {
 		svc.WhyWaits(context.Background(), b, 0)
@@ -136,7 +132,7 @@ func TestWhyAsksEachSourceOncePerPoll(t *testing.T) {
 }
 
 func TestBuildWithQueueSaysWhyAndPlace(t *testing.T) {
-	b := queuedBuild(ptr(true))
+	b := queuedBuild()
 	svc, _ := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}})
 	got, err := svc.BuildWithQueue(context.Background(), b.Key)
 	require.NoError(t, err)
@@ -147,8 +143,8 @@ func TestBuildWithQueueSaysWhyAndPlace(t *testing.T) {
 }
 
 func TestQueueRowsSayWhyEachBuildWaits(t *testing.T) {
-	b := queuedBuild(ptr(false))
-	svc, p := whyService(t, b, nil, nil)
+	b := queuedBuild()
+	svc, p := whyService(t, b, nil, map[string][]string{"PROJ-BUILD-JOB1": {}})
 	p.AgentsErr = errs.Authf("403")
 	p.Sequences["PROJ-OTHER-1"] = []provider.Build{{Key: "PROJ-OTHER-1", State: provider.StateQueued}}
 	rows, err := svc.QueueRows(context.Background())
@@ -157,4 +153,23 @@ func TestQueueRowsSayWhyEachBuildWaits(t *testing.T) {
 	assert.Nil(t, rows[0].Why)
 	require.NotNil(t, rows[1].Why)
 	assert.Equal(t, provider.WhyNoAgent, rows[1].Why.Case)
+}
+
+func TestWhyIsNotAskedForABuildThatIsNotQueued(t *testing.T) {
+	b := queuedBuild()
+	b.State = provider.StateRunning
+	svc, p := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}})
+	assert.Nil(t, svc.WhyWaits(context.Background(), b, 0))
+	assert.Zero(t, p.AgentJobsCalls)
+}
+
+func TestWhyAsksOnceWhenBuildsAskAtTheSameTime(t *testing.T) {
+	b := queuedBuild()
+	svc, p := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {"win-1"}})
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Go(func() { svc.WhyWaits(context.Background(), b, 0) })
+	}
+	wg.Wait()
+	assert.Equal(t, 1, p.AgentJobsCalls)
 }

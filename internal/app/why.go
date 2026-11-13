@@ -37,52 +37,46 @@ func (s *Service) seedAgents(as []provider.Agent, ok bool) {
 }
 
 // whyAgents is the agent list, or false when the server refuses it. A
-// refusal removes detail from the answer and is never an error.
+// refusal removes detail from the answer and is never an error. The cache
+// stays locked while it is read, so concurrent callers ask the server once.
 func (s *Service) whyAgents(ctx context.Context) ([]provider.Agent, bool) {
 	c := &s.why
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	if !c.agentsAt.IsZero() && s.Clock.Now().Sub(c.agentsAt) < whyTTL {
-		as, ok := c.agents, c.agentsOK
-		c.mu.Unlock()
-		return as, ok
+		return c.agents, c.agentsOK
 	}
-	c.mu.Unlock()
 	if ch, ok := s.P.(provider.AgentListChecker); ok && ch.CannotListAgents(ctx) {
-		s.seedAgents(nil, false)
+		c.agentsAt, c.agents, c.agentsOK = s.Clock.Now(), nil, false
 		return nil, false
 	}
 	as, err := s.P.Agents(ctx)
 	if ctx.Err() != nil {
 		return nil, false
 	}
-	s.seedAgents(as, err == nil)
+	c.agentsAt, c.agents, c.agentsOK = s.Clock.Now(), as, err == nil
 	return as, err == nil
 }
 
 // whyPossible names the agents that can run the job planKey, in name order,
-// or false when the server refuses to say.
+// or false when the server refuses to say. Like whyAgents, it holds the
+// cache while it asks.
 func (s *Service) whyPossible(ctx context.Context, planKey string) ([]string, bool) {
 	c := &s.why
 	c.mu.Lock()
-	fresh := !c.jobsAt.IsZero() && s.Clock.Now().Sub(c.jobsAt) < whyTTL
-	jobs, ok := c.jobs, c.jobsOK
-	c.mu.Unlock()
-	if !fresh {
-		var err error
-		jobs, err = s.P.AgentJobs(ctx)
+	defer c.mu.Unlock()
+	if c.jobsAt.IsZero() || s.Clock.Now().Sub(c.jobsAt) >= whyTTL {
+		jobs, err := s.P.AgentJobs(ctx)
 		if ctx.Err() != nil {
 			return nil, false
 		}
-		ok = err == nil
-		c.mu.Lock()
-		c.jobsAt, c.jobs, c.jobsOK = s.Clock.Now(), jobs, ok
-		c.mu.Unlock()
+		c.jobsAt, c.jobs, c.jobsOK = s.Clock.Now(), jobs, err == nil
 	}
-	if !ok {
+	if !c.jobsOK {
 		return nil, false
 	}
 	names := []string{}
-	for name, keys := range jobs {
+	for name, keys := range c.jobs {
 		if slices.Contains(keys, planKey) {
 			names = append(names, name)
 		}
@@ -106,6 +100,9 @@ func free(a provider.Agent) bool { return a.Online && a.Enabled && !a.Busy }
 // before it in the queue, -1 when that is not known. It never fails: a source
 // the server refuses removes its detail, and nil means nothing could be said.
 func (s *Service) WhyWaits(ctx context.Context, b provider.Build, ahead int) *provider.Why {
+	if b.State != provider.StateQueued {
+		return nil
+	}
 	var jobs []provider.Job
 	for _, st := range b.Stages {
 		for _, j := range st.Jobs {
@@ -149,11 +146,7 @@ func whyRank(c string) int {
 
 func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int) *provider.Why {
 	yes, no := true, false
-	w := &provider.Why{AnyAgent: j.AnyAgent}
-	if j.AnyAgent != nil && !*j.AnyAgent {
-		w.Case = provider.WhyNoAgent
-		return w
-	}
+	w := &provider.Why{}
 	agents, agentsOK := s.whyAgents(ctx)
 	names, possibleOK := s.whyPossible(ctx, jobPlanKey(j.Key))
 	if possibleOK {
@@ -171,9 +164,6 @@ func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int) *provid
 		return w
 	}
 	canRun := func(a provider.Agent) bool { return !possibleOK || slices.Contains(names, a.Name) }
-	if !possibleOK && j.AnyAgent == nil {
-		return w // without either answer an idle agent says nothing about this job
-	}
 	anyFree := false
 	for _, a := range agents {
 		if free(a) && canRun(a) {

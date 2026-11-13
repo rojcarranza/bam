@@ -21,11 +21,11 @@ func newQueueCmd(r *runtime) *cobra.Command {
 			"that does not start is waiting for an agent: bam agent list shows which are\n" +
 			"online, enabled and busy.\n\n" +
 			"The WHY column says why a build waits: no agent can run it, agents can run it\n" +
-			"but all are busy, offline or disabled, or agents are free and it is next. It\n" +
-			"names the agents when three or fewer can run the job. Bamboo shows whether an\n" +
-			"agent can run a job to every user, but which agents can, and whether they are\n" +
-			"free, only to an administrator. A part Bamboo refuses is left out, never an\n" +
-			"error.",
+			"but all are busy, offline or disabled, agents are free and it is next, or\n" +
+			"agents are free and other builds come before it. It names the agents when\n" +
+			"three or fewer can run the job. Bamboo shows which agents can run a job, and\n" +
+			"whether they are free, only to an administrator. A part Bamboo refuses is left\n" +
+			"out, never an error.",
 		Example: "  bam queue\n  bam queue --json",
 		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {

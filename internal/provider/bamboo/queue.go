@@ -130,7 +130,7 @@ type agentDetailDTO struct {
 // endpoint is not yet known to work, the agent list is read once to tell the
 // causes apart: if none of them is listed they were removed and the answer is
 // an empty map; if any is still listed the endpoint is absent and that is
-// learned; if the list cannot be read the answer is a refusal, learned not.
+// learned; if the list cannot be read the answer is a refusal, not learned.
 // Once the endpoint is known to work, those agents were removed and the
 // answer is an empty map. The first other failure stops the agents not read
 // yet.

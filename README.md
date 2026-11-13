@@ -459,7 +459,7 @@ A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, tr
 
 ## Terminal UI
 
-Typing `bam` alone opens a full-screen view of your plans. You can browse, watch, read logs, run and cancel from it, with the keys shown at the bottom. `bam --project BAMCI` opens it on one project, and `bam ui` opens it explicitly. Pipe bam's output, or pass `--no-tui`, and bare `bam` prints help instead.
+Typing `bam` alone opens a full-screen view of your plans, or the live `bam top` board once you have pinned pipelines (see [docs/tui.md](docs/tui.md#the-board)). You can browse, watch, read logs, run and cancel from it, with the keys shown at the bottom. `bam --project BAMCI` opens it on one project, and `bam ui` opens it explicitly. Pipe bam's output, or pass `--no-tui`, and bare `bam` prints help instead.
 
 ### The plans table
 

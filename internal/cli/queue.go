@@ -19,7 +19,13 @@ func newQueueCmd(r *runtime) *cobra.Command {
 		Short:   "List the builds waiting for an agent, first in line first",
 		Long: "List the builds waiting for an agent, first in line first. A queued build\n" +
 			"that does not start is waiting for an agent: bam agent list shows which are\n" +
-			"online, enabled and busy.",
+			"online, enabled and busy.\n\n" +
+			"The WHY column says why a build waits: no agent can run it, agents can run it\n" +
+			"but all are busy, offline or disabled, agents are free and it is next, or\n" +
+			"agents are free and other builds come before it. It names the agents when\n" +
+			"three or fewer can run the job. Bamboo shows which agents can run a job, and\n" +
+			"whether they are free, only to an administrator. A part Bamboo refuses is left\n" +
+			"out, never an error.",
 		Example: "  bam queue\n  bam queue --json",
 		Args:    cobra.NoArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, _ []string) error {

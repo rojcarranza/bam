@@ -349,3 +349,24 @@ func TestStubServesAgentsAndTheQueue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, q)
 }
+
+// TestWaitingBuildAnswersTheWhySources: a queued build has a queued job,
+// the agent list is served, and each agent lists the jobs it can run.
+func TestWaitingBuildAnswersTheWhySources(t *testing.T) {
+	_, c := testStub(t)
+	ctx := context.Background()
+
+	run, err := c.Trigger(ctx, provider.TriggerRequest{PlanKey: "PROJ-BUILD"})
+	require.NoError(t, err)
+	queued, err := c.GetBuild(ctx, run.Key)
+	require.NoError(t, err)
+	assert.Equal(t, provider.StateQueued, queued.Stages[0].Jobs[0].State)
+
+	agents, err := c.Agents(ctx)
+	require.NoError(t, err)
+	jobs, err := c.AgentJobs(ctx, agents)
+	require.NoError(t, err)
+	assert.Contains(t, jobs["linux-1"], "PROJ-BUILD-JOB1")
+	assert.Contains(t, jobs["linux-2"], "PROJ-BUILD-JOB1")
+	assert.Empty(t, jobs["local-1"])
+}

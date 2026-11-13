@@ -807,6 +807,9 @@ func treeSignature(t Tree) string {
 	var b strings.Builder
 	t.Root.Walk(func(n *TreeNode, depth int) {
 		fmt.Fprintf(&b, "%d %s %s %s %d/%d %t %t %t", depth, n.PlanKey, n.Build.Key, n.Build.State, n.Build.QueuePosition, n.Build.QueueLength, n.NotRun, n.Loop, n.Progress.Valid)
+		if w := n.Build.Why; w != nil {
+			fmt.Fprintf(&b, " why=%s/%d/%d", w.Case, w.Count, w.Ahead)
+		}
 		for _, st := range n.Build.Stages {
 			fmt.Fprintf(&b, " %s=%s", st.Name, st.State)
 		}

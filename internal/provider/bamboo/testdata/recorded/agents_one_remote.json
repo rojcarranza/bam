@@ -1,0 +1,10 @@
+[
+  {
+    "id": 622593,
+    "name": "linux-1",
+    "type": "REMOTE",
+    "active": true,
+    "enabled": false,
+    "busy": true
+  }
+]

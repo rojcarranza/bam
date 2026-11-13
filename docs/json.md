@@ -25,6 +25,7 @@ Within a major version fields are only added, never renamed, retyped or removed.
 - `failed_test_details`: each failed test as `{"name":"...","message":"..."}`, in the order of `failed_tests`. `message` is the error text Bamboo reports, with secret-looking values masked as `********`, and is `""` when the server gives none.
 - `queue_position` and `queue_length`: a queued build's place in the server's queue, counted from 1, and how many builds are queued. Both are absent when the build is not queued or the server cannot list its queue.
 - `queued_at` and `queue_duration_ms`: when the build joined the queue and how long it waited for an agent, taken from its jobs (the wait is the longest job of each stage, summed over the stages); `null` and `0` when Bamboo does not say. Each job has `queue_duration_ms` (its wait for an agent) and `checkout_duration_ms` (its checkout), `0` when unknown.
+- `why`, `why_case`, `any_agent_can_run` and `agents_that_can_run`: why a queued build waits, in words, as one of `no_agent`, `busy`, `next` or `ahead`, whether any agent can run its jobs, and the names of the agents that can (only when three or fewer). Each is absent when bam cannot tell: Bamboo shows which agents can run a job, and whether they are free, only to administrators.
 - `plan_name`: the plan's short name, as Bamboo shows it. For a branch build it is the master plan's name; `branch` holds the branch.
 
 `state` is one of `queued`, `running`, `success`, `failed`, `stopped`, `skipped`, `not_built`, `unknown`.
@@ -152,7 +153,7 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 
 ## Queue and agents
 
-`bam queue --json` is a list of `{"position":1,"key":"PROJ-BUILD-45","url":"...","plan_key":"PROJ-BUILD","number":45,"reason":"Manual build","waited_ms":420000,"waited_at_least":false}`, first in line first; `waited_ms` is how long the build has waited, read from the build's own record, and `waited_at_least` is true when the record gave no start and bam counted from when it first saw the build; `[]` when nothing waits. `bam agent list --json` is a list of `{"id":1,"name":"linux-1","type":"REMOTE","online":true,"enabled":true,"busy":false}`. A queued build waits for an agent that is online, enabled and not busy.
+`bam queue --json` is a list of `{"position":1,"key":"PROJ-BUILD-45","url":"...","plan_key":"PROJ-BUILD","number":45,"reason":"Manual build","waited_ms":420000,"waited_at_least":false}` (with the `why` fields above when known), first in line first; `waited_ms` is how long the build has waited, read from the build's own record, and `waited_at_least` is true when the record gave no start and bam counted from when it first saw the build; `[]` when nothing waits. `bam agent list --json` is a list of `{"id":1,"name":"linux-1","type":"REMOTE","online":true,"enabled":true,"busy":false}`. A queued build waits for an agent that is online, enabled and not busy.
 
 ## Board
 

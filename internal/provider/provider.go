@@ -26,6 +26,11 @@ type Provider interface {
 	Queue(ctx context.Context) ([]QueueEntry, error)
 	// Agents lists the server's build agents.
 	Agents(ctx context.Context) ([]Agent, error)
+	// AgentJobs says, for each of agents by name, the jobs (plan keys such
+	// as PROJ-PLAN-JOB1) its capabilities let it run, disabled and offline
+	// agents included. agents is the list Agents answered. It needs an
+	// administrator; a refusal wraps errs.ErrUnsupported.
+	AgentJobs(ctx context.Context, agents []Agent) (map[string][]string, error)
 	URL(key string) string
 	// RepositoriesURL is the page where a person sets which branch each
 	// repository of the plan (branch) builds.
@@ -40,6 +45,13 @@ type Provider interface {
 // can leave out hints that would only fail.
 type RestartChecker interface {
 	CannotRestart(ctx context.Context) bool
+}
+
+// AgentListChecker is an optional Provider extension. CannotListAgents
+// reports true when the server is already known to refuse the agent list,
+// so a caller does not ask again only to be refused.
+type AgentListChecker interface {
+	CannotListAgents(ctx context.Context) bool
 }
 
 // StopChecker is RestartChecker for StopBuild.

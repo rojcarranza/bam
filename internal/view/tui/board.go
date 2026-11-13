@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/rojcarranza/bam/internal/view"
@@ -579,7 +580,8 @@ func (m Model) boardBody() []string {
 	ah := 4 + min(awayCount(b), awayMax)
 	nh = max(min(nh, h-ah-7), 3)
 	rest := h - nh - ah
-	qh := max(min(max(len(b.data.Queue), 1)+2, rest-4), 3)
+	queue, queueCursor := m.queueLines(inner)
+	qh := max(min(len(queue)+2, rest-4), 3)
 	ph := rest - qh
 
 	var lines []string
@@ -591,7 +593,7 @@ func (m Model) boardBody() []string {
 	}
 	add("Needs you", b.panel == boardNeeds, nh, window(needs, b.cursor[boardNeeds], nh-2))
 	add("Agents", false, ah, m.agentLines(inner, awayMax))
-	add("Queue", b.panel == boardQueue, qh, window(m.queueLines(), b.cursor[boardQueue], qh-2))
+	add("Queue", b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
 	pins, pinCursor := m.pinLines()
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
 	return lines
@@ -663,30 +665,77 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	return out
 }
 
-func (m Model) queueLines() []string {
+// queueLines draws the queue, one line per build, and says which line holds
+// the cursor. The columns are as wide as their widest value, and why a build
+// waits comes before the trigger reason: when the line is too wide the
+// reason is cut short with an ellipsis, then the agents' names go, then
+// long keys are shortened, so the why stays readable.
+func (m Model) queueLines(inner int) ([]string, int) {
 	b := &m.board
 	switch {
 	case !b.have:
-		return []string{dimStyle.Render("  reading the queue…")}
+		return []string{dimStyle.Render("  reading the queue…")}, 0
 	case !b.data.QueueOK:
-		return []string{"  " + b.data.QueueNote}
+		return []string{"  " + b.data.QueueNote}, 0
 	case len(b.data.Queue) == 0:
-		return []string{dimStyle.Render("  The queue is empty")}
+		return []string{dimStyle.Render("  The queue is empty")}, 0
 	}
-	var out []string
+	waits := make([]string, len(b.data.Queue))
+	posW, keyW, waitW := 0, 0, 0
 	for i, r := range b.data.Queue {
 		// Waited is as of the last read; it keeps counting until the next.
 		w := r.Waited + max(m.now().Sub(b.loadedAt), 0)
-		waited := brief(w)
+		waits[i] = brief(w)
 		if w <= 0 {
-			waited = "0s"
+			waits[i] = "0s"
 		}
 		if r.AtLeast {
-			waited = "at least " + waited
+			waits[i] = "at least " + waits[i]
 		}
-		out = append(out, fmt.Sprintf("%s%d  %-18s %-14s %s", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), r.Position, r.Key, waited, dimStyle.Render(r.Reason)))
+		posW = max(posW, len(fmt.Sprint(r.Position)))
+		keyW = max(keyW, lipgloss.Width(r.Key))
+		waitW = max(waitW, lipgloss.Width(waits[i]))
 	}
-	return out
+	// A long key must not push a why past the panel: shorten the KEY
+	// column, down to a floor, until the shortest form of every why fits.
+	needW := 0
+	for _, r := range b.data.Queue {
+		if r.Why != nil {
+			short := *r.Why
+			short.Agents = nil
+			needW = max(needW, lipgloss.Width(view.WhyText(&short)))
+		}
+	}
+	if fit := inner - (2 + posW + 2 + 2 + waitW + 2) - needW; fit < keyW {
+		keyW = max(fit, min(keyW, 10))
+	}
+	var out []string
+	for i, r := range b.data.Queue {
+		key := r.Key
+		if lipgloss.Width(key) > keyW {
+			key = ansi.Truncate(key, keyW, "…")
+		}
+		head := fmt.Sprintf("%s%-*d  %-*s  %-*s  ", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), posW, r.Position, keyW, key, waitW, waits[i])
+		room := inner - lipgloss.Width(head)
+		why := view.WhyText(r.Why)
+		if r.Why != nil && len(r.Why.Agents) > 0 && lipgloss.Width(why) > room {
+			short := *r.Why
+			short.Agents = nil
+			why = view.WhyText(&short)
+		}
+		if lipgloss.Width(why) > room {
+			why = ansi.Truncate(why, max(room, 1), "…")
+		}
+		text := r.Reason
+		if why != "" {
+			text = why
+			if rest := room - lipgloss.Width(why+" · "); r.Reason != "" && rest > 1 {
+				text += " · " + ansi.Truncate(r.Reason, rest, "…")
+			}
+		}
+		out = append(out, head+dimStyle.Render(text))
+	}
+	return out, b.cursor[boardQueue]
 }
 
 // pinLines draws the groups, and says which line holds the cursor.

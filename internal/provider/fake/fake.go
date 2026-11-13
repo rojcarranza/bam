@@ -52,6 +52,9 @@ type Provider struct {
 	QueueErr       error
 	AgentList      []provider.Agent
 	AgentsErr      error
+	AgentJobMap    map[string][]string // by agent name: the jobs it can run
+	AgentJobsErr   error               // returned when AgentJobMap is nil
+	AgentJobsCalls int
 
 	mu           sync.Mutex
 	Triggered    []provider.TriggerRequest
@@ -318,4 +321,17 @@ func (f *Provider) Queue(context.Context) ([]provider.QueueEntry, error) {
 
 func (f *Provider) Agents(context.Context) ([]provider.Agent, error) {
 	return f.AgentList, f.AgentsErr
+}
+
+func (f *Provider) AgentJobs(context.Context, []provider.Agent) (map[string][]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.AgentJobsCalls++
+	if f.AgentJobMap != nil {
+		return f.AgentJobMap, nil
+	}
+	if f.AgentJobsErr != nil {
+		return nil, f.AgentJobsErr
+	}
+	return nil, errs.Bamboof("no agent jobs").Wrap(errs.ErrUnsupported)
 }

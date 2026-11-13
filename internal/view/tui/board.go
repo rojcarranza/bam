@@ -571,6 +571,9 @@ func (m Model) boardBody() []string {
 		lines := strings.Split(panel("Needs you", b.panel == boardNeeds, m.width, min(len(needs)+2, h-1), strings.Join(needs, "\n")), "\n")
 		return append(lines, dimStyle.Render(" more at 60 columns by 20 rows"))
 	}
+	if m.height >= roomyRows {
+		return m.roomyBoardBody()
+	}
 	inner := m.width - 2
 	nh := min(len(needs), 4) + 2
 	awayMax := 2
@@ -594,7 +597,7 @@ func (m Model) boardBody() []string {
 	add("Needs you", b.panel == boardNeeds, nh, window(needs, b.cursor[boardNeeds], nh-2))
 	add("Agents", false, ah, m.agentLines(inner, awayMax))
 	add("Queue", b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
-	pins, pinCursor := m.pinLines()
+	pins, pinCursor := m.pinLines(false)
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
 	return lines
 }
@@ -739,7 +742,7 @@ func (m Model) queueLines(inner int) ([]string, int) {
 }
 
 // pinLines draws the groups, and says which line holds the cursor.
-func (m Model) pinLines() ([]string, int) {
+func (m Model) pinLines(spaced bool) ([]string, int) {
 	b := &m.board
 	if !b.have {
 		return []string{dimStyle.Render("  reading the pipelines…")}, 0
@@ -749,7 +752,10 @@ func (m Model) pinLines() ([]string, int) {
 	}
 	var out []string
 	cursorLine, n := 0, 0
-	for _, g := range b.data.Groups {
+	for gi, g := range b.data.Groups {
+		if spaced && gi > 0 {
+			out = append(out, "")
+		}
 		out = append(out, "  "+titleStyle.Render(g.Name))
 		for _, p := range g.Pins {
 			sel := b.panel == boardPins && n == b.cursor[boardPins]

@@ -14,7 +14,9 @@ The board refreshes by itself, with no key pressed, and never stops for idleness
 
 `enter` opens the selected pipeline, or the selected build, in the plan screen; `l`, `t`, `i`, `o` and `y` work as elsewhere, on a pin's running build or else its newest result, or on a queued build. `esc` comes back to the board. `tab` moves between Needs you, Queue and Pinned. `P` unpins the selected pipeline, or, on a queued build, asks for a group and pins that build's plan. No key changes anything on Bamboo; `P` writes only bam's settings file, and a pin that lives in `.bam.yaml` is edited there by hand.
 
-The bell rings once when a new line joins Needs you (not when a line only changes its numbers); `bell: false` turns it off. Under 20 rows or 60 columns the board shows its header and Needs you only. `bam top --once`, `--json` and a pipe print the board once instead.
+The bell rings once when a new line joins Needs you (not when a line only changes its numbers); `bell: false` turns it off. Under 20 rows or 60 columns the board shows its header and Needs you only.
+
+From 40 rows of height the board gives each panel room: an empty row under its title and above its bottom border, and two empty columns between its border and its text. The Agents panel takes the rows its lines need. **Needs you** shows every line it has until it fills a third of the rest, then scrolls, and its title counts them (`Needs you · 13 of 25`). In one column the Queue takes its lines up to a third of the rest and Pinned takes what is left, never less than a third. From 160 columns of width the board uses two columns: Needs you, Agents and the Queue stacked on the left (45% of the width, the Queue taking the spare rows), and Pinned the full height on the right. Pinned keeps an empty row between two groups while every pin still fits. Below 40 rows the board lays out tightly, as before, and `bam top --once` is unchanged. `bam top --once`, `--json` and a pipe print the board once instead.
 
 ## Projects
 

@@ -65,7 +65,9 @@ func (s *Service) FindPlanByName(ctx context.Context, name string) (provider.Pla
 		}
 		return provider.Plan{}, e
 	case 1:
-		return fits[0], nil
+		if !partial || strings.EqualFold(fits[0].Name, name) {
+			return fits[0], nil
+		}
 	}
 	lines := make([]string, 0, maxFits+1)
 	for i, p := range fits {
@@ -75,11 +77,14 @@ func (s *Service) FindPlanByName(ctx context.Context, name string) (provider.Pla
 		}
 		lines = append(lines, p.Key+"  "+p.Name)
 	}
-	more := ""
-	if partial {
-		more = " or more"
+	noun := "plans"
+	if len(fits) == 1 {
+		noun = "plan"
 	}
-	return provider.Plan{}, errs.Usagef("%q fits %d plans%s", name, len(fits), more).
+	if partial {
+		noun += " or more"
+	}
+	return provider.Plan{}, errs.Usagef("%q fits %d %s", name, len(fits), noun).
 		WithWhy(strings.Join(lines, "\n  ")).
 		WithTry("pin one of them by its plan key, or give more of its name")
 }

@@ -136,3 +136,28 @@ func TestFindPlanByNameSaysAPartialSearchMayHoldMoreFits(t *testing.T) {
 	require.ErrorAs(t, err, &e)
 	assert.Contains(t, e.Why, "give more of the name")
 }
+
+// The search page holds one plan with the word, but more may follow it, and
+// the plan named exactly that may be among them: one fit is not proof.
+func TestFindPlanByNameOnePartFitOnAPartialPageIsNotPinned(t *testing.T) {
+	p := &fake.Provider{Plans: map[string][]provider.Plan{"PROJ": {}}}
+	p.SearchPage = []provider.Plan{
+		{Key: "OPS-DEPLOYPKG", Name: "Deploy package", ProjectKey: "OPS"},
+		{Key: "OPS-WEB", Name: "Web", ProjectKey: "OPS"},
+	}
+	_, err := findName(t, p, "deploy")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+	assert.Contains(t, e.What, `"deploy" fits 1 plan or more`)
+	assert.Contains(t, e.Why, "OPS-DEPLOYPKG  Deploy package")
+	assert.Contains(t, e.Try, "give more of its name")
+}
+
+func TestFindPlanByNameAnExactFitOnAPartialPageIsPinned(t *testing.T) {
+	p := &fake.Provider{Plans: map[string][]provider.Plan{"PROJ": {}}}
+	p.SearchPage = []provider.Plan{{Key: "OPS-DEPLOY", Name: "Deploy", ProjectKey: "OPS"}}
+	plan, err := findName(t, p, "DEPLOY")
+	require.NoError(t, err)
+	assert.Equal(t, "OPS-DEPLOY", plan.Key)
+}

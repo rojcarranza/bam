@@ -2,7 +2,7 @@
 ┏━Needs you · 3━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Pinned─────────────────────────────────────────────────────────────────────────────────────────────────────╮
 ┃                                                                                        ┃│                                                                                                            │
 ┃  ▸ ! agent linux-2 is offline                                                          ┃│    integration                                                                                             │
-┃    ! PROJ-BUILD-500 has waited 7m in the queue                                         ┃│  ▸ Top pipeline   ✓          #9 running ███░░░ 5m/10m · 3/5 Run integration builds last 9m · usual 10m     │
+┃    ! PROJ-BUILD-500 has waited 7m in the queue                                         ┃│  ▸ Top pipeline   ✓          #9 running ███░░░ 5m/10m · 3/5 Run integration b… last 9m · usual 10m         │
 ┃    ! Top pipeline: the child pipeline PROJ-SUB-1 failed                                ┃│      ├─ ✓ stage Build  1m00s                                                                               │
 ┃                                                                                        ┃│      ├─ ✓ stage Check  1m00s                                                                               │
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛│      ├─ ▸ stage Run integration builds  1m00s                                                              │
@@ -14,7 +14,7 @@
 │    linux-3  remote  disabled                                                           ││      ├─ – stage Notify  1m00s                                                                              │
 │    Show only your agents: bam agent mine add NAME-START                                ││      └─ PROJ-DOCS-3 (PROJ-DOCS)  ✓ success  1m00s                                                          │
 │                                                                                        ││         └─ ✓ stage Publish  1m00s                                                                          │
-╰────────────────────────────────────────────────────────────────────────────────────────╯│    Build and test ✓          –                                                     last – · usual –        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯│    Build and test ✓          –                                                 last – · usual –            │
 ╭─Queue · 2──────────────────────────────────────────────────────────────────────────────╮│                                                                                                            │
 │                                                                                        ││                                                                                                            │
 │  ▸ 1  PROJ-BUILD-500  7m  Manual build                                                 ││                                                                                                            │

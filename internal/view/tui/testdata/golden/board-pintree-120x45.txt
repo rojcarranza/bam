@@ -24,7 +24,7 @@
 ╭─Pinned───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │                                                                                                                      │
 │    integration                                                                                                       │
-│  ▸ Top pipeline   ✓          #9 running ███░░░ 5m/10m · 3/5 Run integration builds last 9m · usual 10m               │
+│  ▸ Top pipeline   ✓          #9 running ███░░░ 5m/10m · 3/5 Run integration b… last 9m · usual 10m                   │
 │      ├─ ✓ stage Build  1m00s                                                                                         │
 │      ├─ ✓ stage Check  1m00s                                                                                         │
 │      ├─ ▸ stage Run integration builds  1m00s                                                                        │
@@ -36,7 +36,7 @@
 │      ├─ – stage Notify  1m00s                                                                                        │
 │      └─ PROJ-DOCS-3 (PROJ-DOCS)  ✓ success  1m00s                                                                    │
 │         └─ ✓ stage Publish  1m00s                                                                                    │
-│    Build and test ✓          –                                                     last – · usual –                  │
+│    Build and test ✓          –                                                 last – · usual –                      │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

@@ -143,7 +143,7 @@ func (g PinGroupView) Rows() []PinView {
 
 // Need is one line of the Needs you list.
 type Need struct {
-	Kind string // agent_offline, queue_wait, pin_failed or pin_slow
+	Kind string // agent_offline, queue_wait, pin_failed, pin_child_failed or pin_slow
 	Text string
 	// Build is the build the line is about, "" for an agent. The text
 	// changes as time passes; Kind and Build name the same line throughout.

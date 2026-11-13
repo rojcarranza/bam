@@ -86,7 +86,7 @@ func TestBoardDrawsAPinsTreeWithPipelinesAndStages(t *testing.T) {
 	for _, size := range [][2]int{{120, 45}, {200, 50}} {
 		v := plain(treeBoardModel(size[0], size[1], nil))
 		for _, want := range []string{
-			"Top pipeline", "· 3/5 Run integration builds", // the pin's row names the stage
+			"Top pipeline", "· 3/5 Run integration b…", // the pin's row names the stage
 			"└─ PROJ-DOCS-3", "└─ ✓ stage Publish",
 			"PROJ-K8S0-4 (Kubernetes · feature-x)", "stage Provision", "PROJ-SUB-1", "1/1 Provision", "stage Smoke",
 		} {
@@ -234,4 +234,16 @@ func TestFoldedPinKeepsItsBranchRowsAddressable(t *testing.T) {
 	m, _ = send(m, mkKey("j"))
 	pin, _ = m.boardPin()
 	require.Equal(t, "PROJ-BUILD", pin.PlanKey, "then the next pin")
+}
+
+// Intent (review of this change): the stage of a tree belongs to its own
+// build; a queued build after a finished one does not wear the finished
+// build's stage, and a long stage name is cut so it does not widen every row.
+func TestPinNowShowsAStageOnlyForItsOwnBuild(t *testing.T) {
+	m := treeBoardModel(120, 45, nil)
+	pin := m.board.data.Groups[0].Pins[0]
+	require.Contains(t, m.pinNow(pin), "3/5 Run integration b…", "a long stage name is cut")
+	queued := provider.Build{Key: "PROJ-TOP-10", PlanKey: "PROJ-TOP", Number: 10, State: provider.StateQueued}
+	pin.Current = &queued
+	require.NotContains(t, m.pinNow(pin), "3/5", "build 10 is not in the stage build 9 was in")
 }

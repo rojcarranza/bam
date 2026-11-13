@@ -1000,6 +1000,10 @@ func (m Model) pinLabelWidth(inner, nowW int) int {
 	return min(w, max(14, inner-2-pinRest-nowW))
 }
 
+// pinStageWidth is the most a stage "3/5 Name" takes in a pin's current-build
+// cell, so one long stage name does not push the rest of every row out.
+const pinStageWidth = 22
+
 // pinNow is a pin's current build: its number and state, with a progress bar
 // while it runs, or a dash.
 func (m Model) pinNow(p app.PinView) string {
@@ -1007,7 +1011,7 @@ func (m Model) pinNow(p app.PinView) string {
 	if c == nil {
 		if p.HasChildren() {
 			if root := p.Tree.Root.Build; root.State == provider.StateFailed && app.StageProgress(root) != "" {
-				return fmt.Sprintf("#%d failed · %s", root.Number, app.StageProgress(root))
+				return fmt.Sprintf("#%d failed · %s", root.Number, cut(app.StageProgress(root), pinStageWidth))
 			}
 		}
 		return "–"
@@ -1017,9 +1021,9 @@ func (m Model) pinNow(p app.PinView) string {
 		run := max(m.now().Sub(c.StartedAt), 0)
 		now += fmt.Sprintf(" %s %s/%s", bar(float64(run)/float64(p.Usual), 6), brief(run), brief(p.Usual))
 	}
-	if p.HasChildren() {
+	if p.HasChildren() && p.Tree.Root.Build.Key == c.Key {
 		if st := app.StageProgress(p.Tree.Root.Build); st != "" {
-			now += " · " + st
+			now += " · " + cut(st, pinStageWidth)
 		}
 	}
 	return now

@@ -27,7 +27,8 @@ type pinTreeMemo struct {
 	scan      *treeScan
 	done      map[string]provider.Build
 	scannedAt time.Time
-	settled   bool // the plans were last listed after the finished tree had settled
+	last      *Tree // the last tree read, kept for a read that fails
+	settled   bool  // the plans were last listed after the finished tree had settled
 }
 
 // pinTreeCache holds one memo per root build key.
@@ -119,7 +120,7 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 	}
 	t, scan, err := s.buildTree(ctx, root.Key, o, m.done, m.scan)
 	if err != nil {
-		return nil
+		return m.last // the tree read before, so a failed read does not blank the pin
 	}
 	m.scan = scan
 	if !o.NoScan {
@@ -136,6 +137,7 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 		s.KeepTree(root.Key, t)
 		s.pinTrees.forget(root.Key)
 	}
+	m.last = &t
 	return &t
 }
 

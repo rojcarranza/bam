@@ -1,7 +1,7 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X github.com/rojcarranza/bam/internal/cli.version=$(VERSION)
 
-.PHONY: build install test lint e2e record check-fixtures docs stub release
+.PHONY: build install test lint e2e record check-fixtures docs stub gate release
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/bam ./cmd/bam
@@ -29,6 +29,9 @@ docs:
 
 stub:
 	go run ./tools/bamboostub $(ARGS)
+
+gate:
+	go run ./tools/gate
 
 release:
 	./scripts/release.sh $(VERSION)

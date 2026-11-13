@@ -249,6 +249,33 @@ func TestPlanStatsSlowestStagesAndJobs(t *testing.T) {
 	require.Equal(t, "Package job", st.SlowJobs[0].Name)
 }
 
+func TestPlanStatsSlowestJobsKeepSameNamedJobsInDifferentStagesApart(t *testing.T) {
+	build := func(n int, buildRun, testRun time.Duration) provider.Build {
+		b := sb(n, provider.StateSuccess, buildRun+testRun)
+		for _, s := range []struct {
+			name string
+			run  time.Duration
+		}{{"Build", buildRun}, {"Test", testRun}} {
+			b.Stages = append(b.Stages, provider.Stage{Name: s.name, State: provider.StateSuccess, Duration: s.run, Jobs: []provider.Job{
+				{Key: b.Key + "-" + s.name, Name: "Default Job", State: provider.StateSuccess, Duration: s.run},
+			}})
+		}
+		return b
+	}
+	s, _ := statsService(t,
+		build(4, time.Minute, 10*time.Minute),
+		build(3, time.Minute, 10*time.Minute),
+		build(2, 2*time.Minute, 20*time.Minute),
+		build(1, 2*time.Minute, 20*time.Minute),
+	)
+	st, err := s.PlanStats(bg, statsRef(), 2)
+	require.NoError(t, err)
+	require.Equal(t, []Slowest{
+		{Name: "Test / Default Job", Median: 10 * time.Minute, Runs: 2, Earlier: 20 * time.Minute},
+		{Name: "Build / Default Job", Median: time.Minute, Runs: 2, Earlier: 2 * time.Minute},
+	}, st.SlowJobs)
+}
+
 func TestPlanStatsComparesWithTheWindowBefore(t *testing.T) {
 	s, _ := statsService(t,
 		waitedBuild(4, 8*time.Second, time.Minute, "Test"),

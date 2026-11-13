@@ -342,30 +342,42 @@ func percentiles(ds []time.Duration) (median, p90 time.Duration) {
 }
 
 // slowest lists the stages and jobs with the longest median run time over
-// the successful runs in cur, with the same median over prev.
+// the successful runs in cur, with the same median over prev. Jobs are told
+// apart by stage, since jobs in different stages often share a name; a job
+// whose name is in more than one stage is shown as "Stage / Job".
 func slowest(cur, prev []provider.Build) (stages, jobs []Slowest) {
-	medians := func(bs []provider.Build) (stage, job map[string][]time.Duration) {
-		stage, job = map[string][]time.Duration{}, map[string][]time.Duration{}
+	type key struct{ stage, name string }
+	medians := func(bs []provider.Build) (stage, job map[key][]time.Duration) {
+		stage, job = map[key][]time.Duration{}, map[key][]time.Duration{}
 		for _, b := range bs {
 			for _, s := range b.Stages {
 				if s.State == provider.StateSuccess {
-					stage[s.Name] = append(stage[s.Name], s.Duration)
+					stage[key{name: s.Name}] = append(stage[key{name: s.Name}], s.Duration)
 				}
 				for _, j := range s.Jobs {
 					if j.State == provider.StateSuccess {
-						job[j.Name] = append(job[j.Name], j.Duration)
+						k := key{s.Name, j.Name}
+						job[k] = append(job[k], j.Duration)
 					}
 				}
 			}
 		}
 		return stage, job
 	}
-	pick := func(now, before map[string][]time.Duration) []Slowest {
+	pick := func(now, before map[key][]time.Duration) []Slowest {
+		stagesOf := map[string]int{}
+		for k := range now {
+			stagesOf[k.name]++
+		}
 		var out []Slowest
-		for name, ds := range now {
+		for k, ds := range now {
 			m, _ := percentiles(ds)
+			name := k.name
+			if stagesOf[k.name] > 1 {
+				name = k.stage + " / " + k.name
+			}
 			e := Slowest{Name: name, Median: m, Runs: len(ds)}
-			if b := before[name]; len(b) > 0 {
+			if b := before[k]; len(b) > 0 {
 				e.Earlier, _ = percentiles(b)
 			}
 			out = append(out, e)

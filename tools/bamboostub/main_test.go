@@ -350,9 +350,8 @@ func TestStubServesAgentsAndTheQueue(t *testing.T) {
 	assert.Empty(t, q)
 }
 
-// TestWaitingBuildAnswersTheWhySources: a queued build's job says an agent
-// can run it, the agent list is served, and each agent lists the jobs it
-// can run.
+// TestWaitingBuildAnswersTheWhySources: a queued build has a queued job,
+// the agent list is served, and each agent lists the jobs it can run.
 func TestWaitingBuildAnswersTheWhySources(t *testing.T) {
 	_, c := testStub(t)
 	ctx := context.Background()
@@ -361,9 +360,7 @@ func TestWaitingBuildAnswersTheWhySources(t *testing.T) {
 	require.NoError(t, err)
 	queued, err := c.GetBuild(ctx, run.Key)
 	require.NoError(t, err)
-	job := queued.Stages[0].Jobs[0]
-	require.NotNil(t, job.AnyAgent)
-	assert.True(t, *job.AnyAgent)
+	assert.Equal(t, provider.StateQueued, queued.Stages[0].Jobs[0].State)
 
 	jobs, err := c.AgentJobs(ctx)
 	require.NoError(t, err)

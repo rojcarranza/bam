@@ -54,7 +54,6 @@ type resultDTO struct {
 	BuildState             string        `json:"buildState"`
 	LifeCycleState         string        `json:"lifeCycleState"`
 	NotRunYet              bool          `json:"notRunYet"`
-	HasExecutableAgents    *bool         `json:"hasExecutableAgents"`
 	BuildStartedTime       string        `json:"buildStartedTime"`
 	BuildCompletedTime     string        `json:"buildCompletedTime"`
 	BuildDuration          int64         `json:"buildDuration"`

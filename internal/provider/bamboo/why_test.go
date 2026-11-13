@@ -16,16 +16,6 @@ import (
 
 const agentDetailPath = "GET /rest/api/latest/agent/622593?expand=executableJobs[0:1000]"
 
-func TestQueuedJobsCarryBambooAnswerToHasExecutableAgents(t *testing.T) {
-	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/result/PROJ-HOLD-2?expand=" + buildExpand: {fixture: "recorded/result_queued_hold.json"}})
-	b, err := c.GetBuild(ctx, "PROJ-HOLD-2")
-	require.NoError(t, err)
-	require.Equal(t, provider.StateQueued, b.Stages[0].Jobs[0].State)
-	require.NotNil(t, b.Stages[0].Jobs[0].AnyAgent)
-	assert.True(t, *b.Stages[0].Jobs[0].AnyAgent)
-}
-
 func TestQueueNamesTheBuildBehindAWaitingJob(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/queue": {fixture: "recorded/queue_jobs_waiting.json"}})
 	q, err := c.Queue(ctx)

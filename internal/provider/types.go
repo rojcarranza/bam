@@ -93,9 +93,6 @@ type Job struct {
 	QueuedAt         time.Time
 	QueueDuration    time.Duration
 	CheckoutDuration time.Duration
-	// AnyAgent is Bamboo's own answer, for a job that has not finished,
-	// to whether any agent can run it; nil when the server did not say.
-	AnyAgent *bool
 	// Branches is the branch each repository built, by repository name, as
 	// the finished job recorded it; nil while the job has not finished.
 	Branches map[string]string

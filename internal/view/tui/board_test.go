@@ -856,3 +856,20 @@ func TestBoardQueuePanelSaysItIsYourPartAndCountsTheRest(t *testing.T) {
 	require.True(t, m.board.whole)
 	require.NotContains(t, m.status, "nothing is listed")
 }
+
+// The chart line fits the Agents panel once both charts are full and their
+// ranges are at their widest, at every board width.
+func TestBoardChartLineFitsThePanel(t *testing.T) {
+	b := &boardState{}
+	for i := range boardSamples {
+		b.busy = append(b.busy, float64(i%2))
+		b.queued = append(b.queued, float64(120+330*(i%2)))
+	}
+	for _, inner := range []int{36, 56, 76, 116, 196} {
+		line := chartLine(b, inner)
+		require.LessOrEqual(t, ansi.StringWidth(line), inner, "inner %d: %q", inner, line)
+		require.Contains(t, line, "0%–100%")
+		require.Contains(t, line, "120–450")
+	}
+	require.Contains(t, chartLine(b, 76), "since opened, lowest–highest")
+}

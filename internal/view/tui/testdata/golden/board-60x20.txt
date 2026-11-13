@@ -6,7 +6,7 @@
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ╭─Agents───────────────────────────────────────────────────╮
 │  █████░░░░░ 1 building · 1 idle · 2 down · 1 disabled    │
-│  busy ▄▄ 50%–50%  queued ██ 2–2  since opened, lowest–hig│
+│  busy ▄▄ 50%–50%  queued ██ 2–2                          │
 │  linux-2  remote  offline                                │
 │  … and 2 more offline or disabled                        │
 ╰──────────────────────────────────────────────────────────╯

@@ -63,8 +63,8 @@ type QueueDoc struct {
 	Number   int    `json:"number"`
 	Reason   string `json:"reason"`
 	// WaitedMS is how long the build has waited; WaitedAtLeast is true when
-	// the build's record gave no start and bam counted from when it saw it.
-	// Waited is not known, and shows as a dash, for a build bam did not read.
+	// the wait is not known: the build's record gave no start, or bam did not
+	// read it. Such a wait shows as a dash.
 	WaitedMS      int64 `json:"waited_ms"`
 	WaitedAtLeast bool  `json:"waited_at_least"`
 	// Mine is true for a build that waits for your agents, pipelines or

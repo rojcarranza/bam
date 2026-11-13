@@ -215,7 +215,7 @@ func (s *Service) BoardQueue(ctx context.Context, pinned map[string]bool) (rows 
 	filtered = ctx.Value(agentScopeKey{}) != false &&
 		(len(s.AgentStarts()) > 0 || len(pinned) > 0 || len(s.ProjectKeys()) > 0)
 	if !filtered {
-		rows, _, err = s.readQueue(ctx, func([]provider.QueueEntry) []bool { return nil })
+		rows, err = s.QueueRows(ctx)
 		return rows, 0, false, err
 	}
 	rows, others, err = s.readQueue(ctx, func(q []provider.QueueEntry) []bool { return s.mineBuilds(ctx, q, pinned) })

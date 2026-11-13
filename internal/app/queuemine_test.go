@@ -191,3 +191,32 @@ func TestLongWaitsReadAsDaysFrom48Hours(t *testing.T) {
 	assert.Equal(t, "47h59m", shortDuration(47*time.Hour+59*time.Minute))
 	assert.Equal(t, "57d 4h", shortDuration(1372*time.Hour+36*time.Minute))
 }
+
+// An agent of yours that Bamboo lists before bam may ask again which jobs it
+// runs runs nothing until then; it does not show the whole queue as yours.
+func TestBoardQueueStaysYoursWhenANewAgentHasNoJobListYet(t *testing.T) {
+	svc := newService(t, nil)
+	svc.Cfg.Project.Projects = nil
+	svc.Cfg.Project.Agents = []string{"team-a-agent"}
+	p := queueBamboo(svc.Clock.Now(), queueEntry("OTHER-PLAN", 1), queueEntry("MINE-PLAN", 2))
+	svc.P = p
+	clock := svc.Clock.(*fakeClock)
+
+	_, ok := svc.whyAgents(context.Background()) // the agent list is read first
+	require.True(t, ok)
+	clock.After(20 * time.Second)
+	_, err := svc.Board(context.Background(), nil) // the job lists 20s later
+	require.NoError(t, err)
+
+	p.AgentList = append(p.AgentList, provider.Agent{ID: 3, Name: "team-a-agent-1", Type: "REMOTE", Online: true, Enabled: true})
+	clock.After(15 * time.Second) // the agent list is read again, the job lists not yet
+	b, err := svc.Board(context.Background(), nil)
+	require.NoError(t, err)
+	require.True(t, b.QueueFiltered)
+	var keys []string
+	for _, r := range b.Queue {
+		keys = append(keys, r.Key)
+	}
+	assert.Equal(t, []string{"MINE-PLAN-2"}, keys)
+	assert.Equal(t, 1, b.QueueOthers)
+}

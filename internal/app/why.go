@@ -163,7 +163,8 @@ func (s *Service) jobListsLocked(ctx context.Context, agents []provider.Agent, n
 // of its jobs. known is false when bam cannot tell (the server refuses to
 // say which jobs agents run); no plan is then reported as run by an agent.
 // A plan created since an agent's list was read is not on it until the list
-// is read again, within the hour.
+// is read again, within the hour; an agent whose list is not read yet runs
+// nothing until it is.
 func (s *Service) planRunners(ctx context.Context, agents []provider.Agent, planKeys []string) (runs map[string]bool, known bool) {
 	c := &s.why
 	c.mu.Lock()
@@ -176,7 +177,7 @@ func (s *Service) planRunners(ctx context.Context, agents []provider.Agent, plan
 	for _, a := range agents {
 		e, have := c.jobs[a.Name]
 		if !have {
-			return nil, false
+			continue
 		}
 		for _, k := range planKeys {
 			if !runs[k] && e.runsPlan(k) {

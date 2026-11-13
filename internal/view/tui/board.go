@@ -680,11 +680,9 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	if a.Online > 0 {
 		share = float64(a.Busy) / float64(a.Online)
 	}
-	sw := max(min((inner-60)/2, 12), 4)
 	out := []string{
 		fmt.Sprintf("  %s %s", bar(share, 10), view.AgentSummaryText(a)),
-		fmt.Sprintf("  busy %s %s  queued %s %s  since opened, lowest–highest",
-			strings.TrimRight(spark(b.busy, 1, sw), " "), sparkRange(b.busy, pct), strings.TrimRight(spark(b.queued, 0, sw), " "), sparkRange(b.queued, count)),
+		chartLine(b, inner),
 	}
 	shown := a.Away
 	if len(shown) > awayMax {
@@ -704,6 +702,22 @@ func (m Model) agentLines(inner, awayMax int) []string {
 		out = append(out, dimStyle.Render("  Show only your agents: bam agent mine add NAME-START"))
 	}
 	return out
+}
+
+// chartLine draws the busy and queued charts with their ranges, as wide as
+// inner allows; the legend is left out when the charts would have no room.
+func chartLine(b *boardState, inner int) string {
+	busy, queued := sparkRange(b.busy, pct), sparkRange(b.queued, count)
+	const legend = "  since opened, lowest–highest"
+	fixed := lipgloss.Width("  busy  " + busy + "  queued  " + queued)
+	sw := min((inner-fixed-lipgloss.Width(legend))/2, 12)
+	if sw < 4 {
+		sw = max(min((inner-fixed)/2, 12), 1)
+		return fmt.Sprintf("  busy %s %s  queued %s %s",
+			strings.TrimRight(spark(b.busy, 1, sw), " "), busy, strings.TrimRight(spark(b.queued, 0, sw), " "), queued)
+	}
+	return fmt.Sprintf("  busy %s %s  queued %s %s%s",
+		strings.TrimRight(spark(b.busy, 1, sw), " "), busy, strings.TrimRight(spark(b.queued, 0, sw), " "), queued, legend)
 }
 
 func pct(v float64) string   { return fmt.Sprintf("%.0f%%", v*100) }

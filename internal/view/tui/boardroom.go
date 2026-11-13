@@ -91,9 +91,10 @@ func (m Model) roomyBoardBody() []string {
 			needsTitle = fmt.Sprintf("Needs you · %d", len(needs))
 		}
 	}
-	pins, pinCursor := m.pinLines(false)
-	if spaced, _ := m.pinLines(true); len(spaced) <= sz.pins-roomyFrame {
-		pins, pinCursor = m.pinLines(true)
+	pinW := sz.rightW - 2 - 2*roomyPad
+	pins, pinCursor := m.pinLines(pinW, false)
+	if spaced, _ := m.pinLines(pinW, true); len(spaced) <= sz.pins-roomyFrame {
+		pins, pinCursor = m.pinLines(pinW, true)
 	}
 
 	nd := roomyPanel(needsTitle, b.panel == boardNeeds, sz.leftW, sz.needs, needs, b.cursor[boardNeeds])

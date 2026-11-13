@@ -111,7 +111,7 @@ func TestBoardNeedsYouCountsWhenAllFit(t *testing.T) {
 	v := ansi.Strip(m.View())
 	require.Contains(t, v, fmt.Sprintf("Needs you · %d", total))
 	require.Equal(t, 3, strings.Count(v, "has waited 9m in the queue"))
-	require.Contains(t, v, "PROJ-BUILD: the last build", "every need is shown")
+	require.Contains(t, v, "Build and test: the last build", "every need is shown")
 }
 
 // Each panel keeps an empty row under its title and above its bottom border,
@@ -206,4 +206,19 @@ func TestBoardPinGroupsSpacedOnlyWhileEveryPinFits(t *testing.T) {
 	}
 	require.NotEmpty(t, strings.TrimSpace(strings.Trim(right[gap-1], "│ ")), "no empty row above beta: pins would be cut")
 	require.Contains(t, strings.Join(right, "\n"), "PROJ-P32 ", "every pin shows")
+}
+
+// A long plan name is cut to the Pinned panel's own width, so the rest of
+// its row (the results and the usual time) stays in view in every layout,
+// including the narrower right column of a wide terminal.
+func TestBoardPinnedNameFitsItsPanelInEveryLayout(t *testing.T) {
+	long := strings.Repeat("Provision a lab cluster ", 6)
+	groups := []app.PinGroupView{{Name: "integration", Pins: []app.PinView{
+		{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD", Name: long, Last: 192 * time.Second, Usual: 3 * time.Minute},
+	}}}
+	for _, size := range [][2]int{{120, 30}, {120, 45}, {200, 50}} {
+		v := ansi.Strip(boardWith(size[0], size[1], 0, groups).View())
+		require.Contains(t, v, "Provision a lab", "%dx%d", size[0], size[1])
+		require.Contains(t, v, "usual 3m", "%dx%d: the row's end is not cut off:\n%s", size[0], size[1], v)
+	}
 }

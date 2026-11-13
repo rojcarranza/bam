@@ -3,7 +3,7 @@
 ┃                                                                                                                      ┃
 ┃  ▸ ! agent linux-2 is offline                                                                                        ┃
 ┃    ! PROJ-BUILD-500 has waited 7m in the queue                                                                       ┃
-┃    ! PROJ-BUILD: the last build, PROJ-BUILD-44, failed                                                               ┃
+┃    ! Build and test: the last build, PROJ-BUILD-44, failed                                                           ┃
 ┃                                                                                                                      ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ╭─Agents───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
@@ -24,8 +24,8 @@
 ╭─Pinned───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │                                                                                                                      │
 │    integration                                                                                                       │
-│  ▸ PROJ-BUILD     ✓✗         –                        last 3m · usual 3m                                             │
-│    PROJ-PROV      ✓✓         #9 running █████░ 3m/4m  last 4m · usual 4m                                             │
+│  ▸ Build and test          ✓✗         –                        last 3m · usual 3m                                    │
+│    Provision a lab cluster ✓✓         #9 running █████░ 3m/4m  last 4m · usual 4m                                    │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

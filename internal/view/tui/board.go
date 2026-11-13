@@ -654,7 +654,7 @@ func (m Model) boardBody() []string {
 	}
 	add(m.agentsTitle(), b.panel == boardAgents, ah, window(agents, m.agentCursorLine(), ah-2))
 	add(m.queueTitle(), b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
-	pins, pinCursor := m.pinLines(false)
+	pins, pinCursor := m.pinLines(inner, false)
 	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
 	return lines
 }
@@ -966,7 +966,7 @@ func (m Model) queueLines(inner int) ([]string, int) {
 }
 
 // pinLines draws the groups, and says which line holds the cursor.
-func (m Model) pinLines(spaced bool) ([]string, int) {
+func (m Model) pinLines(inner int, spaced bool) ([]string, int) {
 	b := &m.board
 	if !b.have {
 		return []string{dimStyle.Render("  reading the pipelines…")}, 0
@@ -976,7 +976,7 @@ func (m Model) pinLines(spaced bool) ([]string, int) {
 	}
 	var out []string
 	cursorLine, n := 0, 0
-	labelW := m.pinLabelWidth()
+	labelW := m.pinLabelWidth(inner)
 	for gi, g := range b.data.Groups {
 		if spaced && gi > 0 {
 			out = append(out, "")
@@ -999,9 +999,9 @@ func (m Model) pinLines(spaced bool) ([]string, int) {
 const pinRest = 61
 
 // pinLabelWidth is the width of the name column of Pinned: the longest name
-// of a pin, at least 14, and no wider than what the terminal leaves after the
-// rest of the row.
-func (m Model) pinLabelWidth() int {
+// of a pin, at least 14, and no wider than what the panel's inner width leaves
+// after the rest of the row.
+func (m Model) pinLabelWidth(inner int) int {
 	w := 14
 	for _, g := range m.board.data.Groups {
 		for _, p := range g.Pins {
@@ -1010,7 +1010,7 @@ func (m Model) pinLabelWidth() int {
 			}
 		}
 	}
-	return min(w, max(14, m.width-4-pinRest))
+	return min(w, max(14, inner-2-pinRest))
 }
 
 func (m Model) pinText(p app.PinView, labelW int) string {

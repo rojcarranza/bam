@@ -2,8 +2,6 @@
 
 The command line for Atlassian Bamboo: run a plan, follow the build, read why it failed and open it in Bamboo, without the browser. See [`VISION.md`](VISION.md) for what bam is and is not.
 
-The repository is private for now, so the `curl` and `go install` commands below fail until it goes public. Until then, with access to the repository, download the release with `gh release download v${v} -R rojcarranza/bam -p "bam_${v}_linux_amd64.tar.gz"` and unpack it with `tar -xzf bam_${v}_linux_amd64.tar.gz -C ~/.local/bin bam`, or run `go install` with `GOPRIVATE=github.com/rojcarranza/bam` and git signed in to GitHub.
-
     bam run BAMCI-BUILD --watch
     bam logs --last --failed
     bam open --last
@@ -20,6 +18,8 @@ WSL runs Linux, so install the Linux build there, not the Windows one. Pick the 
     bam version
 
 If `bam` is not found, add `export PATH="$HOME/.local/bin:$PATH"` to `~/.bashrc` and open a new terminal. With Go 1.26 or newer, `go install github.com/rojcarranza/bam/cmd/bam@latest` works too (it installs into `~/go/bin`).
+
+The repository is private for now, so the `curl` and `go install` commands above fail until it goes public. Until then, with access to the repository, run the `v=` and `mkdir` lines above, then download the release with `gh release download v${v} -R rojcarranza/bam -p "bam_${v}_linux_amd64.tar.gz"` and unpack it with `tar -xzf bam_${v}_linux_amd64.tar.gz -C ~/.local/bin bam`, or run `go install` with `GOPRIVATE=github.com/rojcarranza/bam` and git signed in to GitHub.
 
 On WSL, `bam open` needs a way to reach the Windows browser:
 

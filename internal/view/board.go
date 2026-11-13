@@ -188,7 +188,7 @@ func Board(o Out, b app.Board, url func(string) string) error {
 	}
 	for _, g := range b.Groups {
 		fmt.Fprintln(w, "  "+style.Bold(o.Style, g.Name))
-		t := Table{Headers: []string{"PIPELINE", "LAST 10", "NOW", "LAST", "USUAL"}, Indent: "    "}
+		t := Table{Headers: []string{"PIPELINE", "LAST 10", "NOW", "LAST", "USUAL"}, Flex: []int{0}, Indent: "    "}
 		var failed []string
 		for _, p := range g.Pins {
 			if p.Err != nil {

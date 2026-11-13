@@ -9,6 +9,8 @@ import (
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view/style"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,4 +101,32 @@ func TestBoardTextCountsTheBuildsThatWaitForOthers(t *testing.T) {
 	require.Equal(t, 37, doc.QueueOthers)
 	require.NotNil(t, doc.Queue[0].Mine)
 	require.True(t, *doc.Queue[0].Mine)
+}
+
+// Intent (issue #183): bam top --once shows a pinned plan's name cut at its
+// end to the terminal width (spec §TTY: free-text columns are cut with …),
+// and a pipe keeps the full name.
+func TestBoardCutsALongPinnedNameToTheTerminal(t *testing.T) {
+	long := "Integrate every service for the next release and run the long checks"
+	b := sampleBoard()
+	b.Groups[0].Pins[0].Name = long
+
+	o, buf := testOut(true)
+	o.Width = 80
+	require.NoError(t, Board(o, b, boardURL))
+	var row string
+	for _, l := range strings.Split(strings.TrimRight(buf.String(), "\n"), "\n") {
+		assert.LessOrEqual(t, style.Width(l), 80, l)
+		if strings.HasPrefix(style.Strip(l), "    Integrate every") {
+			row = style.Strip(l)
+		}
+	}
+	require.NotEmpty(t, row, "the pinned row stays on one line")
+	assert.Contains(t, row, "…")
+	assert.Contains(t, row, "#484 running", "the other columns are not cut")
+
+	o, buf = testOut(false)
+	o.Width = 80
+	require.NoError(t, Board(o, b, boardURL))
+	assert.Contains(t, buf.String(), long, "a pipe keeps the full name")
 }

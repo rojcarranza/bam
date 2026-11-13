@@ -286,16 +286,13 @@ func newPinListCmd(r *runtime) *cobra.Command {
 					fmt.Fprintln(o.W, "No pipelines pinned. Pin one with: bam pin add GROUP PLAN")
 					return nil
 				}
+				t := view.Table{Headers: []string{"GROUP", "PIN", "NAME"}, Flex: []int{2}}
 				for _, g := range groups {
 					for _, p := range g.Pins {
-						if n := names[p]; n != "" {
-							fmt.Fprintf(o.W, "%s  %s  %s\n", g.Name, p, n)
-						} else {
-							fmt.Fprintf(o.W, "%s  %s\n", g.Name, p)
-						}
+						t.Rows = append(t.Rows, []string{g.Name, p, names[p]})
 					}
 				}
-				return nil
+				return t.Render(o)
 			})
 		}),
 	}

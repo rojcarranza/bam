@@ -1,0 +1,63 @@
+{
+ "mayHaveMore": false,
+ "start-index": 0,
+ "max-result": 4,
+ "searchResults": [
+  {
+   "id": "WAIT-HOLD",
+   "type": "chain",
+   "searchEntity": {
+    "id": "WAIT-HOLD",
+    "databaseId": 786435,
+    "key": "WAIT-HOLD",
+    "projectName": "wait demo",
+    "planName": "Hold",
+    "branchName": "Default",
+    "description": "",
+    "type": "chain"
+   }
+  },
+  {
+   "id": "WAIT-NOCAP",
+   "type": "chain",
+   "searchEntity": {
+    "id": "WAIT-NOCAP",
+    "databaseId": 786437,
+    "key": "WAIT-NOCAP",
+    "projectName": "wait demo",
+    "planName": "Needs a capability",
+    "branchName": "Default",
+    "description": "",
+    "type": "chain"
+   }
+  },
+  {
+   "id": "WAIT-HOLD2",
+   "type": "chain",
+   "searchEntity": {
+    "id": "WAIT-HOLD2",
+    "databaseId": 786439,
+    "key": "WAIT-HOLD2",
+    "projectName": "wait demo",
+    "planName": "wait demo - Hold(dvcsci-cloned)",
+    "branchName": "Default",
+    "description": "(dvcsci-cloned)",
+    "type": "chain"
+   }
+  },
+  {
+   "id": "WAIT-NOCAP2",
+   "type": "chain",
+   "searchEntity": {
+    "id": "WAIT-NOCAP2",
+    "databaseId": 786441,
+    "key": "WAIT-NOCAP2",
+    "projectName": "wait demo",
+    "planName": "wait demo - Needs a capability(dvcsci-cloned)",
+    "branchName": "Default",
+    "description": "(dvcsci-cloned)",
+    "type": "chain"
+   }
+  }
+ ]
+}

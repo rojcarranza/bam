@@ -212,7 +212,7 @@ func (s *Service) ForgetAgents(names []string) ([]string, error) {
 	return s.State.ForgetAgents(s.Origin, names)
 }
 
-type agentScopeKey struct{ mine bool }
+type agentScopeKey struct{}
 
 // WholeServer marks ctx as asking for the whole server: with agents: set,
 // the board otherwise reads agent details for your agents only.

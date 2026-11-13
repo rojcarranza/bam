@@ -132,3 +132,18 @@ func TestBoardWithoutAgentsSetShowsTheHintWhereThereIsRoom(t *testing.T) {
 	require.Contains(t, boardModel(120, 45).View(), "Show only your agents: bam agent mine add NAME-START")
 	require.NotContains(t, boardModel(60, 20).View(), "Show only your agents")
 }
+
+// In the regular-height layout the Your agents panel has fewer lines than it
+// has rows. mineBoard has three agents down or disabled (pool-0, pool-1, the
+// gone pool-9) and one start no agent matches (team-b-agent); a row that does
+// not fit must be counted, not cut without notice.
+func TestBoardYourAgentsSaysWhatDoesNotFit(t *testing.T) {
+	v := mineBoard(80, 24, 5).View()
+	require.Contains(t, v, "team-a-agent-pool-0  down")
+	require.Contains(t, v, "… 2 more down or disabled · 1 start matches no agent")
+
+	v = mineBoard(120, 36, 5).View()
+	require.Contains(t, v, "team-a-agent-pool-9  down: Bamboo no longer lists it")
+	require.Contains(t, v, "no agent starts with team-b-agent", "with room for every row, none is counted away")
+	require.NotContains(t, v, "matches no agent")
+}

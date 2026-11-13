@@ -640,6 +640,9 @@ func (m Model) boardBody() []string {
 	}
 	add("Needs you", b.panel == boardNeeds, nh, window(needs, b.cursor[boardNeeds], nh-2))
 	agents := m.agentLines(inner, awayMax)
+	if b.data.Mine != nil {
+		agents = fitMine(agents, b.data.Mine, ah-2)
+	}
 	add(m.agentsTitle(), b.panel == boardAgents, ah, window(agents, m.agentCursorLine(), ah-2))
 	add("Queue", b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
 	pins, pinCursor := m.pinLines(false)
@@ -756,6 +759,31 @@ func (m Model) mineLines() []string {
 		out = append(out, dimStyle.Render("  "+view.MineNoMatchLine(s)))
 	}
 	return out
+}
+
+// fitMine keeps the Your agents lines within h rows. The counts and pools
+// stay, since the cursor scrolls over the pools; when the down, disabled and
+// unmatched rows after them do not all fit, the last row that fits says how
+// many are left out, so none is cut without notice.
+func fitMine(lines []string, mine *app.MyAgents, h int) []string {
+	if len(lines) <= h {
+		return lines
+	}
+	head := 1 + len(mine.Pools)
+	keep := max(h-head-1, 0)
+	hidden := lines[head+keep:]
+	away := max(len(mine.Away)-keep, 0)
+	unmatched := len(hidden) - away
+	var parts []string
+	if away > 0 {
+		parts = append(parts, fmt.Sprintf("%d more down or disabled", away))
+	}
+	if unmatched == 1 {
+		parts = append(parts, "1 start matches no agent")
+	} else if unmatched > 1 {
+		parts = append(parts, fmt.Sprintf("%d starts match no agent", unmatched))
+	}
+	return append(lines[:head+keep:head+keep], dimStyle.Render("  … "+strings.Join(parts, " · ")))
 }
 
 // agentCursorLine is the line of the Your agents panel the cursor is on.

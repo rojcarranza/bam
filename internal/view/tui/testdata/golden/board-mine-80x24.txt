@@ -9,7 +9,7 @@
 │  1 building · 2 idle · 2 down · 1 disabled                                   │
 │▸ team-a-agent-pool-…  6  ✗⊘●○○✗                                              │
 │  ! team-a-agent-pool-0  down                                                 │
-│  ! team-a-agent-pool-1  disabled                                             │
+│  … 2 more down or disabled · 1 start matches no agent                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─Queue────────────────────────────────────────────────────────────────────────╮
 │▸ 1  PROJ-BUILD-500  7m           Manual build                                │

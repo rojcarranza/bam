@@ -128,7 +128,8 @@ func TestBoardDoesNotReadAPresetOfAnotherServer(t *testing.T) {
 	svc.Cfg.Project.Servers["lab"] = config.Server{URL: "http://bamboo.lab.example:8085"}
 	svc.Cfg.Project.Targets["deploy-lab"] = config.Target{Plan: "PROJ-BUILD", Server: "lab"}
 	svc.Cfg.Project.Targets["deploy-work"] = config.Target{Plan: "PROJ-BUILD", Server: "work"}
-	b, err := svc.Board(context.Background(), pins("release", "deploy-lab", "deploy-work", "unknown-preset"))
+	svc.Cfg.Project.Targets["provision-lab2"] = config.Target{Plan: "LAB-PROV", Branch: "develop", Server: "lab"}
+	b, err := svc.Board(context.Background(), pins("release", "deploy-lab", "deploy-work", "unknown-preset", "provision-lab2"))
 	require.NoError(t, err)
 	got := b.Groups[0].Pins
 	require.Error(t, got[0].Err)
@@ -138,6 +139,9 @@ func TestBoardDoesNotReadAPresetOfAnotherServer(t *testing.T) {
 	assert.Equal(t, "PROJ-BUILD", got[1].PlanKey)
 	require.Error(t, got[2].Err, "a preset unknown here is an error on its pin alone")
 	assert.Contains(t, got[2].Err.Error(), "unknown-preset")
+	require.Error(t, got[3].Err)
+	assert.Contains(t, got[3].Err.Error(), "preset provision-lab2 is on server lab; bam top shows one server, work",
+		"the branch of another server's plan is not looked up on this one")
 }
 
 func TestBoardDoesNotFlagARunWithinHalfAgainOfUsual(t *testing.T) {

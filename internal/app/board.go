@@ -214,13 +214,13 @@ func (s *Service) readPins(ctx context.Context, groups []config.PinGroup) []PinG
 func (s *Service) readPin(ctx context.Context, pin string) PinView {
 	v := PinView{Pin: pin}
 	plan, branch := config.SplitPin(pin)
+	if t, ok, _ := s.Cfg.Target(PresetName(s.Cfg, plan)); ok && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
+		v.Err = errs.Usagef("preset %s is on server %s; bam top shows one server, %s", t.Name, t.Server, s.Server.Alias)
+		return v
+	}
 	ref, err := s.ResolvePlan(ctx, plan, branch)
 	if err != nil {
 		v.Err = err
-		return v
-	}
-	if t := ref.Target; t != nil && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
-		v.Err = errs.Usagef("preset %s is on server %s; bam top shows one server, %s", plan, t.Server, s.Server.Alias)
 		return v
 	}
 	v.PlanKey, v.Branch = ref.PlanKey, ref.Branch

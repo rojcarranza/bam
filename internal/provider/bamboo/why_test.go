@@ -16,6 +16,9 @@ import (
 
 const agentDetailPath = "GET /rest/api/latest/agent/622593?expand=executableJobs[0:1000]"
 
+// recordedAgent is the one agent in recorded/agents_one_remote.json.
+var recordedAgent = []provider.Agent{{ID: 622593, Name: "linux-1"}}
+
 func TestQueueNamesTheBuildBehindAWaitingJob(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/queue": {fixture: "recorded/queue_jobs_waiting.json"}})
 	q, err := c.Queue(ctx)
@@ -43,43 +46,54 @@ func TestAgentJobsListsWhatEachAgentCanRun(t *testing.T) {
 		agentDetailPath:              {fixture: "recorded/agent_detail_executable_jobs.json"},
 	})
 	saved := knownCaps(c, Capabilities{})
-	jobs, err := c.AgentJobs(ctx)
+	as, err := c.Agents(ctx)
+	require.NoError(t, err)
+	require.Equal(t, recordedAgent[0].ID, as[0].ID)
+	jobs, err := c.AgentJobs(ctx, as)
 	require.NoError(t, err)
 	// The agent can run the demo job; it cannot run the one that needs a capability it lacks.
 	assert.Equal(t, map[string][]string{"linux-1": {"PROJ-HOLD-SL"}}, jobs)
 	assert.Equal(t, "yes", (*saved)[len(*saved)-1].AgentJobs)
 }
 
+func TestAgentJobsReadsTheAgentsItIsGivenWithoutListingThemAgain(t *testing.T) {
+	c, rec := newTestServer(t, map[string]*route{agentDetailPath: {fixture: "recorded/agent_detail_executable_jobs.json"}})
+	knownCaps(c, Capabilities{})
+	jobs, err := c.AgentJobs(ctx, recordedAgent)
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{"linux-1": {"PROJ-HOLD-SL"}}, jobs)
+	assert.Len(t, rec.all(), 1)
+}
+
 func TestAgentJobsRefusalIsLearnedOnceAndNeverAsksAgain(t *testing.T) {
-	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/agent": {status: 403, body: `{"message":"forbidden"}`}})
+	c, rec := newTestServer(t, map[string]*route{agentDetailPath: {status: 403, body: `{"message":"forbidden"}`}})
 	saved := knownCaps(c, Capabilities{})
-	_, err := c.AgentJobs(ctx)
+	_, err := c.AgentJobs(ctx, recordedAgent)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Equal(t, "no", (*saved)[len(*saved)-1].AgentJobs)
 	before := len(rec.all())
-	_, err = c.AgentJobs(ctx)
+	_, err = c.AgentJobs(ctx, recordedAgent)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 	assert.Equal(t, before, len(rec.all()), "a learned no does not ask again")
 }
 
 func TestAgentJobsRefusedForOneAgentIsARefusal(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/agent": {fixture: "recorded/agents_one_remote.json"},
-		agentDetailPath:              {status: 403, body: `{"message":"forbidden"}`},
+		agentDetailPath: {status: 403, body: `{"message":"forbidden"}`},
+		"GET /rest/api/latest/agent/7?expand=executableJobs[0:1000]": {body: `{"executableJobs":{"size":0,"executableJobs":[]}}`},
 	})
 	knownCaps(c, Capabilities{})
-	_, err := c.AgentJobs(ctx)
+	_, err := c.AgentJobs(ctx, append([]provider.Agent{{ID: 7, Name: "linux-2"}}, recordedAgent...))
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 }
 
 func TestAgentJobsWithACutShortListIsRefusedNotMisleading(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{
-		"GET /rest/api/latest/agent": {fixture: "recorded/agents_one_remote.json"},
-		agentDetailPath:              {body: `{"executableJobs":{"size":3,"executableJobs":[{"key":{"key":"PROJ-HOLD-SL"}}]}}`},
+		agentDetailPath: {body: `{"executableJobs":{"size":3,"executableJobs":[{"key":{"key":"PROJ-HOLD-SL"}}]}}`},
 	})
 	knownCaps(c, Capabilities{})
-	_, err := c.AgentJobs(ctx)
+	_, err := c.AgentJobs(ctx, recordedAgent)
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))
 }
 

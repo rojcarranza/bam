@@ -323,7 +323,7 @@ func (f *Provider) Agents(context.Context) ([]provider.Agent, error) {
 	return f.AgentList, f.AgentsErr
 }
 
-func (f *Provider) AgentJobs(context.Context) (map[string][]string, error) {
+func (f *Provider) AgentJobs(context.Context, []provider.Agent) (map[string][]string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.AgentJobsCalls++

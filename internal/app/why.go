@@ -58,15 +58,15 @@ func (s *Service) whyAgents(ctx context.Context) ([]provider.Agent, bool) {
 	return as, err == nil
 }
 
-// whyPossible names the agents that can run the job planKey, in name order,
-// or false when the server refuses to say. Like whyAgents, it holds the
-// cache while it asks.
-func (s *Service) whyPossible(ctx context.Context, planKey string) ([]string, bool) {
+// whyPossible names the agents in agents that can run the job planKey, in
+// name order, or false when the server refuses to say. Like whyAgents, it
+// holds the cache while it asks.
+func (s *Service) whyPossible(ctx context.Context, agents []provider.Agent, planKey string) ([]string, bool) {
 	c := &s.why
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.jobsAt.IsZero() || s.Clock.Now().Sub(c.jobsAt) >= whyTTL {
-		jobs, err := s.P.AgentJobs(ctx)
+		jobs, err := s.P.AgentJobs(ctx, agents)
 		if ctx.Err() != nil {
 			return nil, false
 		}
@@ -148,7 +148,10 @@ func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int) *provid
 	yes, no := true, false
 	w := &provider.Why{}
 	agents, agentsOK := s.whyAgents(ctx)
-	names, possibleOK := s.whyPossible(ctx, jobPlanKey(j.Key))
+	if !agentsOK {
+		return w
+	}
+	names, possibleOK := s.whyPossible(ctx, agents, jobPlanKey(j.Key))
 	if possibleOK {
 		w.Count = len(names)
 		if len(names) > 0 && len(names) <= 3 {
@@ -159,9 +162,6 @@ func (s *Service) whyJob(ctx context.Context, j provider.Job, ahead int) *provid
 			return w
 		}
 		w.AnyAgent = &yes
-	}
-	if !agentsOK {
-		return w
 	}
 	canRun := func(a provider.Agent) bool { return !possibleOK || slices.Contains(names, a.Name) }
 	anyFree := false

@@ -73,13 +73,12 @@ func TestWhyNamesTheThreeCases(t *testing.T) {
 	}
 }
 
-func TestWhyWithoutTheAgentListStillCountsWhoCanRun(t *testing.T) {
+func TestWhyWithoutTheAgentListDoesNotAskWhichJobsAgentsRun(t *testing.T) {
 	b := queuedBuild()
 	svc, p := whyService(t, b, nil, map[string][]string{"PROJ-BUILD-JOB1": {"linux-1", "win-1"}})
 	p.AgentsErr = errs.Authf("403: the agent list needs an administrator")
-	got := svc.WhyWaits(context.Background(), b, 0)
-	require.NotNil(t, got)
-	assert.Equal(t, provider.Why{AnyAgent: ptr(true), Count: 2, Agents: []string{"linux-1", "win-1"}}, *got)
+	assert.Nil(t, svc.WhyWaits(context.Background(), b, 0))
+	assert.Zero(t, p.AgentJobsCalls)
 }
 
 func TestWhyWithOnlyTheAgentListNamesBusyAgentsButNotNext(t *testing.T) {
@@ -144,8 +143,7 @@ func TestBuildWithQueueSaysWhyAndPlace(t *testing.T) {
 
 func TestQueueRowsSayWhyEachBuildWaits(t *testing.T) {
 	b := queuedBuild()
-	svc, p := whyService(t, b, nil, map[string][]string{"PROJ-BUILD-JOB1": {}})
-	p.AgentsErr = errs.Authf("403")
+	svc, p := whyService(t, b, linuxAgents, map[string][]string{"PROJ-BUILD-JOB1": {}})
 	p.Sequences["PROJ-OTHER-1"] = []provider.Build{{Key: "PROJ-OTHER-1", State: provider.StateQueued}}
 	rows, err := svc.QueueRows(context.Background())
 	require.NoError(t, err)

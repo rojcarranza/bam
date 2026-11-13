@@ -1170,6 +1170,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 		m.focus = m.homeFocus()
 	}
 	m.server, m.svc = alias, nil
+	m.info, m.user = provider.ServerInfo{}, provider.User{} // the new server's come with connectedMsg
 	m.buildsPlan = ""
 	// The project filter names a project of the server being left; keeping it
 	// would hide every plan on the new one.

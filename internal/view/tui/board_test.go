@@ -542,6 +542,8 @@ func TestBoardServerSwitchDropsTheOldServersBoard(t *testing.T) {
 	v := m.View()
 	require.NotContains(t, v, "PROJ-BUILD")
 	require.NotContains(t, v, "linux-2")
+	require.NotContains(t, v, "12.1.8", "the old server's version is not shown under the new alias")
+	require.NotContains(t, v, "jdoe", "nor the old server's user")
 
 	m, cmd := send(m, mkKey("o"))
 	if cmd != nil {

@@ -350,10 +350,10 @@ func TestStubServesAgentsAndTheQueue(t *testing.T) {
 	assert.Empty(t, q)
 }
 
-// TestWaitingBuildAnswersTheThreeWhySources: a queued build's job says an
-// agent can run it, the job's possible agents are listed, and so is the
-// agent list.
-func TestWaitingBuildAnswersTheThreeWhySources(t *testing.T) {
+// TestWaitingBuildAnswersTheWhySources: a queued build's job says an agent
+// can run it, the agent list is served, and each agent lists the jobs it
+// can run.
+func TestWaitingBuildAnswersTheWhySources(t *testing.T) {
 	_, c := testStub(t)
 	ctx := context.Background()
 
@@ -365,11 +365,9 @@ func TestWaitingBuildAnswersTheThreeWhySources(t *testing.T) {
 	require.NotNil(t, job.AnyAgent)
 	assert.True(t, *job.AnyAgent)
 
-	names, err := c.PossibleAgents(ctx, "PROJ-BUILD-JOB1")
+	jobs, err := c.AgentJobs(ctx)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"linux-1", "linux-2"}, names)
-
-	as, err := c.Agents(ctx)
-	require.NoError(t, err)
-	assert.NotEmpty(t, as)
+	assert.Contains(t, jobs["linux-1"], "PROJ-BUILD-JOB1")
+	assert.Contains(t, jobs["linux-2"], "PROJ-BUILD-JOB1")
+	assert.Empty(t, jobs["local-1"])
 }

@@ -14,7 +14,7 @@
 // and bam build cancel stops it. With -child, its end queues a build of the
 // child plan, as Bamboo does, so bam build tree and bam run --watch have a
 // tree to follow. It also lists the agents and the queue, tells a waiting job
-// whether an agent can run it and which agents can. Any bearer token is accepted.
+// whether an agent can run it and which jobs each agent can run. Any bearer token is accepted.
 //
 // Flags:
 //
@@ -580,6 +580,51 @@ func (s *stub) handleProject(w http.ResponseWriter, r *http.Request) {
 	s.serve(w, "project_plans.json", fixtureProj, key)
 }
 
+// handleAgent answers one agent's details with the jobs it can run: linux-1
+// and linux-2 run every job of every plan the stub knows, local-1 none.
+func (s *stub) handleAgent(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, api+"/agent/")
+	var as []struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(s.fixture(w, "agents.json"), &as); err != nil {
+		http.Error(w, "fixture unavailable", http.StatusInternalServerError)
+		return
+	}
+	plans := map[string]bool{fixturePlan: true}
+	s.mu.Lock()
+	for _, b := range s.live {
+		plans[b.planKey] = true
+	}
+	s.mu.Unlock()
+	jobs := []any{}
+	for _, name := range sortedKeys(plans) {
+		jobs = append(jobs, map[string]any{"key": map[string]any{"key": name + "-JOB1"}})
+	}
+	for _, a := range as {
+		if strconv.Itoa(a.ID) != id {
+			continue
+		}
+		if a.Name == "local-1" {
+			jobs = []any{}
+		}
+		out, _ := json.Marshal(map[string]any{"executableJobs": map[string]any{"size": len(jobs), "executableJobs": jobs}})
+		writeJSON(w, out)
+		return
+	}
+	http.NotFound(w, r)
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func (s *stub) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(api+"/info", func(w http.ResponseWriter, _ *http.Request) { s.serve(w, "info.json", "", "") })
@@ -591,13 +636,7 @@ func (s *stub) handler() http.Handler {
 	mux.HandleFunc(api+"/result/", s.handleResult)
 	mux.HandleFunc(api+"/queue/", s.handleQueue)
 	mux.HandleFunc(api+"/queue", s.handleQueueList)
-	mux.HandleFunc(api+"/config/job/", func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasSuffix(r.URL.Path, "/agent-assignment/possible-agent-assignment") {
-			http.NotFound(w, r)
-			return
-		}
-		s.serve(w, "possible_agents.json", "", "")
-	})
+	mux.HandleFunc(api+"/agent/", s.handleAgent)
 	mux.HandleFunc(api+"/agent", func(w http.ResponseWriter, _ *http.Request) { s.serve(w, "agents.json", "", "") })
 	mux.HandleFunc("/download/", func(w http.ResponseWriter, _ *http.Request) {
 		body := s.fixture(w, filepath.Join("recorded", "log_download.log"))

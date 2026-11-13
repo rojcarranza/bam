@@ -10,10 +10,10 @@ online, enabled and busy.
 
 The WHY column says why a build waits: no agent can run it, agents can run it
 but all are busy, offline or disabled, or agents are free and it is next. It
-names the agents when three or fewer can run the job. What Bamboo shares
-decides how much it says: whether an agent can run the job is open to every
-user, the agents that can needs edit rights on the plan, and the agent list
-needs an administrator. A refused part is left out, never an error.
+names the agents when three or fewer can run the job. Bamboo shows whether an
+agent can run a job to every user, but which agents can, and whether they are
+free, only to an administrator. A part Bamboo refuses is left out, never an
+error.
 
 ```
 bam queue [flags]

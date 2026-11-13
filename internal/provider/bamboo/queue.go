@@ -2,8 +2,11 @@ package bamboo
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -39,10 +42,28 @@ func (c *Client) Queue(ctx context.Context) ([]provider.QueueEntry, error) {
 		c.learn(ctx, func(cp *Capabilities) { cp.Queue = "yes" })
 	}
 	out := make([]provider.QueueEntry, 0, len(q.QueuedBuilds.QueuedBuild))
+	seen := map[string]bool{}
 	for _, e := range q.QueuedBuilds.QueuedBuild {
-		out = append(out, provider.QueueEntry{Key: e.BuildResultKey, PlanKey: e.PlanKey, Number: e.BuildNumber, Reason: plainReason(e.TriggerReason)})
+		key, planKey := queuedBuildOf(e.BuildResultKey, e.PlanKey)
+		if seen[key] {
+			continue // a build with several waiting jobs holds one place
+		}
+		seen[key] = true
+		out = append(out, provider.QueueEntry{Key: key, PlanKey: planKey, Number: e.BuildNumber, Reason: plainReason(e.TriggerReason)})
 	}
 	return out, nil
+}
+
+// queuedBuildOf names the build behind a queue entry. Bamboo queues jobs, so
+// an entry can be a job result key, PROJ-PLAN-JOB1-44, of the build
+// PROJ-PLAN-44 of the plan PROJ-PLAN; a build key is returned as it is.
+func queuedBuildOf(resultKey, planKey string) (key, plan string) {
+	parts := strings.Split(resultKey, "-")
+	if len(parts) != 4 {
+		return resultKey, planKey
+	}
+	plan = parts[0] + "-" + parts[1]
+	return plan + "-" + parts[3], plan
 }
 
 type agentDTO struct {
@@ -85,40 +106,57 @@ func (c *Client) CannotListAgents(ctx context.Context) bool {
 	return c.fresh(ctx).Agents == "no"
 }
 
-type possibleDTO struct {
-	Name              string `json:"name"`
-	CapabilitiesMatch *bool  `json:"capabilitiesMatch"`
+type agentDetailDTO struct {
+	ExecutableJobs struct {
+		Size int `json:"size"`
+		Jobs []struct {
+			Key struct {
+				Key string `json:"key"`
+			} `json:"key"`
+		} `json:"executableJobs"`
+	} `json:"executableJobs"`
 }
 
-// PossibleAgents names the agents that can run the job jobKey (a plan key
-// such as PROJ-PLAN-JOB1): the ones whose capabilities match its
-// requirements. Bamboo shows the list only to those who may edit the plan; a
-// refusal is learned once and answers ErrUnsupported afterwards.
-func (c *Client) PossibleAgents(ctx context.Context, jobKey string) ([]string, error) {
-	refused := errs.Bamboof("this Bamboo does not tell which agents can run %s", jobKey).
-		WithWhy("the list needs edit rights on the plan").Wrap(errs.ErrUnsupported)
-	if c.fresh(ctx).PossibleAgents == "no" {
+// AgentJobs says which jobs each agent can run, by agent name: the jobs
+// whose requirements the agent's capabilities meet. Bamboo shows it only to
+// administrators, one agent at a time; a refusal is learned once and answers
+// ErrUnsupported afterwards.
+func (c *Client) AgentJobs(ctx context.Context) (map[string][]string, error) {
+	refused := errs.Bamboof("this Bamboo does not tell which jobs each agent can run").
+		WithWhy("the agent details need an administrator").Wrap(errs.ErrUnsupported)
+	if c.fresh(ctx).AgentJobs == "no" {
 		return nil, refused
 	}
-	var raw struct {
-		Agents []possibleDTO `json:"agents"`
-	}
-	path := api + "/config/job/" + url.PathEscape(jobKey) + "/agent-assignment/possible-agent-assignment"
-	if err := c.getJSON(ctx, path, url.Values{"max-result": {queueListMax}}, &raw); err != nil {
-		if s := statusOf(err); s == http.StatusForbidden || s == http.StatusUnauthorized || isUnsupportedStatus(err) {
-			c.learn(ctx, func(cp *Capabilities) { cp.PossibleAgents = "no" })
+	as, err := c.Agents(ctx)
+	if err != nil {
+		if errors.Is(err, errs.ErrUnsupported) || errs.KindOf(err) == errs.KindAuth {
+			c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
 			return nil, refused
 		}
 		return nil, err
 	}
-	if c.Capabilities().PossibleAgents != "yes" {
-		c.learn(ctx, func(cp *Capabilities) { cp.PossibleAgents = "yes" })
-	}
-	names := []string{}
-	for _, a := range raw.Agents {
-		if a.CapabilitiesMatch == nil || *a.CapabilitiesMatch {
-			names = append(names, a.Name)
+	out := make(map[string][]string, len(as))
+	for _, a := range as {
+		var d agentDetailDTO
+		q := url.Values{"expand": {"executableJobs[0:" + queueListMax + "]"}}
+		if err := c.getJSON(ctx, api+"/agent/"+strconv.Itoa(a.ID), q, &d); err != nil {
+			if s := statusOf(err); s == http.StatusForbidden || s == http.StatusUnauthorized || isUnsupportedStatus(err) {
+				c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "no" })
+				return nil, refused
+			}
+			return nil, err
 		}
+		if d.ExecutableJobs.Size > len(d.ExecutableJobs.Jobs) {
+			return nil, refused // a cut-short list would name too few agents
+		}
+		keys := make([]string, 0, len(d.ExecutableJobs.Jobs))
+		for _, j := range d.ExecutableJobs.Jobs {
+			keys = append(keys, j.Key.Key)
+		}
+		out[a.Name] = keys
 	}
-	return names, nil
+	if c.Capabilities().AgentJobs != "yes" {
+		c.learn(ctx, func(cp *Capabilities) { cp.AgentJobs = "yes" })
+	}
+	return out, nil
 }

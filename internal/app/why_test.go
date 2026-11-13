@@ -20,12 +20,20 @@ func queuedBuild(anyAgent *bool) provider.Build {
 			{Key: "PROJ-BUILD-JOB1-483", Name: "Compile", State: provider.StateQueued, AnyAgent: anyAgent}}}}}
 }
 
-func whyService(t *testing.T, b provider.Build, agents []provider.Agent, possible map[string][]string) (*Service, *fake.Provider) {
+func whyService(t *testing.T, b provider.Build, agents []provider.Agent, jobs map[string][]string) (*Service, *fake.Provider) {
 	t.Helper()
 	p := fakeBamboo()
 	p.Sequences = map[string][]provider.Build{b.Key: {b}}
 	p.QueueEntries = []provider.QueueEntry{{Key: "PROJ-OTHER-1"}, {Key: b.Key}}
-	p.AgentList, p.Possible = agents, possible
+	p.AgentList = agents
+	if jobs != nil { // jobs maps a job to the agents that can run it; the server reports the reverse
+		p.AgentJobMap = map[string][]string{}
+		for job, names := range jobs {
+			for _, n := range names {
+				p.AgentJobMap[n] = append(p.AgentJobMap[n], job)
+			}
+		}
+	}
 	return newService(t, p), p
 }
 
@@ -124,7 +132,7 @@ func TestWhyAsksEachSourceOncePerPoll(t *testing.T) {
 	for range 3 {
 		svc.WhyWaits(context.Background(), b, 0)
 	}
-	assert.Equal(t, []string{"PROJ-BUILD-JOB1"}, p.PossibleCalls)
+	assert.Equal(t, 1, p.AgentJobsCalls)
 }
 
 func TestBuildWithQueueSaysWhyAndPlace(t *testing.T) {

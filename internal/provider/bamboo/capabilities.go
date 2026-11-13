@@ -33,9 +33,9 @@ type Capabilities struct {
 	Queue string `json:"queue,omitempty"` // yes | no
 	// Agents is whether the agent list is readable (it needs an administrator).
 	Agents string `json:"agents,omitempty"` // yes | no
-	// PossibleAgents is whether the agents that can run a job are readable
-	// (it needs edit rights on the plan).
-	PossibleAgents string `json:"possible_agents,omitempty"` // yes | no
+	// AgentJobs is whether the jobs each agent can run are readable (it
+	// needs an administrator).
+	AgentJobs string `json:"agent_jobs,omitempty"` // yes | no
 }
 
 const capsMaxAge = 7 * 24 * time.Hour

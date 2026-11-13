@@ -1,0 +1,224 @@
+{
+  "expand": "changes,metadata,plan,artifacts,comments,labels,jiraIssues,variables,stages",
+  "link": {
+    "href": "http://bamboo.example.com/rest/api/latest/result/PROJ-HOLD-2",
+    "rel": "self"
+  },
+  "plan": {
+    "id": 786435,
+    "shortName": "Hold",
+    "shortKey": "HOLD",
+    "type": "chain",
+    "enabled": true,
+    "link": {
+      "href": "http://bamboo.example.com/rest/api/latest/plan/PROJ-HOLD",
+      "rel": "self"
+    },
+    "key": "PROJ-HOLD",
+    "name": "demo - Hold",
+    "planKey": {
+      "key": "PROJ-HOLD"
+    }
+  },
+  "planName": "Hold",
+  "projectName": "demo",
+  "buildResultKey": "PROJ-HOLD-2",
+  "id": 1048583,
+  "buildDurationInSeconds": 0,
+  "buildDuration": 0,
+  "buildDurationDescription": "global.unknown",
+  "buildRelativeTime": "",
+  "continuable": false,
+  "onceOff": false,
+  "restartable": false,
+  "notRunYet": false,
+  "finished": false,
+  "successful": false,
+  "buildReason": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+  "reasonSummary": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+  "specsResult": false,
+  "comments": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "labels": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "jiraIssues": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "variables": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "stages": {
+    "size": 1,
+    "expand": "stage",
+    "start-index": 0,
+    "max-result": 1,
+    "stage": [
+      {
+        "expand": "results",
+        "name": "Hold",
+        "description": "",
+        "id": 1081348,
+        "lifeCycleState": "InProgress",
+        "state": "Unknown",
+        "displayClass": "InProgress",
+        "displayMessage": "1 job currently building",
+        "collapsedByDefault": false,
+        "manual": false,
+        "restartable": false,
+        "runnable": false,
+        "results": {
+          "size": 1,
+          "expand": "result",
+          "start-index": 0,
+          "max-result": 1,
+          "result": [
+            {
+              "expand": "changes,metadata,plan,jiraIssues,variables",
+              "link": {
+                "href": "http://bamboo.example.com/rest/api/latest/result/PROJ-HOLD-SL-2",
+                "rel": "self"
+              },
+              "plan": {
+                "id": 786436,
+                "shortName": "Sleep",
+                "shortKey": "HOLD-SL",
+                "type": "job",
+                "enabled": true,
+                "link": {
+                  "href": "http://bamboo.example.com/rest/api/latest/plan/PROJ-HOLD-SL",
+                  "rel": "self"
+                },
+                "key": "PROJ-HOLD-SL",
+                "name": "demo - Hold - Sleep",
+                "planKey": {
+                  "key": "PROJ-HOLD-SL"
+                }
+              },
+              "planName": "Sleep",
+              "projectName": "demo",
+              "stage": "Hold",
+              "buildResultKey": "PROJ-HOLD-SL-2",
+              "id": 1048584,
+              "buildDurationInSeconds": 0,
+              "buildDuration": 0,
+              "buildDurationDescription": "global.unknown",
+              "buildRelativeTime": "",
+              "queueStartedTime": "2026-11-13T09:41:40.868Z",
+              "prettyQueueStartedTime": "Fri, 13 Nov, 09:41 AM",
+              "queueTimeInSeconds": 54,
+              "queueDuration": 54075,
+              "prettyQueueDuration": "54 secs",
+              "vcsUpdateInSeconds": 0,
+              "vcsUpdateDuration": 0,
+              "prettyVcsUpdateDuration": "< 1 sec",
+              "onceOff": false,
+              "buildReason": "Manual build",
+              "reasonSummary": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">J Doe</a>",
+              "hasExecutableAgents": true,
+              "specsResult": false,
+              "jiraIssues": {
+                "size": 0,
+                "start-index": 0,
+                "max-result": 0
+              },
+              "variables": {
+                "size": 0,
+                "start-index": 0,
+                "max-result": 0
+              },
+              "changes": {
+                "size": 0,
+                "start-index": 0,
+                "max-result": 0
+              },
+              "metadata": {
+                "size": 2,
+                "start-index": 0,
+                "max-result": 2
+              },
+              "progress": {
+                "isValid": false,
+                "isUnderAverageTime": false,
+                "percentageCompleted": 1.0,
+                "percentageCompletedPretty": "100%",
+                "prettyTimeRemaining": "< 1 sec slower than usual",
+                "prettyTimeRemainingLong": "< 1 second slower than usual",
+                "averageBuildDuration": 0,
+                "prettyAverageBuildDuration": "< 1 sec",
+                "buildTime": 0,
+                "prettyBuildTime": "< 1 sec"
+              },
+              "parent": {
+                "href": "http://bamboo.example.com/rest/api/latest/result/PROJ-HOLD-2",
+                "rel": "parent"
+              },
+              "key": "PROJ-HOLD-SL-2",
+              "planResultKey": {
+                "key": "PROJ-HOLD-SL-2",
+                "entityKey": {
+                  "key": "PROJ-HOLD-SL"
+                },
+                "resultNumber": 2
+              },
+              "state": "Unknown",
+              "buildState": "Unknown",
+              "lifeCycleState": "Queued",
+              "number": 2,
+              "buildNumber": 2
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "changes": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  },
+  "metadata": {
+    "size": 2,
+    "start-index": 0,
+    "max-result": 2
+  },
+  "progress": {
+    "isValid": false,
+    "isUnderAverageTime": false,
+    "percentageCompleted": 1.0,
+    "percentageCompletedPretty": "100%",
+    "prettyTimeRemaining": "< 1 sec slower than usual",
+    "prettyTimeRemainingLong": "< 1 second slower than usual",
+    "averageBuildDuration": 0,
+    "prettyAverageBuildDuration": "< 1 sec",
+    "buildTime": 0,
+    "prettyBuildTime": "< 1 sec"
+  },
+  "key": "PROJ-HOLD-2",
+  "planResultKey": {
+    "key": "PROJ-HOLD-2",
+    "entityKey": {
+      "key": "PROJ-HOLD"
+    },
+    "resultNumber": 2
+  },
+  "state": "Unknown",
+  "buildState": "Unknown",
+  "lifeCycleState": "Queued",
+  "number": 2,
+  "buildNumber": 2,
+  "artifacts": {
+    "size": 0,
+    "start-index": 0,
+    "max-result": 0
+  }
+}

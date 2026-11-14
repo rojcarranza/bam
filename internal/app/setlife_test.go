@@ -68,13 +68,32 @@ func TestLockTakesOverAStaleLockWithoutForce(t *testing.T) {
 	l.Release()
 }
 
-func TestHolderIgnoresAStaleLock(t *testing.T) {
+// Two bams took over one stale lock at once: the second removed the lock the
+// first had just written, and both ran the set.
+func TestStaleTakeoverKeepsALockTakenMeanwhile(t *testing.T) {
 	at := time.Date(2026, 10, 6, 9, 15, 0, 0, time.UTC)
-	mine, other := lifeStores(t, func(int) bool { return false })
+	var mine *SetStore
+	raced := false
+	mine, other := lifeStores(t, func(pid int) bool {
+		if pid == 77 && !raced {
+			raced = true
+			p := filepath.Join(mine.Dir, "release.lock")
+			require.NoError(t, os.Remove(p))
+			require.NoError(t, os.WriteFile(p, []byte(`{"pid":99,"host":"laptop"}`), 0o600))
+		}
+		return pid != 77
+	})
 	_, err := other.Lock([]string{"release"}, false, at)
 	require.NoError(t, err)
-	_, _, _, held := mine.Holder("release")
-	require.False(t, held)
+
+	_, err = mine.Lock([]string{"release"}, false, at)
+	require.Error(t, err, "the bam that took the stale lock first keeps it")
+	st, h := mine.LockOf("release")
+	require.Equal(t, LockLive, st)
+	require.Equal(t, 99, h.PID)
+	entries, err := os.ReadDir(mine.Dir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "nothing is left aside")
 }
 
 func TestLifeAndActions(t *testing.T) {

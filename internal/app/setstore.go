@@ -252,8 +252,8 @@ func (s *SetStore) Lock(names []string, force bool, now time.Time) (*SetLock, er
 		p := filepath.Join(s.Dir, name+".lock")
 		if force {
 			_ = os.Remove(p)
-		} else if st, _ := s.LockOf(name); st == LockStale {
-			_ = os.Remove(p) // its process is gone: nothing to take over by hand
+		} else {
+			s.dropStale(p)
 		}
 		f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if errors.Is(err, fs.ErrExist) {
@@ -300,14 +300,4 @@ func (r RunRecord) RunName() string {
 		return r.Name
 	}
 	return r.Target
-}
-
-// Holder reads a set's lock without taking it: who runs the set now, if
-// anyone other than this process. A stale lock is held by no one.
-func (s *SetStore) Holder(set string) (pid int, host string, since time.Time, held bool) {
-	st, h := s.LockOf(set)
-	if st != LockLive {
-		return 0, "", time.Time{}, false
-	}
-	return h.PID, h.Host, h.Since, true
 }

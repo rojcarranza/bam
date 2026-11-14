@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -32,7 +33,11 @@ type LockHolder struct {
 // LockOf reads a lock without taking it. An unreadable or corrupt file counts
 // as free, as bam cannot tell whose it is.
 func (s *SetStore) LockOf(name string) (LockState, LockHolder) {
-	data, err := os.ReadFile(filepath.Join(s.Dir, name+".lock"))
+	return s.lockAt(filepath.Join(s.Dir, name+".lock"))
+}
+
+func (s *SetStore) lockAt(p string) (LockState, LockHolder) {
+	data, err := os.ReadFile(p)
 	if err != nil {
 		return LockFree, LockHolder{}
 	}
@@ -51,6 +56,24 @@ func (s *SetStore) LockOf(name string) (LockState, LockHolder) {
 		return LockStale, h
 	}
 	return LockLive, h
+}
+
+// dropStale removes the lock file p when its process on this computer is
+// gone. It renames the file aside before judging it, so of two bams taking
+// over one stale lock only one moves it; a live lock moved aside by the
+// other is put back.
+func (s *SetStore) dropStale(p string) {
+	if st, _ := s.lockAt(p); st != LockStale {
+		return
+	}
+	aside := fmt.Sprintf("%s.%d.stale", p, s.PID())
+	if os.Rename(p, aside) != nil {
+		return
+	}
+	if st, _ := s.lockAt(aside); st != LockStale {
+		_ = os.Link(aside, p)
+	}
+	_ = os.Remove(aside)
 }
 
 // SetLife is where a set run stands, from its record and its lock together.

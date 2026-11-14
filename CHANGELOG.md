@@ -4,6 +4,8 @@ All notable changes to bam are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and bam uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0, the JSON output can gain new fields, but existing fields are never renamed or removed.
 
+## [Unreleased]
+
 ## [0.5.0] - 2026-11-14
 
 ### Added
@@ -33,8 +35,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - In the terminal UI run form, a second `ctrl-R` before Bamboo answers no longer starts a second build, `esc` while the run is being sent still reports the build that started, and the dry-run overlay closes when the run starts.
 - `bam top` keeps your selection on the row you chose when a refresh adds, removes or reorders rows, in every panel. After a refresh, `P`, enter and `o` could act on another pipeline, queued build or agent pool than the one you had selected.
 - A watched tree (`bam build tree --watch`, `bam watch`, `bam run --watch` and the terminal UI's tree) asks Bamboo for far less. A refresh reads the builds still running, and lists each plan's newest builds only when a build in the tree ends and every 5 minutes, rather than every 10 seconds; on a project of 53 plans, a refresh while builds run takes 3 requests instead of 56. A running job's log is read from where the last read stopped, and on Bamboo 12 that read, like `bam logs --follow`, fetches only the lines the log gained.
-
-## [Unreleased]
 
 ## [0.4.0] - 2026-11-10
 

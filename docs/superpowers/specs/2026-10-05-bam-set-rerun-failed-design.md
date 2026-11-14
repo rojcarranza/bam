@@ -100,7 +100,7 @@ The set timeout, if any, starts again from the rerun, as on resume.
 
 ### 4.4 Record
 
-`RunRecord` gains `Reruns int \`json:"reruns"\``: how many times bam restarted this run's build. A fresh trigger of a run that had no build does not count. The record's `version` stays 1; an old record reads as `reruns: 0`.
+`RunRecord` gains `Reruns int \`json:"reruns"\``: how many times bam restarted this run's build. A fresh trigger of a run that had no build does not count. The record's `version` stays 1; an old record reads as `reruns: 0`. It also gains `Restart bool \`json:"restart,omitempty"\``: set on each run the rerun has to restart and cleared once that restart is counted, so a rerun interrupted before Bamboo took a restart leaves it due and `bam set resume` restarts it. An old record reads as no restart due.
 
 ### 4.5 Events
 

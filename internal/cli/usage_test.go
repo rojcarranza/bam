@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -84,4 +85,27 @@ func TestUsageUnwritableTallyNeverFailsACommand(t *testing.T) {
 	require.NoError(t, os.MkdirAll(h.env.Paths.Usage, 0o700))
 	require.Equal(t, 0, h.run("version"))
 	require.Contains(t, h.stdout.String(), "bam ")
+}
+
+// A corrupt tally is a config problem (exit 3, spec §6) that names the file and
+// how to recover, not an unexpected error with a raw JSON parse message.
+func TestUsageCorruptTallyExplainsTheFile(t *testing.T) {
+	for _, args := range [][]string{{"usage"}, {"usage", "--json"}} {
+		h := newHarness(t)
+		require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.Usage), 0o700))
+		require.NoError(t, os.WriteFile(h.env.Paths.Usage, []byte("garbage{"), 0o600))
+		require.Equal(t, 3, h.run(args...))
+		require.Contains(t, h.stderr.String(), h.env.Paths.Usage)
+		require.Contains(t, h.stderr.String(), "delete")
+	}
+}
+
+func TestUsageSummaryUsesSingularForOne(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("version"))
+	require.Equal(t, 0, h.run("usage"))
+	require.Contains(t, h.stdout.String(), "1 command on 1 day since ")
+	require.Equal(t, 0, h.run("version"))
+	require.Equal(t, 0, h.run("usage"))
+	require.Contains(t, h.stdout.String(), "2 commands on 1 day since ")
 }

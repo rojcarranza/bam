@@ -74,7 +74,8 @@ func newUsageCmd(r *runtime) *cobra.Command {
 			}
 			t, err := store.Load()
 			if err != nil {
-				return err
+				return errs.Configf("cannot read the usage tally %s", store.Path).WithWhy(err.Error()).
+					WithTry("delete " + store.Path + " to start a fresh tally").Wrap(err)
 			}
 			days, totals := t.DayTotals(), t.Totals()
 			if r.flags.json {
@@ -117,7 +118,7 @@ func writeUsage(r *runtime, t usage.Tally, days []usage.DayTotal, totals []usage
 	for _, d := range days {
 		all += d.Count
 	}
-	fmt.Fprintf(w, "%d commands on %d days since %s (counting is %s)\n\n", all, len(days), days[0].Day, state)
+	fmt.Fprintf(w, "%d %s on %d %s since %s (counting is %s)\n\n", all, plural(all, "command"), len(days), plural(len(days), "day"), days[0].Day, state)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "COMMAND\tCOUNT")
 	for _, c := range totals {
@@ -133,4 +134,11 @@ func writeUsage(r *runtime, t usage.Tally, days []usage.DayTotal, totals []usage
 		fmt.Fprintf(tw, "%s\t%d\n", d.Day, d.Count)
 	}
 	return tw.Flush()
+}
+
+func plural(n int, word string) string {
+	if n == 1 {
+		return word
+	}
+	return word + "s"
 }

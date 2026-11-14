@@ -131,7 +131,7 @@ Variable precedence for a run of a set, lowest to highest: plan values, preset `
     bam set history release            # past runs of release, newest first
     bam set resume                     # continue after Ctrl-C or a set timeout
 
-When a build fails, the rest of its stage still finishes, no later stage starts, and nothing is cancelled. Interrupting or timing out stops watching only; the builds keep running, and `bam set resume` picks the train up where it stopped. Resume asks again for every `--var` the run was started with, because bam never stores variable values. Records live in `$XDG_STATE_HOME/bam/sets/`; bam keeps the newest 20 per set.
+When a build fails, the rest of its stage still finishes, no later stage starts, and nothing is cancelled. Interrupting (Ctrl-C or closing the terminal) or timing out stops watching only; the builds keep running, and `bam set resume` picks the train up where it stopped. A set run whose bam is gone on this computer no longer holds the set; `--force` takes over the lock of a run on another computer. Resume asks again for every `--var` the run was started with, because bam never stores variable values. Records live in `$XDG_STATE_HOME/bam/sets/`; bam keeps the newest 20 per set.
 
 ### Matrix
 

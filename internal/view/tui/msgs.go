@@ -71,6 +71,7 @@ const (
 	streamCancel
 	streamProjects
 	streamInfo
+	streamSend // the repositories check or the run request of the form
 )
 
 // errMsg is a failure to show, never a failure to exit on. Where names the
@@ -406,8 +407,9 @@ func cancelCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.C
 }
 
 type triggeredMsg struct {
-	Gen   int
-	Build provider.Build
+	Gen    int
+	Build  provider.Build
+	Server string // the server the run was sent to; empty when unknown
 }
 
 // repoCheckedMsg is the answer of the repositories check made before a run.
@@ -426,7 +428,7 @@ func checkRepoCmd(ctx context.Context, svc *app.Service, ref app.PlanRef, vs app
 	return func() tea.Msg {
 		c, err := svc.CheckRepositories(ctx, ref, ref.Repositories)
 		if err != nil {
-			return errMsg{Err: err, Where: "run", Stream: streamRun, Gen: gen}
+			return errMsg{Err: err, Where: "run", Stream: streamSend, Gen: gen}
 		}
 		if c.Needed() && open != nil {
 			_ = open(c.URL)
@@ -441,7 +443,7 @@ func runCmd(ctx context.Context, svc *app.Service, ref app.PlanRef, vs app.VarSe
 	return func() tea.Msg {
 		b, err := svc.Run(ctx, ref, vs)
 		if err != nil {
-			return errMsg{Err: err, Where: "run", Stream: streamRun, Gen: gen}
+			return errMsg{Err: err, Where: "run", Stream: streamSend, Gen: gen}
 		}
 		return triggeredMsg{Gen: gen, Build: b}
 	}

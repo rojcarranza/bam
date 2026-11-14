@@ -216,8 +216,8 @@ To see what a build used before choosing:
    | `x` | remove a row added with `a`; declared variables stay |
    | `f` | on the revision row: build the source build's commit |
    | `d` | dry-run: show what would be sent |
-   | `ctrl-R` | run the build |
-   | `esc` | cancel; nothing is sent |
+   | `ctrl-R` | run the build; a second `ctrl-R` while the run is on its way does nothing |
+   | `esc` | cancel; nothing is sent. Once the run request has gone to Bamboo, `esc` only leaves the form: the run still goes, and bam reports the build it started |
 
    Each row shows where its value came from (`plan`, `target`, `from #41`). A row you changed is marked, and the footer counts the changes.
 

@@ -30,6 +30,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - On the live `bam top` board a plain click on an underlined name or build number in Pinned opens it in Bamboo: the name of a pin or of a child pipeline opens that plan's page, a build number opens that build's page (`o` still opens the selected line). A click elsewhere selects the line under it and the wheel moves the cursor of the panel under the pointer. bam opens the page itself and writes no terminal link into the board, so the page opens once. The key line lists `o Bamboo`.
 - `bam pin add GROUP PIN...` takes several pins at once, and a pin can be a plan's name: an exact name (any case) wins, else the plans whose name holds the words. bam stores the plan key and prints key and name; a name that fits several plans lists up to 10 and pins nothing, as does a name that fits none, and one bad pin leaves the whole command unwritten. bam looks the name up with Bamboo's plan search, or in the plans of your configured projects when the server has none. Pinned pipelines show the plan's name on the board and in `bam top --once`, `bam pin list` prints it, and `--json` gains `name` (`names` on `bam pin list`). In the terminal UI, `m` pins the selected plan from the plans table or a plan's screen.
 
+### Fixed
+
+- In the terminal UI run form, a second `ctrl-R` before Bamboo answers no longer starts a second build, `esc` while the run is being sent still reports the build that started, and the dry-run overlay closes when the run starts.
+
 ## [0.4.0] - 2026-11-10
 
 ### Added

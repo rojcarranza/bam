@@ -39,7 +39,7 @@ func TestFormShowsRepositoriesReadOnly(t *testing.T) {
 	// Enter on a row never opens an input for a repository; b does nothing in the form.
 	m.form.cursor = 0
 	m, _ = send(m, mkKey("b"))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 }
 
 func TestTriggerChecksRepositoriesOpensTheTabAndAsksFirst(t *testing.T) {

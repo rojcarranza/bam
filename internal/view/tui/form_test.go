@@ -151,7 +151,7 @@ func TestFormCountsWhatChanged(t *testing.T) {
 
 func TestFormWhileLoadingSaysSo(t *testing.T) {
 	m := formModel()
-	m.form.loading, m.form.fields = true, nil
+	m.form.phase, m.form.fields = formLoading, nil
 	require.Contains(t, m.View(), "loading")
 }
 
@@ -165,7 +165,7 @@ func TestROpensTheFormForAPreset(t *testing.T) {
 
 	m, cmd := send(m, mkKey("R"))
 	require.Equal(t, screenForm, m.screen)
-	require.True(t, m.form.loading)
+	require.True(t, m.form.loading())
 	require.NotNil(t, cmd)
 	v := m.View()
 	require.Contains(t, v, "PROJ-PROV · branch develop · preset smoke", "the header names what is loading")
@@ -194,9 +194,9 @@ func TestROnAPlanOpensAFormWithNoTargetRules(t *testing.T) {
 
 func TestFormLoadedFillsTheFields(t *testing.T) {
 	m := goldenModel(80, 24)
-	m.screen, m.form.loading = screenForm, true
+	m.screen, m.form.phase = screenForm, formLoading
 	m, _ = send(m, formLoadedMsg{Gen: m.formGen, Ref: sampleRef(), Target: "provision-lab", Base: sampleBase()})
-	require.False(t, m.form.loading)
+	require.False(t, m.form.loading())
 	require.Len(t, m.form.fields, 3)
 	require.Equal(t, "provision-lab", m.form.target)
 }
@@ -207,13 +207,13 @@ func TestFormLoadedFillsTheFields(t *testing.T) {
 // enter must not have left editing on to swallow the next real keystroke.
 func TestEnterWhileLoadingIsIgnoredUntilTheFormArrives(t *testing.T) {
 	m := goldenModel(80, 24)
-	m.screen, m.form.loading = screenForm, true
+	m.screen, m.form.phase = screenForm, formLoading
 
 	m, _ = send(m, mkKey("enter"))
-	require.False(t, m.form.editing, "enter while loading must not start editing")
+	require.False(t, m.form.editing(), "enter while loading must not start editing")
 
 	m, _ = send(m, formLoadedMsg{Gen: m.formGen, Ref: sampleRef(), Target: "provision-lab", Base: sampleBase()})
-	require.False(t, m.form.editing, "the load must not inherit editing from the stray enter")
+	require.False(t, m.form.editing(), "the load must not inherit editing from the stray enter")
 	for _, f := range m.form.fields {
 		require.False(t, f.Touched, f.Name+" must not be touched")
 	}
@@ -274,14 +274,14 @@ func TestJAndKMoveBetweenFieldsToo(t *testing.T) {
 func TestEnterEditsAFreeTextFieldAndAcceptsIt(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.form.editing)
+	require.True(t, m.form.editing())
 	require.Equal(t, "beta", m.form.input.Value(), "editing starts from the current value")
 
 	for _, r := range "gamma" {
 		m, _ = send(m, mkKey(string(r)))
 	}
 	m, _ = send(m, mkKey("enter"))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 	require.Equal(t, "betagamma", m.form.fields[0].Value)
 	require.True(t, m.form.fields[0].Touched)
 }
@@ -292,7 +292,7 @@ func TestEnterOnAnOptionsFieldCyclesRatherThanEdits(t *testing.T) {
 	m := formModel()
 	m.form.cursor = 1
 	m, _ = send(m, mkKey("enter"))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 	require.Equal(t, "dcos", m.form.fields[1].Value)
 	require.True(t, m.form.fields[1].Touched)
 
@@ -305,7 +305,7 @@ func TestEscWhileEditingLeavesTheFieldNotTheForm(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, mkKey("enter"))
 	m, _ = send(m, mkKey("esc"))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 	require.Equal(t, screenForm, m.screen)
 
 	m, _ = send(m, mkKey("esc"))
@@ -329,7 +329,7 @@ func TestTypingQWhileEditingDoesNotQuit(t *testing.T) {
 	m, _ = send(m, mkKey("enter"))
 	m, _ = send(m, mkKey("q"))
 	require.Equal(t, screenForm, m.screen)
-	require.True(t, m.form.editing)
+	require.True(t, m.form.editing())
 	require.Contains(t, m.form.input.Value(), "q")
 }
 
@@ -499,7 +499,8 @@ func TestATriggerSendsOnlyChangedVariables(t *testing.T) {
 // TestASuccessfulRunOpensAndWatchesTheNewBuild.
 func TestASuccessfulRunOpensAndWatchesTheNewBuild(t *testing.T) {
 	m := formModel()
-	m, _ = send(m, triggeredMsg{Gen: m.formGen,
+	m.form.phase = formSending
+	m, _ = send(m, triggeredMsg{Gen: m.runGen,
 		Build: provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9}})
 	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, focusStages, m.focus)
@@ -515,7 +516,8 @@ func TestASuccessfulRunOpensAndWatchesTheNewBuild(t *testing.T) {
 func TestTheQueuedNoticeEndsWhenTheBuildLeavesTheQueue(t *testing.T) {
 	m := formModel()
 	b := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateQueued}
-	m, _ = send(m, triggeredMsg{Gen: m.formGen, Build: b})
+	m.form.phase = formSending
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: b})
 	defer m.stopWatch()
 	require.Equal(t, "queued PROJ-PROV12-9", m.status)
 
@@ -532,7 +534,8 @@ func TestTheQueuedNoticeEndsWhenTheBuildLeavesTheQueue(t *testing.T) {
 func TestTheQueuedNoticeEndsWhenTheBuildFinishesStraightFromTheQueue(t *testing.T) {
 	m := formModel()
 	b := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateQueued}
-	m, _ = send(m, triggeredMsg{Gen: m.formGen, Build: b})
+	m.form.phase = formSending
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: b})
 	defer m.stopWatch()
 
 	b.State = provider.StateNotBuilt
@@ -545,7 +548,8 @@ func TestTheQueuedNoticeEndsWhenTheBuildFinishesStraightFromTheQueue(t *testing.
 func TestAnotherNoticeSurvivesTheWatch(t *testing.T) {
 	m := formModel()
 	b := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateQueued}
-	m, _ = send(m, triggeredMsg{Gen: m.formGen, Build: b})
+	m.form.phase = formSending
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: b})
 	defer m.stopWatch()
 	m.status = "copied to clipboard (osc 52)"
 
@@ -569,19 +573,22 @@ func TestCtrlRCannotBeStruckWhileEditing(t *testing.T) {
 	m, _ = send(m, mkKey("enter"))
 	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
 	require.Nil(t, cmd)
-	require.True(t, m.form.editing)
+	require.True(t, m.form.editing())
 	f := m.svc.P.(*fake.Provider)
 	require.Empty(t, f.Triggered)
 }
 
-// TestStaleTriggerIsDropped.
-func TestStaleTriggerIsDropped(t *testing.T) {
+// TestAStaleTriggerIsReportedButNotFollowed: a build that started is never
+// hidden, but a reply for a send the open form did not make does not pull the
+// person out of what they are doing.
+func TestAStaleTriggerIsReportedButNotFollowed(t *testing.T) {
 	m := formModel()
-	stale := m.formGen
-	m.formGen++
-	m, _ = send(m, triggeredMsg{Gen: stale, Build: provider.Build{Key: "PROJ-PROV12-9"}})
+	m.form.phase = formSending
+	m.runGen = 2
+	m, _ = send(m, triggeredMsg{Gen: 1, Build: provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12"}})
 	require.Equal(t, screenForm, m.screen)
 	require.Nil(t, m.detail)
+	require.Equal(t, "queued PROJ-PROV12-9", m.status)
 }
 
 // TestAnUntypedMaskIsNeverSentBack: Bamboo reports a secret as ********, and
@@ -833,7 +840,7 @@ func TestSpaceCyclesAnOptionsField(t *testing.T) {
 	m := formModel()
 	m.form.cursor = 1
 	m, _ = send(m, mkKey(" "))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 	require.Equal(t, "dcos", m.form.fields[1].Value)
 	require.True(t, m.form.fields[1].Touched)
 
@@ -847,7 +854,7 @@ func TestSpaceOnAFreeTextFieldDoesNotOpenAnEditor(t *testing.T) {
 	m := formModel()
 	m.form.cursor = 0 // cluster_name: free text
 	m, _ = send(m, mkKey(" "))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 	require.Equal(t, "beta", m.form.fields[0].Value)
 }
 
@@ -941,28 +948,28 @@ func TestEveryFormCommandTagsItsError(t *testing.T) {
 	f := svc.P.(*fake.Provider)
 
 	t.Run("resolving the plan", func(t *testing.T) {
-		requireTaggedRunError(t, openFormCmd(t.Context(), svc, "no such plan", nil, "", gen), gen)
+		requireTaggedRunError(t, openFormCmd(t.Context(), svc, "no such plan", nil, "", gen), streamRun, gen)
 	})
 
 	t.Run("fetching the variables", func(t *testing.T) {
 		f.VariablesErr = errBoom
 		defer func() { f.VariablesErr = nil }()
-		requireTaggedRunError(t, openFormCmd(t.Context(), svc, "PROJ-PROV", nil, "", gen), gen)
+		requireTaggedRunError(t, openFormCmd(t.Context(), svc, "PROJ-PROV", nil, "", gen), streamRun, gen)
 	})
 
 	t.Run("triggering", func(t *testing.T) {
 		f.TriggerErr = errBoom
 		defer func() { f.TriggerErr = nil }()
 		ref := app.PlanRef{PlanKey: "PROJ-PROV", MasterKey: "PROJ-PROV"}
-		requireTaggedRunError(t, runCmd(t.Context(), svc, ref, app.VarSet{}, gen), gen)
+		requireTaggedRunError(t, runCmd(t.Context(), svc, ref, app.VarSet{}, gen), streamSend, gen)
 	})
 }
 
-func requireTaggedRunError(t *testing.T, cmd tea.Cmd, gen int) {
+func requireTaggedRunError(t *testing.T, cmd tea.Cmd, stream stream, gen int) {
 	t.Helper()
 	msg, ok := cmd().(errMsg)
 	require.True(t, ok, "the command should have failed")
-	require.Equal(t, streamRun, msg.Stream, "an untagged error is never dropped as stale")
+	require.Equal(t, stream, msg.Stream, "an untagged error is never dropped as stale")
 	require.Equal(t, gen, msg.Gen)
 }
 
@@ -1025,7 +1032,7 @@ func TestFormTypesARevision(t *testing.T) {
 	m := formModel()
 	m.form.cursor = len(m.form.fields)
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.form.editing)
+	require.True(t, m.form.editing())
 	m, _ = send(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("abc1234")})
 	m, _ = send(m, mkKey("enter"))
 	require.Equal(t, "abc1234", m.form.revision)
@@ -1058,7 +1065,7 @@ func TestTheRevisionDoesNotSurviveTheForm(t *testing.T) {
 	require.NotEqual(t, screenForm, m.screen)
 	require.Equal(t, "", m.form.revision)
 
-	m.screen, m.form.loading = screenForm, true
+	m.screen, m.form.phase = screenForm, formLoading
 	m, _ = send(m, formLoadedMsg{Gen: m.formGen, Ref: sampleRef(), Target: "provision-lab", Base: sampleBase()})
 	require.Equal(t, "", m.form.revision)
 }
@@ -1069,7 +1076,7 @@ func TestAPlanWithNoVariablesCanStillTakeARevision(t *testing.T) {
 	m.form.cursor = 0
 	require.True(t, m.form.onRevision())
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.form.editing)
+	require.True(t, m.form.editing())
 }
 
 // TestAPlanWithNoVariablesSendsATypedRevision: the only row is Revision, and
@@ -1083,7 +1090,7 @@ func TestAPlanWithNoVariablesSendsATypedRevision(t *testing.T) {
 	require.True(t, m.form.onRevision())
 
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.form.editing)
+	require.True(t, m.form.editing())
 	m, _ = send(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("abc1234")})
 	m, _ = send(m, mkKey("enter"))
 	require.Equal(t, "abc1234", m.form.revision)
@@ -1218,7 +1225,7 @@ func TestOpenFormCmdWithoutARevisionHasNoHint(t *testing.T) {
 
 func TestFormLoadedCarriesTheHintAndReopeningClearsIt(t *testing.T) {
 	m := formModel()
-	m.form.loading = true
+	m.form.phase = formLoading
 	m, _ = send(m, formLoadedMsg{Gen: m.formGen, Ref: sampleRef(), Target: "provision-lab", Base: sampleBase(),
 		FromBuild: "PROJ-PROV12-41", FromRevision: hintCommit})
 	require.Equal(t, hintCommit, m.form.fromRevision)
@@ -1263,12 +1270,12 @@ func typeIn(m Model, s string) Model {
 func TestAAddsAnUndeclaredVariableThatIsSent(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, mkKey("a"))
-	require.True(t, m.form.naming)
+	require.True(t, m.form.naming())
 	m = typeIn(m, "global_flag")
 	require.Contains(t, m.View(), "global_flag")
 	m, _ = send(m, mkKey("enter"))
-	require.False(t, m.form.naming)
-	require.True(t, m.form.editing, "the value is typed next")
+	require.False(t, m.form.naming())
+	require.True(t, m.form.editing(), "the value is typed next")
 	require.Equal(t, 3, m.form.cursor, "the row goes after the declared ones")
 
 	m = typeIn(m, "on")
@@ -1303,7 +1310,7 @@ func TestAddingADeclaredNameEditsThatVariable(t *testing.T) {
 	m, _ = send(m, mkKey("enter"))
 	require.Len(t, m.form.fields, 3)
 	require.Equal(t, 0, m.form.cursor)
-	require.True(t, m.form.editing)
+	require.True(t, m.form.editing())
 
 	// An options field is moved to, not opened as free text.
 	m, _ = send(m, mkKey("esc"))
@@ -1311,7 +1318,7 @@ func TestAddingADeclaredNameEditsThatVariable(t *testing.T) {
 	m = typeIn(m, "cluster_type")
 	m, _ = send(m, mkKey("enter"))
 	require.Equal(t, 1, m.form.cursor)
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 }
 
 // TestAnAddedSecretNameIsMaskedEverywhere.
@@ -1351,18 +1358,18 @@ func TestAnEmptyOrBadNameAddsNothing(t *testing.T) {
 	m := formModel()
 	m, _ = send(m, mkKey("a"))
 	m, _ = send(m, mkKey("enter"))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 	require.Len(t, m.form.fields, 3)
 
 	m, _ = send(m, mkKey("a"))
 	m = typeIn(m, "a=b")
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.form.naming, "the name stays open to fix")
+	require.True(t, m.form.naming(), "the name stays open to fix")
 	require.Error(t, m.form.err)
 	require.Len(t, m.form.fields, 3)
 
 	m, _ = send(m, mkKey("esc"))
-	require.False(t, m.form.editing)
+	require.False(t, m.form.editing())
 	require.Len(t, m.form.fields, 3)
 	require.NoError(t, m.form.err, "the name it was about is gone")
 	require.NotContains(t, m.View(), "is not a variable name")
@@ -1372,7 +1379,7 @@ func TestAnEmptyOrBadNameAddsNothing(t *testing.T) {
 // cannot be read, the form must not keep promising them.
 func TestAFailedFormLoadStopsSayingLoading(t *testing.T) {
 	m := formModel()
-	m.form = formState{loading: true}
+	m.form = formState{phase: formLoading}
 	require.Contains(t, m.View(), "loading the plan's variables")
 
 	m, _ = send(m, errMsg{Err: errBoom, Where: "run", Stream: streamRun, Gen: m.formGen})
@@ -1382,7 +1389,7 @@ func TestAFailedFormLoadStopsSayingLoading(t *testing.T) {
 	require.NotContains(t, v, "^R run", "no key but esc works on a form that never loaded")
 
 	m, _ = send(m, mkKey("enter"))
-	require.False(t, m.form.editing, "a failed form still has nothing to edit")
+	require.False(t, m.form.editing(), "a failed form still has nothing to edit")
 }
 
 // TestALongFormErrorWraps: a Bamboo refusal is often wider than the form, and
@@ -1429,7 +1436,149 @@ func TestASuccessfulRunClearsAnEarlierError(t *testing.T) {
 	m := formModel()
 	m.err = errs.Bamboof("Bamboo refused")
 	b := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateQueued}
-	m, _ = send(m, triggeredMsg{Gen: m.formGen, Build: b})
+	m.form.phase = formSending
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: b})
 	defer m.stopWatch()
 	require.NoError(t, m.err)
+}
+
+// The run form's phases (BAM-53 machine 1): one transition table, three
+// defects it closes.
+
+func TestFormStepIgnoresARunWhileSending(t *testing.T) {
+	for _, p := range []formPhase{formSending, formSendingAway} {
+		for _, ev := range []formEvent{evSend, evCheck} {
+			next, ok := p.step(ev)
+			require.False(t, ok, "phase %d took event %d", p, ev)
+			require.Equal(t, p, next)
+		}
+	}
+	next, ok := formSending.step(evEscape)
+	require.True(t, ok)
+	require.Equal(t, formSendingAway, next, "esc keeps the run alive")
+}
+
+// A second ctrl-R before Bamboo answers must not start a second build.
+func TestASecondCtrlRWhileSendingStartsNoSecondBuild(t *testing.T) {
+	m := formModel()
+	m.revalidate()
+	m, first := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.NotNil(t, first)
+	require.Equal(t, formSending, m.form.phase)
+	m, second := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.Nil(t, second, "the second press is ignored")
+
+	first()
+	require.Len(t, m.svc.P.(*fake.Provider).Triggered, 1)
+}
+
+func TestASecondCtrlRWhileCheckingRepositoriesIsIgnored(t *testing.T) {
+	var opened []string
+	m := repoFormModel(&opened)
+	m, first := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.NotNil(t, first)
+	require.Equal(t, formChecking, m.form.phase)
+	_, second := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.Nil(t, second)
+}
+
+func TestDecliningTheRepositoriesDialogLetsTheRunBeSentAgain(t *testing.T) {
+	var opened []string
+	m := repoFormModel(&opened)
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, cmd())
+	require.Equal(t, formAsking, m.form.phase)
+	m, _ = send(m, mkKey("n"))
+	require.Equal(t, formReady, m.form.phase)
+	_, again := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.NotNil(t, again, "the form runs again after a no")
+}
+
+// Esc while the run is being sent must not hide a build that did start.
+func TestEscWhileSendingStillReportsTheBuild(t *testing.T) {
+	m := formModel()
+	m.formFrom = screenHome
+	m.revalidate()
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, mkKey("esc"))
+	require.Equal(t, screenHome, m.screen)
+
+	m, _ = send(m, cmd())
+	require.Equal(t, "queued PROJ-PROV12-9", m.status)
+	require.Equal(t, screenHome, m.screen, "the person had left; they are not pulled into the build")
+	require.Contains(t, m.home.live, "PROJ-PROV12", "Home marks the plan as running")
+	require.Equal(t, formReady, m.form.phase)
+}
+
+func TestAFailedRunAfterEscLeavesNoForm(t *testing.T) {
+	m := formModel()
+	m.formFrom = screenHome
+	m.revalidate()
+	m, _ = send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, mkKey("esc"))
+	m, _ = send(m, errMsg{Err: errBoom, Where: "run", Stream: streamSend, Gen: m.runGen})
+	require.Error(t, m.err)
+	require.Equal(t, formReady, m.form.phase)
+}
+
+func TestAFailedRunReturnsTheFormToReady(t *testing.T) {
+	m := formModel()
+	m.revalidate()
+	m, _ = send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, errMsg{Err: errBoom, Where: "run", Stream: streamSend, Gen: m.runGen})
+	require.Equal(t, formReady, m.form.phase)
+	require.Equal(t, "beta", m.form.fields[0].Value)
+	_, again := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	require.NotNil(t, again)
+}
+
+// The dry-run overlay opened while the run was in flight closes with the form.
+func TestTheDryRunOverlayClosesWhenTheRunStarts(t *testing.T) {
+	m := formModel()
+	m.revalidate()
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, mkKey("d"))
+	require.Equal(t, overlayDryRun, m.overlay)
+
+	m, _ = send(m, cmd())
+	defer m.stopWatch()
+	require.Equal(t, overlayNone, m.overlay)
+	require.Equal(t, screenPlan, m.screen)
+}
+
+// While a run is in flight the key line names only the keys that still work.
+func TestTheKeyLineDropsRunAndEditKeysWhileSending(t *testing.T) {
+	m := formModel()
+	require.Contains(t, m.keyLine(), "^R run")
+	m.form.phase = formSending
+	require.NotContains(t, m.keyLine(), "^R run")
+	require.NotContains(t, m.keyLine(), "enter edit")
+	require.Contains(t, m.keyLine(), "esc cancel")
+}
+
+// A marker left by a build the person did not stay to watch ends when Home
+// reads that build as the plan's finished last build.
+func TestAHomeMarkerEndsWhenThePlanReadsTheBuildFinished(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: provider.Build{Key: "PROJ-PROV-9", PlanKey: "PROJ-PROV", Number: 9, State: provider.StateQueued}})
+	require.Contains(t, m.home.live, "PROJ-PROV")
+
+	m = m.plansLoaded(plansLoadedMsg{Plans: []provider.Plan{{Key: "PROJ-PROV",
+		LastBuild: &provider.BuildSummary{Key: "PROJ-PROV-9", Number: 9, State: provider.StateSuccess}}}})
+	require.NotContains(t, m.home.live, "PROJ-PROV")
+}
+
+// A reply from the server the person left is reported as theirs, never marked
+// on the server they switched to.
+func TestARunReplyAfterASwitchOfServerMarksNothingOnTheNewOne(t *testing.T) {
+	m := formModel()
+	m.server = "lab"
+	m.revalidate()
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, mkKey("esc"))
+	m.server = "prod"
+
+	m, _ = send(m, cmd())
+	require.Empty(t, m.home.live)
+	require.Equal(t, "started PROJ-PROV12-9 on lab", m.status)
 }

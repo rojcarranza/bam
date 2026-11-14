@@ -45,11 +45,120 @@ type formState struct {
 	fromRevision string    // its commit, offered on the Revision row by f
 	repos        []repoRow // the preset's repositories, shown after the variables; not editable
 	cursor       int
-	editing      bool
-	naming       bool // the input holds a new row's name, not a value
+	phase        formPhase
 	input        textinput.Model
 	err          error // a form-level error that ctrl-R refuses on
-	loading      bool
+}
+
+// formPhase is where the run form is in its life. Every change of phase goes
+// through step, so what a key or a reply may do in each phase is read in one
+// place instead of from three booleans and the screen.
+type formPhase int
+
+const (
+	formReady       formPhase = iota // fields shown, keys act on them
+	formLoading                      // the plan's variables are on their way; only esc and q work
+	formEditing                      // the input holds a value
+	formNaming                       // the input holds a new row's name
+	formChecking                     // the repositories check is in flight
+	formAsking                       // the repositories dialog waits for an answer
+	formSending                      // the run request is in flight; a second ctrl-R is ignored
+	formSendingAway                  // esc left the form while the run was in flight
+)
+
+// formEvent is what can happen to a phase.
+type formEvent int
+
+const (
+	evLoaded   formEvent = iota // the variables arrived
+	evEdit                      // enter on a row
+	evName                      // a on a row
+	evEditDone                  // a value or name was accepted or cancelled
+	evCheck                     // ctrl-R on a preset that names repositories
+	evSend                      // ctrl-R, or a repositories check that needs nothing
+	evAsk                       // the check found branches to switch
+	evYes                       // the dialog was confirmed
+	evNo                        // the dialog was declined
+	evFailed                    // the check or the run failed
+	evEscape                    // esc left the form
+)
+
+// step is the form's one transition table. ok is false when the phase takes
+// no such event, which is how a second ctrl-R while sending is ignored. Esc
+// from sending is the one transition that keeps the run alive.
+func (p formPhase) step(ev formEvent) (next formPhase, ok bool) {
+	switch p {
+	case formLoading:
+		if ev == evLoaded {
+			return formReady, true
+		}
+	case formReady:
+		switch ev {
+		case evEdit:
+			return formEditing, true
+		case evName:
+			return formNaming, true
+		case evCheck:
+			return formChecking, true
+		case evSend:
+			return formSending, true
+		}
+	case formNaming:
+		switch ev {
+		case evEditDone:
+			return formReady, true
+		}
+	case formEditing:
+		if ev == evEditDone {
+			return formReady, true
+		}
+	case formChecking:
+		switch ev {
+		case evSend:
+			return formSending, true
+		case evAsk:
+			return formAsking, true
+		case evFailed:
+			return formReady, true
+		}
+	case formAsking:
+		switch ev {
+		case evYes:
+			return formSending, true
+		case evNo:
+			return formReady, true
+		}
+	case formSending:
+		switch ev {
+		case evFailed:
+			return formReady, true
+		case evEscape:
+			return formSendingAway, true
+		}
+	}
+	return p, false
+}
+
+// advance applies ev and says whether the phase took it.
+func (f *formState) advance(ev formEvent) bool {
+	next, ok := f.phase.step(ev)
+	if ok {
+		f.phase = next
+	}
+	return ok
+}
+
+func (f formState) loading() bool { return f.phase == formLoading }
+func (f formState) editing() bool { return f.phase == formEditing || f.phase == formNaming }
+func (f formState) naming() bool  { return f.phase == formNaming }
+
+// busy says a run is on its way: the check, its dialog or the request.
+func (f formState) busy() bool {
+	switch f.phase {
+	case formChecking, formAsking, formSending, formSendingAway:
+		return true
+	}
+	return false
 }
 
 // revisionReused says whether the Revision row holds the offered commit of
@@ -226,7 +335,7 @@ func (m Model) formView() string {
 // constraint. A secret's value column is always ********, whatever the field
 // holds, so a typed secret cannot reach the screen.
 func (m Model) formBody(width, height int) string {
-	if m.form.loading {
+	if m.form.loading() {
 		if m.form.err != nil {
 			return errorStyle.Render("could not load the plan's variables")
 		}
@@ -244,8 +353,8 @@ func (m Model) formBody(width, height int) string {
 		case value == "":
 			value = dimStyle.Render(strings.Repeat("_", min(valueW, 12)))
 		}
-		here := m.form.cursor == i && !m.form.naming
-		if m.form.editing && here {
+		here := m.form.cursor == i && !m.form.naming()
+		if m.form.editing() && here {
 			value = m.form.input.View()
 		}
 		line := m.cursorFor(true, here) +
@@ -260,7 +369,7 @@ func (m Model) formBody(width, height int) string {
 			dimStyle.Render(truncate("repository branch, checked when you run", width-nameW-valueW-4))
 		lines = append(lines, strings.TrimRight(line, " "))
 	}
-	if m.form.naming {
+	if m.form.naming() {
 		hint := "name of the variable to add"
 		line := m.cursorFor(true, true) +
 			lipgloss.NewStyle().Width(nameW).Render(m.form.input.View()) +
@@ -279,8 +388,8 @@ func (m Model) formBody(width, height int) string {
 		rev = provider.Revision{Revision: rev}.Short()
 		note = "from " + app.BuildLabel(m.form.fromBuild)
 	}
-	onRev := m.form.onRevision() && !m.form.naming
-	if m.form.editing && onRev {
+	onRev := m.form.onRevision() && !m.form.naming()
+	if m.form.editing() && onRev {
 		rev = m.form.input.View()
 	}
 	revLine := m.cursorFor(true, onRev) +
@@ -377,7 +486,7 @@ func (f *formState) startEditing() {
 		f.input.SetValue(f.revision)
 		f.input.CursorEnd()
 		f.input.Focus()
-		f.editing = true
+		f.advance(evEdit)
 		return
 	}
 	fl := f.fields[f.cursor]
@@ -389,7 +498,7 @@ func (f *formState) startEditing() {
 		f.input.SetValue("")
 	}
 	f.input.Focus()
-	f.editing = true
+	f.advance(evEdit)
 }
 
 // acceptEdit takes what was typed. An empty value typed on purpose is a
@@ -403,12 +512,12 @@ func (f *formState) acceptEdit() {
 		f.fields[f.cursor].Value = f.input.Value()
 		f.fields[f.cursor].Touched = true
 	}
-	f.editing = false
+	f.advance(evEditDone)
 	f.input.Blur()
 }
 
 func (f *formState) cancelEdit() {
-	f.editing, f.naming = false, false
+	f.advance(evEditDone)
 	f.input.Blur()
 }
 
@@ -418,7 +527,7 @@ func (f *formState) startNaming() {
 	f.input = textinput.New()
 	f.input.Prompt = ""
 	f.input.Focus()
-	f.editing, f.naming = true, true
+	f.advance(evName)
 }
 
 // acceptName ends naming. A declared or already added name moves the cursor

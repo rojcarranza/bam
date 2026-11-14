@@ -836,8 +836,8 @@ type TreeEvent struct {
 }
 
 // WatchTree refreshes the tree of key every treePoll and emits it when it
-// changed. It ends once every build has finished and one more refresh
-// has settled, since Bamboo queues children when their parent ends.
+// changed. It ends on the first tree that has settled (see settle): every
+// build ended a while ago, since Bamboo queues children when their parent ends.
 // Until the first tree, it sends TreeLoading events saying how far the
 // search got; o.OnProgress is not called. Ending ctx stops watching; no
 // build is stopped.

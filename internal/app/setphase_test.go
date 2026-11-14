@@ -142,6 +142,13 @@ func (c *cancelAfterRestart) RestartBuild(ctx context.Context, key string) (prov
 	return b, err
 }
 
+func (c *cancelAfterRestart) GetBuild(ctx context.Context, key string) (provider.Build, error) {
+	if err := ctx.Err(); err != nil {
+		return provider.Build{}, err
+	}
+	return c.Provider.GetBuild(ctx, key)
+}
+
 // An interrupt after Bamboo accepted the restart keeps it counted and not due,
 // so resume watches the restarted build and never restarts it a second time.
 func TestInterruptAfterBambooTookTheRestartKeepsItCounted(t *testing.T) {

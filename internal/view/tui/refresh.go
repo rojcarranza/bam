@@ -118,6 +118,13 @@ func (m Model) plansLoaded(msg plansLoadedMsg) Model {
 		}
 		sort.Slice(items, func(i, j int) bool { return items[i].Key < items[j].Key })
 	}
+	// A marker for a build nobody watches (the person left the form while it
+	// was sent) ends once the plan's last build is that build, finished.
+	for _, p := range items {
+		if lb, ok := m.home.live[p.Key]; ok && p.LastBuild != nil && p.LastBuild.State.Finished() && p.LastBuild.Number >= lb.Number {
+			delete(m.home.live, p.Key)
+		}
+	}
 	keep, had := m.plans.selected()
 	m.plans.setItems(items)
 	if had {

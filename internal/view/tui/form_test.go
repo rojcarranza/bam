@@ -1555,3 +1555,15 @@ func TestTheKeyLineDropsRunAndEditKeysWhileSending(t *testing.T) {
 	require.NotContains(t, m.keyLine(), "enter edit")
 	require.Contains(t, m.keyLine(), "esc cancel")
 }
+
+// A marker left by a build the person did not stay to watch ends when Home
+// reads that build as the plan's finished last build.
+func TestAHomeMarkerEndsWhenThePlanReadsTheBuildFinished(t *testing.T) {
+	m := formModel()
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateQueued}})
+	require.Contains(t, m.home.live, "PROJ-PROV12")
+
+	m = m.plansLoaded(plansLoadedMsg{Plans: []provider.Plan{{Key: "PROJ-PROV12",
+		LastBuild: &provider.BuildSummary{Key: "PROJ-PROV12-9", Number: 9, State: provider.StateSuccess}}}})
+	require.NotContains(t, m.home.live, "PROJ-PROV12")
+}

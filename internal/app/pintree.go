@@ -14,11 +14,6 @@ import (
 // ends, and a script can start more while it runs.
 const pinRescanEvery = 5 * time.Minute
 
-// pinSettle is how long after a pin's build ends its tree may still grow:
-// Bamboo queues the child plans a moment after the parent ends, so a tree
-// read sooner is listed again and not saved as final.
-const pinSettle = 2 * time.Minute
-
 // pinTreeMemo is what the board keeps of one pinned build's tree between
 // refreshes, so a refresh reads only what runs.
 type pinTreeMemo struct {
@@ -106,8 +101,8 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 	if TreeFinished(root.State) {
 		// A tree with a failed pipeline is read again: a rerun of that pipeline
 		// keeps its build key, so a saved tree cannot show it.
-		if t, saved, ok := s.cachedTreeAt(root.Key); ok && completeTree(t) && len(failedChildren(&t)) == 0 && !saved.Before(treeLatest(t, root).Add(pinSettle)) {
-			return &t // saved after the tree had settled, not just as the build ended
+		if t, ok := s.CachedTree(root.Key); ok && t.Settled() && completeTree(t) && len(failedChildren(&t)) == 0 {
+			return &t // saved once the tree had settled, not just as the build ended
 		}
 	}
 	m := s.pinTrees.memo(root.PlanKey, root.Key)
@@ -127,16 +122,15 @@ func (s *Service) PinTree(ctx context.Context, root provider.Build) *Tree {
 	}
 	m.scan = scan
 	if !o.NoScan {
-		latest := treeLatest(t, root)
 		m.scannedAt = now
-		m.settled = TreeFinished(root.State) && now.Sub(latest) >= pinSettle
+		m.settled = TreeFinished(root.State) && t.Settled()
 	}
 	t.Root.Walk(func(n *TreeNode, _ int) {
 		if !n.NotRun && !n.Loop && TreeFinished(n.Build.State) && n.Build.State != provider.StateFailed {
 			m.done[n.Build.Key] = n.Build
 		}
 	})
-	if m.settled && TreeFinal(t) && completeTree(t) && len(failedChildren(&t)) == 0 {
+	if m.settled && t.Settled() && completeTree(t) && len(failedChildren(&t)) == 0 {
 		s.KeepTree(root.Key, t)
 		s.pinTrees.forget(root.Key)
 	}

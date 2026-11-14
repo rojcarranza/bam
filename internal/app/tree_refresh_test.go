@@ -15,7 +15,9 @@ func runsThenEnds(key, reason string, minutes, runs int) []provider.Build {
 	for i := 0; i < runs; i++ {
 		out = append(out, tb(key, reason, provider.StateRunning, minutes))
 	}
-	return append(out, tb(key, reason, provider.StateSuccess, minutes))
+	end := tb(key, reason, provider.StateSuccess, minutes)
+	end.FinishedAt = newClock().Now() // it ends as the test starts: its tree settles treeQuiet later
+	return append(out, end)
 }
 
 // refreshCounts watches key's tree and returns, for each refresh, how many
@@ -101,8 +103,8 @@ func TestAWatchedTreeListsAgainAfterQuietMinutes(t *testing.T) {
 			listed = append(listed, n)
 		}
 	}
-	require.Equal(t, []int{0, quiet, quiet + 1, quiet + 3, quiet + 4}, listed,
-		"first, after treeRelist and once more as it found a finished build, then when the root ended and once more")
+	require.Equal(t, []int{0, quiet, quiet + 1, quiet + 3}, listed,
+		"first, after treeRelist and once more as it found a finished build, then when the root ended: its end is far past treeQuiet, so the tree settles there")
 	require.Equal(t, TreeUpdate, evs[1].Type)
 	require.Equal(t, "PROJ-API-142(PROJ-DOCS-30)", shape(evs[1].Tree.Root))
 	require.Equal(t, provider.StateRunning, evs[1].Tree.Root.Build.State, "found while the root still ran")

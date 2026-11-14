@@ -72,9 +72,9 @@ func TestWatchTreeFollowsAChildThatAppearsLater(t *testing.T) {
 	require.Equal(t, provider.StateRunning, evs[0].Tree.State)
 	require.Equal(t, TreeUpdate, evs[1].Type)
 	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88)", shape(evs[1].Tree.Root))
-	require.Equal(t, TreeDone, evs[2].Type, "done after one more refresh found nothing new")
+	require.Equal(t, TreeDone, evs[2].Type, "done once the tree settled")
 	require.Equal(t, provider.StateSuccess, evs[2].Tree.State)
-	require.Equal(t, []time.Duration{10 * time.Second, 10 * time.Second}, clock.Waits())
+	require.Equal(t, []time.Duration{10 * time.Second}, clock.Waits(), "the builds ended long ago, so the tree settled as the child was found")
 }
 
 func TestWatchTreeSendsOnlyChanges(t *testing.T) {
@@ -331,12 +331,12 @@ func TestWatchTreeOfLongFinishedBuildsEndsAtOnce(t *testing.T) {
 	require.Equal(t, TreeDone, evs[1].Type)
 	require.Empty(t, clock.Waits(), "no settle poll for builds that ended an hour ago")
 
-	// A build that ended within the minute still gets its settle poll.
+	// A build that ended within the minute is polled until the minute is out.
 	p.History["OPS-DEPLOY"] = []provider.Build{ended(tb("OPS-DEPLOY-88", childOf("PROJ-API-142"), provider.StateSuccess, 5), 30*time.Second)}
 	svc.Clock = newClock()
 	evs = collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
 	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
-	require.Equal(t, []time.Duration{treePoll}, svc.Clock.(*fakeClock).Waits())
+	require.Equal(t, []time.Duration{treePoll, treePoll, treePoll}, svc.Clock.(*fakeClock).Waits(), "30s old, then 40s, 50s, and settled at 60s")
 }
 
 func TestWatchTreeEstimatesRunningBuilds(t *testing.T) {
@@ -388,4 +388,24 @@ func TestWatchTreeRetriesAMissingEstimate(t *testing.T) {
 	// The third update is the build ending: a newer estimate alone sends
 	// nothing, since the view moves the bar on by itself.
 	require.Equal(t, []provider.Progress{{}, est, {}}, docs, "the estimate arrives without a state change")
+}
+
+// Intent (gate review of #221): a child Bamboo queues some seconds after its
+// parent ended is found while the tree is ended but not yet settled, even
+// when no build ends in that time.
+func TestWatchTreeListsAgainUntilTheTreeSettles(t *testing.T) {
+	p := treeFake()
+	root := tb("PROJ-API-142", "Manual run by jdoe", provider.StateSuccess, 0)
+	root.FinishedAt = newClock().Now().Add(-5 * time.Second)
+	p.History = map[string][]provider.Build{"PROJ-API": {root}}
+	svc := treeService(t, p)
+	svc.Clock = &hookClock{fakeClock: newClock(), hook: func(n int) {
+		if n == 3 { // 30s after the parent ended
+			p.History["OPS-DEPLOY"] = []provider.Build{tb("OPS-DEPLOY-88", childOf("PROJ-API-142"), provider.StateSuccess, 5)}
+		}
+	}}
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	last := evs[len(evs)-1]
+	require.Equal(t, TreeDone, last.Type)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88)", shape(last.Tree.Root))
 }

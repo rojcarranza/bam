@@ -86,6 +86,7 @@ func (*stuckClock) After(time.Duration) <-chan time.Time { return nil }
 
 func TestWatchTimeoutAfterTheTreeFinishedSaysSo(t *testing.T) {
 	h := treeHarness(t, provider.StateSuccess)
+	h.fake.History["PROJ-PROV"][0].FinishedAt = fixedNow.Add(-10 * time.Second) // ended moments ago: not settled
 	h.env.Clock = &stuckClock{instantClock{now: fixedNow}}
 	assert.Equal(t, 6, h.run("watch", "PROJ-BUILD-482", "--timeout", "50ms"))
 	assert.Contains(t, h.stderr.String(), "every build in PROJ-BUILD-482's tree finished, but bam had not yet confirmed that no more start")

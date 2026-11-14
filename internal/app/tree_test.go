@@ -17,12 +17,21 @@ import (
 
 var treeT0 = time.Date(2026, 10, 8, 9, 0, 0, 0, time.UTC)
 
-// tb is a build of key PLAN-N with a reason, started minutes after treeT0.
+// treeEnded is when tb's finished builds ended: long before the fake clock's
+// now, so a tree of them has settled.
+var treeEnded = newClock().now.Add(-time.Hour)
+
+// tb is a build of key PLAN-N with a reason, started minutes after treeT0. A
+// finished one ended at treeEnded.
 func tb(key, reason string, st provider.State, minutes int) provider.Build {
 	i := strings.LastIndex(key, "-")
 	n, _ := strconv.Atoi(key[i+1:])
-	return provider.Build{Key: key, PlanKey: key[:i], Number: n, State: st, Reason: reason,
+	b := provider.Build{Key: key, PlanKey: key[:i], Number: n, State: st, Reason: reason,
 		StartedAt: treeT0.Add(time.Duration(minutes) * time.Minute)}
+	if TreeFinished(st) {
+		b.FinishedAt = treeEnded
+	}
+	return b
 }
 
 func childOf(parent string) string { return "Child of " + parent }

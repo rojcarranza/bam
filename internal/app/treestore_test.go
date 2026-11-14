@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,7 +16,7 @@ func TestTreeStoreKeepsFinalTreesAcrossRestarts(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 	origin := "https://bamboo.example.com"
-	done := Tree{Root: &TreeNode{PlanKey: "PROJ-BUILD", Build: provider.Build{Key: "PROJ-BUILD-44", State: provider.StateFailed}}, State: provider.StateFailed}
+	done := Tree{Root: &TreeNode{PlanKey: "PROJ-BUILD", Build: provider.Build{Key: "PROJ-BUILD-44", State: provider.StateFailed}}, State: provider.StateFailed, End: TreeSettled}
 
 	(&TreeStore{Dir: dir}).Keep(origin, "PROJ-BUILD-44", done, now)
 	got, ok := (&TreeStore{Dir: dir}).Get(origin, "PROJ-BUILD-44", now.Add(time.Hour))
@@ -28,7 +29,7 @@ func TestTreeStoreKeepsFinalTreesAcrossRestarts(t *testing.T) {
 	require.False(t, ok, "a tree older than 7 days is dropped")
 
 	running := done
-	running.State = provider.StateRunning
+	running.State, running.End = provider.StateRunning, TreeRunning
 	s := &TreeStore{Dir: dir}
 	s.Keep(origin, "PROJ-BUILD-44", running, now)
 	_, ok = (&TreeStore{Dir: dir}).Get(origin, "PROJ-BUILD-44", now)
@@ -42,7 +43,7 @@ func TestTreeStoreRebuildsACorruptFile(t *testing.T) {
 	_, ok := s.Get("https://bamboo.example.com", "PROJ-BUILD-44", time.Now())
 	require.False(t, ok)
 
-	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess}
+	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess, End: TreeSettled}
 	s.Keep("https://bamboo.example.com", "PROJ-BUILD-44", done, time.Now())
 	files, _ := filepath.Glob(filepath.Join(dir, "*.json"))
 	require.Len(t, files, 1)
@@ -54,7 +55,7 @@ func TestTreeStoreDropsTreesFromAnotherServerVersion(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Now()
 	origin := "https://bamboo.example.com"
-	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess}
+	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess, End: TreeSettled}
 
 	s := &TreeStore{Dir: dir}
 	s.Server(origin, "9.6.2", now)
@@ -89,7 +90,7 @@ func TestTreeStoreDropsAFileOfAnotherFormat(t *testing.T) {
 
 func TestTreeStoreLeavesNoTempFiles(t *testing.T) {
 	dir := t.TempDir()
-	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess}
+	done := Tree{Root: &TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess, End: TreeSettled}
 	(&TreeStore{Dir: dir}).Keep("https://bamboo.example.com", "PROJ-BUILD-44", done, time.Now())
 	(&TreeStore{Dir: dir}).Keep("https://bamboo.example.com", "PROJ-BUILD-45", done, time.Now())
 	entries, err := os.ReadDir(dir)
@@ -97,4 +98,58 @@ func TestTreeStoreLeavesNoTempFiles(t *testing.T) {
 	require.Len(t, entries, 1)
 	_, ok := (&TreeStore{Dir: dir}).Get("https://bamboo.example.com", "PROJ-BUILD-45", time.Now())
 	require.True(t, ok)
+}
+
+// Intent (BAM-53 machine 5, defect 2): a tree saved before Bamboo queued its
+// children is never kept, so a later read does not take it as complete.
+func TestATreeReadJustAfterItsBuildEndedIsNotKept(t *testing.T) {
+	p := treeFake()
+	p.History["PROJ-DOCS"][0].State = provider.StateSuccess
+	svc := treeService(t, p)
+	svc.Trees = &TreeStore{Dir: t.TempDir()}
+	now := svc.Clock.Now()
+	for _, plan := range []string{"PROJ-API", "PROJ-DOCS", "OPS-DEPLOY", "OPS-SMOKE"} {
+		for i := range p.History[plan] {
+			p.History[plan][i].FinishedAt = now.Add(-10 * time.Second)
+		}
+	}
+	ctx := context.Background()
+
+	tr, err := svc.BuildTree(ctx, "PROJ-API-142", TreeOptions{})
+	require.NoError(t, err)
+	svc.KeepTree("PROJ-API-142", tr)
+	_, ok := svc.CachedTree("PROJ-API-142")
+	require.False(t, ok, "its last build ended 10s ago: Bamboo may still queue a child")
+
+	svc.Clock.(*fakeClock).After(treeQuiet)
+	tr, err = svc.BuildTree(ctx, "PROJ-API-142", TreeOptions{})
+	require.NoError(t, err)
+	svc.KeepTree("PROJ-API-142", tr)
+	_, ok = svc.CachedTree("PROJ-API-142")
+	require.True(t, ok, "kept once a quiet minute has passed")
+}
+
+// Intent (BAM-53 machine 5): every reader asks the one End; a tree saved
+// before End existed counts as ended and is read again.
+func TestATreeSavedWithoutAnEndIsReadAgain(t *testing.T) {
+	dir := t.TempDir()
+	s := &TreeStore{Dir: dir}
+	old := Tree{Root: &TreeNode{Build: provider.Build{Key: "PROJ-API-142", State: provider.StateSuccess}}, State: provider.StateSuccess}
+	require.False(t, old.Settled())
+	s.Keep("https://bamboo.example.com", "PROJ-API-142", old, time.Now())
+	_, ok := s.Get("https://bamboo.example.com", "PROJ-API-142", time.Now())
+	require.False(t, ok)
+}
+
+func TestTreeEndFollowsTheLastBuildToEnd(t *testing.T) {
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	tree := func(root, child provider.State, ago time.Duration) Tree {
+		r := &TreeNode{Build: provider.Build{State: root, FinishedAt: now.Add(-time.Hour)}}
+		r.Children = []*TreeNode{{Build: provider.Build{State: child, FinishedAt: now.Add(-ago)}}}
+		return Tree{Root: r, State: TreeState(r)}
+	}
+	require.Equal(t, TreeRunning, settle(tree(provider.StateSuccess, provider.StateRunning, 0), now, false))
+	require.Equal(t, TreeEnded, settle(tree(provider.StateSuccess, provider.StateSuccess, 30*time.Second), now, false))
+	require.Equal(t, TreeEnded, settle(tree(provider.StateSuccess, provider.StateSuccess, time.Hour), now, true), "a restarted build's parent is not known yet")
+	require.Equal(t, TreeSettled, settle(tree(provider.StateSuccess, provider.StateFailed, treeQuiet), now, false))
 }

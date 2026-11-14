@@ -38,6 +38,9 @@ func newAgentSwitchCmd(r *runtime, enable bool) *cobra.Command {
 		Example: "  bam agent " + verb + " linux-3\n  bam agent " + verb + " linux-3 --yes",
 		Args:    cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if err := r.refuseWrite(verb + " an agent"); err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 			svc, _, err := r.connect(ctx, "")
 			if err != nil {

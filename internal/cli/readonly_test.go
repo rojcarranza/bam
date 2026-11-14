@@ -15,7 +15,6 @@ import (
 // changes anything in Bamboo", set by flag, environment or settings file.
 
 // writeCommands is every bam command line that changes something in Bamboo.
-// bam agent disable and enable join it when they merge.
 var writeCommands = map[string][]string{
 	"run a preset":      {"run", "build"},
 	"run a plan":        {"run", "PROJ-BUILD", "--var", "x=1"},
@@ -28,6 +27,8 @@ var writeCommands = map[string][]string{
 	"set run in a file": {"set", "run", "-f", "train.yaml"},
 	"set resume":        {"set", "resume"},
 	"set rerun":         {"set", "rerun", "--failed"},
+	"agent disable":     {"agent", "disable", "linux-3", "--yes"},
+	"agent enable":      {"agent", "enable", "linux-3", "--yes"},
 }
 
 // readOnlyOn turns the switch on one way: "flag", "env" or "config".
@@ -51,6 +52,7 @@ func untouched(t *testing.T, h *harness) {
 	assert.Empty(t, h.fake.Triggered, "nothing was triggered")
 	assert.Empty(t, h.fake.Stopped, "nothing was stopped")
 	assert.Empty(t, h.fake.Restarted, "nothing was restarted")
+	assert.Empty(t, h.fake.AgentSwitched, "no agent was switched")
 }
 
 func TestReadOnlyRefusesEveryWriteCommand(t *testing.T) {
@@ -62,6 +64,7 @@ func TestReadOnlyRefusesEveryWriteCommand(t *testing.T) {
 				require.NoError(t, os.WriteFile(filepath.Join(h.root, "train.yaml"), []byte("name: t\nstages:\n  - [build]\n"), 0o644))
 				h.fake.History["PROJ-BUILD"] = append(h.fake.History["PROJ-BUILD"],
 					provider.Build{Key: "PROJ-BUILD-483", PlanKey: "PROJ-BUILD", Number: 483, State: provider.StateRunning})
+				h.fake.AgentList = []provider.Agent{{ID: 1, Name: "linux-3", Enabled: true}}
 				extra := readOnlyOn(t, h, how)
 				code := h.run(append(cmd, extra...)...)
 				assert.Equal(t, 2, code, "stderr: %s", h.stderr.String())
@@ -169,4 +172,18 @@ func TestReadOnlyServiceRefusesSetsBeforeAnyRecord(t *testing.T) {
 	entries, _ := os.ReadDir(h.env.Paths.Sets)
 	assert.Empty(t, entries, "no lock and no record")
 	untouched(t, h)
+}
+
+// The Service refuses too, for a caller that is not a command (the UI).
+func TestReadOnlyServiceRefusesAnAgentSwitch(t *testing.T) {
+	h := newHarness(t)
+	r := &runtime{env: h.env}
+	r.flags.readOnly = true
+	svc, _, err := r.connect(t.Context(), "")
+	require.NoError(t, err)
+	_, err = svc.SetAgentEnabled(t.Context(), provider.Agent{ID: 1, Name: "linux-3", Enabled: true}, false)
+	require.ErrorContains(t, err, "read-only mode")
+	_, ok := svc.P.(provider.AgentSwitcher)
+	assert.True(t, ok, "the guard answers the switch, so it reads as a refusal, not as unsupported")
+	assert.Empty(t, h.fake.AgentSwitched)
 }

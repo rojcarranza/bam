@@ -20,6 +20,10 @@ var Reads = []string{"CurrentUser", "ServerInfo", "ListProjects", "ListPlans", "
 	"ListVariables", "ListBuilds", "GetBuild", "BuildProgress", "BuildVariables", "FetchLog", "Queue",
 	"Agents", "AgentJobs", "URL", "RepositoriesURL", "CreateBranchURL"}
 
+// ExtensionWrites names the optional provider extensions that change Bamboo.
+// The Guard implements each and refuses it; a test lists them.
+var ExtensionWrites = []string{"SetAgentEnabled"}
+
 // Refusal is the error a refused command returns: a usage error, exit code 2.
 func Refusal(what string) *errs.Error {
 	return errs.Usagef("read-only mode: refused to %s", what).
@@ -42,6 +46,12 @@ func (g *Guard) StopBuild(context.Context, string) error { return Refusal("stop 
 
 func (g *Guard) RestartBuild(context.Context, string) (provider.Build, error) {
 	return provider.Build{}, Refusal("rerun a build")
+}
+
+// SetAgentEnabled is the optional provider.AgentSwitcher: it takes an agent
+// out of rotation or back in, which changes Bamboo.
+func (g *Guard) SetAgentEnabled(context.Context, provider.Agent, bool) error {
+	return Refusal("switch an agent")
 }
 
 // The optional extensions Service looks for with a type assertion are

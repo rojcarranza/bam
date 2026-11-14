@@ -34,6 +34,7 @@ With it on, bam refuses what changes Bamboo. The commands refuse before they ask
 - `bam cancel`, `bam build cancel`
 - `bam build rerun`, `bam build tree --rerun-failed`
 - `bam set run`, `bam set resume`, `bam set rerun`
+- `bam agent disable`, `bam agent enable`
 - the same actions in the terminal UI
 
 A refused command prints why on stderr and exits 2:
@@ -44,6 +45,5 @@ A refused command prints why on stderr and exits 2:
 
 Everything that only reads still works, and so does `--dry-run`, which resolves and validates and
 sends nothing. As a second line of defence the connection to Bamboo itself refuses `Trigger`,
-`StopBuild` and `RestartBuild` in this mode, and a test fails when a new write method is added to the
-provider without being classified, so a later command, such as taking an agent out of rotation, cannot
-slip past the switch. `bam pin` and `bam agent mine` change local files only and stay allowed.
+`StopBuild`, `RestartBuild` and the agent switch in this mode, and tests fail when a write method is added to the
+provider without being classified or without a refusal, so a later command cannot slip past the switch. `bam pin` and `bam agent mine` change local files only and stay allowed.

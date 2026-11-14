@@ -15,7 +15,8 @@ const (
 // the same when a read adds, removes or reorders the rows around it. The
 // selection of each panel is a boardRow, found again after every read, so a
 // key like P acts on the row the person chose, never on the row that now
-// sits at the same number. A click on a row resolves to the same value.
+// sits at the same number. A click sets the cursor, and the next read holds
+// the row it landed on the same way.
 type boardRow struct {
 	Kind rowKind
 	Key  string

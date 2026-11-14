@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/rojcarranza/bam/internal/atomicfile"
-	"github.com/rojcarranza/bam/internal/provider"
 )
 
 // treeTTL is how long a saved tree is drawn before it is dropped (#82).
@@ -40,12 +39,6 @@ type treeFile struct {
 	Version int                  `json:"version"`
 	Server  string               `json:"server,omitempty"` // Bamboo version; empty when not known yet
 	Trees   map[string]savedTree `json:"trees"`
-}
-
-// TreeFinal reports whether t can no longer change: its root is finished and
-// nothing in it runs. Bamboo queues children when the parent ends.
-func TreeFinal(t Tree) bool {
-	return t.Root != nil && TreeFinished(t.Root.Build.State) && t.State != provider.StateRunning
 }
 
 func (s *TreeStore) path(origin string) string {
@@ -117,14 +110,14 @@ func (s *TreeStore) GetAt(origin, key string, now time.Time) (Tree, time.Time, b
 	return t.Tree, t.Saved, true
 }
 
-// Keep saves t for key when it is final, and otherwise forgets key: a rerun
+// Keep saves t for key when it has settled, and otherwise forgets key: a rerun
 // makes a saved tree stale. A write error is dropped; the cache is only lost.
 func (s *TreeStore) Keep(origin, key string, t Tree, now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	trees := s.trees(origin, now)
 	_, had := trees[key]
-	if !TreeFinal(t) {
+	if !t.Settled() {
 		if !had {
 			return
 		}
@@ -151,14 +144,6 @@ func (s *Service) CachedTree(key string) (Tree, bool) {
 		return Tree{}, false
 	}
 	return s.Trees.Get(s.Origin, key, s.Clock.Now())
-}
-
-// cachedTreeAt is CachedTree with the time the tree was saved.
-func (s *Service) cachedTreeAt(key string) (Tree, time.Time, bool) {
-	if s.Trees == nil {
-		return Tree{}, time.Time{}, false
-	}
-	return s.Trees.GetAt(s.Origin, key, s.Clock.Now())
 }
 
 // TreeServer tells the tree store which Bamboo version this server runs, so

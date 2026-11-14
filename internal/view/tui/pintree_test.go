@@ -52,7 +52,7 @@ func parentTree() *app.Tree {
 func okTree(key string, kids int) (provider.Build, *app.Tree) {
 	root := treeBuild(key, "PROJ-DONE", 5, provider.StateSuccess, 0, "Run")
 	root.FinishedAt = goldenNow.Add(-time.Hour)
-	t := &app.Tree{State: provider.StateSuccess, Root: &app.TreeNode{PlanKey: "PROJ-DONE", Build: root}}
+	t := &app.Tree{State: provider.StateSuccess, End: app.TreeSettled, Root: &app.TreeNode{PlanKey: "PROJ-DONE", Build: root}}
 	for i := range kids {
 		b := treeBuild("PROJ-OK"+string(rune('A'+i))+"-1", "PROJ-OK"+string(rune('A'+i)), 1, provider.StateSuccess, 0, "Run")
 		b.FinishedAt = goldenNow.Add(-time.Hour)

@@ -402,13 +402,13 @@ func (m Model) savedTree(key string) (app.Tree, bool) {
 	return m.svc.CachedTree(key)
 }
 
-// keepTree caches t for the session, and on disk, when it is final, and
+// keepTree caches t for the session, and on disk, when it has settled, and
 // otherwise drops any cached tree for key: a rerun makes a cached tree stale.
 func (m *Model) keepTree(key string, t app.Tree) {
 	if m.svc != nil {
 		m.svc.KeepTree(key, t)
 	}
-	if !app.TreeFinal(t) {
+	if !t.Settled() {
 		delete(m.trees, key)
 		return
 	}

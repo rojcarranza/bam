@@ -183,7 +183,7 @@ func TestAFinishedPinTreeIsDrawnFromTheSavedOne(t *testing.T) {
 	ctx := context.Background()
 	first := svc.PinTree(ctx, p.History["PROJ-TOP"][0])
 	require.NotNil(t, first)
-	require.True(t, TreeFinal(*first))
+	require.True(t, first.Settled())
 	lists := 0
 	for _, pl := range p.Plans["PROJ"] {
 		lists += p.ListCalls(pl.Key)
@@ -208,6 +208,7 @@ func TestAPinTreeIsNotSavedUntilItsBuildHasSettled(t *testing.T) {
 	svc := pinTreeService(t, p)
 	root := p.History["PROJ-TOP"][0]
 	root.FinishedAt = svc.Clock.Now().Add(-10 * time.Second)
+	p.History["PROJ-TOP"][0] = root // Bamboo reports the same end time
 	lists := func() (n int) {
 		for _, pl := range p.Plans["PROJ"] {
 			n += p.ListCalls(pl.Key)
@@ -218,7 +219,7 @@ func TestAPinTreeIsNotSavedUntilItsBuildHasSettled(t *testing.T) {
 	before := lists()
 	require.NotNil(t, svc.PinTree(context.Background(), root))
 	require.Greater(t, lists(), before, "a build that just ended has its plans listed again: Bamboo queues children a moment later")
-	svc.Clock.(*fakeClock).After(pinSettle)
+	svc.Clock.(*fakeClock).After(treeQuiet)
 	svc.PinTree(context.Background(), root)
 	before = lists()
 	svc.PinTree(context.Background(), root)

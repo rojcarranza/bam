@@ -72,9 +72,9 @@ func TestWatchTreeFollowsAChildThatAppearsLater(t *testing.T) {
 	require.Equal(t, provider.StateRunning, evs[0].Tree.State)
 	require.Equal(t, TreeUpdate, evs[1].Type)
 	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88)", shape(evs[1].Tree.Root))
-	require.Equal(t, TreeDone, evs[2].Type, "done after one more refresh found nothing new")
+	require.Equal(t, TreeDone, evs[2].Type, "done once the tree settled")
 	require.Equal(t, provider.StateSuccess, evs[2].Tree.State)
-	require.Equal(t, []time.Duration{10 * time.Second, 10 * time.Second}, clock.Waits())
+	require.Equal(t, []time.Duration{10 * time.Second}, clock.Waits(), "the builds ended long ago, so the tree settled as the child was found")
 }
 
 func TestWatchTreeSendsOnlyChanges(t *testing.T) {
@@ -331,12 +331,12 @@ func TestWatchTreeOfLongFinishedBuildsEndsAtOnce(t *testing.T) {
 	require.Equal(t, TreeDone, evs[1].Type)
 	require.Empty(t, clock.Waits(), "no settle poll for builds that ended an hour ago")
 
-	// A build that ended within the minute still gets its settle poll.
+	// A build that ended within the minute is polled until the minute is out.
 	p.History["OPS-DEPLOY"] = []provider.Build{ended(tb("OPS-DEPLOY-88", childOf("PROJ-API-142"), provider.StateSuccess, 5), 30*time.Second)}
 	svc.Clock = newClock()
 	evs = collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
 	require.Equal(t, TreeDone, evs[len(evs)-1].Type)
-	require.Equal(t, []time.Duration{treePoll}, svc.Clock.(*fakeClock).Waits())
+	require.Equal(t, []time.Duration{treePoll, treePoll, treePoll}, svc.Clock.(*fakeClock).Waits(), "30s old, then 40s, 50s, and settled at 60s")
 }
 
 func TestWatchTreeEstimatesRunningBuilds(t *testing.T) {

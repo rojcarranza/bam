@@ -312,7 +312,7 @@ func TestConnectCmdDropsTreesSavedFromAnotherServerVersion(t *testing.T) {
 	svc := testService()
 	svc.Trees = &app.TreeStore{Dir: t.TempDir()}
 	now := time.Now()
-	done := app.Tree{Root: &app.TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess}
+	done := app.Tree{Root: &app.TreeNode{Build: provider.Build{State: provider.StateSuccess}}, State: provider.StateSuccess, End: app.TreeSettled}
 	svc.Trees.Server(svc.Origin, "9.6.2", now)
 	svc.Trees.Keep(svc.Origin, "PROJ-BUILD-44", done, now)
 

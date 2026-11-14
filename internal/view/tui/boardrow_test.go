@@ -91,3 +91,18 @@ func TestSelectionOfAGoneRowStaysInsideThePanel(t *testing.T) {
 	m = readAgain(m, func(b *app.Board) { b.Groups[0].Pins = b.Groups[0].Pins[:1] })
 	require.Equal(t, 0, m.board.cursor[boardPins])
 }
+
+// Intent (BAM-53, machine 6): a pipeline of a pin's tree that a read no longer
+// lists sends the cursor to its pin's own row, not to the next row down.
+func TestSelectionOfAGonePipelineFallsBackToItsPin(t *testing.T) {
+	m := pinCursor(treeBoardModel(120, 45, nil))
+	m, _ = send(m, mkKey("j")) // the first pipeline of PROJ-TOP's tree
+	require.Equal(t, 1, m.board.cursor[boardPins])
+	rows := m.board.boardRows(boardPins)
+	require.Equal(t, rowChild, rows[1].Kind)
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("k"))
+	m = readAgain(m, func(b *app.Board) { b.Groups[0].Pins = []app.PinView{newPin("PROJ-TOP"), newPin("PROJ-OTHER")} })
+	rows = m.board.boardRows(boardPins)
+	require.Equal(t, boardRow{Kind: rowPin, Key: "PROJ-TOP|PROJ-TOP|"}, rows[m.board.cursor[boardPins]])
+}

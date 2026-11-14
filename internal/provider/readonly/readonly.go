@@ -28,41 +28,43 @@ func Refusal(what string) *errs.Error {
 }
 
 // Wrap returns p with every write refused.
-func Wrap(p provider.Provider) provider.Provider { return &guard{Provider: p} }
+func Wrap(p provider.Provider) *Guard { return &Guard{Provider: p} }
 
-type guard struct{ provider.Provider }
+// Guard is a Provider whose writes are refused. It is exported so a type that
+// embeds it keeps the optional extensions below.
+type Guard struct{ provider.Provider }
 
-func (g *guard) Trigger(context.Context, provider.TriggerRequest) (provider.Build, error) {
+func (g *Guard) Trigger(context.Context, provider.TriggerRequest) (provider.Build, error) {
 	return provider.Build{}, Refusal("run a plan")
 }
 
-func (g *guard) StopBuild(context.Context, string) error { return Refusal("stop a build") }
+func (g *Guard) StopBuild(context.Context, string) error { return Refusal("stop a build") }
 
-func (g *guard) RestartBuild(context.Context, string) (provider.Build, error) {
+func (g *Guard) RestartBuild(context.Context, string) (provider.Build, error) {
 	return provider.Build{}, Refusal("rerun a build")
 }
 
 // The optional extensions Service looks for with a type assertion are
 // forwarded, so wrapping does not change what bam believes the server can do.
 
-func (g *guard) SearchPlans(ctx context.Context, term string) ([]provider.Plan, bool, error) {
+func (g *Guard) SearchPlans(ctx context.Context, term string) ([]provider.Plan, bool, error) {
 	if ps, ok := g.Provider.(provider.PlanSearcher); ok {
 		return ps.SearchPlans(ctx, term)
 	}
 	return nil, false, errs.ErrUnsupported
 }
 
-func (g *guard) CannotRestart(ctx context.Context) bool {
+func (g *Guard) CannotRestart(ctx context.Context) bool {
 	rc, ok := g.Provider.(provider.RestartChecker)
 	return ok && rc.CannotRestart(ctx)
 }
 
-func (g *guard) CannotStop(ctx context.Context) bool {
+func (g *Guard) CannotStop(ctx context.Context) bool {
 	sc, ok := g.Provider.(provider.StopChecker)
 	return ok && sc.CannotStop(ctx)
 }
 
-func (g *guard) CannotListAgents(ctx context.Context) bool {
+func (g *Guard) CannotListAgents(ctx context.Context) bool {
 	ac, ok := g.Provider.(provider.AgentListChecker)
 	return ok && ac.CannotListAgents(ctx)
 }

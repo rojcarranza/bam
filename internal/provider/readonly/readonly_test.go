@@ -49,7 +49,7 @@ func TestWriteMethodsAreRefusedAndReadsPass(t *testing.T) {
 	u, err := p.CurrentUser(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "jdoe", u.Name)
-	_, ok := p.(provider.PlanSearcher)
+	_, ok := any(p).(provider.PlanSearcher)
 	assert.True(t, ok, "optional extensions stay visible")
 }
 

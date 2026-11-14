@@ -29,8 +29,8 @@ works without a terminal UI. Run `bam --help` or `bam <command> --help` for the 
    | 6 | `--timeout` ran out while the build was still running |
    | 130 | interrupted |
 
-4. **Confirm before writing.** `run`, `cancel`, `build rerun`, `build tree --rerun-failed` and
-   `set run` change Bamboo, and a run can deploy. Say what you are about to run, with its
+4. **Confirm before writing.** `run`, `cancel`, `build rerun`, `build tree --rerun-failed`,
+   `set run`, `set resume` and `set rerun` change Bamboo, and a run can deploy. Say what you are about to run, with its
    variables, and wait for a yes. Use `--dry-run` first: it resolves and validates and
    triggers nothing.
 5. **Never print or ask for a token.** bam keeps it in the keychain or an env var. Secret

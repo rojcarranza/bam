@@ -1,12 +1,17 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/rojcarranza/bam/internal/errs"
+	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/readonly"
 	"github.com/rojcarranza/bam/skills"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,9 +72,31 @@ func TestSkillShowsOnlyCommandsAndFlagsThatExist(t *testing.T) {
 	assert.Greater(t, checked, 15, "the skill shows its commands in bash blocks")
 }
 
-func TestSkillNamesTheExitCodesBamUses(t *testing.T) {
-	for _, row := range []string{"| 0 |", "| 1 |", "| 2 |", "| 3 |", "| 4 |", "| 5 |", "| 6 |", "| 130 |"} {
-		assert.Contains(t, skills.Bam, row)
+func TestSkillExitCodesMatchWhatBamReturns(t *testing.T) {
+	// The table in the skill is read back and compared with exitCode itself.
+	table := map[int]string{}
+	for _, m := range regexp.MustCompile(`(?m)^   \| (\d+) \| (.+) \|$`).FindAllStringSubmatch(skills.Bam, -1) {
+		code, err := strconv.Atoi(m[1])
+		require.NoError(t, err)
+		table[code] = m[2]
 	}
-	assert.Contains(t, skills.Bam, "read-only mode")
+	want := map[int]error{
+		1:   &resultError{State: provider.StateFailed},
+		2:   errs.Usagef("x"),
+		3:   errs.Configf("x"),
+		4:   errs.New(errs.KindAuth, "x"),
+		5:   errs.Bamboof("x"),
+		6:   errs.New(errs.KindTimeout, "x"),
+		130: context.Canceled,
+	}
+	for code, err := range want {
+		assert.Equal(t, code, exitCode(err))
+		assert.NotEmpty(t, table[code], "the skill explains exit %d", code)
+	}
+	assert.NotEmpty(t, table[0])
+	assert.Len(t, table, len(want)+1, "the skill names no code bam never returns")
+	assert.Contains(t, table[2], "read-only")
+	assert.Equal(t, 2, exitCode(readonly.Refusal("x")), "a refusal is exit 2")
+	assert.Contains(t, skills.Bam, "`read-only mode: refused to")
+	assert.Contains(t, readonly.Refusal("x").What, "read-only mode: refused to")
 }

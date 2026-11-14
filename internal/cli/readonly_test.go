@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,5 +127,46 @@ func TestReadOnlyBackendRefusesWhatACommandForgot(t *testing.T) {
 	require.ErrorContains(t, svc.P.StopBuild(t.Context(), "PROJ-BUILD-483"), "read-only mode")
 	_, err = svc.P.RestartBuild(t.Context(), "PROJ-PROV-9")
 	require.ErrorContains(t, err, "read-only mode")
+	untouched(t, h)
+}
+
+// The wrapped backend keeps the optional extensions the Service looks for, so
+// read-only mode changes nothing about how bam reads (a pin by name still
+// searches the whole server).
+func TestReadOnlyBackendKeepsTheProviderExtensions(t *testing.T) {
+	h := newHarness(t)
+	r := &runtime{env: h.env}
+	r.flags.readOnly = true
+	svc, _, err := r.connect(t.Context(), "")
+	require.NoError(t, err)
+	assert.True(t, svc.ReadOnly)
+	_, ok := svc.P.(provider.PlanSearcher)
+	assert.True(t, ok, "PlanSearcher")
+	_, ok = svc.P.(provider.RestartChecker)
+	assert.True(t, ok, "RestartChecker")
+	_, ok = svc.P.(provider.StopChecker)
+	assert.True(t, ok, "StopChecker")
+	_, ok = svc.P.(provider.AgentListChecker)
+	assert.True(t, ok, "AgentListChecker")
+}
+
+// The terminal UI starts sets through the Service, not the commands: the
+// Service refuses before it takes a lock or writes a record.
+func TestReadOnlyServiceRefusesSetsBeforeAnyRecord(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	r := &runtime{env: h.env}
+	r.flags.readOnly = true
+	svc, err := r.connectSet(t.Context(), "release")
+	require.NoError(t, err)
+	p, err := svc.PlanSet(t.Context(), "release", app.SetOptions{})
+	require.NoError(t, err)
+	_, _, err = svc.RunSet(t.Context(), p, app.SetLockOptions{})
+	require.ErrorContains(t, err, "read-only mode")
+	_, err = svc.ResumeSet(t.Context(), "any", app.SetOptions{}, app.SetLockOptions{})
+	require.ErrorContains(t, err, "read-only mode")
+	_, err = svc.RerunSet(t.Context(), "any", app.SetOptions{}, app.SetLockOptions{})
+	require.ErrorContains(t, err, "read-only mode")
+	entries, _ := os.ReadDir(h.env.Paths.Sets)
+	assert.Empty(t, entries, "no lock and no record")
 	untouched(t, h)
 }

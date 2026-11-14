@@ -16,6 +16,7 @@ import (
 	"github.com/rojcarranza/bam/internal/credential"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/readonly"
 )
 
 // SetOptions are the command-line inputs to a set run.
@@ -208,6 +209,9 @@ const setKeep = 20
 // record that cannot be written. Ending ctx stops watching and triggering;
 // no build is ever stopped.
 func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (string, <-chan SetEvent, error) {
+	if s.ReadOnly {
+		return "", nil, readonly.Refusal("run a set")
+	}
 	now := s.Clock.Now()
 	rec := SetRecord{Version: 1, ID: NewSetID(p.Name, now), Set: p.Name, File: p.File, Origin: p.Origin,
 		Repo: s.Cfg.RepoRoot, StartedAt: now.UTC(), Status: SetRunning, VarNames: p.VarNames}
@@ -587,6 +591,9 @@ func NotResumable(rec SetRecord, noRerun bool) error {
 // ResumeSet continues an interrupted or timed-out set run under its own id:
 // it watches the runs that triggered and triggers the ones that did not.
 func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error) {
+	if s.ReadOnly {
+		return nil, readonly.Refusal("resume a set run")
+	}
 	rec, err := s.Sets.Load(id)
 	if err != nil {
 		return nil, err
@@ -614,6 +621,9 @@ func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock S
 // is triggered; once that stage succeeds the later stages run as on resume.
 // Runs that succeeded are left alone.
 func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock SetLockOptions) (<-chan SetEvent, error) {
+	if s.ReadOnly {
+		return nil, readonly.Refusal("rerun a set run")
+	}
 	rec, err := s.Sets.Load(id)
 	if err != nil {
 		return nil, err

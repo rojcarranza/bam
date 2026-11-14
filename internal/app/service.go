@@ -27,14 +27,17 @@ func (SystemClock) After(d time.Duration) <-chan time.Time { return time.After(d
 
 // Service runs use cases against one server.
 type Service struct {
-	P      provider.Provider
-	Cfg    *config.Config
-	Server config.ResolvedServer
-	Origin string // credential.Origin(Server.URL)
-	Clock  Clock
-	State  *StateStore
-	Sets   *SetStore
-	Trees  *TreeStore // finished trees seen before; nil keeps none
+	P provider.Provider
+	// ReadOnly makes the Service refuse starting, resuming or rerunning a set
+	// before it takes a lock or writes a record; P refuses the calls themselves.
+	ReadOnly bool
+	Cfg      *config.Config
+	Server   config.ResolvedServer
+	Origin   string // credential.Origin(Server.URL)
+	Clock    Clock
+	State    *StateStore
+	Sets     *SetStore
+	Trees    *TreeStore // finished trees seen before; nil keeps none
 	// AgentJobs keeps the jobs each agent can run between runs; nil keeps
 	// them for this process only.
 	AgentJobs *AgentJobStore

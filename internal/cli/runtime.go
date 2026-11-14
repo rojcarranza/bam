@@ -175,12 +175,14 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 	if err != nil {
 		return nil, nil, err
 	}
-	if ro, err := r.isReadOnly(); err != nil {
+	ro, err := r.isReadOnly()
+	if err != nil {
 		return nil, nil, err
-	} else if ro {
-		backend = readOnlyBackend{Provider: readonly.Wrap(backend), probe: backend}
 	}
-	svc := &app.Service{P: backend, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
+	if ro {
+		backend = readOnlyBackend{Guard: readonly.Wrap(backend), probe: backend}
+	}
+	svc := &app.Service{P: backend, ReadOnly: ro, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
 		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv,
 		Checkout: r.checkedOutBranch, Head: r.checkedOutCommit}
 	if r.env.Paths.AgentJobs != "" {
@@ -343,7 +345,7 @@ func (r *runtime) isReadOnly() (bool, error) {
 // readOnlyBackend is a Backend whose writes are refused. Doctor's probe only
 // reads, so it goes to the real backend.
 type readOnlyBackend struct {
-	provider.Provider
+	*readonly.Guard
 	probe Backend
 }
 

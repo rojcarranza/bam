@@ -228,3 +228,20 @@ func TestSetStatusViewShowsARestartDueRun(t *testing.T) {
 	require.NoError(t, SetStatusView(o, rec, builds, false))
 	require.Regexp(t, `deploy\s+OPS-DEP-9\s+Restart due`, buf.String())
 }
+
+func TestSetRecordJSONMarksARestartDueRun(t *testing.T) {
+	rec := app.SetRecord{ID: "release-20260929T101500Z", Set: "release", Status: app.SetInterrupted,
+		Stages: []app.StageRecord{{Runs: []app.RunRecord{
+			{Target: "deploy", PlanKey: "OPS-DEP", BuildKey: "OPS-DEP-9", Restart: true},
+			{Target: "smoke", PlanKey: "OPS-SMK", BuildKey: "OPS-SMK-2", State: provider.StateSuccess}}}}}
+	data, err := json.Marshal(SetRecordJSON(rec, nil))
+	require.NoError(t, err)
+	var doc struct {
+		Stages []struct {
+			Runs []map[string]any `json:"runs"`
+		} `json:"stages"`
+	}
+	require.NoError(t, json.Unmarshal(data, &doc))
+	require.Equal(t, true, doc.Stages[0].Runs[0]["restart"])
+	require.NotContains(t, doc.Stages[0].Runs[1], "restart")
+}

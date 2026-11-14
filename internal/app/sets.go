@@ -448,8 +448,13 @@ func (r *setRun) restartRun(ctx context.Context, i, j int) startStep {
 	}
 	b, restarted, err := r.s.Restart(ctx, rec.BuildKey)
 	if err != nil {
+		if ctx.Err() != nil && restarted {
+			// Bamboo took the restart before the interrupt: it stays counted
+			// and the run is Started, so resume watches the restarted build.
+			return stepStopped
+		}
 		if ctx.Err() != nil {
-			// Interrupted: the restart stays due, so resume asks again.
+			// Interrupted before Bamboo took it: the restart stays due.
 			rec.Reruns--
 			rec.Restart = true
 			_ = r.s.Sets.Save(r.rec)

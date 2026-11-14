@@ -128,3 +128,37 @@ func TestInterruptDuringTriggerIsNotAFailedTrigger(t *testing.T) {
 	got, _ = svc.Sets.Load(id)
 	require.Equal(t, SetSuccessful, got.Status)
 }
+
+// cancelAfterRestart accepts the restart, then cancels while Restart polls
+// for the new build: Ctrl-C after Bamboo took the request.
+type cancelAfterRestart struct {
+	*fake.Provider
+	cancel context.CancelFunc
+}
+
+func (c *cancelAfterRestart) RestartBuild(ctx context.Context, key string) (provider.Build, error) {
+	b, err := c.Provider.RestartBuild(ctx, key)
+	c.cancel()
+	return b, err
+}
+
+// An interrupt after Bamboo accepted the restart keeps it counted and not due,
+// so resume watches the restarted build and never restarts it a second time.
+func TestInterruptAfterBambooTookTheRestartKeepsItCounted(t *testing.T) {
+	fp := trainBamboo(nil)
+	restartable(fp, "PROJ-PROV12-1", provider.StateSuccess)
+	svc := setService(t, fp)
+	svc.Getenv = func(string) string { return "x" }
+	rec := saveRecord(t, svc, SetRecord{Status: SetFailed, Stages: failedRecord()})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.P = &cancelAfterRestart{Provider: fp, cancel: cancel}
+	ch, err := svc.RerunSet(ctx, rec.ID, SetOptions{}, SetLockOptions{})
+	require.NoError(t, err)
+	drain(ch)
+	got, _ := svc.Sets.Load(rec.ID)
+	run := got.Stages[1].Runs[0]
+	require.Equal(t, []string{"PROJ-PROV12-1"}, fp.Restarted)
+	require.Equal(t, 1, run.Reruns, "Bamboo restarted it, so it counts")
+	require.Equal(t, RunStarted, run.Phase(), "no second restart is due")
+}

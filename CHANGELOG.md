@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- `Ctrl-C` during `bam set rerun --failed` keeps the restarts it still owes, so `bam set resume` restarts those builds instead of watching the old failed ones, and `Ctrl-C` while a run is being triggered no longer records a failed trigger. `bam set status` shows a run waiting for its restart as `Restart due`. Older set records still load; `--json` records gain `restart` on a run that is due.
+- `Ctrl-C` during `bam set rerun --failed` keeps the restarts it still owes, so `bam set resume` restarts those builds instead of watching the old failed ones, and `Ctrl-C` while a run is being triggered no longer records a failed trigger. `bam set status` shows a run waiting for its restart as `Restart due`. Older set records still load; `--json` gains `restart` on a run that is due.
 
 ### Added
 

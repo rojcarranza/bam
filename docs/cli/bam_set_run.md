@@ -37,7 +37,7 @@ bam set run [set] [-f FILE] [flags]
 ```
       --dry-run[=true|false]   resolve and check every run, trigger nothing
   -f, --file string            run the set defined in this train file instead of a configured set
-      --force[=true|false]     take over the lock of a set run whose process is gone
+      --force[=true|false]     take over the lock of a set run on another computer that is gone
   -h, --help[=true|false]      help for run
       --var stringArray        variable name=value for every run that declares it (repeatable)
 ```

@@ -18,7 +18,7 @@ bam set resume [set|id] [flags]
 
 ```
       --file string          the train file of a file set, when it has moved since the run
-      --force[=true|false]   take over the lock of a set run whose process is gone
+      --force[=true|false]   take over the lock of a set run on another computer that is gone
   -h, --help[=true|false]    help for resume
       --var stringArray      variable name=value; give again every --var the run was started with (repeatable)
 ```

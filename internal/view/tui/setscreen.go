@@ -21,12 +21,14 @@ type setScreen struct {
 	board     *app.SetBoard
 	cursor    int    // over every run, stage after stage
 	elsewhere string // "pid 77 on desk, since 09:15" when another bam holds the set
+	lock      app.LockState
 }
 
 type setLoadedMsg struct {
 	Gen       int
 	Rec       *app.SetRecord
 	Elsewhere string
+	Lock      app.LockState
 }
 
 // planOf is enough of a plan for a board: the set's runs by name.
@@ -68,8 +70,10 @@ func loadSetCmd(ctx context.Context, svc *app.Service, set string, gen int) tea.
 			}
 			msg.Rec = &rec
 		}
-		if pid, host, since, held := svc.Sets.Holder(set); held {
-			msg.Elsewhere = fmt.Sprintf("pid %d on %s, since %s", pid, host, since.Local().Format("15:04"))
+		var h app.LockHolder
+		msg.Lock, h = svc.Sets.LockOf(set)
+		if msg.Lock == app.LockLive {
+			msg.Elsewhere = fmt.Sprintf("pid %d on %s, since %s", h.PID, h.Host, h.Since.Local().Format("15:04"))
 		}
 		return msg
 	}
@@ -105,7 +109,7 @@ func (m Model) handleSetLoaded(msg setLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.Gen != m.setGen {
 		return m, nil
 	}
-	m.setView.rec, m.setView.elsewhere = msg.Rec, msg.Elsewhere
+	m.setView.rec, m.setView.elsewhere, m.setView.lock = msg.Rec, msg.Elsewhere, msg.Lock
 	m.setView.board = m.boardFor(m.setView.info, msg.Rec)
 	return m, m.setPollCmd()
 }
@@ -119,17 +123,21 @@ func (m Model) setRows() []app.SetBoardRow {
 	return out
 }
 
+// setLife is the set's newest run's life, from its record and lock.
+func (m Model) setLife() app.SetLife {
+	if m.setView.rec == nil {
+		return app.LifeNone
+	}
+	return app.Life(*m.setView.rec, m.setView.lock)
+}
+
 // setActions says which of R, U and F apply to the set now.
 func (m Model) setActions() (run, resume, rerun bool) {
-	if m.train.running() || m.setView.elsewhere != "" {
+	if m.train.running() {
 		return false, false, false
 	}
-	run = true
-	if r := m.setView.rec; r != nil {
-		resume = r.Status == app.SetInterrupted || r.Status == app.SetTimedOut || r.Status == app.SetRunning
-		rerun = r.Status == app.SetFailed
-	}
-	return run, resume, rerun
+	a := app.Actions(m.setLife(), m.setView.lock)
+	return a.Run, a.Resume, a.Rerun
 }
 
 // refuseSetAction says why R, U or F cannot act, or "" when they can.
@@ -209,7 +217,7 @@ func (m Model) setScreenView() string {
 	case m.train.running() && m.train.set == m.setView.info.Name:
 		head = append(head, m.train.board.ID(), "running")
 	case m.setView.rec != nil:
-		head = append(head, m.setView.rec.ID, strings.ReplaceAll(string(m.setView.rec.Status), "_", " "))
+		head = append(head, m.setView.rec.ID, strings.ReplaceAll(string(m.setLife()), "_", " "))
 	default:
 		head = append(head, "never run")
 	}

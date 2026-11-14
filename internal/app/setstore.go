@@ -116,6 +116,9 @@ type SetStore struct {
 	Dir  string
 	Host func() (string, error)
 	PID  func() int
+	// Alive says whether a process on this computer runs; nil counts every
+	// process as alive, so no lock is ever taken for stale.
+	Alive func(pid int) bool
 }
 
 func (s *SetStore) path(id string) string { return filepath.Join(s.Dir, id+".json") }
@@ -234,7 +237,7 @@ type lockInfo struct {
 }
 
 // Lock creates <name>.lock for every name, or fails naming the holder. With
-// force it replaces existing lock files: the way out after a crash.
+// force it replaces any lock file; a lock whose process on this computer is gone is replaced without it.
 func (s *SetStore) Lock(names []string, force bool, now time.Time) (*SetLock, error) {
 	if err := os.MkdirAll(s.Dir, 0o700); err != nil {
 		return nil, err
@@ -249,6 +252,8 @@ func (s *SetStore) Lock(names []string, force bool, now time.Time) (*SetLock, er
 		p := filepath.Join(s.Dir, name+".lock")
 		if force {
 			_ = os.Remove(p)
+		} else if st, _ := s.LockOf(name); st == LockStale {
+			_ = os.Remove(p) // its process is gone: nothing to take over by hand
 		}
 		f, err := os.OpenFile(p, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if errors.Is(err, fs.ErrExist) {
@@ -298,19 +303,11 @@ func (r RunRecord) RunName() string {
 }
 
 // Holder reads a set's lock without taking it: who runs the set now, if
-// anyone other than this process.
+// anyone other than this process. A stale lock is held by no one.
 func (s *SetStore) Holder(set string) (pid int, host string, since time.Time, held bool) {
-	data, err := os.ReadFile(filepath.Join(s.Dir, set+".lock"))
-	if err != nil {
+	st, h := s.LockOf(set)
+	if st != LockLive {
 		return 0, "", time.Time{}, false
 	}
-	var info lockInfo
-	if json.Unmarshal(data, &info) != nil {
-		return 0, "", time.Time{}, false
-	}
-	me, _ := s.Host()
-	if info.PID == s.PID() && info.Host == me {
-		return 0, "", time.Time{}, false
-	}
-	return info.PID, info.Host, info.Since, true
+	return h.PID, h.Host, h.Since, true
 }

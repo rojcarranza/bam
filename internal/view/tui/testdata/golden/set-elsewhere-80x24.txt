@@ -1,4 +1,4 @@
- release · release-20261006T091500Z · running
+ release · release-20261006T091500Z · running elsewhere
  running in another bam (pid 77 on desk, since 09:15)
  stage 1/2
  ▸ smoke                          –                 pending                     

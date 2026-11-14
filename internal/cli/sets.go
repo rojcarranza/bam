@@ -36,7 +36,7 @@ func setWord(args []string) error {
 }
 
 func (r *runtime) setStore() *app.SetStore {
-	return &app.SetStore{Dir: r.env.Paths.Sets, Host: os.Hostname, PID: os.Getpid}
+	return &app.SetStore{Dir: r.env.Paths.Sets, Host: os.Hostname, PID: os.Getpid, Alive: processAlive}
 }
 
 func newSetListCmd(r *runtime) *cobra.Command {
@@ -188,7 +188,7 @@ with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 	f.StringArrayVar(&vars, "var", nil, "variable name=value for every run that declares it (repeatable)")
 	f.StringVarP(&file, "file", "f", "", "run the set defined in this train file instead of a configured set")
 	f.BoolVar(&dryRun, "dry-run", false, "resolve and check every run, trigger nothing")
-	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
+	f.BoolVar(&force, "force", false, "take over the lock of a set run on another computer that is gone")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeSetVar)
 	return cmd
 }
@@ -301,7 +301,7 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
 	f.StringVar(&file, "file", "", "the train file of a file set, when it has moved since the run")
-	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
+	f.BoolVar(&force, "force", false, "take over the lock of a set run on another computer that is gone")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeRecordVar)
 	return cmd
 }
@@ -348,7 +348,7 @@ alone, and no build is ever stopped.`,
 	f.BoolVar(&failed, "failed", false, "retry the runs that failed (required)")
 	f.StringArrayVar(&vars, "var", nil, "variable name=value; give again every --var the run was started with (repeatable)")
 	f.StringVar(&file, "file", "", "the train file of a file set, when it has moved since the run")
-	f.BoolVar(&force, "force", false, "take over the lock of a set run whose process is gone")
+	f.BoolVar(&force, "force", false, "take over the lock of a set run on another computer that is gone")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeRecordVar)
 	return cmd
 }
@@ -362,9 +362,7 @@ func noFailedRun(arg string) error {
 	return errs.Usagef("no failed run of %s to rerun", arg).WithTry("bam set status " + arg)
 }
 
-func resumable(rec app.SetRecord) bool {
-	return rec.Status == app.SetInterrupted || rec.Status == app.SetTimedOut || rec.Status == app.SetRunning
-}
+func resumable(rec app.SetRecord) bool { return rec.Resumable() }
 
 // notResumable explains a resume that finds nothing to continue by the newest
 // run it would otherwise have taken, or returns nil when there is none.

@@ -159,6 +159,7 @@ func newRoot(r *runtime) *cobra.Command {
 	pf.StringVar(&r.flags.color, "color", "", "color output: auto, always or never")
 	_ = root.RegisterFlagCompletionFunc("color", cobra.FixedCompletions([]string{"auto", "always", "never"}, cobra.ShellCompDirectiveNoFileComp))
 	pf.BoolVar(&r.flags.debug, "debug", false, "log HTTP requests to stderr")
+	pf.BoolVar(&r.flags.readOnly, "read-only", false, "refuse every command that changes something in Bamboo (also BAM_READ_ONLY=1 or read_only: true in the config)")
 	pf.BoolVar(&r.flags.noTUI, "no-tui", false, "never open the terminal UI")
 	addProjectFlag(root, r)
 	// Same output as bam version, including its --json form; a version string never holds a quote.

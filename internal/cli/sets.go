@@ -139,6 +139,11 @@ with per-run vars, matrix and timeout, is in docs/configuration.md.`,
 			case name == "" && file == "":
 				return errs.Usagef("give a set name or -f FILE").WithTry("bam set list")
 			}
+			if !dryRun {
+				if err := r.refuseWrite("run a set"); err != nil {
+					return err
+				}
+			}
 			ctx := cmd.Context()
 			var svc *app.Service
 			var err error
@@ -282,6 +287,9 @@ func newSetResumeCmd(r *runtime) *cobra.Command {
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeSets(true),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if err := r.refuseWrite("resume a set run"); err != nil {
+				return err
+			}
 			ctx := cmd.Context()
 			rec, err := r.findSetRun(args, resumable, r.notResumable)
 			if err != nil {
@@ -327,6 +335,9 @@ alone, and no build is ever stopped.`,
 			// future bare rerun (every run again) from changing meaning.
 			if !failed {
 				return errs.Usagef("rerun needs --failed").WithTry(strings.Join(append([]string{"bam set rerun"}, args...), " ") + " --failed")
+			}
+			if err := r.refuseWrite("rerun a set run"); err != nil {
+				return err
 			}
 			ctx := cmd.Context()
 			rec, err := r.findSetRun(args, isFailedRun, noFailedRun)

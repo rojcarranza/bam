@@ -530,6 +530,7 @@ Nothing changes on the server by accident. No lowercase key starts or stops a bu
 - [Terminal UI keys](docs/tui.md)
 - [Authentication](docs/authentication.md)
 - [Using bam in CI](docs/ci.md)
+- [Using bam with AI agents: the skill and the read-only switch](docs/agents.md)
 - [JSON output](docs/json.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Try bam locally, without a Bamboo](docs/try-locally.md)

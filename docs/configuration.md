@@ -245,6 +245,7 @@ agents: [team-a-agent, team-b-agent]
     color: auto
     pager: less -FRX
     editor: vim                     # for bam run --edit; BAM_EDITOR overrides it; else VISUAL, EDITOR, vi
+    read_only: true                 # refuse every command that changes Bamboo; same as BAM_READ_ONLY=1 or --read-only (see docs/agents.md)
     bell: false                     # silence the terminal UI's bell when a watched build or tree finishes or a new line joins the board's Needs you (default: it rings)
 
 A GUI editor needs its wait flag (`code --wait`, `gvim -f`), or it returns at once and the run starts with the values unchanged.

@@ -35,6 +35,11 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if rerun {
+				if err := r.refuseWrite("rerun failed builds"); err != nil {
+					return err
+				}
+			}
 			if rerun && !yes && (!r.env.StdinTTY || r.flags.json) {
 				return errs.Usagef("--rerun-failed needs --yes when it cannot ask").WithTry("add --yes")
 			}

@@ -455,7 +455,7 @@ A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, tr
 - `bam server list` shows the servers you added; `bam server default work` picks the one used when none is named; `bam server rm work` removes one.
 - `bam whoami` shows who each server knows you as; `bam logout work` deletes the stored token.
 - `bam version` prints the installed version.
-- bam keeps a private tally of the commands you run, so you can see how much you use it. `bam usage` shows it and `bam usage off` turns counting off (`bam usage on` turns it back on). The tally is one file under `~/.local/state/bam/usage.json` and never leaves your computer. It holds the command's name and a count for each day, such as `bam watch` 12 on 2026-11-14: never arguments, plans, jobs, agents, branches or servers.
+- bam keeps a private tally of the commands you run, so you can see how much you use it. `bam usage` shows it and `bam usage off` turns counting off (`bam usage on` turns it back on). The tally is one file, `$XDG_STATE_HOME/bam/usage.json` (by default `~/.local/state/bam/usage.json`), and never leaves your computer. It holds the command's name and a count for each day, such as `bam watch` 12 on 2026-11-14: never arguments, plans, jobs, agents, branches or servers.
 - `bam completion bash` prints tab completion for bash (`bam completion zsh`, `fish` and `powershell` too); to load it in every new session, add `source <(bam completion bash)` to `~/.bashrc`.
 - `bam preset migrate` moves presets from the old machine config into your presets files.
 - Every command has `--help`, and `--debug` logs the HTTP requests bam makes.

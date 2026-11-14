@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- `Ctrl-C` during `bam set rerun --failed` keeps the restarts it still owes, so `bam set resume` restarts those builds instead of watching the old failed ones, and `Ctrl-C` while a run is being triggered no longer records a failed trigger. `bam set status` shows a run waiting for its restart as `Restart due`. Older set records still load; `--json` records gain `restart` on a run that is due.
+
 ### Added
 
 - A pinned pipeline shows its branches. A pin written as a plan key without a branch lists, under the plan's own line, the plan branches that built in the last 7 days, newest first, up to 10 and then `+N more branches`; Needs you raises a failed or slow branch like a pin. `PLAN@branch` pins and presets stay as they are. `bam top --once` prints the branch lines, and `--json` gains `branches` and `branches_more` on each pipeline.

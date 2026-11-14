@@ -59,6 +59,50 @@ type RunRecord struct {
 	State    provider.State `json:"state"`
 	Reruns   int            `json:"reruns"` // how many times bam restarted this run's build
 	Error    string         `json:"error,omitempty"`
+	// Restart is set by bam set rerun --failed on a run whose build Bamboo
+	// has to restart, and cleared once that restart is counted. Saved with
+	// the record, so an interrupted rerun still restarts it on resume.
+	// Records written before it have none and read as not due.
+	Restart bool `json:"restart,omitempty"`
+}
+
+// RunPhase is where one run of a set stands. It is derived from the record's
+// fields by Phase, so records written by older versions read the same way.
+type RunPhase int
+
+const (
+	RunPending     RunPhase = iota // no build yet and nothing failed
+	RunStarted                     // a build exists and its end is not known
+	RunEnded                       // the build reached a final state
+	RunStartFailed                 // triggering the build failed: there is none
+	RunWatchFailed                 // watching or restarting the build failed
+	RunRestartDue                  // rerun --failed marked it; Bamboo has not restarted it yet
+)
+
+func (p RunPhase) String() string {
+	return [...]string{"pending", "started", "ended", "start failed", "watch failed", "restart due"}[p]
+}
+
+// Phase is the one answer to where this run stands.
+func (r RunRecord) Phase() RunPhase {
+	switch {
+	case r.Restart && r.BuildKey != "":
+		return RunRestartDue
+	case r.Error != "" && r.BuildKey == "":
+		return RunStartFailed
+	case r.Error != "":
+		return RunWatchFailed
+	case r.State.Finished():
+		return RunEnded
+	case r.BuildKey != "":
+		return RunStarted
+	}
+	return RunPending
+}
+
+// Settled is whether the run needs no more work on resume: its end is known.
+func (p RunPhase) Settled() bool {
+	return p == RunEnded || p == RunStartFailed || p == RunWatchFailed
 }
 
 const setIDTime = "20060102T150405Z"

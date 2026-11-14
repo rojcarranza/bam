@@ -249,7 +249,12 @@ func (m Model) setScreenView() string {
 // rerun count), and its duration or progress.
 func (m Model) setRowCells(r app.SetBoardRow) []string {
 	state, key := "pending", "–"
-	if r.Build.Key != "" || r.Err != nil {
+	switch {
+	case r.Restart:
+		state = "restart due"
+	case r.Build.State == "" && r.Err == nil:
+		// A recorded build whose end is unknown: no state glyph to draw.
+	case r.Build.Key != "" || r.Err != nil:
 		state = stateCell(r.Build.State)
 	}
 	if r.Build.Key != "" {

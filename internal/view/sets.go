@@ -124,7 +124,12 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build, n
 			if b, ok := builds[r.BuildKey]; ok {
 				state = b.State
 			}
-			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.RunName(), dashIfEmpty(r.BuildKey), rerunTitle(state, r.Reruns), r.Error})
+			title := rerunTitle(state, r.Reruns)
+			if r.Phase() == app.RunRestartDue {
+				// The live build is the old failed one; the run is waiting to restart.
+				state, title = "", "Restart due"
+			}
+			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.RunName(), dashIfEmpty(r.BuildKey), title, r.Error})
 		}
 		if err := RenderRows(o, t); err != nil {
 			return err

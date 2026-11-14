@@ -216,3 +216,15 @@ func TestSetHistoryShowsEachRecordedRun(t *testing.T) {
 		"release-20260929T101500Z  failed   2026-09-29T10:15:00Z  12m03s    1/3 ✓\n"+
 		"release-20260928T090000Z  running  2026-09-28T09:15:00Z  –         0/0 ✓\n", buf.String())
 }
+
+// A run rerun --failed marked for restart still shows its old failed build
+// on Bamboo; status says the restart is due instead.
+func TestSetStatusViewShowsARestartDueRun(t *testing.T) {
+	rec := app.SetRecord{ID: "release-20260929T101500Z", Set: "release", Status: app.SetInterrupted,
+		Stages: []app.StageRecord{{Runs: []app.RunRecord{
+			{Target: "deploy", PlanKey: "OPS-DEP", BuildKey: "OPS-DEP-9", Restart: true}}}}}
+	builds := map[string]provider.Build{"OPS-DEP-9": {Key: "OPS-DEP-9", State: provider.StateFailed}}
+	o, buf := testOut(false)
+	require.NoError(t, SetStatusView(o, rec, builds, false))
+	require.Regexp(t, `deploy\s+OPS-DEP-9\s+Restart due`, buf.String())
+}

@@ -230,15 +230,15 @@ func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (s
 		return "", nil, recordErr(err)
 	}
 	_ = s.Sets.Prune(p.Name, setKeep)
-	return rec.ID, s.startSet(ctx, p, rec, l, 0, nil), nil
+	return rec.ID, s.startSet(ctx, p, rec, l, 0), nil
 }
 
-func (s *Service) startSet(ctx context.Context, p SetPlan, rec SetRecord, l *SetLock, from int, restart map[int]bool) <-chan SetEvent {
+func (s *Service) startSet(ctx context.Context, p SetPlan, rec SetRecord, l *SetLock, from int) <-chan SetEvent {
 	ch := make(chan SetEvent, 16)
 	go func() {
 		defer close(ch)
 		defer l.Release()
-		(&setRun{s: s, p: p, rec: rec, ch: ch, restartStage: from, restart: restart}).run(ctx, from)
+		(&setRun{s: s, p: p, rec: rec, ch: ch}).run(ctx, from)
 	}()
 	return ch
 }
@@ -261,10 +261,6 @@ type setRun struct {
 	p   SetPlan
 	rec SetRecord
 	ch  chan<- SetEvent
-	// restart holds the runs of stage restartStage that Bamboo restarts
-	// instead of bam triggering them (bam set rerun --failed).
-	restartStage int
-	restart      map[int]bool
 
 	// sendMu orders sends from the stage loop and the run watchers, so that
 	// once the last event (set_error or set_done) is out, a watcher still
@@ -374,7 +370,7 @@ func (r *setRun) stage(ctx context.Context, i int) (ok, recorded bool) {
 	defer stop()
 	pending := 0
 	for j, run := range runs {
-		if recs[j].State.Finished() || recs[j].Error != "" {
+		if recs[j].Phase().Settled() {
 			continue // resumed: its end is already known
 		}
 		key, step := r.start(ctx, i, j)
@@ -426,8 +422,7 @@ const (
 func (r *setRun) start(ctx context.Context, i, j int) (string, startStep) {
 	rec := &r.rec.Stages[i].Runs[j]
 	key := rec.BuildKey
-	if key != "" && i == r.restartStage && r.restart[j] {
-		delete(r.restart, j)
+	if rec.Phase() == RunRestartDue {
 		if step := r.restartRun(ctx, i, j); step != stepWatch {
 			return "", step
 		}
@@ -447,12 +442,17 @@ func (r *setRun) restartRun(ctx context.Context, i, j int) startStep {
 	// Counted and saved first: bam never restarts a build it has not
 	// recorded.
 	rec.Reruns++
+	rec.Restart = false
 	if !r.save(ctx, i) {
 		return stepUnrecorded
 	}
 	b, restarted, err := r.s.Restart(ctx, rec.BuildKey)
 	if err != nil {
 		if ctx.Err() != nil {
+			// Interrupted: the restart stays due, so resume asks again.
+			rec.Reruns--
+			rec.Restart = true
+			_ = r.s.Sets.Save(r.rec)
 			return stepStopped
 		}
 		rec.State, rec.Error = provider.StateFailed, describeErr(err)
@@ -484,6 +484,9 @@ func (r *setRun) trigger(ctx context.Context, i, j int) (string, startStep) {
 	}
 	b, err := r.s.Run(ctx, run.Ref, run.Vars)
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", stepStopped // interrupted, not a failed trigger: resume triggers it
+		}
 		rec.State, rec.Error = provider.StateFailed, describeErr(err)
 		if !r.save(ctx, i) {
 			return "", stepUnrecorded
@@ -598,7 +601,7 @@ func (s *Service) ResumeSet(ctx context.Context, id string, o SetOptions, lock S
 		l.Release()
 		return nil, recordErr(err)
 	}
-	return s.startSet(ctx, p, rec, l, firstUnfinished(rec), nil), nil
+	return s.startSet(ctx, p, rec, l, firstUnfinished(rec)), nil
 }
 
 // RerunSet retries a failed set run under its own id. In the stage that
@@ -623,7 +626,6 @@ func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock Se
 		return nil, err
 	}
 	from := firstUnfinished(rec)
-	restart := map[int]bool{}
 	if from < len(rec.Stages) {
 		runs := rec.Stages[from].Runs
 		for j := range runs {
@@ -631,7 +633,7 @@ func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock Se
 				continue
 			}
 			if runs[j].BuildKey != "" {
-				restart[j] = true
+				runs[j].Restart = true
 			}
 			runs[j].State, runs[j].Error = "", ""
 		}
@@ -644,7 +646,7 @@ func (s *Service) RerunSet(ctx context.Context, id string, o SetOptions, lock Se
 		l.Release()
 		return nil, recordErr(err)
 	}
-	return s.startSet(ctx, p, rec, l, from, restart), nil
+	return s.startSet(ctx, p, rec, l, from), nil
 }
 
 // continueSet makes the checks resume and rerun share before they act on a

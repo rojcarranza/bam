@@ -80,3 +80,24 @@ func TestOnlyGETsReachTheServer(t *testing.T) {
 		assert.Equal(t, http.MethodGet, m)
 	}
 }
+
+// Every name in Writes must be overridden by the Guard: a method it merely
+// inherits would pass straight through to the embedded provider. The embedded
+// provider here is nil, so a write that falls through panics.
+func TestEveryWriteIsOverriddenByTheGuard(t *testing.T) {
+	g := readonly.Wrap(nil)
+	v := reflect.ValueOf(g)
+	for _, name := range readonly.Writes {
+		m := v.MethodByName(name)
+		require.True(t, m.IsValid(), name)
+		args := make([]reflect.Value, m.Type().NumIn())
+		for i := range args {
+			args[i] = reflect.Zero(m.Type().In(i))
+		}
+		var out []reflect.Value
+		require.NotPanics(t, func() { out = m.Call(args) }, "%s reaches the provider", name)
+		err, _ := out[len(out)-1].Interface().(error)
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), "read-only mode", name)
+	}
+}

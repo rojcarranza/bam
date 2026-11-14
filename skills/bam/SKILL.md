@@ -1,6 +1,6 @@
 ---
 name: bam
-description: Drive Atlassian Bamboo from the terminal with bam: find plans, run a plan or preset with variables, watch a build, read why it failed, see the queue and agents, and cancel. Use when the user mentions Bamboo, a build key such as PROJ-BUILD-482, a plan key, a failing Bamboo build, or asks to run, watch or investigate a Bamboo build.
+description: "Drive Atlassian Bamboo from the terminal with bam: find plans, run a plan or preset with variables, watch a build, read why it failed, see the queue and agents, and cancel. Use when the user mentions Bamboo, a build key such as PROJ-BUILD-482, a plan key, a failing Bamboo build, or asks to run, watch or investigate a Bamboo build."
 ---
 
 # bam: Bamboo from the terminal

@@ -69,9 +69,10 @@ type stub struct {
 	repoBranch string
 	now        func() time.Time
 
-	mu    sync.Mutex
-	live  map[string]*build
-	lastN int
+	mu     sync.Mutex
+	live   map[string]*build
+	agents map[int]bool // agent id -> enabled, once bam agent enable or disable changed it
+	lastN  int
 }
 
 // build is one simulated build: what was triggered in this process, as
@@ -579,6 +580,10 @@ func (s *stub) handleProject(w http.ResponseWriter, r *http.Request) {
 // and linux-2 run every job of every plan the stub knows, local-1 none.
 func (s *stub) handleAgent(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, api+"/agent/")
+	if i := strings.Index(id, "/"); i > 0 {
+		s.switchAgent(w, r, id[:i], id[i+1:])
+		return
+	}
 	var as []struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
@@ -611,6 +616,56 @@ func (s *stub) handleAgent(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
+// handleAgentList answers the agent list from the fixture, with the enabled
+// flag of any agent changed by an enable or disable call.
+func (s *stub) handleAgentList(w http.ResponseWriter, _ *http.Request) {
+	var as []map[string]any
+	if err := json.Unmarshal(s.fixture(w, "agents.json"), &as); err != nil {
+		http.Error(w, "fixture unavailable", http.StatusInternalServerError)
+		return
+	}
+	s.mu.Lock()
+	for _, a := range as {
+		if id, ok := a["id"].(float64); ok {
+			if en, set := s.agents[int(id)]; set {
+				a["enabled"] = en
+			}
+		}
+	}
+	s.mu.Unlock()
+	out, _ := json.Marshal(as)
+	writeJSON(w, out)
+}
+
+// switchAgent serves PUT agent/ID/enable and agent/ID/disable.
+func (s *stub) switchAgent(w http.ResponseWriter, r *http.Request, id, verb string) {
+	n, err := strconv.Atoi(id)
+	if err != nil || r.Method != http.MethodPut || (verb != "enable" && verb != "disable") {
+		http.NotFound(w, r)
+		return
+	}
+	var as []struct {
+		ID int `json:"id"`
+	}
+	if err := json.Unmarshal(s.fixture(w, "agents.json"), &as); err != nil {
+		http.Error(w, "fixture unavailable", http.StatusInternalServerError)
+		return
+	}
+	for _, a := range as {
+		if a.ID == n {
+			s.mu.Lock()
+			if s.agents == nil {
+				s.agents = map[int]bool{}
+			}
+			s.agents[n] = verb == "enable"
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	http.NotFound(w, r)
+}
+
 func sortedKeys(m map[string]bool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -632,7 +687,7 @@ func (s *stub) handler() http.Handler {
 	mux.HandleFunc(api+"/queue/", s.handleQueue)
 	mux.HandleFunc(api+"/queue", s.handleQueueList)
 	mux.HandleFunc(api+"/agent/", s.handleAgent)
-	mux.HandleFunc(api+"/agent", func(w http.ResponseWriter, _ *http.Request) { s.serve(w, "agents.json", "", "") })
+	mux.HandleFunc(api+"/agent", s.handleAgentList)
 	mux.HandleFunc("/download/", func(w http.ResponseWriter, _ *http.Request) {
 		body := s.fixture(w, filepath.Join("recorded", "log_download.log"))
 		if body == nil {

@@ -33,5 +33,5 @@ bam agent list [flags]
 
 ### SEE ALSO
 
-* [bam agent](bam_agent.md)	 - Build agents: list, mine
+* [bam agent](bam_agent.md)	 - Build agents: list, mine, disable, enable
 

@@ -11,7 +11,7 @@ func init() { commandSets = append(commandSets, addQueue) }
 
 func addQueue(root *cobra.Command, r *runtime) {
 	root.AddCommand(newQueueCmd(r))
-	subgroup(root, "agent", "Build agents: list, mine", groupBrowse).AddCommand(newAgentListCmd(r), newAgentMineCmd(r))
+	subgroup(root, "agent", "Build agents: list, mine, disable, enable", groupBrowse).AddCommand(newAgentListCmd(r), newAgentMineCmd(r), newAgentSwitchCmd(r, false), newAgentSwitchCmd(r, true))
 }
 
 func newQueueCmd(r *runtime) *cobra.Command {

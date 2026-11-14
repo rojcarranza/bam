@@ -370,3 +370,21 @@ func TestWaitingBuildAnswersTheWhySources(t *testing.T) {
 	assert.Contains(t, jobs["linux-2"], "PROJ-BUILD-JOB1")
 	assert.Empty(t, jobs["local-1"])
 }
+
+// Intent (issue 217, BAM-34 P6): the fake Bamboo takes an agent out of rotation
+// and puts it back, and the agent list shows it.
+func TestStubSwitchesAnAgent(t *testing.T) {
+	_, c := testStub(t)
+	ctx := context.Background()
+	agents, err := c.Agents(ctx)
+	require.NoError(t, err)
+	require.True(t, agents[0].Enabled)
+	require.NoError(t, c.SetAgentEnabled(ctx, agents[0], false))
+	agents, err = c.Agents(ctx)
+	require.NoError(t, err)
+	assert.False(t, agents[0].Enabled)
+	require.NoError(t, c.SetAgentEnabled(ctx, agents[0], true))
+	agents, _ = c.Agents(ctx)
+	assert.True(t, agents[0].Enabled)
+	assert.Error(t, c.SetAgentEnabled(ctx, provider.Agent{ID: 99, Name: "nope"}, false))
+}

@@ -1,6 +1,6 @@
 ## bam agent
 
-Build agents: list, mine
+Build agents: list, mine, disable, enable
 
 ```
 bam agent [flags]
@@ -25,6 +25,8 @@ bam agent [flags]
 ### SEE ALSO
 
 * [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
+* [bam agent disable](bam_agent_disable.md)	 - Disable a build agent (administrators only)
+* [bam agent enable](bam_agent_enable.md)	 - Enable a build agent (administrators only)
 * [bam agent list](bam_agent_list.md)	 - List the build agents: online, enabled and busy
 * [bam agent mine](bam_agent_mine.md)	 - The agents you support: add, rm, list, forget
 

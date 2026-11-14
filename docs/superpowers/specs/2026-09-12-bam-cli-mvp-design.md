@@ -401,6 +401,7 @@ It exits 1 when any build in the tree did not succeed, though the triggered buil
 - **Interrupt (Ctrl-C) stops watching only.** The build keeps running; bam prints `still running: bam watch <key>` and exits 130. Stopping a build is only ever `bam build cancel`.
 - **`--timeout`** behaves the same way and exits 6. A target's `timeout` is the default; otherwise there is no timeout.
 - Polling starts at 2 seconds, multiplies by 1.5 after each poll with no change, caps at 10 seconds, and resets to 2 seconds on any change.
+- A failed poll is retried; three failures in a row end the watch with the last error (exit 5). An error that retrying cannot fix (a build that does not exist, a config error, a refused token) ends it at once. The same rule applies to `logs --follow` and a set run's watch (`app.pollSession`). A tree watch also ends on a failed first refresh (build-tree design §6.3).
 
 ### 5.5 Logs
 

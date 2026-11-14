@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"regexp"
@@ -773,7 +772,7 @@ func windowWarnings(windows map[string]planWindow, root provider.Build) []string
 // It is well past treePoll so a skewed server clock cannot cut a watch short.
 const (
 	treePoll  = 10 * time.Second
-	treeTries = 3
+	treeTries = pollTries
 	treeQuiet = time.Minute
 )
 
@@ -829,7 +828,7 @@ type treeWatch struct {
 	scan          *treeScan                 // nil until the first tree
 	noProgress    bool                      // Bamboo has no build estimates
 	last, settled string                    // signatures of the last sent and the last finished tree
-	fails         int                       // failed refreshes in a row
+	sess          pollSession               // the shared rule for a failed refresh
 }
 
 // send emits e unless ctx ends first, and reports whether it did.
@@ -870,16 +869,14 @@ func (w *treeWatch) refresh(ctx context.Context) bool {
 	if err != nil {
 		return w.failed(ctx, err)
 	}
-	w.scan, w.fails = next, 0
+	w.scan = next
+	w.sess.ok()
 	return w.update(ctx, t)
 }
 
-// failed counts a failed refresh. The first refresh, an error retrying
-// cannot fix (a mistyped build, a bad children map, a refused token), or
-// treeTries failures in a row end the watch.
+// failed counts a failed refresh through the shared pollSession.
 func (w *treeWatch) failed(ctx context.Context, err error) bool {
-	w.fails++
-	if w.scan == nil || permanentTreeErr(err) || w.fails >= treeTries {
+	if !w.sess.fail(err) {
 		w.send(ctx, TreeEvent{Type: TreeError, Err: err})
 		return false
 	}
@@ -955,13 +952,4 @@ func treeSignature(t Tree) string {
 		b.WriteByte('\n')
 	})
 	return b.String()
-}
-
-// permanentTreeErr reports whether retrying a refresh cannot help.
-func permanentTreeErr(err error) bool {
-	switch errs.KindOf(err) {
-	case errs.KindConfig, errs.KindAuth, errs.KindUsage:
-		return true
-	}
-	return errors.Is(err, errs.ErrNotFound)
 }

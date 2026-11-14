@@ -242,7 +242,7 @@ func TestStalePickerResponsesAreDropped(t *testing.T) {
 func TestFollowSurfacesItsError(t *testing.T) {
 	svc := testService()
 	f := svc.P.(*fake.Provider)
-	f.LogErrs = []error{errBoom}
+	f.LogErrs = []error{errBoom, errBoom, errBoom}
 	f.Sequences = map[string][]provider.Build{"PROJ-BUILD-44": {sampleBuild()}}
 
 	events, done := followCmd(t.Context(), svc, "PROJ-BUILD-44", map[string]int{"PROJ-BUILD-INT-44": 0}, false)

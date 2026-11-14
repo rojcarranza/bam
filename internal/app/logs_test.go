@@ -99,11 +99,11 @@ func TestFollowLogReportsAFailedFinalFetch(t *testing.T) {
 	running.Stages[1].Jobs[1].State = provider.StateRunning
 	p.Sequences = map[string][]provider.Build{"PROJ-BUILD12-44": {running, failedBuild()}}
 	boom := errs.Bamboof("log read failed")
-	p.LogErrs = []error{nil, boom}
+	p.LogErrs = []error{nil, nil, boom, boom, boom}
 	s := newService(t, p)
 
 	err := s.FollowLog(bg, "PROJ-BUILD12-44", running.Stages[1].Jobs[1], 1, func([]string) {})
-	require.ErrorIs(t, err, boom, "--follow must not exit clean when the last log fetch fails")
+	require.ErrorIs(t, err, boom, "--follow must not exit clean when the log fetch keeps failing")
 }
 
 func TestCancel(t *testing.T) {
@@ -353,7 +353,7 @@ func TestFollowLogsReturnsOtherLogErrors(t *testing.T) {
 	p := fakeBamboo()
 	p.Sequences = map[string][]provider.Build{liveKey: {liveBuild(stRun, liveStage("Test", stRun, liveJob("UNIT", stRun)))}}
 	boom := errs.Bamboof("log read failed")
-	p.LogErrs = []error{boom}
+	p.LogErrs = []error{boom, boom, boom}
 	s := newService(t, p)
 
 	err := s.FollowLogs(bg, liveKey, map[string]int{liveJobKey("UNIT"): 0}, false, func(LogEvent) {})

@@ -119,9 +119,10 @@ type Event struct {
 }
 
 // Watch polls a build until it finishes and emits its changes. Ending ctx
-// stops watching only; the build keeps running.
+// stops watching only; the build keeps running. The caller has already read
+// or triggered the build, so a failed first poll is retried.
 func (s *Service) Watch(ctx context.Context, key string) <-chan Event {
-	w := &watcher{s: s, ctx: ctx, key: key, ch: make(chan Event, 16), interval: MinPoll}
+	w := &watcher{s: s, ctx: ctx, key: key, ch: make(chan Event, 16), interval: MinPoll, sess: livePoll()}
 	go w.run()
 	return w.ch
 }
@@ -136,6 +137,7 @@ type watcher struct {
 	interval   time.Duration
 	noProgress bool
 	sent       provider.Progress // the estimate the last event carried
+	sess       pollSession
 }
 
 func (w *watcher) run() {
@@ -166,11 +168,19 @@ func (w *watcher) send(e Event) bool {
 func (w *watcher) poll() bool {
 	b, err := w.s.Build(w.ctx, w.key)
 	if err != nil {
-		if w.ctx.Err() == nil {
-			w.send(Event{Type: EventError, Time: w.s.Clock.Now(), Err: err})
+		if w.ctx.Err() != nil {
+			return false
 		}
+		// One failed poll is retried at the current interval; the shared
+		// session ends the watch after a permanent error or pollTries
+		// failures in a row.
+		if w.sess.fail(err) {
+			return true
+		}
+		w.send(Event{Type: EventError, Time: w.s.Clock.Now(), Err: err})
 		return false
 	}
+	w.sess.ok()
 	now := w.s.Clock.Now()
 	// A missing estimate is decoration lost, never a reason to stop
 	// watching, so every progress error becomes a zero Progress.

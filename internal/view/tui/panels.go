@@ -108,7 +108,7 @@ func branchOrDefault(b provider.Build) string {
 // screen, because the keys do.
 func (m Model) keyLine() string {
 	if m.screen == screenForm {
-		if m.form.loading {
+		if m.form.loading() {
 			// Only esc and q work until the variables arrive.
 			return "esc cancel"
 		}

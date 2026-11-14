@@ -141,6 +141,7 @@ type Model struct {
 	// on the one they are looking at now.
 	plansGen, buildsGen, logsGen   int
 	watchGen, followGen, formGen   int
+	runGen                         int // the run being sent; esc leaves it alone, so a started build is still reported
 	connGen, detailGen             int
 	pickerGen, presetsGen, infoGen int
 	cancelGen                      int
@@ -287,6 +288,8 @@ func (m Model) currentStream(s stream, gen int) bool {
 		return gen == m.presetsGen
 	case streamRun:
 		return gen == m.formGen
+	case streamSend:
+		return gen == m.runGen
 	case streamCancel:
 		return gen == m.cancelGen
 	case streamSets:
@@ -521,16 +524,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Gen != m.formGen {
 			return m, nil
 		}
-		m.form.loading = false
+		m.form.advance(evLoaded)
 		m.form.ref, m.form.target, m.form.base = msg.Ref, msg.Target, msg.Base
 		m.form.fromBuild, m.form.fromRevision = msg.FromBuild, msg.FromRevision
 		m.form.fields = buildFields(msg.Base, msg.Ref)
 		m.form.repos = presetRepoRows(msg.Ref)
 		m.form.cursor = 0
-		// A stray enter struck while loading (now ignored by handleFormKey,
-		// but a stale build or an older session could still reach here with
-		// editing left on) must not carry into the freshly loaded form.
-		m.form.editing = false
+		// The phase is Ready now, so nothing typed before the load carries in.
 		m.form.input.Blur()
 		m.revalidate()
 		return m, nil
@@ -554,20 +554,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case triggeredMsg:
-		if msg.Gen != m.formGen {
-			return m, nil
-		}
-		return m.openTriggered(msg.Build)
+		return m.handleTriggered(msg)
 	case repoCheckedMsg:
-		if msg.Gen != m.formGen {
+		if msg.Gen != m.runGen || m.form.phase != formChecking {
 			return m, nil
 		}
 		run := func(m Model) (tea.Model, tea.Cmd) {
-			return m, runCmd(m.baseCtx(), m.svc, msg.Ref, msg.VS, m.formGen)
+			m.form.advance(evYes)
+			return m, runCmd(m.baseCtx(), m.svc, msg.Ref, msg.VS, m.runGen)
 		}
 		if !msg.Check.Needed() {
+			m.form.advance(evSend)
 			return run(m)
 		}
+		m.form.advance(evAsk)
 		return m.ask(repoPrompt(msg.Check), run)
 	case planRestMsg:
 		return m.planRest(msg)
@@ -677,7 +677,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Stream == streamInfo && m.overlay == overlayInfo {
 			m.overlay = overlayNone // the error shows in the status bar instead
 		}
-		if msg.Stream == streamRun && m.form.loading {
+		if msg.Stream == streamSend {
+			m = m.sendFailed()
+		}
+		if msg.Stream == streamRun && m.form.loading() {
 			// loading stays true: with no fields, keys must stay locked.
 			m.form.err = msg.Err
 		}
@@ -700,7 +703,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// typist over ssh, a paste outside bracketed paste). Outside a text field
 	// they are keys, so each one is handled on its own, in order; once one of
 	// them opens a field, the rest become its text.
-	if msg.Type == tea.KeyRunes && !msg.Paste && len(msg.Runes) > 1 && m.inputFor == inputNone && !m.form.editing {
+	if msg.Type == tea.KeyRunes && !msg.Paste && len(msg.Runes) > 1 && m.inputFor == inputNone && !m.form.editing() {
 		var next tea.Model = m
 		var cmds []tea.Cmd
 		for _, r := range msg.Runes {
@@ -938,16 +941,22 @@ func (m Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		return m.answerYes()
 	case tea.KeyEsc:
-		m.overlay, m.confirm = overlayNone, confirmState{}
-		return m, nil
+		return m.declined()
 	}
 	switch strings.ToLower(msg.String()) {
 	case "y":
 		return m.answerYes()
 	case "n", "q":
-		m.overlay, m.confirm = overlayNone, confirmState{}
-		return m, nil
+		return m.declined()
 	}
+	return m, nil
+}
+
+// declined closes the question without acting. A declined repositories
+// dialog gives the form back as typed.
+func (m Model) declined() (tea.Model, tea.Cmd) {
+	m.overlay, m.confirm = overlayNone, confirmState{}
+	m.form.advance(evNo)
 	return m, nil
 }
 
@@ -1720,7 +1729,7 @@ func jobByKey(b provider.Build, key string) (provider.Job, bool) {
 // field is being edited every key is a character, so q is a q and ctrl-R
 // cannot be struck by accident.
 func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.form.loading {
+	if m.form.loading() {
 		// Nothing else is safe: fields is nil and cursor is 0, which makes
 		// onRevision() true and would let enter start editing the hidden
 		// revision input before there is a form to edit.
@@ -1732,17 +1741,30 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if m.form.editing {
+	if m.form.busy() {
+		// A run is on its way: only leaving and quitting work. A second
+		// ctrl-R is ignored, so it cannot start a second build.
+		switch {
+		case key.Matches(msg, keys.Back):
+			return m.back()
+		case key.Matches(msg, keys.Quit):
+			return m.quit()
+		case key.Matches(msg, keys.DryRun):
+			m.overlay = overlayDryRun
+		}
+		return m, nil
+	}
+	if m.form.editing() {
 		switch msg.Type {
 		case tea.KeyEsc:
-			naming := m.form.naming
+			naming := m.form.naming()
 			m.form.cancelEdit()
 			if naming {
 				m.revalidate()
 			}
 			return m, nil
 		case tea.KeyEnter:
-			if m.form.naming {
+			if m.form.naming() {
 				name := strings.TrimSpace(m.form.input.Value())
 				if strings.ContainsAny(name, "= \t") {
 					m.form.err = errs.Usagef("%q is not a variable name", name).WithWhy("a name cannot hold = or spaces")
@@ -1816,7 +1838,7 @@ func (m Model) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // form to a rejected value is worse than the rejection.
 func (m Model) trigger() (tea.Model, tea.Cmd) {
 	m.revalidate()
-	if !m.canRun() || m.svc == nil {
+	if m.form.phase != formReady || !m.canRun() || m.svc == nil {
 		return m, nil
 	}
 	getenv := m.deps.Getenv
@@ -1829,10 +1851,41 @@ func (m Model) trigger() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	ref := m.form.planRef()
+	m.runGen++
 	if len(ref.Repositories) > 0 {
-		return m, checkRepoCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.deps.Open, m.formGen)
+		m.form.advance(evCheck)
+		return m, checkRepoCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.deps.Open, m.runGen)
 	}
-	return m, runCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.formGen)
+	m.form.advance(evSend)
+	return m, runCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.runGen)
+}
+
+// handleTriggered reports a build that started. Every started build is
+// reported, whichever screen the person is on now: the run was sent and
+// Bamboo accepted it, so hiding it would be wrong. Only the form that sent it,
+// still open and still waiting, is followed into the build.
+func (m Model) handleTriggered(msg triggeredMsg) (tea.Model, tea.Cmd) {
+	if msg.Gen == m.runGen && m.screen == screenForm && m.form.phase == formSending {
+		return m.openTriggered(msg.Build)
+	}
+	if msg.Gen == m.runGen && m.form.phase == formSendingAway {
+		m.form = formState{}
+	}
+	m.noteLive(msg.Build)
+	m.status = "queued " + msg.Build.Key
+	return m, nil
+}
+
+// sendFailed ends a send that failed: the form stays as typed and runs again,
+// or, when esc already left it, there is nothing to return to.
+func (m Model) sendFailed() Model {
+	switch m.form.phase {
+	case formSendingAway:
+		m.form = formState{}
+	default:
+		m.form.advance(evFailed)
+	}
+	return m
 }
 
 // askCancel confirms before stopping a build. Cancelling is the one action
@@ -1864,6 +1917,10 @@ func (m Model) askCancel() (tea.Model, tea.Cmd) {
 func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
 	m.revisionRun.Key, m.revisionRun.Rev = b.Key, m.form.planRef().RevisionShort()
 	m.form = formState{}
+	// The dry run opened while the request was in flight belongs to the form.
+	if m.overlay == overlayDryRun {
+		m.overlay = overlayNone
+	}
 	// Starting the run worked: an error from before it is no longer true.
 	m.err, m.cmdErr = nil, false
 	// Esc after a run returns to Home (§4.1), not to a set, a tree or a
@@ -1928,7 +1985,7 @@ func (m Model) openForm() (tea.Model, tea.Cmd) {
 	m.screen = screenForm
 	m.formGen++
 	// Name the plan while it loads, so the header is never blank.
-	m.form = formState{loading: true, ref: app.PlanRef{PlanKey: planKey}}
+	m.form = formState{phase: formLoading, ref: app.PlanRef{PlanKey: planKey}}
 	if target != nil {
 		m.form.target, m.form.ref = target.Name, app.PlanRef{PlanKey: target.Plan, Branch: target.Branch}
 	}
@@ -1988,7 +2045,13 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		m.formGen++ // abandon a load still in flight
 		from := m.formFrom
 		m.screen = from
-		m.form = formState{}
+		if m.form.advance(evEscape) {
+			// The run request is in flight and cannot be recalled. Keep its
+			// generation: triggeredMsg reports the build when it lands.
+		} else {
+			m.runGen++ // a check in flight must not start a run the person left
+			m.form = formState{}
+		}
 		if from == screenHome {
 			// A tick that arrived while the form was open ended the
 			// auto-refresh loop (homeTick drops beats off Home); nothing

@@ -48,6 +48,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- In the terminal UI run form, a second `ctrl-R` before Bamboo answers no longer starts a second build, `esc` while the run is being sent still reports the build that started, and the dry-run overlay closes when the run starts.
 - `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
 - `bam preset add`, `p` in the terminal UI and `bam preset sync` write every variable the plan declares, plan defaults filled in, so the preset is ready to fill; a secret the plan stores is a commented line.
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.

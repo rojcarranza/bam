@@ -681,7 +681,9 @@ func TestEscAfterARunReturnsHome(t *testing.T) {
 
 	queued := sampleBuild()
 	queued.Key, queued.Number, queued.State = "PROJ-BUILD-46", 46, provider.StateQueued
-	m, _ = send(m, triggeredMsg{Gen: m.formGen, Build: queued})
+	m.screen = screenForm
+	m.form.phase = formSending
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: queued})
 	require.Equal(t, screenPlan, m.screen)
 	require.Empty(t, m.plan.stack)
 	require.False(t, m.fromSet)

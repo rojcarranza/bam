@@ -10,7 +10,7 @@ how to use it, and a read-only switch that makes sure the agent cannot change an
     bam skill > SKILL.md                 # print it instead
 
 The skill tells the agent to read first, pass `--json --no-tui`, act on the exit code, confirm with you
-before `run`, `cancel`, `build rerun`, `set run`, `set resume` or `set rerun`, and never ask for a token. It is embedded in the
+before `run`, `cancel`, `build rerun`, `build tree --rerun-failed`, `set run`, `set resume`, `set rerun`, `agent disable` or `agent enable`, and never ask for a token. It is embedded in the
 binary, so a `go install` build carries it, and it is also in the repository at `skills/bam/SKILL.md`.
 A test checks that every command and flag the skill shows exists.
 

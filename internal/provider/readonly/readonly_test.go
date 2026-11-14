@@ -81,15 +81,14 @@ func TestOnlyGETsReachTheServer(t *testing.T) {
 	}
 }
 
-// An optional write extension is refused by the Guard too, and the Guard
-// implements every such extension the provider package defines.
+// The optional agent switch is a write: the Guard answers it with a refusal
+// instead of leaving it to read as unsupported.
 func TestAgentSwitchIsRefused(t *testing.T) {
 	var p provider.Provider = readonly.Wrap(nil)
 	sw, ok := p.(provider.AgentSwitcher)
 	require.True(t, ok)
 	err := sw.SetAgentEnabled(t.Context(), provider.Agent{Name: "linux-3"}, false)
 	require.ErrorContains(t, err, "read-only mode")
-	assert.Equal(t, []string{"SetAgentEnabled"}, readonly.ExtensionWrites)
 }
 
 // Every name in Writes must be overridden by the Guard: a method it merely

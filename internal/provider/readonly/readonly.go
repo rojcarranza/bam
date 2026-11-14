@@ -20,10 +20,6 @@ var Reads = []string{"CurrentUser", "ServerInfo", "ListProjects", "ListPlans", "
 	"ListVariables", "ListBuilds", "GetBuild", "BuildProgress", "BuildVariables", "FetchLog", "Queue",
 	"Agents", "AgentJobs", "URL", "RepositoriesURL", "CreateBranchURL"}
 
-// ExtensionWrites names the optional provider extensions that change Bamboo.
-// The Guard implements each and refuses it; a test lists them.
-var ExtensionWrites = []string{"SetAgentEnabled"}
-
 // Refusal is the error a refused command returns: a usage error, exit code 2.
 func Refusal(what string) *errs.Error {
 	return errs.Usagef("read-only mode: refused to %s", what).

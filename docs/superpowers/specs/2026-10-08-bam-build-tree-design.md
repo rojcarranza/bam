@@ -240,7 +240,7 @@ Test first. The fake provider, the fake clock, no network.
   - the window warning, and no warning when the window reaches past the root;
   - one candidate plan that fails to list: a warning, the rest of the tree;
   - the reason regex: `Child of PROJ-API-142` matches, `Child of PROJ-API-1420` names another build, other reasons do not match;
-  - `WatchTree`: updates only on change; a child that appears after its parent finished; done after the extra refresh; three failed refreshes end with an error; a refresh lists the candidates only when a build ended, on the refresh after, and every 5 minutes; a running job's log is read from where the last read stopped.
+  - `WatchTree`: updates only on change; a child that appears after its parent finished; done on the first settled tree; three failed refreshes end with an error; a refresh lists the candidates only when a build ended, on the refresh after, and every 5 minutes; a running job's log is read from where the last read stopped.
 - **`provider/bamboo`**: `TestRecorded*` checks the recorded child reason maps to `Child of LAB-PARENT-2`.
 - **`view`**: the text tree (golden), `--failed`, a loop line, a not-run line, the `next:` lines; the JSON document.
 - **`cli`** (harness): exit codes 0 and 1; `--depth 0` is exit 2 before any request; a running tree without `--watch` exits 0 with the hint; `--json`.

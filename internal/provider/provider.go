@@ -56,6 +56,14 @@ type AgentListChecker interface {
 	CannotListAgents(ctx context.Context) bool
 }
 
+// AgentSwitcher is an optional Provider extension: it takes an agent out of
+// rotation or puts it back. SetAgentEnabled needs an administrator; a refusal
+// is an auth error, and a server without the call answers an error wrapping
+// errs.ErrUnsupported. A busy agent finishes its build first.
+type AgentSwitcher interface {
+	SetAgentEnabled(ctx context.Context, agent Agent, enabled bool) error
+}
+
 // PlanSearcher is an optional Provider extension: it finds plans by name on
 // the server, across every project. SearchPlans answers an error wrapping
 // errs.ErrUnsupported when the server has no plan search, and the caller

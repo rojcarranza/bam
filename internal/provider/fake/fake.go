@@ -57,6 +57,8 @@ type Provider struct {
 	QueueErr       error
 	AgentList      []provider.Agent
 	AgentsErr      error
+	SetAgentErr    error               // returned by SetAgentEnabled
+	AgentSwitched  []string            // "disable NAME" or "enable NAME", per call
 	AgentJobMap    map[string][]string // by agent name: the jobs it can run
 	AgentJobsErr   error               // returned when AgentJobMap is nil
 	AgentJobsCalls int
@@ -366,6 +368,24 @@ func (f *Provider) Queue(context.Context) ([]provider.QueueEntry, error) {
 
 func (f *Provider) Agents(context.Context) ([]provider.Agent, error) {
 	return f.AgentList, f.AgentsErr
+}
+
+// SetAgentEnabled records the call and flips the agent in AgentList.
+func (f *Provider) SetAgentEnabled(_ context.Context, a provider.Agent, enabled bool) error {
+	if f.SetAgentErr != nil {
+		return f.SetAgentErr
+	}
+	verb := "disable "
+	if enabled {
+		verb = "enable "
+	}
+	f.AgentSwitched = append(f.AgentSwitched, verb+a.Name)
+	for i := range f.AgentList {
+		if f.AgentList[i].ID == a.ID {
+			f.AgentList[i].Enabled = enabled
+		}
+	}
+	return nil
 }
 
 // AgentJobs answers AgentJobMap for the agents asked about, as Bamboo

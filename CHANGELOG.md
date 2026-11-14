@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- `bam agent disable NAME` and `bam agent enable NAME` take a build agent out of rotation and put it back. bam asks first, and needs `--yes` when it cannot ask (no terminal, or `--json`). Only a Bamboo administrator can do it, and a busy agent finishes its build first.
+
 ### Fixed
 
 - One failed poll no longer ends a watch. `bam watch`, `bam run --watch`, `bam logs --follow`, a set run and the terminal UI's build watch now try three times in a row before they give up, as the tree watch already did, so a single dropped connection no longer exits with code 5 or records a set run as failed while Bamboo still builds. A mistyped key and a refused token still end at once.

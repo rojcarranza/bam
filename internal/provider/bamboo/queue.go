@@ -104,6 +104,30 @@ func (c *Client) Agents(ctx context.Context) ([]provider.Agent, error) {
 	return out, nil
 }
 
+// SetAgentEnabled enables or disables agent. Bamboo lets only administrators
+// do it, and a busy agent finishes its build first.
+func (c *Client) SetAgentEnabled(ctx context.Context, agent provider.Agent, enabled bool) error {
+	verb := "disable"
+	if enabled {
+		verb = "enable"
+	}
+	_, err := c.do(ctx, request{method: http.MethodPut, path: api + "/agent/" + strconv.Itoa(agent.ID) + "/" + verb})
+	switch {
+	case err == nil:
+		return nil
+	case statusOf(err) == http.StatusForbidden || statusOf(err) == http.StatusUnauthorized:
+		return errs.Authf("%d from %s: only an administrator can %s an agent", statusOf(err), c.base.Host, verb).
+			WithWhy("Bamboo lets only administrators take an agent out of rotation or put it back").Wrap(err)
+	case statusOf(err) == http.StatusNotFound || errors.Is(err, errs.ErrNotFound):
+		return errs.Bamboof("agent %s is gone from Bamboo", agent.Name).
+			WithTry("bam agent list").Wrap(err)
+	case statusOf(err) == http.StatusMethodNotAllowed || statusOf(err) == http.StatusNotImplemented:
+		return errs.Bamboof("this Bamboo cannot %s an agent over REST", verb).
+			WithTry("use Bamboo's agent page").Wrap(errs.ErrUnsupported)
+	}
+	return err
+}
+
 // CannotListAgents reports whether the server is known to refuse the agent
 // list. It reads only what bam learned within the last week.
 func (c *Client) CannotListAgents(ctx context.Context) bool {

@@ -28,7 +28,7 @@ The environment variable and the flag cannot turn off `read_only: true` in the m
 repository's `.bam.yaml` cannot set or clear it, so a teammate's repository cannot lift your switch.
 Handing an agent `BAM_READ_ONLY=1` is the usual way to let it look but not touch.
 
-With it on, bam refuses what changes Bamboo, before it asks a question, takes a lock or writes a record:
+With it on, bam refuses what changes Bamboo. The commands refuse before they ask a question, take a lock or write a record; the terminal UI may ask its usual confirmation first and then refuses, and a set run is refused before it takes a lock:
 
 - `bam run`, `bam build run`
 - `bam cancel`, `bam build cancel`

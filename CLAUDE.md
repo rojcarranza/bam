@@ -42,7 +42,7 @@ Makefile recipe lines must start with a TAB (macOS ships GNU make 3.81; no `.REC
 
 ## Architecture
 
-Layered packages under `internal/`; each imports only the module packages its rule allows. The allowed imports are defined by the depguard rules in `.golangci.yml`, so `make lint` fails when a shipped file imports a package its rule does not allow. Test files are exempt; `cli` and the packages without a rule (`provider/fake`, `view/tui`, `tools/`, `cmd/`) have no rule. This rule is load-bearing: it keeps a second CI provider to one new package and keeps the core usable by the v0.2 terminal UI.
+Layered packages under `internal/`; each imports only the module packages its rule allows. The allowed imports are defined by the depguard rules in `.golangci.yml`, so `make lint` fails when a shipped file imports a package its rule does not allow. Test files are exempt; `cli` and the packages without a rule (`provider/fake`, `provider/readonly`, `skills`, `view/tui`, `tools/`, `cmd/`) have no rule. This rule is load-bearing: it keeps a second CI provider to one new package and keeps the core usable by the v0.2 terminal UI.
 
 | Package | Role |
 | --- | --- |

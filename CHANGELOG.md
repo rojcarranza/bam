@@ -4,12 +4,7 @@ All notable changes to bam are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and bam uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0, the JSON output can gain new fields, but existing fields are never renamed or removed.
 
-## [Unreleased]
-
-### Fixed
-
-- Closing the terminal during a set run now ends it as interrupted instead of leaving it `running` with its lock files. A set run whose process is gone no longer blocks `bam set resume` (no `--force` needed on the same computer), and the terminal UI offers `U` resume on it, showing it as abandoned.
-- `Ctrl-C` during `bam set rerun --failed` keeps the restarts it still owes, so `bam set resume` restarts those builds instead of watching the old failed ones, and `Ctrl-C` while a run is being triggered no longer records a failed trigger. `bam set status` shows a run waiting for its restart as `Restart due`. Older set records still load; `--json` gains `restart` on a run that is due.
+## [0.5.0] - 2026-11-14
 
 ### Added
 
@@ -33,9 +28,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- Closing the terminal during a set run now ends it as interrupted instead of leaving it `running` with its lock files. A set run whose process is gone no longer blocks `bam set resume` (no `--force` needed on the same computer), and the terminal UI offers `U` resume on it, showing it as abandoned.
+- `Ctrl-C` during `bam set rerun --failed` keeps the restarts it still owes, so `bam set resume` restarts those builds instead of watching the old failed ones, and `Ctrl-C` while a run is being triggered no longer records a failed trigger. `bam set status` shows a run waiting for its restart as `Restart due`. Older set records still load; `--json` gains `restart` on a run that is due.
 - In the terminal UI run form, a second `ctrl-R` before Bamboo answers no longer starts a second build, `esc` while the run is being sent still reports the build that started, and the dry-run overlay closes when the run starts.
 - `bam top` keeps your selection on the row you chose when a refresh adds, removes or reorders rows, in every panel. After a refresh, `P`, enter and `o` could act on another pipeline, queued build or agent pool than the one you had selected.
 - A watched tree (`bam build tree --watch`, `bam watch`, `bam run --watch` and the terminal UI's tree) asks Bamboo for far less. A refresh reads the builds still running, and lists each plan's newest builds only when a build in the tree ends and every 5 minutes, rather than every 10 seconds; on a project of 53 plans, a refresh while builds run takes 3 requests instead of 56. A running job's log is read from where the last read stopped, and on Bamboo 12 that read, like `bam logs --follow`, fetches only the lines the log gained.
+
+## [Unreleased]
 
 ## [0.4.0] - 2026-11-10
 
@@ -156,7 +155,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A terminal UI with a plans table, panels for builds, stages and logs, and a run form.
 - `--json` on every read command, and stable exit codes.
 
-[Unreleased]: https://github.com/rojcarranza/bam/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rojcarranza/bam/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rojcarranza/bam/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rojcarranza/bam/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rojcarranza/bam/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/rojcarranza/bam/compare/v0.2.0...v0.2.1

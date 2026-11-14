@@ -10,8 +10,9 @@ linters:
       # CLAUDE.md. Each rule covers one package's shipped (non-test) files and
       # denies every module package that package may not import. Test files are
       # exempt. cli, provider/fake, view/tui, tools and cmd have no rule.
-      # atomicfile is allowed in config, credential, provider/bamboo and app,
-      # which import it for their state, cache, config and token files.
+      # atomicfile is allowed in config, credential, provider/bamboo, app and
+      # usage, which import it for their state, cache, config, token and tally
+      # files. usage is imported by cli alone.
       rules:
         atomicfile:
           files:
@@ -35,6 +36,8 @@ linters:
               desc: "atomicfile may not import app"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "atomicfile may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "atomicfile may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "atomicfile may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/style"
@@ -65,6 +68,8 @@ linters:
               desc: "errs may not import app"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "errs may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "errs may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "errs may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/style"
@@ -91,6 +96,8 @@ linters:
               desc: "config may not import app"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "config may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "config may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "config may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/style"
@@ -119,6 +126,8 @@ linters:
               desc: "provider may not import app"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "provider may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "provider may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "provider may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/style"
@@ -143,6 +152,8 @@ linters:
               desc: "credential may not import app"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "credential may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "credential may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "credential may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/style"
@@ -167,6 +178,8 @@ linters:
               desc: "provider/bamboo may not import app"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "provider/bamboo may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "provider/bamboo may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "provider/bamboo may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/style"
@@ -187,6 +200,8 @@ linters:
               desc: "app may not import provider/fake"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "app may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "app may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "app may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/style"
@@ -213,6 +228,8 @@ linters:
               desc: "view may not import credential"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "view may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "view may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view/tui"
               desc: "view may not import view/tui"
             - pkg: "github.com/rojcarranza/bam/internal/cli"
@@ -237,6 +254,8 @@ linters:
               desc: "view/style may not import app"
             - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
               desc: "view/style may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "view/style may not import usage"
             - pkg: "github.com/rojcarranza/bam/internal/view"
               desc: "view/style may not import view"
             - pkg: "github.com/rojcarranza/bam/internal/view/tui"
@@ -267,6 +286,38 @@ linters:
               desc: "toolcfg may not import view/tui"
             - pkg: "github.com/rojcarranza/bam/internal/cli"
               desc: "toolcfg may not import cli"
+            - pkg: "github.com/rojcarranza/bam/internal/usage"
+              desc: "toolcfg may not import usage"
+        usage:
+          files:
+            - "!$test"
+            - "**/internal/usage/**"
+          list-mode: lax
+          deny:
+            - pkg: "github.com/rojcarranza/bam/internal/errs"
+              desc: "usage may not import errs"
+            - pkg: "github.com/rojcarranza/bam/internal/config"
+              desc: "usage may not import config"
+            - pkg: "github.com/rojcarranza/bam/internal/provider"
+              desc: "usage may not import provider"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/bamboo"
+              desc: "usage may not import provider/bamboo"
+            - pkg: "github.com/rojcarranza/bam/internal/provider/fake"
+              desc: "usage may not import provider/fake"
+            - pkg: "github.com/rojcarranza/bam/internal/credential"
+              desc: "usage may not import credential"
+            - pkg: "github.com/rojcarranza/bam/internal/app"
+              desc: "usage may not import app"
+            - pkg: "github.com/rojcarranza/bam/internal/toolcfg"
+              desc: "usage may not import toolcfg"
+            - pkg: "github.com/rojcarranza/bam/internal/view"
+              desc: "usage may not import view"
+            - pkg: "github.com/rojcarranza/bam/internal/view/style"
+              desc: "usage may not import view/style"
+            - pkg: "github.com/rojcarranza/bam/internal/view/tui"
+              desc: "usage may not import view/tui"
+            - pkg: "github.com/rojcarranza/bam/internal/cli"
+              desc: "usage may not import cli"
     errcheck:
       exclude-functions:
         - fmt.Fprint

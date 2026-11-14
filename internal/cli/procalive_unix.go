@@ -1,0 +1,17 @@
+//go:build !windows
+
+package cli
+
+import (
+	"errors"
+	"syscall"
+)
+
+// processAlive reports whether a process with this id runs on this computer.
+func processAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	err := syscall.Kill(pid, 0)
+	return err == nil || errors.Is(err, syscall.EPERM)
+}

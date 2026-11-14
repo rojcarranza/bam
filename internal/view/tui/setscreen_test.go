@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,8 +27,39 @@ func setScreenModel(t *testing.T, rec *app.SetRecord, elsewhere string) Model {
 	m := setsModel(t)
 	next, _ := m.openSet()
 	m = next.(Model)
-	m, _ = send(m, setLoadedMsg{Gen: m.setGen, Rec: rec, Elsewhere: elsewhere})
+	lock := app.LockFree
+	if elsewhere != "" {
+		lock = app.LockLive
+	}
+	m, _ = send(m, setLoadedMsg{Gen: m.setGen, Rec: rec, Elsewhere: elsewhere, Lock: lock})
 	return m
+}
+
+// A terminal closed on a running set leaves the record running and the lock
+// file behind. The load must see the lock as stale and offer resume, not
+// refuse every action as "running in another bam".
+func TestSetScreenOffersResumeOnAnAbandonedSet(t *testing.T) {
+	m := setsModel(t)
+	dir := m.svc.Sets.Dir
+	require.NoError(t, os.MkdirAll(dir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "release.lock"), []byte(`{"pid":77,"host":"desk"}`), 0o600))
+	m.svc.Sets.Host = func() (string, error) { return "desk", nil }
+	m.svc.Sets.PID = func() int { return 1 }
+	m.svc.Sets.Alive = func(int) bool { return false }
+	rec := &app.SetRecord{ID: "release-20261006T091500Z", Set: "release", Status: app.SetRunning, StartedAt: goldenNow}
+
+	msg := loadSetCmd(context.Background(), m.svc, "release", 0)().(setLoadedMsg)
+	require.Equal(t, app.LockStale, msg.Lock)
+	require.Empty(t, msg.Elsewhere)
+
+	msg.Rec, msg.Gen = rec, m.setGen
+	next, _ := m.openSet()
+	m = next.(Model)
+	msg.Gen = m.setGen
+	m, _ = send(m, msg)
+	require.Equal(t, app.LifeAbandoned, m.setLife())
+	require.Contains(t, m.keyLine(), "U resume")
+	require.Empty(t, m.refuseSetAction())
 }
 
 func TestSetScreenGoldens(t *testing.T) {

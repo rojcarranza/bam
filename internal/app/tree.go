@@ -216,10 +216,11 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		limit = treeWindow
 	}
 	var got map[string][]provider.Build
+	var readWarnings []string
 	if list {
 		var failed map[string]error
 		got, failed = s.treeRead(ctx, tr, scan.plans, limit)
-		readWarnings := make([]string, 0, len(failed))
+		readWarnings = make([]string, 0, len(failed))
 		for _, p := range scan.plans {
 			if err, ok := failed[p]; ok {
 				readWarnings = append(readWarnings, fmt.Sprintf("%s: its builds could not be read: %s", p, describeErr(err)))
@@ -245,6 +246,11 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		}
 	case list:
 		scan = scan.merged(got)
+	}
+	if list {
+		scan.readWarnings = readWarnings
+	} else {
+		warnings = append(warnings, scan.readWarnings...)
 	}
 	warnings = append(warnings, s.treeParents(ctx, tr, scan)...)
 	t := Tree{Root: &TreeNode{PlanKey: root.PlanKey, Build: root}, Depth: o.Depth}
@@ -423,11 +429,12 @@ type treeScan struct {
 	covered  string              // root whose saved tree supplied its older children, so its windows warn of nothing
 
 	// What the last tree held, for the next refresh of a watch (#199).
-	open     []string           // builds below the root that had not finished
-	finished map[string]bool    // builds, root included, that had finished
-	relist   bool               // a build ended, so the next refresh lists again
-	listedAt time.Time          // when the candidates' newest builds were last read
-	logs     map[string]logRead // how far each running job's log was read, by job key
+	open         []string           // builds below the root that had not finished
+	finished     map[string]bool    // builds, root included, that had finished
+	relist       bool               // a build ended, so the next refresh lists again
+	listedAt     time.Time          // when the candidates' newest builds were last read
+	logs         map[string]logRead // how far each running job's log was read, by job key
+	readWarnings []string           // plans whose builds the last listing could not read
 }
 
 // ended reports whether a build of the last tree ended since: the root, now

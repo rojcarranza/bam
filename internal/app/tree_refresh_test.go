@@ -107,3 +107,26 @@ func TestAWatchedTreeListsAgainAfterQuietMinutes(t *testing.T) {
 	require.Equal(t, "PROJ-API-142(PROJ-DOCS-30)", shape(evs[1].Tree.Root))
 	require.Equal(t, provider.StateRunning, evs[1].Tree.Root.Build.State, "found while the root still ran")
 }
+
+// TestAQuietRefreshKeepsTheLastListingsReadWarnings: a plan whose builds
+// cannot be read warns on the first reading, and a refresh that lists no
+// plan, as nothing ended, still carries that warning.
+func TestAQuietRefreshKeepsTheLastListingsReadWarnings(t *testing.T) {
+	p := treeFake()
+	p.History = map[string][]provider.Build{
+		"PROJ-API":  {tb("PROJ-API-142", "Manual run by jdoe", provider.StateRunning, 0)},
+		"PROJ-DOCS": {tb("PROJ-DOCS-30", childOf("PROJ-API-142"), provider.StateRunning, 5)},
+	}
+	fp := &flakyProvider{Provider: p, failBuilds: func(plan string, _ int) bool { return plan == "OPS-DEPLOY" }}
+	svc := treeService(t, p)
+	svc.P = fp
+	first, scan, err := svc.buildTree(context.Background(), "PROJ-API-142", TreeOptions{}, nil, nil)
+	require.NoError(t, err)
+	listed := len(fp.limits)
+	quiet, _, err := svc.buildTree(context.Background(), "PROJ-API-142", TreeOptions{}, nil, scan)
+	require.NoError(t, err)
+
+	require.Equal(t, listed, len(fp.limits), "the refresh lists no plan")
+	require.Contains(t, first.Warnings, "OPS-DEPLOY: its builds could not be read: Bamboo answered 503")
+	require.Contains(t, quiet.Warnings, "OPS-DEPLOY: its builds could not be read: Bamboo answered 503")
+}

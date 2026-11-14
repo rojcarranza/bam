@@ -124,7 +124,12 @@ func SetStatusView(o Out, rec app.SetRecord, builds map[string]provider.Build, n
 			if b, ok := builds[r.BuildKey]; ok {
 				state = b.State
 			}
-			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.RunName(), dashIfEmpty(r.BuildKey), rerunTitle(state, r.Reruns), r.Error})
+			title := rerunTitle(state, r.Reruns)
+			if r.Phase() == app.RunRestartDue {
+				// The live build is the old failed one; the run is waiting to restart.
+				state, title = "", "Restart due"
+			}
+			t.Rows = append(t.Rows, []string{runGlyph(o, state) + " " + r.RunName(), dashIfEmpty(r.BuildKey), title, r.Error})
 		}
 		if err := RenderRows(o, t); err != nil {
 			return err
@@ -242,6 +247,7 @@ type SetRunRecordDoc struct {
 	State    string    `json:"state"`
 	Reruns   int       `json:"reruns"`
 	Error    string    `json:"error,omitempty"`
+	Restart  bool      `json:"restart,omitempty"` // rerun --failed marked it and Bamboo has not restarted it yet
 	Build    *BuildDoc `json:"build,omitempty"`
 }
 
@@ -320,7 +326,8 @@ func SetRecordJSON(rec app.SetRecord, builds map[string]provider.Build) SetRecor
 	for _, st := range rec.Stages {
 		sd := SetStageDoc{Runs: []SetRunRecordDoc{}}
 		for _, r := range st.Runs {
-			rd := SetRunRecordDoc{Target: r.Target, Name: r.RunName(), PlanKey: r.PlanKey, BuildKey: r.BuildKey, State: string(r.State), Reruns: r.Reruns, Error: r.Error}
+			rd := SetRunRecordDoc{Target: r.Target, Name: r.RunName(), PlanKey: r.PlanKey, BuildKey: r.BuildKey, State: string(r.State), Reruns: r.Reruns, Error: r.Error,
+				Restart: r.Phase() == app.RunRestartDue}
 			if b, ok := builds[r.BuildKey]; ok {
 				bd := BuildJSON(b)
 				rd.Build, rd.State = &bd, string(b.State)

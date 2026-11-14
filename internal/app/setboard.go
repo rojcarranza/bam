@@ -13,7 +13,8 @@ type SetBoardRow struct {
 	Progress provider.Progress
 	At       time.Time // when Progress arrived
 	Err      error
-	Rerun    int // how many times its build was restarted
+	Rerun    int  // how many times its build was restarted
+	Restart  bool // rerun --failed marked it and Bamboo has not restarted it yet
 }
 
 // SetBoard is what is known about a set run so far: its runs per stage,
@@ -86,6 +87,7 @@ func (b *SetBoard) Seed(rec SetRecord) {
 			r := b.row(i, run.RunName())
 			r.Build = provider.Build{Key: run.BuildKey, State: run.State}
 			r.Rerun = run.Reruns
+			r.Restart = run.Phase() == RunRestartDue
 			if run.Error != "" {
 				r.Err = recordedError(run.Error)
 			}
@@ -108,7 +110,7 @@ func (b *SetBoard) Apply(e SetEvent, now time.Time) {
 	switch e.Type {
 	case SetRunTriggered:
 		r := b.row(e.Stage, EventRun(e))
-		r.Build, r.Err = e.Build, nil
+		r.Build, r.Err, r.Restart = e.Build, nil, false
 		if e.Rerun > 0 {
 			r.Rerun = e.Rerun
 		}

@@ -116,3 +116,14 @@ func TestAFailedSetsLoadEndsLoading(t *testing.T) {
 	m, _ = send(m, errMsg{Err: errBoom, Where: "sets", Stream: streamSets, Gen: m.setsGen})
 	require.False(t, m.sets.loading)
 }
+
+// A recorded run with a restart due, or a build whose end is unknown, must
+// not draw the unknown-state glyph.
+func TestSetRowCellsForRunsWithoutAState(t *testing.T) {
+	var m Model
+	due := m.setRowCells(app.SetBoardRow{Name: "deploy", Build: provider.Build{Key: "OPS-DEP-9"}, Restart: true})
+	require.Equal(t, "restart due", due[2])
+	started := m.setRowCells(app.SetBoardRow{Name: "deploy", Build: provider.Build{Key: "OPS-DEP-9"}})
+	require.Equal(t, "pending", started[2])
+	require.Equal(t, "OPS-DEP-9", started[1])
+}

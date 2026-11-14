@@ -38,7 +38,8 @@ func (s *Service) Restart(ctx context.Context, key string) (b provider.Build, re
 	for waited := time.Duration(0); ; waited += restartPoll {
 		b, err := s.P.GetBuild(ctx, key)
 		if err != nil {
-			return provider.Build{}, false, err
+			// The restart request went out: restarted stays true beside the error.
+			return provider.Build{}, true, err
 		}
 		if !b.State.Finished() || !b.FinishedAt.Equal(before.FinishedAt) {
 			return b, true, nil
@@ -49,7 +50,7 @@ func (s *Service) Restart(ctx context.Context, key string) (b provider.Build, re
 		}
 		select {
 		case <-ctx.Done():
-			return provider.Build{}, false, ctx.Err()
+			return provider.Build{}, true, ctx.Err()
 		case <-s.Clock.After(restartPoll):
 		}
 	}

@@ -135,7 +135,11 @@ func (l *SetLive) draw() {
 			if state == provider.StateRunning {
 				bar = Bar(l.o, advance(r.Progress, l.o.Now().Sub(r.At)))
 			}
-			t.Rows = append(t.Rows, []string{runGlyph(l.o, state) + " " + r.Name, dashIfEmpty(r.Build.Key), rerunTitle(state, r.Rerun), dur, bar})
+			title := rerunTitle(state, r.Rerun)
+			if r.Restart {
+				state, title = "", "Restart due"
+			}
+			t.Rows = append(t.Rows, []string{runGlyph(l.o, state) + " " + r.Name, dashIfEmpty(r.Build.Key), title, dur, bar})
 		}
 		_ = RenderRows(o, t)
 	}

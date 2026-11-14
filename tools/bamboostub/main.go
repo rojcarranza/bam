@@ -72,7 +72,7 @@ type stub struct {
 	mu     sync.Mutex
 	live   map[string]*build
 	agents map[int]bool // agent id -> enabled, once bam agent enable or disable changed it
-	lastN int
+	lastN  int
 }
 
 // build is one simulated build: what was triggered in this process, as
@@ -640,7 +640,7 @@ func (s *stub) handleAgentList(w http.ResponseWriter, _ *http.Request) {
 // switchAgent serves PUT agent/ID/enable and agent/ID/disable.
 func (s *stub) switchAgent(w http.ResponseWriter, r *http.Request, id, verb string) {
 	n, err := strconv.Atoi(id)
-	if err != nil || r.Method != http.MethodPut {
+	if err != nil || r.Method != http.MethodPut || (verb != "enable" && verb != "disable") {
 		http.NotFound(w, r)
 		return
 	}

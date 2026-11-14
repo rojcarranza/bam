@@ -25,6 +25,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - A pinned pipeline on the live `bam top` board shows the pipelines its build started as a tree under its row, the way `bam build tree` prints them: every pipeline and every stage, with its state, time and the stage a running or failed one is in (`3/5 Run integration builds`). The tree is of the build running now, else the newest finished one. `space` folds or unfolds it, `j` and `k` move over its pipelines, `enter` opens one and `t` opens its tree screen; when Pinned is too short, finished trees whose pipelines all succeeded fold first, then the longest tree is cut. A failed child pipeline adds a Needs you line. A running tree refreshes once a minute and reads only what runs. `bam top --once --tree` prints the trees, and `--json` with `--tree` gains `tree` on each pin.
 - `bam pin add GROUP PIN...` takes several pins at once, and a pin can be a plan's name: an exact name (any case) wins, else the plans whose name holds the words. bam stores the plan key and prints key and name; a name that fits several plans lists up to 10 and pins nothing, as does a name that fits none, and one bad pin leaves the whole command unwritten. bam looks the name up with Bamboo's plan search, or in the plans of your configured projects when the server has none. Pinned pipelines show the plan's name on the board and in `bam top --once`, `bam pin list` prints it, and `--json` gains `name` (`names` on `bam pin list`). In the terminal UI, `m` pins the selected plan from the plans table or a plan's screen.
 
+### Fixed
+
+- In the terminal UI run form, a second `ctrl-R` before Bamboo answers no longer starts a second build, `esc` while the run is being sent still reports the build that started, and the dry-run overlay closes when the run starts.
+
 ## [0.4.0] - 2026-11-10
 
 ### Added
@@ -48,7 +52,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
-- In the terminal UI run form, a second `ctrl-R` before Bamboo answers no longer starts a second build, `esc` while the run is being sent still reports the build that started, and the dry-run overlay closes when the run starts.
 - `go install github.com/rojcarranza/bam/cmd/bam@latest` works: the module path now matches the project's address.
 - `bam preset add`, `p` in the terminal UI and `bam preset sync` write every variable the plan declares, plan defaults filled in, so the preset is ready to fill; a secret the plan stores is a commented line.
 - In the terminal UI, an error leaves with the screen it happened on and a successful run clears it, a started build shows running in the Builds panel once Bamboo runs it, and `l` on a running build in the build tree opens its live stage.

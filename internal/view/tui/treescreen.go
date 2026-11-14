@@ -193,14 +193,19 @@ type treeLine struct {
 
 // treeLines is the tree as the CLI draws it, one row per build and stage.
 func (m Model) treeLines() []treeLine {
-	t := m.buildTree.tree
-	if t.Root == nil {
+	return treeRows(m.buildTree.tree.Root, m.treeNodeText)
+}
+
+// treeRows draws the tree under root as the CLI does: the root, then one row
+// per stage and per child build, with node saying how a build reads.
+func treeRows(root *app.TreeNode, nodeText func(n *app.TreeNode, underStage bool) string) []treeLine {
+	if root == nil {
 		return nil
 	}
-	out := []treeLine{{text: m.treeNodeText(t.Root, false), node: t.Root}}
+	out := []treeLine{{text: nodeText(root, false), node: root}}
 	var add func(n *app.TreeNode, indent string)
 	node := func(k *app.TreeNode, indent, branch, more string, underStage bool) {
-		out = append(out, treeLine{text: indent + branch + m.treeNodeText(k, underStage), node: k})
+		out = append(out, treeLine{text: indent + branch + nodeText(k, underStage), node: k})
 		add(k, indent+more)
 	}
 	add = func(n *app.TreeNode, indent string) {
@@ -227,7 +232,7 @@ func (m Model) treeLines() []treeLine {
 			}
 		}
 	}
-	add(t.Root, "")
+	add(root, "")
 	return out
 }
 

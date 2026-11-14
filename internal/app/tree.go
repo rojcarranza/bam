@@ -50,6 +50,7 @@ type TreeOptions struct {
 	OnProgress func(TreeProgress) // BuildTree reports how far it got; calls are serialized and end before it returns
 	Shared     bool               // start from the scan of another recent tree of the root's plan, and lend this one on
 	Plans      []string           // more plans to search for children, such as the plan branches of a run with repository branches
+	NoScan     bool               // with a previous scan, do not list the plans' newest builds again: read only what runs
 	track      *treeTracker       // set by BuildTree and WatchTree
 }
 
@@ -174,7 +175,11 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		scan = &treeScan{plans: plans, listed: projects}
 		limit = treeWindow
 	}
-	got, failed := s.treeRead(ctx, tr, scan.plans, limit)
+	var got map[string][]provider.Build
+	var failed map[string]error
+	if prev == nil || !o.NoScan {
+		got, failed = s.treeRead(ctx, tr, scan.plans, limit)
+	}
 	var depths map[string]int
 	if prev == nil && known == nil {
 		depths = s.treeDeepen(ctx, tr, got, root)

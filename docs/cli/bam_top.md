@@ -20,6 +20,10 @@ or its project is in projects:) with their place in the whole queue, and one
 line counts the builds that wait for other agents. --all shows every agent and
 the whole queue of the server.
 
+With --tree, each pin that started other pipelines prints them as bam build
+tree does, under its group's table; with --json each pin gains tree. The live board
+always draws them (space folds a tree).
+
 Pin pipelines with bam pin add, or list groups under monitor: in the machine file
 or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list
 needs an administrator), the board says so in one line and prints the rest.
@@ -47,6 +51,7 @@ bam top [flags]
       --all[=true|false]    show every agent and the whole queue of the server, not only your part
   -h, --help[=true|false]   help for top
       --once[=true|false]   print the board once instead of opening the live board
+      --tree[=true|false]   print the tree of child pipelines under each pin (with --once or --json)
 ```
 
 ### Options inherited from parent commands

@@ -1,6 +1,7 @@
 package view
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 
@@ -67,6 +68,9 @@ type BoardPinDoc struct {
 	// first; BranchesMore counts those left out.
 	Branches     []BoardPinDoc `json:"branches"`
 	BranchesMore int           `json:"branches_more"`
+	// Tree is the pipelines the pin's build started, as bam build tree
+	// --json gives them; only with bam top --tree.
+	Tree *TreeDoc `json:"tree,omitempty"`
 }
 
 type BoardPinBuild struct {
@@ -105,6 +109,10 @@ func BoardJSON(b app.Board, url func(string) string) BoardDoc {
 				pd.Branches = append(pd.Branches, pinDoc(br, url))
 			}
 			pd.BranchesMore = p.BranchesMore
+			if p.HasChildren() {
+				td := TreeJSON(*p.Tree, false)
+				pd.Tree = &td
+			}
 			gd.Pipelines = append(gd.Pipelines, pd)
 		}
 		d.Pins = append(d.Pins, gd)
@@ -225,6 +233,33 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		for _, f := range failed {
 			fmt.Fprintln(w, f)
 		}
+		for _, p := range g.Pins {
+			if err := pinTree(o, p); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// pinTree prints the pipelines a pin's build started, as bam build tree does,
+// under the pin's name; nothing for a pin with none, or when bam read no tree.
+func pinTree(o Out, p app.PinView) error {
+	if !p.HasChildren() {
+		return nil
+	}
+	fmt.Fprintln(o.W, "    "+style.Dim(o.Style, p.Label()+" · child pipelines"))
+	var buf bytes.Buffer
+	to := o
+	to.W = &buf
+	if to.Width > 4 {
+		to.Width -= 4
+	}
+	if err := TreeText(to, *p.Tree, false); err != nil {
+		return err
+	}
+	for _, l := range strings.Split(strings.TrimRight(buf.String(), "\n"), "\n") {
+		fmt.Fprintln(o.W, "    "+l)
 	}
 	return nil
 }

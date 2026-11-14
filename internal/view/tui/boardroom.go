@@ -92,10 +92,7 @@ func (m Model) roomyBoardBody() []string {
 		}
 	}
 	pinW := sz.rightW - 2 - 2*roomyPad
-	pins, pinCursor := m.pinLines(pinW, false)
-	if spaced, _ := m.pinLines(pinW, true); len(spaced) <= sz.pins-roomyFrame {
-		pins, pinCursor = m.pinLines(pinW, true)
-	}
+	pins, pinCursor := m.pinLines(pinW, true, sz.pins-roomyFrame)
 
 	nd := roomyPanel(needsTitle, b.panel == boardNeeds, sz.leftW, sz.needs, needs, b.cursor[boardNeeds])
 	ag := roomyPanel(m.agentsTitle(), b.panel == boardAgents, sz.leftW, sz.agents, agents, m.agentCursorLine())

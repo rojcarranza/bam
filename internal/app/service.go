@@ -49,6 +49,7 @@ type Service struct {
 	estimates estimateCache // medians of plan histories, for servers without progress
 	scans     scanCache     // the newest tree scan of each plan, for TreeOptions.Shared
 	why       whyCache      // agent answers behind provider.Why
+	pinTrees  pinTreeCache  // the trees under the board's pins
 }
 
 // ProjectKeys is the projects that scope navigation on this server

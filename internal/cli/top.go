@@ -22,7 +22,7 @@ func addTop(root *cobra.Command, r *runtime) {
 }
 
 func newTopCmd(r *runtime) *cobra.Command {
-	var once, all bool
+	var once, all, tree bool
 	cmd := &cobra.Command{
 		Use:     "top",
 		GroupID: groupBrowse,
@@ -40,6 +40,9 @@ func newTopCmd(r *runtime) *cobra.Command {
 			"or its project is in projects:) with their place in the whole queue, and one\n" +
 			"line counts the builds that wait for other agents. --all shows every agent and\n" +
 			"the whole queue of the server.\n\n" +
+			"With --tree, each pin that started other pipelines prints them as bam build\n" +
+			"tree does, under its group's table; with --json each pin gains tree. The live board\n" +
+			"always draws them (space folds a tree).\n\n" +
 			"Pin pipelines with bam pin add, or list groups under monitor: in the machine file\n" +
 			"or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list\n" +
 			"needs an administrator), the board says so in one line and prints the rest.\n" +
@@ -68,6 +71,9 @@ func newTopCmd(r *runtime) *cobra.Command {
 			if all {
 				ctx = app.WholeServer(ctx)
 			}
+			if tree {
+				ctx = app.WithPinTrees(ctx)
+			}
 			b, err := svc.Board(ctx, groups)
 			if err != nil {
 				return err
@@ -76,6 +82,7 @@ func newTopCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "show every agent and the whole queue of the server, not only your part")
+	cmd.Flags().BoolVar(&tree, "tree", false, "print the tree of child pipelines under each pin (with --once or --json)")
 	cmd.Flags().BoolVar(&once, "once", false, "print the board once instead of opening the live board")
 	return cmd
 }

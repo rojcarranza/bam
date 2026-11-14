@@ -247,8 +247,10 @@ func TestSwitchingTheWatchDropsTheOldMarker(t *testing.T) {
 func TestATriggeredBuildKeepsItsMarker(t *testing.T) {
 	m := tickModel()
 	m.svc = testService()
+	m.screen = screenForm
 	m.form.phase = formSending
 	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: provider.Build{
 		Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Branch: "develop", Number: 9, State: provider.StateQueued}})
+	require.Equal(t, screenPlan, m.screen, "the run must follow into the triggered build")
 	require.NotNil(t, m.liveFor("PROJ-PROV"), "a just-triggered build must survive startWatch's own stopWatch")
 }

@@ -76,6 +76,7 @@ func treeBoardModel(w, h int, mod func(*app.Board)) Model {
 	}
 	data.Needs = app.NeedsYou(data, goldenNow)
 	m.board.loadGen++
+	m.board.have, m.board.cursor = false, [boardPanels]int{} // this read is the first the board shows
 	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
 	return m
 }

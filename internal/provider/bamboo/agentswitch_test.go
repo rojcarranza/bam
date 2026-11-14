@@ -33,14 +33,17 @@ func TestSetAgentEnabledRefusalNeedsAnAdministrator(t *testing.T) {
 	assert.Contains(t, err.Error(), "administrator")
 }
 
-func TestSetAgentEnabledGoneAndUnsupported(t *testing.T) {
+// A 404 on the PUT follows a GET /agent that just listed the agent, so it
+// means the server has no such REST resource, not that the agent is gone.
+func TestSetAgentEnabledNotFoundAndNotAllowedAreUnsupported(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{
 		"PUT /rest/api/latest/agent/1/disable": {status: 404, body: `{"message":"no"}`},
 		"PUT /rest/api/latest/agent/2/disable": {status: 405, body: `{}`},
 	})
 	err := c.SetAgentEnabled(ctx, provider.Agent{ID: 1, Name: "linux-1"}, false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "gone")
+	assert.ErrorIs(t, err, errs.ErrUnsupported)
+	assert.Contains(t, err.Error(), "cannot disable an agent over REST")
+	assert.NotContains(t, err.Error(), "gone")
 	err = c.SetAgentEnabled(ctx, provider.Agent{ID: 2, Name: "linux-2"}, false)
 	assert.ErrorIs(t, err, errs.ErrUnsupported)
 }

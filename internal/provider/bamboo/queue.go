@@ -118,10 +118,8 @@ func (c *Client) SetAgentEnabled(ctx context.Context, agent provider.Agent, enab
 	case statusOf(err) == http.StatusForbidden || statusOf(err) == http.StatusUnauthorized:
 		return errs.Authf("%d from %s: only an administrator can %s an agent", statusOf(err), c.base.Host, verb).
 			WithWhy("Bamboo lets only administrators take an agent out of rotation or put it back").Wrap(err)
-	case statusOf(err) == http.StatusNotFound || errors.Is(err, errs.ErrNotFound):
-		return errs.Bamboof("agent %s is gone from Bamboo", agent.Name).
-			WithTry("bam agent list").Wrap(err)
-	case statusOf(err) == http.StatusMethodNotAllowed || statusOf(err) == http.StatusNotImplemented:
+	case statusOf(err) == http.StatusNotFound || errors.Is(err, errs.ErrNotFound) ||
+		statusOf(err) == http.StatusMethodNotAllowed || statusOf(err) == http.StatusNotImplemented:
 		return errs.Bamboof("this Bamboo cannot %s an agent over REST", verb).
 			WithTry("use Bamboo's agent page").Wrap(errs.ErrUnsupported)
 	}

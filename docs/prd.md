@@ -3,7 +3,7 @@
 **Status:** Approved for MVP (v0.1) | **Date:** 2026-09-12
 **Design spec:** [`docs/superpowers/specs/2026-09-12-bam-cli-mvp-design.md`](superpowers/specs/2026-09-12-bam-cli-mvp-design.md)
 
-All hostnames, project keys, plan keys and user names in this repository are placeholders. This repository is public.
+All hostnames, project keys, plan keys and user names in this repository are placeholders. This repository is private for now; it becomes public only after its history is scanned for work names (see [`VISION.md`](../VISION.md#secrets-and-publishing)).
 
 ## 1. Vision
 
@@ -11,7 +11,7 @@ Bam is the command line for Atlassian Bamboo: trigger, watch and diagnose builds
 
 Bam is a native developer tool, not a REST API wrapper. It is organised around what a user intends ("run my pipeline", "why did it fail"), not around Bamboo's endpoints.
 
-Bam has two faces over one core. Typing `bam` alone opens a terminal UI (a k9s-style plans table with a plan screen for each pipeline) to navigate servers, projects, plans, builds, stages and logs, and to run presets with a keystroke. Typing `bam <command>` gives scriptable commands for speed, scripts and CI. Both call the same use cases, so they cannot disagree. See [`VISION.md`](../VISION.md) for refined scope, including plan creation and editing, Bamboo agents and a web dashboard as coming features.
+Bam has two faces over one core. Typing `bam` alone opens a terminal UI (a k9s-style plans table with a plan screen for each pipeline) to navigate servers, projects, plans, builds, stages and logs, and to run presets with a keystroke. Typing `bam <command>` gives scriptable commands for speed, scripts and CI. Both call the same use cases, so they cannot disagree. See [`VISION.md`](../VISION.md) for refined scope, including Bamboo agents as a coming feature. Plan creation and editing, and a web dashboard, are out of scope.
 
 ## 2. Problem
 
@@ -28,7 +28,7 @@ Running Bamboo plans through the web UI has four costs:
 2. **DevOps and platform engineers** who run infrastructure plans with variable sets and exercise many pipelines at once.
 3. **Scripts and CI jobs.** They consume `--json` output and exit codes. They are treated as a user with a contract: output they depend on does not break within a major version.
 
-Adoption path: the author first, on a personal Bamboo and a work Bamboo; then work teammates who clone a repository that carries `.bam.yaml`; then the public, as an open-source tool for any Bamboo Data Center user.
+Adoption path: the author first, on a personal Bamboo and a work Bamboo; then work teammates who clone a repository that carries `.bam.yaml`.
 
 ## 4. Value over the browser
 
@@ -92,9 +92,10 @@ Adoption path: the author first, on a personal Bamboo and a work Bamboo; then wo
 
 ### Explicitly out of scope
 
-**Note:** [`VISION.md`](../VISION.md) is the authoritative scope. Plan creation, editing, Bamboo agents and a web dashboard are coming into scope (see VISION.md). The list below reflects what remains out of scope; for the full authoritative boundary, see VISION.md.
+**Note:** [`VISION.md`](../VISION.md) is the authoritative scope. Bamboo agents are coming into scope (see VISION.md). The list below is what is out of scope.
 
 - Replacing the Bamboo web UI, or exposing every REST endpoint.
+- Creating or editing Bamboo plans, and a web dashboard.
 - Bamboo administration. Bamboo Specs stay in each project's own repository.
 - Bamboo deployment projects (environments and releases).
 - `run --verbose` (verbose build logs). Bamboo's REST build queue has no verbose-logs parameter; only the deployment queue has `verboseLogging` (confirmed on Bamboo 12.1.8), and deployments are out of scope.

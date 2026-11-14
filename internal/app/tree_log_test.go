@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/rojcarranza/bam/internal/provider"
@@ -81,6 +82,26 @@ func TestBuildTreeReadsAFinishedJobsLogOnce(t *testing.T) {
 	require.Equal(t, 1, p.LogCalls("LAB-INT-JOB1-46"))
 }
 
+// logOffsets is the fake, recording where each read of a job's log starts.
+type logOffsets struct {
+	*fake.Provider
+	mu   sync.Mutex
+	from map[string][]int
+}
+
+func (l *logOffsets) FetchLog(ctx context.Context, key string, o provider.LogOptions) (provider.LogChunk, error) {
+	l.mu.Lock()
+	if l.from == nil {
+		l.from = map[string][]int{}
+	}
+	l.from[key] = append(l.from[key], o.Offset)
+	l.mu.Unlock()
+	return l.Provider.FetchLog(ctx, key, o)
+}
+
+// TestBuildTreeRereadsARunningJobsLog: a running job's log is read on every
+// refresh, from where the last read stopped, and a link an earlier read
+// found stays in the tree (#199).
 func TestBuildTreeRereadsARunningJobsLog(t *testing.T) {
 	p := logTreeFake()
 	running := withStage(tb("PROJ-API-142", "Manual run by jdoe", provider.StateRunning, 0), "Run integration builds", "PROJ-API-RUN-142", provider.StateRunning)
@@ -88,14 +109,20 @@ func TestBuildTreeRereadsARunningJobsLog(t *testing.T) {
 	p.LogGrowth = map[string][][]string{"PROJ-API-RUN-142": {
 		{"starting"},
 		{"starting", "Look into build https://bamboo.example.com/browse/LAB-K8S0-30 for the details"},
+		{"starting", "Look into build https://bamboo.example.com/browse/LAB-K8S0-30 for the details", "waiting for LAB-K8S0-30"},
 	}}
+	lp := &logOffsets{Provider: p}
 	svc := treeService(t, p)
+	svc.P = lp
 	tr, scan, err := svc.buildTree(context.Background(), "PROJ-API-142", TreeOptions{}, nil, nil)
 	require.NoError(t, err)
 	require.NotContains(t, shape(tr.Root), "LAB-K8S0-30")
-	tr, _, err = svc.buildTree(context.Background(), "PROJ-API-142", TreeOptions{}, nil, scan)
-	require.NoError(t, err)
-	require.Contains(t, shape(tr.Root), "LAB-K8S0-30")
+	for range 2 {
+		tr, scan, err = svc.buildTree(context.Background(), "PROJ-API-142", TreeOptions{}, nil, scan)
+		require.NoError(t, err)
+		require.Contains(t, shape(tr.Root), "LAB-K8S0-30")
+	}
+	require.Equal(t, []int{0, 1, 2}, lp.from["PROJ-API-RUN-142"], "each read starts where the last one stopped")
 }
 
 func TestBuildLinks(t *testing.T) {

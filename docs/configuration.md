@@ -191,6 +191,8 @@ children:
 - Listed plans are searched even outside your projects.
 - The project file, the machine file and a machine `repos` entry may each set it; a later one replaces a plan's list (project, then machine, then `repos`).
 
+A watched tree (`--watch`, `bam watch`, and the tree in the terminal UI) reads the builds still running every 10 seconds, and a running job's log from where it last stopped. It lists each plan's newest builds again only when a build in the tree ends, since Bamboo queues children then, and every 5 minutes, so a project with many plans costs a request per running build, not one per plan.
+
 ## Pinned pipelines (`monitor`)
 
 `bam top` prints a board of the server and your pinned pipelines. `monitor:` holds the pins in named groups:

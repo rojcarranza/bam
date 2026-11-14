@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strconv"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/config"
@@ -14,6 +15,7 @@ import (
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/rojcarranza/bam/internal/provider/bamboo"
+	"github.com/rojcarranza/bam/internal/provider/readonly"
 	"github.com/rojcarranza/bam/internal/view"
 	"github.com/rojcarranza/bam/internal/view/style"
 	"github.com/spf13/cobra"
@@ -25,6 +27,8 @@ type globalFlags struct {
 	json   bool
 	debug  bool
 	noTUI  bool
+	// readOnly is --read-only: refuse every command that changes Bamboo.
+	readOnly bool
 	// project is the terminal UI's --project, on bam and bam ui only.
 	project string
 }
@@ -171,7 +175,14 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 	if err != nil {
 		return nil, nil, err
 	}
-	svc := &app.Service{P: backend, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
+	ro, err := r.isReadOnly()
+	if err != nil {
+		return nil, nil, err
+	}
+	if ro {
+		backend = readOnlyBackend{Guard: readonly.Wrap(backend), probe: backend}
+	}
+	svc := &app.Service{P: backend, ReadOnly: ro, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
 		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv,
 		Checkout: r.checkedOutBranch, Head: r.checkedOutCommit}
 	if r.env.Paths.AgentJobs != "" {
@@ -305,4 +316,54 @@ func (r *runtime) presetsWritePath() string {
 		return loc.Path
 	}
 	return config.DefaultPresetsPath(win)
+}
+
+// isReadOnly says whether bam must refuse every command that changes Bamboo:
+// --read-only, BAM_READ_ONLY set to a true value, or read_only: true in the
+// machine config. Any one turns it on; none of them turns off another.
+func (r *runtime) isReadOnly() (bool, error) {
+	if r.flags.readOnly {
+		return true, nil
+	}
+	if v := r.env.Getenv("BAM_READ_ONLY"); v != "" {
+		on, err := strconv.ParseBool(v)
+		if err != nil {
+			return false, errs.Usagef("BAM_READ_ONLY is %q, which is not true or false", v).
+				WithTry("set it to 1 or true, or unset it")
+		}
+		if on {
+			return true, nil
+		}
+	}
+	cfg, err := r.config()
+	if err != nil {
+		return false, err
+	}
+	return cfg.Machine.ReadOnly, nil
+}
+
+// readOnlyBackend is a Backend whose writes are refused. Doctor's probe only
+// reads, so it goes to the real backend.
+type readOnlyBackend struct {
+	*readonly.Guard
+	probe Backend
+}
+
+func (b readOnlyBackend) Probe(ctx context.Context, planKey string) []bamboo.ProbeResult {
+	return b.probe.Probe(ctx, planKey)
+}
+
+// refuseWrite stops a command that is about to change something in Bamboo when
+// bam is read-only, before it prompts, takes a lock or writes a record. The
+// wrapped backend refuses the same calls, so a command that forgets to ask
+// still cannot reach the server.
+func (r *runtime) refuseWrite(what string) error {
+	ro, err := r.isReadOnly()
+	if err != nil {
+		return err
+	}
+	if ro {
+		return readonly.Refusal(what)
+	}
+	return nil
 }

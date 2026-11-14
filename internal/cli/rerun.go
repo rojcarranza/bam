@@ -26,6 +26,11 @@ succeeded is refused.`,
 		SuggestFor:        []string{"retry", "restart"},
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if !dryRun {
+				if err := r.refuseWrite("rerun a build"); err != nil {
+					return err
+				}
+			}
 			ctx := cmd.Context()
 			svc, key, err := r.resolveNamedBuild(ctx, args, last, branch)
 			if err != nil {

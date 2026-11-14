@@ -7,6 +7,7 @@ import (
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/readonly"
 )
 
 // FindAgent resolves name to one agent of the server's agent list. The name
@@ -50,6 +51,9 @@ func (s *Service) FindAgent(ctx context.Context, name string) (provider.Agent, e
 // in that state. A server that cannot do it answers an error wrapping
 // errs.ErrUnsupported.
 func (s *Service) SetAgentEnabled(ctx context.Context, agent provider.Agent, enabled bool) (changed bool, err error) {
+	if s.ReadOnly {
+		return false, readonly.Refusal("switch an agent")
+	}
 	if agent.Enabled == enabled {
 		return false, nil
 	}

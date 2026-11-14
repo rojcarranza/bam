@@ -14,14 +14,15 @@ bam [flags]
 ### Options
 
 ```
-      --color string           color output: auto, always or never
-      --debug[=true|false]     log HTTP requests to stderr
-  -h, --help[=true|false]      help for bam
-      --json[=true|false]      print JSON
-      --no-tui[=true|false]    never open the terminal UI
-      --project string         project the UI opens on (all: every project; default: default_project)
-      --server string          server alias to use
-  -v, --version[=true|false]   version for bam
+      --color string             color output: auto, always or never
+      --debug[=true|false]       log HTTP requests to stderr
+  -h, --help[=true|false]        help for bam
+      --json[=true|false]        print JSON
+      --no-tui[=true|false]      never open the terminal UI
+      --project string           project the UI opens on (all: every project; default: default_project)
+      --read-only[=true|false]   refuse every command that changes something in Bamboo (also BAM_READ_ONLY=1 or read_only: true in the config)
+      --server string            server alias to use
+  -v, --version[=true|false]     version for bam
 ```
 
 ### SEE ALSO
@@ -45,6 +46,7 @@ bam [flags]
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables
 * [bam server](bam_server.md)	 - Server aliases: add, list, rm, default
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
+* [bam skill](bam_skill.md)	 - Print the skill that teaches AI agents to use bam, or install it
 * [bam status](bam_status.md)	 - Show every build you started with bam in the last day, and how it is going
 * [bam top](bam_top.md)	 - Print what needs you: agents, the queue and your pinned pipelines
 * [bam tree](bam_tree.md)	 - Show a build and every build it triggered, as a tree

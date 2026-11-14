@@ -142,6 +142,11 @@ func newRunCmd(r *runtime) *cobra.Command {
 		Args:              cobra.ExactArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if !rf.dryRun {
+				if err := r.refuseWrite("run a plan"); err != nil {
+					return err
+				}
+			}
 			if err := rf.check(r, cmd, args[0]); err != nil {
 				return err
 			}
@@ -649,6 +654,11 @@ func newCancelCmd(r *runtime) *cobra.Command {
 		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if !dryRun {
+				if err := r.refuseWrite("stop a build"); err != nil {
+					return err
+				}
+			}
 			svc, key, err := r.resolveNamedBuild(cmd.Context(), args, last, branch)
 			if err != nil {
 				return err

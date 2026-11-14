@@ -47,6 +47,10 @@ type MachineFile struct {
 	// Bell is false to silence the terminal UI's bell when a watched build
 	// or tree finishes; unset means it rings.
 	Bell *bool `yaml:"bell,omitempty"`
+	// ReadOnly makes bam refuse every command that would change something in
+	// Bamboo. --read-only and BAM_READ_ONLY turn it on for one run; neither
+	// turns it off when this is true.
+	ReadOnly bool `yaml:"read_only,omitempty"`
 }
 
 type Server struct {

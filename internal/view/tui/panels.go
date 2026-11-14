@@ -112,6 +112,10 @@ func (m Model) keyLine() string {
 			// Only esc and q work until the variables arrive.
 			return "esc cancel"
 		}
+		if m.form.busy() {
+			// The run is on its way: a second ^R and every edit key are ignored.
+			return "d dry-run  esc cancel"
+		}
 		// The f hint replaces "tab next" and "d dry-run" rather than adding
 		// to them: a key line longer than the bar's free space loses its
 		// last hints, and at 80 columns the longer line would lose esc cancel.

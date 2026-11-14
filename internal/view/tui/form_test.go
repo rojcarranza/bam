@@ -1545,3 +1545,13 @@ func TestTheDryRunOverlayClosesWhenTheRunStarts(t *testing.T) {
 	require.Equal(t, overlayNone, m.overlay)
 	require.Equal(t, screenPlan, m.screen)
 }
+
+// While a run is in flight the key line names only the keys that still work.
+func TestTheKeyLineDropsRunAndEditKeysWhileSending(t *testing.T) {
+	m := formModel()
+	require.Contains(t, m.keyLine(), "^R run")
+	m.form.phase = formSending
+	require.NotContains(t, m.keyLine(), "^R run")
+	require.NotContains(t, m.keyLine(), "enter edit")
+	require.Contains(t, m.keyLine(), "esc cancel")
+}

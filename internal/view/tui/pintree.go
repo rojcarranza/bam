@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
@@ -428,48 +427,4 @@ func (m Model) toggleFold() Model {
 	b.folded, b.opened = folded, opened
 	b.clamp()
 	return m
-}
-
-// pinSelKey names the line of Pinned the cursor is on, so it can be found
-// again when a refresh adds or removes lines above it: the pin, the plan of a
-// branch row, and the build of a pipeline of a tree.
-func (b *boardState) pinSelKey() string {
-	sels := b.pinSels()
-	c := b.cursor[boardPins]
-	if b.panel != boardPins || c >= len(sels) {
-		return "" // a cursor nobody is looking at is left to the clamp
-	}
-	s := sels[c]
-	key := s.pin.Pin + "|" + s.pin.PlanKey + "|" + s.pin.Branch
-	if s.node != nil {
-		key += "|" + s.node.Build.Key
-	}
-	return key
-}
-
-// followPinSel moves the cursor of Pinned to the line pinSelKey named, or to
-// the pin's own row when its tree line is gone; it stays where it is when
-// neither is there.
-func (b *boardState) followPinSel(key string) {
-	if key == "" {
-		return
-	}
-	pinKey := key[:strings.LastIndex(key, "|")+1]
-	fallback := -1
-	for i, s := range b.pinSels() {
-		k := s.pin.Pin + "|" + s.pin.PlanKey + "|" + s.pin.Branch
-		if s.node != nil {
-			k += "|" + s.node.Build.Key
-		}
-		if k == key {
-			b.cursor[boardPins] = i
-			return
-		}
-		if s.node == nil && k+"|" == pinKey {
-			fallback = i
-		}
-	}
-	if fallback >= 0 {
-		b.cursor[boardPins] = fallback
-	}
 }

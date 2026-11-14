@@ -238,10 +238,9 @@ func (m Model) boardLoaded(msg boardLoadedMsg) Model {
 	if b.fitFolded == nil {
 		b.fitFolded = map[string]bool{} // shared with the copies of the model that draw it
 	}
-	held := b.pinSelKey()
+	held := b.heldRows()
 	b.seen, b.data, b.have = next, data, true
-	b.followPinSel(held)
-	b.clamp()
+	b.followRows(held)
 	if fresh {
 		m.ringBell()
 	}

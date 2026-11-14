@@ -34,7 +34,7 @@ type Service struct {
 	Clock  Clock
 	State  *StateStore
 	Sets   *SetStore
-	Trees  *TreeStore // finished trees seen before; nil keeps none
+	Trees  *TreeStore // settled trees seen before; nil keeps none
 	// AgentJobs keeps the jobs each agent can run between runs; nil keeps
 	// them for this process only.
 	AgentJobs *AgentJobStore

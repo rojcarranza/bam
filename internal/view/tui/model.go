@@ -161,7 +161,7 @@ type Model struct {
 
 	treePreviewCancel context.CancelFunc // the Tree panel's read in flight
 
-	// trees holds finished trees by root key for the session, so leaving the
+	// trees holds settled trees by root key for the session, so leaving the
 	// plan screen does not read them again; a server switch clears it.
 	trees map[string]app.Tree
 

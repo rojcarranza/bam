@@ -178,7 +178,7 @@ LAB-NWINT-487                    ✓ success  1h18m
 - An update is sent only when a node's state, its stages' states, whether it has an estimate or the set of nodes changed. A newer estimate alone sends nothing: a live view moves the bars on by itself.
 - It ends with `TreeDone` once every build node has finished and one more refresh after the last one finished found no new node: Bamboo queues children when their parent ends.
 - A refresh in which every build node finished more than a minute ago (by Bamboo's finish times) needs no second one: it ends with `TreeDone` at once, so watching an old build does not wait. The minute leaves room for a server clock that runs ahead.
-- A refresh that fails is retried; three in a row end with `TreeError`.
+- A refresh that fails is retried; three in a row end with `TreeError`. A failed first refresh, or an error retrying cannot fix (a build that does not exist, a config error, a refused token), ends it at once.
 - Ending the context stops watching; no build is stopped.
 - Text on a TTY redraws the tree in place; on a pipe, one timestamped line per node whose state changed; `--json` writes one tree document per update (NDJSON).
 

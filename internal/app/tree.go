@@ -304,6 +304,9 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 		scan.listedAt = s.Clock.Now()
 	}
 	scan.remember(t.Root)
+	if t.End == TreeEnded {
+		scan.relist = true // Bamboo may still queue a child: list again until the tree settles
+	}
 	if o.Shared && list {
 		// Lent only as listed: a borrower reads each plan's newest
 		// treeRefresh builds, which must reach back to this listing.

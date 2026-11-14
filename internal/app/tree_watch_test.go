@@ -389,3 +389,23 @@ func TestWatchTreeRetriesAMissingEstimate(t *testing.T) {
 	// nothing, since the view moves the bar on by itself.
 	require.Equal(t, []provider.Progress{{}, est, {}}, docs, "the estimate arrives without a state change")
 }
+
+// Intent (gate review of #221): a child Bamboo queues some seconds after its
+// parent ended is found while the tree is ended but not yet settled, even
+// when no build ends in that time.
+func TestWatchTreeListsAgainUntilTheTreeSettles(t *testing.T) {
+	p := treeFake()
+	root := tb("PROJ-API-142", "Manual run by jdoe", provider.StateSuccess, 0)
+	root.FinishedAt = newClock().Now().Add(-5 * time.Second)
+	p.History = map[string][]provider.Build{"PROJ-API": {root}}
+	svc := treeService(t, p)
+	svc.Clock = &hookClock{fakeClock: newClock(), hook: func(n int) {
+		if n == 3 { // 30s after the parent ended
+			p.History["OPS-DEPLOY"] = []provider.Build{tb("OPS-DEPLOY-88", childOf("PROJ-API-142"), provider.StateSuccess, 5)}
+		}
+	}}
+	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
+	last := evs[len(evs)-1]
+	require.Equal(t, TreeDone, last.Type)
+	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88)", shape(last.Tree.Root))
+}

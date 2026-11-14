@@ -220,7 +220,7 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 	m := planOnBuilds(t)
 	full := sampleBuild()
 	m, _ = send(m, buildLoadedMsg{Gen: m.detailGen, Build: full})
-	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed}
+	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed, End: app.TreeSettled}
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: full.Key, Tree: done})
 	require.Contains(t, m.plan.cache, "PROJ-BUILD-44")
 	require.Contains(t, m.trees, "PROJ-BUILD-44")
@@ -241,7 +241,7 @@ func TestAFinishedBuildIsServedFromTheCache(t *testing.T) {
 func TestAFinishedTreeOutlivesThePlanScreen(t *testing.T) {
 	m := planOnBuilds(t)
 	full := sampleBuild()
-	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed}
+	done := app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: full}, State: provider.StateFailed, End: app.TreeSettled}
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: full.Key, Tree: done})
 
 	m.closePlan()
@@ -392,7 +392,11 @@ func TestOnlyAFinalTreeIsCached(t *testing.T) {
 	root := func(s provider.State) app.Tree {
 		b := sampleBuild()
 		b.State = s
-		return app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b}, State: provider.StateSuccess}
+		end := app.TreeSettled
+		if s == provider.StateQueued {
+			end = app.TreeRunning
+		}
+		return app.Tree{Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b}, State: provider.StateSuccess, End: end}
 	}
 	delete(m.trees, key)
 	m, _ = send(m, treePreviewMsg{Gen: m.treePreviewGen, Key: key, Tree: root(provider.StateQueued)})
@@ -863,7 +867,7 @@ func TestEscOffThePlanScreenDropsLateResults(t *testing.T) {
 // twoChildTree is build 44's tree with a run child and a not-run one, final.
 func twoChildTree() app.Tree {
 	b := sampleBuild()
-	return app.Tree{State: provider.StateFailed, Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b, Children: []*app.TreeNode{
+	return app.Tree{State: provider.StateFailed, End: app.TreeSettled, Root: &app.TreeNode{PlanKey: "PROJ-BUILD", Build: b, Children: []*app.TreeNode{
 		{PlanKey: "PROJ-PROV", Build: provider.Build{Key: "PROJ-PROV-7", PlanKey: "PROJ-PROV", Number: 7, State: provider.StateFailed}},
 		{PlanKey: "OPS-NIGHTLY", NotRun: true},
 	}}}
@@ -1158,4 +1162,23 @@ func TestBuildsColumnsDropForEveryRow(t *testing.T) {
 	rows = strings.Split(strings.TrimRight(m.planBuildRows(30, 5), " "), "\n")
 	require.Equal(t, "▸ ✓ #3     feature/a-ve…  1h", strings.TrimRight(rows[0], " "))
 	require.Equal(t, "  ✗ #2     main           1h", rows[1])
+}
+
+// Intent (BAM-53 machine 5, defect 1): the Tree panel keeps a tree for the
+// session only once it has settled; one read before Bamboo queued the
+// children is not kept.
+func TestKeepTreeKeepsOnlyASettledTree(t *testing.T) {
+	root := &app.TreeNode{Build: provider.Build{Key: "PROJ-API-142", State: provider.StateSuccess}}
+	tr := app.Tree{Root: root, State: provider.StateSuccess, End: app.TreeEnded}
+	var m Model
+	m.keepTree("PROJ-API-142", tr)
+	require.NotContains(t, m.trees, "PROJ-API-142", "its last build ended moments ago")
+
+	tr.End = app.TreeSettled
+	m.keepTree("PROJ-API-142", tr)
+	require.Contains(t, m.trees, "PROJ-API-142")
+
+	tr.End = app.TreeRunning
+	m.keepTree("PROJ-API-142", tr)
+	require.NotContains(t, m.trees, "PROJ-API-142", "a rerun drops the kept tree")
 }

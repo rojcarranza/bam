@@ -335,7 +335,7 @@ func TestTreeScreenDrawsACachedTreeAtOnce(t *testing.T) {
 	running := m.buildTree.tree
 	root := *running.Root
 	root.Build.State = provider.StateQueued
-	running.Root = &root
+	running.Root, running.End = &root, app.TreeRunning
 	m, _ = send(m, treeEventMsg{Gen: m.treeGen, Event: app.TreeEvent{Type: app.TreeUpdate, Tree: running}})
 	require.NotContains(t, m.trees, "PROJ-BUILD-44", "a tree that runs again, after a rerun, is no longer cached")
 }

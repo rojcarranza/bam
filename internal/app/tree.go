@@ -94,6 +94,41 @@ type Tree struct {
 	State    provider.State // TreeState of the root
 	Warnings []string       // sorted; never change the result
 	Depth    int            // the TreeOptions.Depth it was read with; 0 means all
+	End      TreeEnd        // whether the tree can still change; set by settle
+}
+
+// TreeEnd says whether a tree can still change. It is the one answer every
+// reader asks: the session cache, the saved trees, the watch's bell, the CLI
+// and the pin. A tree with no End (one saved before it existed) counts as
+// ended: it is read again, never trusted as settled.
+type TreeEnd string
+
+const (
+	TreeRunning TreeEnd = "running" // a build runs
+	TreeEnded   TreeEnd = "ended"   // every build ended, but Bamboo may still queue children
+	TreeSettled TreeEnd = "settled" // every build ended and none for treeQuiet: it cannot change
+)
+
+// Settled reports whether t can no longer change.
+func (t Tree) Settled() bool { return t.End == TreeSettled }
+
+// settle is the one rule for a tree's End. Bamboo queues a build's child
+// plans a moment after it ends, so a tree whose last build ended less than
+// treeQuiet ago is only ended, as is one with a restarted build whose parent
+// is still unknown (unresolved). A finished build with no finish time is
+// left out when finding the last one to end, so a tree with none settles: a
+// watch must never wait on a time Bamboo did not give.
+func settle(t Tree, now time.Time, unresolved bool) TreeEnd {
+	switch {
+	case t.Root == nil || !TreeFinished(t.Root.Build.State) || t.State == provider.StateRunning:
+		return TreeRunning
+	case unresolved:
+		return TreeEnded
+	}
+	if latest := treeLatest(t, t.Root.Build); now.Sub(latest) < treeQuiet {
+		return TreeEnded // a child may yet be queued
+	}
+	return TreeSettled
 }
 
 // TreeFinished reports whether a build in a tree has its final result.
@@ -186,7 +221,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 			return Tree{}, nil, err
 		}
 		defer release()
-		if t, ok := s.CachedTree(key); ok && prev == nil && len(t.Warnings) == 0 && (t.Depth == 0 || (o.Depth > 0 && t.Depth >= o.Depth)) {
+		if t, ok := s.CachedTree(key); ok && t.Settled() && prev == nil && len(t.Warnings) == 0 && (t.Depth == 0 || (o.Depth > 0 && t.Depth >= o.Depth)) {
 			saved = t.Root
 		}
 	}
@@ -264,6 +299,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 	}
 	sort.Strings(warnings)
 	t.Warnings, t.State = warnings, TreeState(t.Root)
+	t.End = settle(t, s.Clock.Now(), scan.unresolved())
 	if list {
 		scan.listedAt = s.Clock.Now()
 	}
@@ -768,8 +804,9 @@ func windowWarnings(windows map[string]planWindow, root provider.Build) []string
 // treePoll is the time between two refreshes of a watched tree; treeTries
 // is how many failed refreshes in a row end the watch.
 // treeQuiet is how long ago the last build of a finished tree must have
-// ended for one refresh to settle it: Bamboo queued any children long since.
-// It is well past treePoll so a skewed server clock cannot cut a watch short.
+// ended for the tree to settle (see settle): Bamboo queued any children long
+// since. It is well past treePoll so a skewed server clock cannot cut a watch
+// short. The watch, the pin, the cache and the saved trees all use it.
 const (
 	treePoll  = 10 * time.Second
 	treeTries = pollTries
@@ -797,8 +834,7 @@ type TreeEvent struct {
 
 // WatchTree refreshes the tree of key every treePoll and emits it when it
 // changed. It ends once every build has finished and one more refresh
-// found nothing new, since Bamboo queues children when their parent ends;
-// a tree whose builds all ended over treeQuiet ago ends at the first.
+// has settled, since Bamboo queues children when their parent ends.
 // Until the first tree, it sends TreeLoading events saying how far the
 // search got; o.OnProgress is not called. Ending ctx stops watching; no
 // build is stopped.
@@ -824,11 +860,11 @@ type treeWatch struct {
 	key string
 	o   TreeOptions
 
-	done          map[string]provider.Build // finished builds, not read again
-	scan          *treeScan                 // nil until the first tree
-	noProgress    bool                      // Bamboo has no build estimates
-	last, settled string                    // signatures of the last sent and the last finished tree
-	sess          pollSession               // the shared rule for a failed refresh
+	done       map[string]provider.Build // finished builds, not read again
+	scan       *treeScan                 // nil until the first tree
+	noProgress bool                      // Bamboo has no build estimates
+	last       string                    // signature of the last tree sent
+	sess       pollSession               // the shared rule for a failed refresh
 }
 
 // send emits e unless ctx ends first, and reports whether it did.
@@ -899,28 +935,11 @@ func (w *treeWatch) update(ctx context.Context, t Tree) bool {
 		}
 		w.last = sig
 	}
-	switch {
-	case t.State == provider.StateRunning || w.scan.unresolved():
-		w.settled = ""
-	case w.settled == sig || endedBefore(t, w.s.Clock.Now().Add(-treeQuiet)):
+	if t.Settled() {
 		w.send(ctx, TreeEvent{Type: TreeDone, Tree: t})
 		return false
-	default:
-		w.settled = sig
 	}
 	return true
-}
-
-// endedBefore reports whether every build in t has a finish time before
-// cutoff; a build with none (not known) counts as not.
-func endedBefore(t Tree, cutoff time.Time) bool {
-	ok := true
-	t.Root.Walk(func(n *TreeNode, _ int) {
-		if !n.NotRun && !n.Loop && (n.Build.FinishedAt.IsZero() || !n.Build.FinishedAt.Before(cutoff)) {
-			ok = false
-		}
-	})
-	return ok
 }
 
 // estimateTree reads an estimate for each running build of t, on every

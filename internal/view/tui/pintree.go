@@ -144,7 +144,7 @@ func pinPipelines(p app.PinView) int {
 // pinFoldable says whether a pin's tree is finished and every pipeline in it
 // succeeded; the board folds such a tree first when Pinned is too short.
 func pinFoldable(p app.PinView) bool {
-	return p.HasChildren() && app.TreeFinal(*p.Tree) && p.Tree.State == "success"
+	return p.HasChildren() && p.Tree.Settled() && p.Tree.State == "success"
 }
 
 // pinPart is one pin as Pinned draws it: its row and the lines of its tree.

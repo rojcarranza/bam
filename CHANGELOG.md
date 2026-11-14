@@ -9,6 +9,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - One failed poll no longer ends a watch. `bam watch`, `bam run --watch`, `bam logs --follow`, a set run and the terminal UI's build watch now try three times in a row before they give up, as the tree watch already did, so a single dropped connection no longer exits with code 5 or records a set run as failed while Bamboo still builds. A mistyped key and a refused token still end at once.
+- A build tree counts as finished by one rule: every build ended and none for a quiet minute. A tree read before Bamboo queued its child builds is no longer kept for the session or saved, so a late child is not missing from the terminal UI's tree or from the next read. The tree watch and a pinned pipeline's tree settle by the same rule, and trees saved by an earlier version are read again once.
 
 ## [0.5.0] - 2026-11-14
 

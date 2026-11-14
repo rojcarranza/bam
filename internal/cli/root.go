@@ -99,6 +99,7 @@ func Execute(ctx context.Context, args []string, env Env) int {
 	if err == nil {
 		err = helpErr
 	}
+	r.recordUsage(cmd)
 	var res *resultError
 	var silent silentError
 	var typed *errs.Error

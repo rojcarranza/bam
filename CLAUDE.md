@@ -47,6 +47,7 @@ Layered packages under `internal/`; each imports only the module packages its ru
 | Package | Role |
 | --- | --- |
 | `atomicfile` | `Write`: temp file + rename, so readers and concurrent bam processes never see a half-written state, cache, config or token file |
+| `usage` | the private tally of commands run, one file of command names and counts by day; `cli` writes it after each command and reads it for `bam usage`; it never sees arguments |
 | `errs` | error `Kind` (usage/config/auth/bamboo/timeout) + What/Why/Try; sentinels `ErrNotFound`, `ErrUnsupported` |
 | `config` | load/discover/merge the three config layers, targets, validation, secret guards, comment-preserving YAML edits |
 | `provider` | neutral domain types, `State`, `Provider` interface; `provider/fake` for tests |

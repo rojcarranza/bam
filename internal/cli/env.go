@@ -33,6 +33,7 @@ type Paths struct {
 	Credentials   string
 	Capabilities  string
 	State         string
+	Usage         string // the private tally of commands run, one small file
 	Sets          string // directory of set run records and locks
 	Trees         string // directory of saved build trees, one file per server
 	AgentJobs     string // directory of the jobs each agent can run, one file per server
@@ -126,6 +127,7 @@ func SystemEnv() Env {
 			Credentials:     filepath.Join(dirs.Config, "credentials.yaml"),
 			Capabilities:    filepath.Join(dirs.Cache, "capabilities.json"),
 			State:           filepath.Join(dirs.State, "state.json"),
+			Usage:           filepath.Join(dirs.State, "usage.json"),
 			Sets:            filepath.Join(dirs.State, "sets"),
 			Trees:           filepath.Join(dirs.Cache, "tree"),
 			AgentJobs:       filepath.Join(dirs.Cache, "agent-jobs"),

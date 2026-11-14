@@ -151,9 +151,9 @@ func (m Model) keyLine() string {
 	}
 	if m.screen == screenBoard {
 		if m.board.data.MineSet || m.board.data.QueueFiltered || m.board.whole {
-			return "enter open  l logs  t tree  i why  P pin  a agents  tab panel  : cmd  ?help  q quit"
+			return "enter open  l logs  t tree  i why  P pin  a agents  tab panel  : cmd  ?help  o Bamboo  q quit"
 		}
-		return "enter open  l logs  t tree  i why  P pin  tab panel  : cmd  ?help  q quit"
+		return "enter open  l logs  t tree  i why  P pin  tab panel  : cmd  ?help  o Bamboo  q quit"
 	}
 	if m.screen == screenHome {
 		if m.home.view == homeProjects {

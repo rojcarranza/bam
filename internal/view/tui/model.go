@@ -1595,12 +1595,25 @@ func (m Model) selectionURL() string {
 // openSelection and copySelection are shared by the columns and the log
 // screen, so o and y mean the same thing on both.
 func (m Model) openSelection() (tea.Model, tea.Cmd) {
-	url := m.selectionURL()
+	return m, m.openURLCmd(m.selectionURL())
+}
+
+// pageURL is the Bamboo page of a plan or build key, or "" with no server.
+func (m Model) pageURL(key string) string {
+	if m.svc == nil || key == "" {
+		return ""
+	}
+	return m.svc.P.URL(key)
+}
+
+// openURLCmd opens url in the browser through the injected opener; nil when
+// there is no address or no opener.
+func (m Model) openURLCmd(url string) tea.Cmd {
 	if url == "" || m.deps.Open == nil {
-		return m, nil
+		return nil
 	}
 	open := m.deps.Open
-	return m, func() tea.Msg {
+	return func() tea.Msg {
 		if err := open(url); err != nil {
 			return errMsg{Err: err, Where: "open"}
 		}

@@ -633,14 +633,75 @@ func (m Model) boardView() string {
 func (m Model) boardBody() []string {
 	b := &m.board
 	h := m.height - 2 // header and status bar
-	needs := m.needsLines(m.width - 2)
 	if m.boardTooSmall() {
+		needs := m.needsLines(m.width - 2)
 		lines := strings.Split(panel("Needs you", b.panel == boardNeeds, m.width, min(len(needs)+2, h-1), strings.Join(needs, "\n")), "\n")
 		return append(lines, dimStyle.Render(" more at 60 columns by 20 rows"))
 	}
-	if m.height >= roomyRows {
-		return m.roomyBoardBody()
+	boxes := m.boardBoxes()
+	drawn := make([][]string, len(boxes))
+	for i, bx := range boxes {
+		drawn[i] = strings.Split(bx.render(b.panel == bx.panel), "\n")
 	}
+	var lines []string
+	if len(boxes) == 4 && boxes[3].x > 0 { // two columns: Pinned beside the rest
+		left := append(append(drawn[0], drawn[1]...), drawn[2]...)
+		for i, l := range left {
+			if i < len(drawn[3]) {
+				l += drawn[3][i]
+			}
+			lines = append(lines, l)
+		}
+		return lines
+	}
+	for _, d := range drawn {
+		lines = append(lines, d...)
+	}
+	return lines
+}
+
+// boardBox is one panel of the board as laid out: where it sits (y counts
+// from the first row under the header), the lines it holds before the window
+// of its height cuts them, and the line the window follows.
+type boardBox struct {
+	panel      boardPanel
+	title      string
+	x, y, w, h int
+	roomy      bool
+	lines      []string
+	cursor     int
+	info       []pinLineInfo // Pinned only: what the mouse finds on each line
+}
+
+// text is where a box's lines start: the column and row of the first, and
+// how many of them show.
+func (bx boardBox) text() (x, y, n int) {
+	if bx.roomy {
+		return bx.x + 1 + roomyPad, bx.y + 2, max(bx.h-roomyFrame, 0)
+	}
+	return bx.x + 1, bx.y + 1, max(bx.h-2, 0)
+}
+
+func (bx boardBox) render(focused bool) string {
+	if bx.roomy {
+		return roomyPanel(bx.title, focused, bx.w, bx.h, bx.lines, bx.cursor)
+	}
+	body := make([]string, len(bx.lines))
+	for i, l := range bx.lines {
+		body[i] = truncate(l, bx.w-2)
+	}
+	return panel(bx.title, focused, bx.w, bx.h, strings.Join(window(body, bx.cursor, bx.h-2), "\n"))
+}
+
+// boardBoxes lays the four panels out, as both drawings of the board do:
+// tight below roomyRows, roomy from it.
+func (m Model) boardBoxes() []boardBox {
+	if m.height >= roomyRows {
+		return m.roomyBoxes()
+	}
+	b := &m.board
+	h := m.height - 2
+	needs := m.needsLines(m.width - 2)
 	inner := m.width - 2
 	nh := min(len(needs), 4) + 2
 	awayMax := 2
@@ -660,23 +721,17 @@ func (m Model) boardBody() []string {
 	qh := max(min(len(queue)+2, rest-4), 3)
 	ph := rest - qh
 
-	var lines []string
-	add := func(title string, focused bool, height int, body []string) {
-		for i, l := range body {
-			body[i] = truncate(l, inner)
-		}
-		lines = append(lines, strings.Split(panel(title, focused, m.width, height, strings.Join(body, "\n")), "\n")...)
-	}
-	add("Needs you", b.panel == boardNeeds, nh, window(needs, b.cursor[boardNeeds], nh-2))
 	agents := m.agentLines(inner, awayMax)
 	if b.data.Mine != nil {
 		agents = fitMine(agents, b.data.Mine, ah-2)
 	}
-	add(m.agentsTitle(), b.panel == boardAgents, ah, window(agents, m.agentCursorLine(), ah-2))
-	add(m.queueTitle(), b.panel == boardQueue, qh, window(queue, queueCursor, qh-2))
-	pins, pinCursor := m.pinLines(inner, false, ph-2)
-	add("Pinned", b.panel == boardPins, ph, window(pins, pinCursor, ph-2))
-	return lines
+	pins, pinCursor, pinInfo := m.pinLinesInfo(inner, false, ph-2)
+	return []boardBox{
+		{panel: boardNeeds, title: "Needs you", y: 0, w: m.width, h: nh, lines: needs, cursor: b.cursor[boardNeeds]},
+		{panel: boardAgents, title: m.agentsTitle(), y: nh, w: m.width, h: ah, lines: agents, cursor: m.agentCursorLine()},
+		{panel: boardQueue, title: m.queueTitle(), y: nh + ah, w: m.width, h: qh, lines: queue, cursor: queueCursor},
+		{panel: boardPins, title: "Pinned", y: nh + ah + qh, w: m.width, h: ph, lines: pins, cursor: pinCursor, info: pinInfo},
+	}
 }
 
 func awayCount(b *boardState) int {
@@ -691,8 +746,16 @@ func window(lines []string, cursor, h int) []string {
 	if h <= 0 || len(lines) <= h {
 		return lines
 	}
-	start := max(min(cursor-h/2, len(lines)-h), 0)
+	start := windowStart(len(lines), cursor, h)
 	return lines[start : start+h]
+}
+
+// windowStart is the index of the first of n lines that window shows.
+func windowStart(n, cursor, h int) int {
+	if h <= 0 || n <= h {
+		return 0
+	}
+	return max(min(cursor-h/2, n-h), 0)
 }
 
 // needsLines is Needs you's lines for a panel w columns wide inside; a line
@@ -1051,19 +1114,52 @@ func (m Model) pinNow(p app.PinView) string {
 	return now
 }
 
-func (m Model) pinText(p app.PinView, indent string, labelW, nowW int) string {
+// pinNumberBuild is the build whose number a pin's current-build cell shows.
+func pinNumberBuild(p app.PinView) (provider.Build, bool) {
+	if p.Current != nil {
+		return *p.Current, true
+	}
+	if p.HasChildren() {
+		if root := p.Tree.Root.Build; root.State == provider.StateFailed && app.StageProgress(root) != "" {
+			return root, true
+		}
+	}
+	return provider.Build{}, false
+}
+
+// pinTextSpans draws a pin's row, with its name and the build number of its
+// current-build cell underlined, and says which columns of the row (counted
+// from its first) open the plan and that build in Bamboo.
+func (m Model) pinTextSpans(p app.PinView, indent string, labelW, nowW int) (string, []linkSpan) {
 	if p.Err != nil {
-		return fmt.Sprintf("%-22s %s", p.Label(), errorStyle.Render("could not be read: "+p.Err.Error()))
+		return fmt.Sprintf("%-22s %s", p.Label(), errorStyle.Render("could not be read: "+p.Err.Error())), nil
 	}
 	var sb strings.Builder
 	for i := len(p.Results) - 1; i >= 0; i-- {
 		sb.WriteString(stateStyle(p.Results[i].State).Render(stateGlyph(p.Results[i].State)))
 	}
 	now := m.pinNow(p)
+	nowPlain := now
 	now += strings.Repeat(" ", max(nowW-lipgloss.Width(now), 0))
-	label := cut(indent+p.Label(), labelW)
-	label += strings.Repeat(" ", max(labelW-lipgloss.Width(label), 0))
-	return fmt.Sprintf("%s %s %s last %s · usual %s", label, results(sb.String(), len(p.Results)), now, brief(p.Last), brief(p.Usual))
+	cutLabel := cut(indent+p.Label(), labelW)
+	labelWidth := lipgloss.Width(cutLabel)
+	pad := strings.Repeat(" ", max(labelW-labelWidth, 0))
+	res := results(sb.String(), len(p.Results))
+
+	var spans []linkSpan
+	label := cutLabel + pad
+	if p.PlanKey != "" && labelWidth > len(indent) {
+		label = indent + linkText(strings.TrimPrefix(cutLabel, indent)) + pad
+		spans = append(spans, linkSpan{len(indent), labelWidth, p.PlanKey})
+	}
+	if b, ok := pinNumberBuild(p); ok {
+		if num := fmt.Sprintf("#%d", b.Number); strings.HasPrefix(nowPlain, num) {
+			x := labelW + 1 + lipgloss.Width(res) + 1
+			spans = append(spans, linkSpan{x, x + len(num), b.Key})
+			now = linkText(num) + strings.TrimPrefix(now, num)
+		}
+	}
+	return fmt.Sprintf("%s %s %s last %s · usual %s", label, res, now, brief(p.Last), brief(p.Usual)), spans
 }
 
 // bar draws frac (0 to 1, more is full) as w cells.

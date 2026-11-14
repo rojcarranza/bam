@@ -53,6 +53,8 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			m.logs.pinned = m.logs.vp.AtBottom()
 		}
 		return m, cmd
+	case screenBoard:
+		return m.boardMouse(msg, wheel)
 	case screenHome, screenPlan:
 	default:
 		return m, nil
@@ -74,6 +76,80 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 	}
 	rest := m.restCmd()
 	return m, rest
+}
+
+// boardMouse is the mouse on the live board: the wheel moves the cursor of
+// the panel under the pointer, a click selects the line under it, and a click
+// on an underlined name or build number of Pinned also opens that page in
+// Bamboo, through the same opener o uses. The board writes no terminal link
+// itself, so a terminal that opens links on its own cannot open it twice.
+func (m Model) boardMouse(msg tea.MouseMsg, wheel int) (tea.Model, tea.Cmd) {
+	if m.boardTooSmall() {
+		return m, nil
+	}
+	bx, line, col, ok := m.boardHit(msg.X, msg.Y)
+	if !ok || (bx.panel == boardAgents && m.board.data.Mine == nil) {
+		return m, nil
+	}
+	b := &m.board
+	b.panel = bx.panel
+	if wheel != 0 {
+		b.move(wheel)
+		return m, nil
+	}
+	if line < 0 {
+		return m, nil // a border, an empty row or the space under the lines only focuses
+	}
+	row := -1
+	switch bx.panel {
+	case boardNeeds:
+		if b.have && line < len(b.data.Needs) {
+			row = line
+		}
+	case boardQueue:
+		if b.have && line < len(b.data.Queue) {
+			row = line
+		}
+	case boardAgents:
+		if pools := len(b.data.Mine.Pools); line >= 1 && line <= pools {
+			row = line - 1
+		}
+	case boardPins:
+		if line < len(bx.info) {
+			row = bx.info[line].ord
+		}
+	}
+	if row < 0 {
+		return m, nil
+	}
+	b.cursor[bx.panel] = row
+	b.clamp()
+	if bx.panel == boardPins {
+		for _, sp := range bx.info[line].spans {
+			if col >= sp.x0 && col < sp.x1 {
+				return m, m.openURLCmd(m.pageURL(sp.key))
+			}
+		}
+	}
+	return m, nil
+}
+
+// boardHit finds the panel under cell (x, y) of the board, the index of the
+// line of that panel there (-1 when it is on a border, an empty row or past
+// the last line) and the column within that line.
+func (m Model) boardHit(x, y int) (bx boardBox, line, col int, ok bool) {
+	for _, bx = range m.boardBoxes() {
+		if x < bx.x || x >= bx.x+bx.w || y-1 < bx.y || y-1 >= bx.y+bx.h {
+			continue
+		}
+		tx, ty, n := bx.text()
+		col, rel := x-tx, y-1-ty
+		if col < 0 || rel < 0 || rel >= n || rel >= len(bx.lines) {
+			return bx, -1, 0, true
+		}
+		return bx, windowStart(len(bx.lines), bx.cursor, n) + rel, col, true
+	}
+	return boardBox{}, -1, 0, false
 }
 
 // wheelOverlay scrolls the help or stats overlay when the wheel is over its

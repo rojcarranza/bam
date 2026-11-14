@@ -64,7 +64,7 @@ The presets table shows the repository branch in its BRANCH column, such as `rep
 
 ## Mouse
 
-A left click selects the row under the pointer and focuses its panel, on Home's tables and the plan screen's Builds, Stages and Tree. It only selects: `enter` still opens. The wheel scrolls the panel under the pointer, three rows a notch, and scrolls the log screen. The wheel also scrolls the help and stats overlays while the pointer is over them. Prompts, other overlays and the other screens ignore the mouse. The UI takes the mouse from your terminal, so select text with `shift` held (`option` in some macOS terminals).
+A left click selects the row under the pointer and focuses its panel, on Home's tables, the plan screen's Builds, Stages and Tree, and the board's panels. On the board, the names and build numbers in Pinned are underlined: a plain click on a pin's name, or on a child pipeline's plan name, opens that plan's page in Bamboo, and a click on a build number (`#691`, or the number of a child's build key) opens that build's page. bam opens the page itself through the same opener as `o`, and writes no terminal link into the board, so a terminal that opens links on a click cannot open it a second time; a click anywhere else on the line, or on a Needs you, Agents or Queue line, only selects it, as every other click does: `enter` and `o` still open. The wheel scrolls the panel under the pointer, three rows a notch (on the board it moves the panel's cursor), and scrolls the log screen. The wheel also scrolls the help and stats overlays while the pointer is over them. Prompts, other overlays and the other screens ignore the mouse. The UI takes the mouse from your terminal, so select text with `shift` held (`option` in some macOS terminals).
 
 ## Keys
 

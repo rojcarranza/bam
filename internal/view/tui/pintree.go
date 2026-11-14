@@ -4,8 +4,90 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/view"
 )
+
+// linkSpan is a stretch of a Pinned line a click opens in Bamboo: columns
+// x0 up to x1 of the line, and the key whose Bamboo page it opens (a plan
+// key for a name, a build key for a number).
+type linkSpan struct {
+	x0, x1 int
+	key    string
+}
+
+// pinLineInfo says what a line of Pinned is for the mouse: the cursor
+// ordinal of the line it selects (-1 when it selects nothing) and the
+// underlined stretches that open a page.
+type pinLineInfo struct {
+	ord   int
+	spans []linkSpan
+}
+
+// linkText underlines s, the way names and numbers that open in Bamboo show.
+// lipgloss styles each character alone for an underline, so the escape codes
+// are taken from a one-character sample and put round the whole text; with no
+// colour support the sample comes back bare and s stays plain.
+func linkText(s string) string {
+	if s == "" {
+		return s
+	}
+	pre, post, ok := strings.Cut(linkStyle.Render("x"), "x")
+	if !ok {
+		return s
+	}
+	return pre + s + post
+}
+
+// pinNodeText is a pipeline of a pin's tree as treeNodeText draws it, with
+// its plan name and its build number underlined, and the stretches of the
+// text (counted from its first column) that open the plan and the build.
+func (m Model) pinNodeText(n *app.TreeNode, underStage bool) (string, []linkSpan) {
+	text := m.treeNodeText(n, underStage)
+	if n.NotRun || n.Loop || n.Superseded {
+		return text, nil
+	}
+	b := n.Build
+	name := view.TreePlanName(b)
+	head := b.Key + name
+	if !strings.HasPrefix(text, head) {
+		return text, nil
+	}
+	planPart, num := b.Key, ""
+	if i := strings.LastIndex(b.Key, "-"); i > 0 {
+		planPart, num = b.Key[:i], b.Key[i+1:]
+	}
+	planKey := b.PlanKey
+	if planKey == "" {
+		planKey = planPart
+	}
+	var out strings.Builder
+	var spans []linkSpan
+	x := 0
+	add := func(plain string, key string, link bool) {
+		w := lipgloss.Width(plain)
+		if link && key != "" && w > 0 {
+			spans = append(spans, linkSpan{x, x + w, key})
+			out.WriteString(linkText(plain))
+		} else {
+			out.WriteString(plain)
+		}
+		x += w
+	}
+	add(planPart, planKey, true)
+	if num != "" {
+		add("-", "", false)
+		add(num, b.Key, true)
+	}
+	if name != "" {
+		add(" ", "", false)
+		add(strings.TrimPrefix(name, " "), planKey, true)
+	}
+	out.WriteString(text[len(head):])
+	return out.String(), spans
+}
 
 // pinSel is one line the cursor of Pinned can stop on: a pin's own row
 // (node nil) or a pipeline of its tree.
@@ -69,9 +151,12 @@ func pinFoldable(p app.PinView) bool {
 type pinPart struct {
 	group   int
 	row     string
+	rowSp   []linkSpan
 	rowOrd  int
 	tree    []string
+	treeSp  [][]linkSpan
 	tail    []string // the branch rows under the pin and the line counting the rest
+	tailSp  [][]linkSpan
 	tailOrd []int
 	ord     []int // the cursor ordinal of each tree line, -1 for a stage line
 	// fold is set when the tree shows as one line; shown is how many tree
@@ -85,7 +170,7 @@ type pinPart struct {
 // treeLineText is how a pipeline of a pin's tree reads: its tree line, and
 // the stage it is in when it runs or failed.
 func (m Model) treeLineText(n *app.TreeNode, underStage bool) string {
-	text := m.treeNodeText(n, underStage)
+	text, _ := m.pinNodeText(n, underStage)
 	if st := app.StageProgress(n.Build); st != "" && !n.NotRun && !n.Loop && !n.Superseded {
 		text += "  " + st
 	}
@@ -99,12 +184,19 @@ func (m Model) treeLineText(n *app.TreeNode, underStage bool) string {
 // tree holding the cursor is never folded or cut past the cursor. With
 // roomy, a blank line separates the groups when that fits without a cut.
 func (m Model) pinLines(inner int, roomy bool, capLines int) ([]string, int) {
+	lines, cur, _ := m.pinLinesInfo(inner, roomy, capLines)
+	return lines, cur
+}
+
+// pinLinesInfo is pinLines with what the mouse needs: for each line, which
+// row of Pinned it selects and which stretches open a page.
+func (m Model) pinLinesInfo(inner int, roomy bool, capLines int) ([]string, int, []pinLineInfo) {
 	b := &m.board
 	if !b.have {
-		return []string{dimStyle.Render("  reading the pipelines…")}, 0
+		return []string{dimStyle.Render("  reading the pipelines…")}, 0, []pinLineInfo{{ord: -1}}
 	}
 	if len(b.data.Groups) == 0 {
-		return []string{dimStyle.Render("  No pipelines pinned. Pin one with: bam pin add GROUP PLAN")}, 0
+		return []string{dimStyle.Render("  No pipelines pinned. Pin one with: bam pin add GROUP PLAN")}, 0, []pinLineInfo{{ord: -1}}
 	}
 	nowW := m.pinNowWidth()
 	labelW := m.pinLabelWidth(inner, nowW)
@@ -114,7 +206,8 @@ func (m Model) pinLines(inner int, roomy bool, capLines int) ([]string, int) {
 	n := 0
 	for gi, g := range b.data.Groups {
 		for _, p := range g.Pins {
-			part := &pinPart{group: gi, rowOrd: n, row: m.cursorFor(focused, n == cur) + m.pinText(p, "", labelW, nowW)}
+			rowText, rowSp := m.pinTextSpans(p, "", labelW, nowW)
+			part := &pinPart{group: gi, rowOrd: n, row: m.cursorFor(focused, n == cur) + rowText, rowSp: shiftSpans(rowSp, 2)}
 			n++
 			if !b.folded[p.Pin] {
 				for _, l := range pinTreeRows(p, m.treeLineText) {
@@ -125,6 +218,7 @@ func (m Model) pinLines(inner int, roomy bool, capLines int) ([]string, int) {
 						n++
 					}
 					part.tree = append(part.tree, m.cursorFor(focused && sel, sel && ord == cur)+"  "+l.text)
+					part.treeSp = append(part.treeSp, m.treeLineSpans(l, 4))
 					part.ord = append(part.ord, ord)
 				}
 				part.shown = len(part.tree)
@@ -132,12 +226,15 @@ func (m Model) pinLines(inner int, roomy bool, capLines int) ([]string, int) {
 				part.fold, part.count = true, pinPipelines(p)
 			}
 			for _, br := range p.Branches {
-				part.tail = append(part.tail, m.cursorFor(focused, n == cur)+m.pinText(br, "  ", labelW, nowW))
+				brText, brSp := m.pinTextSpans(br, "  ", labelW, nowW)
+				part.tail = append(part.tail, m.cursorFor(focused, n == cur)+brText)
+				part.tailSp = append(part.tailSp, shiftSpans(brSp, 2))
 				part.tailOrd = append(part.tailOrd, n)
 				n++
 			}
 			if p.BranchesMore > 0 {
 				part.tail = append(part.tail, dimStyle.Render(fmt.Sprintf("    +%d more branches", p.BranchesMore)))
+				part.tailSp = append(part.tailSp, nil)
 				part.tailOrd = append(part.tailOrd, -1)
 			}
 			parts = append(parts, part)
@@ -205,42 +302,75 @@ func (m Model) pinLines(inner int, roomy bool, capLines int) ([]string, int) {
 	spaced := roomy && !trimmed && capLines > 0 && total()+len(b.data.Groups)-1 <= capLines
 
 	var out []string
+	var info []pinLineInfo
+	put := func(line string, ord int, spans []linkSpan) {
+		out = append(out, line)
+		info = append(info, pinLineInfo{ord: ord, spans: spans})
+	}
 	cursorLine := 0
 	group := -1
 	for _, p := range parts {
 		if p.group != group {
 			if spaced && group >= 0 {
-				out = append(out, "")
+				put("", -1, nil)
 			}
 			group = p.group
-			out = append(out, "  "+titleStyle.Render(b.data.Groups[group].Name))
+			put("  "+titleStyle.Render(b.data.Groups[group].Name), -1, nil)
 		}
 		if p.rowOrd == cur {
 			cursorLine = len(out)
 		}
-		out = append(out, p.row)
+		put(p.row, p.rowOrd, p.rowSp)
 		switch {
 		case p.fold:
-			out = append(out, dimStyle.Render(fmt.Sprintf("      ▸ %s · space opens", pipelinesText(p.count))))
+			put(dimStyle.Render(fmt.Sprintf("      ▸ %s · space opens", pipelinesText(p.count))), -1, nil)
 		default:
 			for j, l := range p.tree[:p.shown] {
 				if p.ord[j] == cur {
 					cursorLine = len(out)
 				}
-				out = append(out, l)
+				put(l, p.ord[j], p.treeSp[j])
 			}
 			if p.cut {
-				out = append(out, dimStyle.Render(fmt.Sprintf("      +%d more · t opens the tree", len(p.tree)-p.shown)))
+				put(dimStyle.Render(fmt.Sprintf("      +%d more · t opens the tree", len(p.tree)-p.shown)), -1, nil)
 			}
 		}
 		for j, l := range p.tail {
 			if p.tailOrd[j] == cur {
 				cursorLine = len(out)
 			}
-			out = append(out, l)
+			put(l, p.tailOrd[j], p.tailSp[j])
 		}
 	}
-	return out, cursorLine
+	return out, cursorLine, info
+}
+
+// shiftSpans moves spans right by dx columns.
+func shiftSpans(sp []linkSpan, dx int) []linkSpan {
+	out := make([]linkSpan, len(sp))
+	for i, s := range sp {
+		out[i] = linkSpan{s.x0 + dx, s.x1 + dx, s.key}
+	}
+	return out
+}
+
+// treeLineSpans is the stretches of a tree line (drawn after lead columns of
+// cursor and indent) that open Bamboo: those of the pipeline's text, found
+// where its build key starts. A stage line has none.
+func (m Model) treeLineSpans(l treeLine, lead int) []linkSpan {
+	if l.node == nil || l.node.NotRun {
+		return nil
+	}
+	_, sp := m.pinNodeText(l.node, false)
+	if len(sp) == 0 {
+		return nil
+	}
+	plainText := ansi.Strip(l.text)
+	i := strings.Index(plainText, l.node.Build.Key)
+	if i < 0 {
+		return nil
+	}
+	return shiftSpans(sp, lead+lipgloss.Width(plainText[:i]))
 }
 
 func pipelinesText(n int) string {

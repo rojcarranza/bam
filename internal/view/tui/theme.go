@@ -57,6 +57,9 @@ var (
 	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	cursorStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("4"))
 
+	// linkStyle underlines a name or number a click opens in Bamboo.
+	linkStyle = lipgloss.NewStyle().Underline(true)
+
 	// matchStyle marks a search match in the log. Reverse video reads on any
 	// palette and needs no colour of its own.
 	matchStyle = lipgloss.NewStyle().Reverse(true)

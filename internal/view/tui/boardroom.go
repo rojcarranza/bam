@@ -69,7 +69,8 @@ func roomyPanel(title string, focused bool, w, h int, body []string, cursor int)
 	return panel(title, focused, w, h, strings.Join(lines, "\n"))
 }
 
-func (m Model) roomyBoardBody() []string {
+// roomyBoxes is the roomy board's four panels.
+func (m Model) roomyBoxes() []boardBox {
 	b := &m.board
 	h := m.height - 2
 	wide := m.width >= wideCols
@@ -92,25 +93,26 @@ func (m Model) roomyBoardBody() []string {
 		}
 	}
 	pinW := sz.rightW - 2 - 2*roomyPad
-	pins, pinCursor := m.pinLines(pinW, true, sz.pins-roomyFrame)
+	pins, pinCursor, pinInfo := m.pinLinesInfo(pinW, true, sz.pins-roomyFrame)
 
-	nd := roomyPanel(needsTitle, b.panel == boardNeeds, sz.leftW, sz.needs, needs, b.cursor[boardNeeds])
-	ag := roomyPanel(m.agentsTitle(), b.panel == boardAgents, sz.leftW, sz.agents, agents, m.agentCursorLine())
-	qu := roomyPanel(m.queueTitle(), b.panel == boardQueue, sz.leftW, sz.queue, queue, queueCursor)
-	pn := roomyPanel("Pinned", b.panel == boardPins, sz.rightW, sz.pins, pins, pinCursor)
-
-	left := strings.Split(nd+"\n"+ag+"\n"+qu, "\n")
-	if !sz.wide {
-		return append(left, strings.Split(pn, "\n")...)
+	boxes := []boardBox{
+		{panel: boardNeeds, title: needsTitle, w: sz.leftW, h: sz.needs, lines: needs, cursor: b.cursor[boardNeeds]},
+		{panel: boardAgents, title: m.agentsTitle(), w: sz.leftW, h: sz.agents, lines: agents, cursor: m.agentCursorLine()},
+		{panel: boardQueue, title: m.queueTitle(), w: sz.leftW, h: sz.queue, lines: queue, cursor: queueCursor},
+		{panel: boardPins, title: "Pinned", w: sz.rightW, h: sz.pins, lines: pins, cursor: pinCursor, info: pinInfo},
 	}
-	right := strings.Split(pn, "\n")
-	out := make([]string, 0, len(left))
-	for i := range left {
-		r := ""
-		if i < len(right) {
-			r = right[i]
+	y := 0
+	for i := range boxes {
+		boxes[i].roomy = true
+		if i < 3 {
+			boxes[i].y = y
+			y += boxes[i].h
 		}
-		out = append(out, left[i]+r)
 	}
-	return out
+	if sz.wide {
+		boxes[3].x = sz.leftW
+	} else {
+		boxes[3].y = y
+	}
+	return boxes
 }

@@ -1560,10 +1560,25 @@ func TestTheKeyLineDropsRunAndEditKeysWhileSending(t *testing.T) {
 // reads that build as the plan's finished last build.
 func TestAHomeMarkerEndsWhenThePlanReadsTheBuildFinished(t *testing.T) {
 	m := formModel()
-	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateQueued}})
-	require.Contains(t, m.home.live, "PROJ-PROV12")
+	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: provider.Build{Key: "PROJ-PROV-9", PlanKey: "PROJ-PROV", Number: 9, State: provider.StateQueued}})
+	require.Contains(t, m.home.live, "PROJ-PROV")
 
-	m = m.plansLoaded(plansLoadedMsg{Plans: []provider.Plan{{Key: "PROJ-PROV12",
-		LastBuild: &provider.BuildSummary{Key: "PROJ-PROV12-9", Number: 9, State: provider.StateSuccess}}}})
-	require.NotContains(t, m.home.live, "PROJ-PROV12")
+	m = m.plansLoaded(plansLoadedMsg{Plans: []provider.Plan{{Key: "PROJ-PROV",
+		LastBuild: &provider.BuildSummary{Key: "PROJ-PROV-9", Number: 9, State: provider.StateSuccess}}}})
+	require.NotContains(t, m.home.live, "PROJ-PROV")
+}
+
+// A reply from the server the person left is reported as theirs, never marked
+// on the server they switched to.
+func TestARunReplyAfterASwitchOfServerMarksNothingOnTheNewOne(t *testing.T) {
+	m := formModel()
+	m.server = "lab"
+	m.revalidate()
+	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
+	m, _ = send(m, mkKey("esc"))
+	m.server = "prod"
+
+	m, _ = send(m, cmd())
+	require.Empty(t, m.home.live)
+	require.Equal(t, "started PROJ-PROV12-9 on lab", m.status)
 }

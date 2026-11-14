@@ -561,7 +561,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		run := func(m Model) (tea.Model, tea.Cmd) {
 			m.form.advance(evYes)
-			return m, runCmd(m.baseCtx(), m.svc, msg.Ref, msg.VS, m.runGen)
+			return m, onServer(m.server, runCmd(m.baseCtx(), m.svc, msg.Ref, msg.VS, m.runGen))
 		}
 		if !msg.Check.Needed() {
 			m.form.advance(evSend)
@@ -1857,7 +1857,20 @@ func (m Model) trigger() (tea.Model, tea.Cmd) {
 		return m, checkRepoCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.deps.Open, m.runGen)
 	}
 	m.form.advance(evSend)
-	return m, runCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.runGen)
+	return m, onServer(m.server, runCmd(m.baseCtx(), m.svc, ref, m.form.stripUntypedMasks(vs), m.runGen))
+}
+
+// onServer names the server a started build belongs to, so a reply that lands
+// after the person switched servers is not recorded under the new one.
+func onServer(server string, cmd tea.Cmd) tea.Cmd {
+	return func() tea.Msg {
+		msg := cmd()
+		if t, ok := msg.(triggeredMsg); ok {
+			t.Server = server
+			return t
+		}
+		return msg
+	}
 }
 
 // handleTriggered reports a build that started. Every started build is
@@ -1865,6 +1878,12 @@ func (m Model) trigger() (tea.Model, tea.Cmd) {
 // Bamboo accepted it, so hiding it would be wrong. Only the form that sent it,
 // still open and still waiting, is followed into the build.
 func (m Model) handleTriggered(msg triggeredMsg) (tea.Model, tea.Cmd) {
+	if msg.Server != "" && msg.Server != m.server {
+		// The person switched servers while the run was sent. The build
+		// exists on the server they left; say so, and mark nothing here.
+		m.status = "started " + msg.Build.Key + " on " + msg.Server
+		return m, nil
+	}
 	if msg.Gen == m.runGen && m.screen == screenForm && m.form.phase == formSending {
 		return m.openTriggered(msg.Build)
 	}

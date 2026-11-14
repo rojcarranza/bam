@@ -407,8 +407,9 @@ func cancelCmd(ctx context.Context, svc *app.Service, key string, gen int) tea.C
 }
 
 type triggeredMsg struct {
-	Gen   int
-	Build provider.Build
+	Gen    int
+	Build  provider.Build
+	Server string // the server the run was sent to; empty when unknown
 }
 
 // repoCheckedMsg is the answer of the repositories check made before a run.

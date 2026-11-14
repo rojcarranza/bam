@@ -50,6 +50,7 @@ bam [flags]
 * [bam tree](bam_tree.md)	 - Show a build and every build it triggered, as a tree
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job
+* [bam usage](bam_usage.md)	 - Show how often you ran each command, or turn counting off or on
 * [bam version](bam_version.md)	 - Print the bam version
 * [bam watch](bam_watch.md)	 - Follow a build and the builds it triggers; exit 1 if any fails
 * [bam whoami](bam_whoami.md)	 - Show the authenticated user on each configured server

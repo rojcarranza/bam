@@ -177,6 +177,7 @@ func newHarness(t *testing.T) *harness {
 			Credentials:   filepath.Join(cfgDir, "credentials.yaml"),
 			Capabilities:  filepath.Join(home, ".cache", "bam", "capabilities.json"),
 			State:         filepath.Join(home, ".local", "state", "bam", "state.json"),
+			Usage:         filepath.Join(home, ".local", "state", "bam", "usage.json"),
 			Sets:          filepath.Join(home, ".local", "state", "bam", "sets"),
 			Trees:         filepath.Join(home, ".cache", "bam", "tree"),
 			AgentJobs:     filepath.Join(home, ".cache", "bam", "agent-jobs"),

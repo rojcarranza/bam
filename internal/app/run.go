@@ -136,6 +136,7 @@ type watcher struct {
 	interval   time.Duration
 	noProgress bool
 	sent       provider.Progress // the estimate the last event carried
+	sess       pollSession
 }
 
 func (w *watcher) run() {
@@ -166,11 +167,19 @@ func (w *watcher) send(e Event) bool {
 func (w *watcher) poll() bool {
 	b, err := w.s.Build(w.ctx, w.key)
 	if err != nil {
-		if w.ctx.Err() == nil {
-			w.send(Event{Type: EventError, Time: w.s.Clock.Now(), Err: err})
+		if w.ctx.Err() != nil {
+			return false
 		}
+		// One failed poll is retried at the current interval; the shared
+		// session ends the watch after the first poll, a permanent error or
+		// pollTries failures in a row.
+		if w.sess.fail(err) {
+			return true
+		}
+		w.send(Event{Type: EventError, Time: w.s.Clock.Now(), Err: err})
 		return false
 	}
+	w.sess.ok()
 	now := w.s.Clock.Now()
 	// A missing estimate is decoration lost, never a reason to stop
 	// watching, so every progress error becomes a zero Progress.

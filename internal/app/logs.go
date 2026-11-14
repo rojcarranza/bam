@@ -161,28 +161,21 @@ func CurrentStage(b provider.Build) (string, bool) {
 
 // FollowLog emits new lines of job from offset until the job finishes.
 func (s *Service) FollowLog(ctx context.Context, buildKey string, job provider.Job, offset int, emit func([]string)) error {
+	var sess pollSession
 	for {
-		chunk, err := s.P.FetchLog(ctx, job.Key, provider.LogOptions{Offset: offset})
+		done, next, err := s.followLogOnce(ctx, buildKey, job, offset, emit)
+		// Lines already emitted move the offset even when a later read
+		// fails, so a retry repeats no line and skips none.
+		offset = next
 		if err != nil {
-			return err
-		}
-		if len(chunk.Lines) > 0 {
-			emit(chunk.Lines)
-		}
-		offset = chunk.Next
-		b, err := s.Build(ctx, buildKey)
-		if err != nil {
-			return err
-		}
-		if jobFinished(b, job.Key) {
-			last, err := s.P.FetchLog(ctx, job.Key, provider.LogOptions{Offset: offset})
-			if err != nil {
+			if ctx.Err() != nil || !sess.fail(err) {
 				return err
 			}
-			if len(last.Lines) > 0 {
-				emit(last.Lines)
+		} else {
+			sess.ok()
+			if done {
+				return nil
 			}
-			return nil
 		}
 		select {
 		case <-ctx.Done():
@@ -190,6 +183,34 @@ func (s *Service) FollowLog(ctx context.Context, buildKey string, job provider.J
 		case <-s.Clock.After(MinPoll):
 		}
 	}
+}
+
+// followLogOnce reads job's new lines once and reports whether the job has
+// finished and its log is fully read, and the offset to read from next.
+func (s *Service) followLogOnce(ctx context.Context, buildKey string, job provider.Job, offset int, emit func([]string)) (bool, int, error) {
+	chunk, err := s.P.FetchLog(ctx, job.Key, provider.LogOptions{Offset: offset})
+	if err != nil {
+		return false, offset, err
+	}
+	if len(chunk.Lines) > 0 {
+		emit(chunk.Lines)
+	}
+	offset = chunk.Next
+	b, err := s.Build(ctx, buildKey)
+	if err != nil {
+		return false, offset, err
+	}
+	if !jobFinished(b, job.Key) {
+		return false, offset, nil
+	}
+	last, err := s.P.FetchLog(ctx, job.Key, provider.LogOptions{Offset: offset})
+	if err != nil {
+		return false, offset, err
+	}
+	if len(last.Lines) > 0 {
+		emit(last.Lines)
+	}
+	return true, last.Next, nil
 }
 
 // LogEventKind tells a FollowLogs consumer what a LogEvent carries.
@@ -224,10 +245,17 @@ func (s *Service) FollowLogs(ctx context.Context, buildKey string, from map[stri
 	stage := ""
 	var lastStage, lastBuild provider.State
 	first := true
+	var sess pollSession
 	for {
 		b, err := s.Build(ctx, buildKey)
 		if err != nil {
-			return err
+			if ctx.Err() != nil || !sess.fail(err) {
+				return err
+			}
+			if err := s.pollPause(ctx); err != nil {
+				return err
+			}
+			continue
 		}
 		if stage == "" {
 			stage = followedStage(b, offsets)
@@ -236,9 +264,16 @@ func (s *Service) FollowLogs(ctx context.Context, buildKey string, from map[stri
 			emit(LogEvent{Kind: LogStatus, Stage: stage, Build: b})
 			first, lastStage, lastBuild = false, st, b.State
 		}
+		failed := false
 		for {
 			if err := s.readFollowed(ctx, b, offsets, emit); err != nil {
-				return err
+				// readFollowed keeps each offset it reached, so the retry
+				// repeats no line.
+				if ctx.Err() != nil || !sess.fail(err) {
+					return err
+				}
+				failed = true
+				break
 			}
 			if len(offsets) > 0 {
 				break
@@ -256,14 +291,25 @@ func (s *Service) FollowLogs(ctx context.Context, buildKey string, from map[stri
 				offsets[j.Key] = 0
 			}
 		}
-		if err := ctx.Err(); err != nil {
+		if !failed {
+			sess.ok()
+		}
+		if err := s.pollPause(ctx); err != nil {
 			return err
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-s.Clock.After(MinPoll):
-		}
+	}
+}
+
+// pollPause waits one poll interval, or reports why ctx ended first.
+func (s *Service) pollPause(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.Clock.After(MinPoll):
+		return nil
 	}
 }
 

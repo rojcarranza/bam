@@ -119,9 +119,10 @@ type Event struct {
 }
 
 // Watch polls a build until it finishes and emits its changes. Ending ctx
-// stops watching only; the build keeps running.
+// stops watching only; the build keeps running. The caller has already read
+// or triggered the build, so a failed first poll is retried.
 func (s *Service) Watch(ctx context.Context, key string) <-chan Event {
-	w := &watcher{s: s, ctx: ctx, key: key, ch: make(chan Event, 16), interval: MinPoll}
+	w := &watcher{s: s, ctx: ctx, key: key, ch: make(chan Event, 16), interval: MinPoll, sess: livePoll()}
 	go w.run()
 	return w.ch
 }
@@ -171,8 +172,8 @@ func (w *watcher) poll() bool {
 			return false
 		}
 		// One failed poll is retried at the current interval; the shared
-		// session ends the watch after the first poll, a permanent error or
-		// pollTries failures in a row.
+		// session ends the watch after a permanent error or pollTries
+		// failures in a row.
 		if w.sess.fail(err) {
 			return true
 		}

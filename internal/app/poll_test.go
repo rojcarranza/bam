@@ -71,6 +71,22 @@ func TestWatchRetriesOneFailedPoll(t *testing.T) {
 	}
 }
 
+// Defect: bam run --watch and a set run read the build they had just
+// triggered, and one dropped connection on that first poll still ended them.
+func TestWatchRetriesAFailedFirstPoll(t *testing.T) {
+	s := droppyService(t, runningThenDone("PROJ-P-1"), 1)
+	events := collect(s.Watch(bg, "PROJ-P-1"))
+	require.Equal(t, EventDone, events[len(events)-1].Type)
+}
+
+func TestWatchEndsAtOnceOnAMistypedKey(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	events := collect(s.Watch(bg, "PROJ-NOPE-1"))
+	require.Len(t, events, 1)
+	require.Equal(t, EventError, events[0].Type)
+	assert.ErrorIs(t, events[0].Err, errs.ErrNotFound)
+}
+
 func TestWatchEndsAfterThreeFailedPollsInARow(t *testing.T) {
 	s := droppyService(t, runningThenDone("PROJ-P-1"), 2, 3, 4)
 	events := collect(s.Watch(bg, "PROJ-P-1"))
@@ -116,6 +132,33 @@ func TestFollowLogRetriesAFailedPollWithoutRepeatingLines(t *testing.T) {
 	s := droppyService(t, p, 2)
 	var got []string
 	err := s.FollowLog(bg, "PROJ-BUILD12-44", running.Stages[1].Jobs[1], 0, func(l []string) { got = append(got, l...) })
+	require.NoError(t, err)
+	assert.Equal(t, []string{"i1", "i2", "i3"}, got)
+}
+
+// Defect: bam logs --follow had just read the build and its log, and one
+// dropped connection on the first follow poll ended it with code 5.
+func TestFollowLogRetriesAFailedFirstPoll(t *testing.T) {
+	p := logsProvider()
+	running := failedBuild()
+	running.State = provider.StateRunning
+	running.Stages[1].Jobs[1].State = provider.StateRunning
+	p.Sequences = map[string][]provider.Build{"PROJ-BUILD12-44": {failedBuild()}}
+	s := droppyService(t, p, 1)
+	var got []string
+	err := s.FollowLog(bg, "PROJ-BUILD12-44", running.Stages[1].Jobs[1], 0, func(l []string) { got = append(got, l...) })
+	require.NoError(t, err)
+	assert.Equal(t, []string{"i1", "i2", "i3"}, got)
+}
+
+func TestFollowLogsRetriesAFailedFirstPoll(t *testing.T) {
+	p := logsProvider()
+	p.Sequences = map[string][]provider.Build{"PROJ-BUILD12-44": {failedBuild()}}
+	s := droppyService(t, p, 1)
+	var got []string
+	err := s.FollowLogs(bg, "PROJ-BUILD12-44", map[string]int{"PROJ-BUILD12-INT-44": 0}, false, func(e LogEvent) {
+		got = append(got, e.Lines...)
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"i1", "i2", "i3"}, got)
 }

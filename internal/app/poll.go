@@ -21,12 +21,19 @@ const (
 )
 
 // pollSession is the one rule every polling watch (a build, a log follow, a
-// set run's build, a tree) uses for a failed poll: the first poll, an error
+// set run's build, a tree) uses for a failed poll: the first poll of a
+// session not started live, an error
 // that retrying cannot fix (a mistyped key, a bad config, a refused token)
 // or pollTries failures in a row end it; any other failure is retried.
 type pollSession struct {
 	phase pollPhase
 	fails int
+}
+
+// livePoll starts a session for a watch whose caller has already read the
+// build, so its first poll is no first contact and a failed one is retried.
+func livePoll() pollSession {
+	return pollSession{phase: pollLive}
 }
 
 // ok records a successful poll.

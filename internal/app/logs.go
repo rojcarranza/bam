@@ -159,9 +159,10 @@ func CurrentStage(b provider.Build) (string, bool) {
 	return "", false
 }
 
-// FollowLog emits new lines of job from offset until the job finishes.
+// FollowLog emits new lines of job from offset until the job finishes. The
+// caller has already read the build, so a failed first poll is retried.
 func (s *Service) FollowLog(ctx context.Context, buildKey string, job provider.Job, offset int, emit func([]string)) error {
-	var sess pollSession
+	sess := livePoll()
 	for {
 		done, next, err := s.followLogOnce(ctx, buildKey, job, offset, emit)
 		// Lines already emitted move the offset even when a later read
@@ -236,7 +237,8 @@ type LogEvent struct {
 // offset) until every one of them has finished. With advance set, while the
 // build is still running it then follows the next stage's jobs from offset 0,
 // emitting StageStart first. It polls the build once per tick, however many
-// jobs it follows, and never stops the build.
+// jobs it follows, and never stops the build. The caller has already read the
+// build, so a failed first poll is retried.
 func (s *Service) FollowLogs(ctx context.Context, buildKey string, from map[string]int, advance bool, emit func(LogEvent)) error {
 	offsets := maps.Clone(from)
 	if offsets == nil {
@@ -245,7 +247,7 @@ func (s *Service) FollowLogs(ctx context.Context, buildKey string, from map[stri
 	stage := ""
 	var lastStage, lastBuild provider.State
 	first := true
-	var sess pollSession
+	sess := livePoll()
 	for {
 		b, err := s.Build(ctx, buildKey)
 		if err != nil {

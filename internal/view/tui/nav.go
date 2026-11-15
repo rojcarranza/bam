@@ -84,16 +84,21 @@ func (s navStack) rootedOnBoard() bool {
 	return len(s) > 0 && s[0].screen == screenBoard
 }
 
-// pinTree keeps the tree screen on show for the tree frame just below a plan
-// screen that is about to open another tree: the frame draws it again later.
+// pinTree keeps the tree screen on show for the nearest tree frame below a
+// plan screen that is about to open another tree: that frame draws it again
+// later. Plan screens drilled from the one opened on the tree may sit between.
 func (s *navStack) pinTree(cur treeScreen) {
-	n := len(*s)
-	if n < 2 || (*s)[n-2].screen != screenTree || (*s)[n-2].tree != nil {
+	for i := len(*s) - 1; i >= 0; i-- {
+		if (*s)[i].screen != screenTree {
+			continue
+		}
+		if (*s)[i].tree == nil {
+			next := append(navStack(nil), *s...)
+			next[i].tree = &cur
+			*s = next
+		}
 		return
 	}
-	next := append(navStack(nil), *s...)
-	next[n-2].tree = &cur
-	*s = next
 }
 
 // here is the frame that returns to the screen the person is on now.

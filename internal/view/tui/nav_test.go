@@ -178,3 +178,36 @@ func TestEscAfterARunFromAProjectsTrailStillReachesTheProjects(t *testing.T) {
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, homeProjects, m.home.view)
 }
+
+// Tree A, a build opened on it, a drill from that plan screen's Tree panel,
+// then t for tree B: esc all the way back must reach tree A, not tree B.
+func TestEscThroughADrillAndASecondTreeReachesTheFirstTree(t *testing.T) {
+	m, _ := treeTUIModel(t)
+	m.screen, m.focus = screenHome, focusPlans
+	next, cmd := m.openTree("PROJ-BUILD-44")
+	m = untilTree(t, next.(Model), cmd)
+
+	m, cmd = send(m, mkKey("enter")) // the root build, on tree A's plan screen
+	for _, msg := range runBatch(cmd) {
+		if tp, ok := msg.(treePreviewMsg); ok {
+			m, _ = send(m, tp)
+		}
+	}
+	require.True(t, m.plan.tree.have)
+	m.focus = focusTree
+	m, _ = send(m, mkKey("enter")) // drill into PROJ-PROV-7
+	require.Equal(t, 1, drilled(m))
+
+	m, _ = send(m, mkKey("t")) // tree B
+	require.Equal(t, screenTree, m.screen)
+	require.Equal(t, "PROJ-PROV-7", m.buildTree.root)
+
+	for range 6 {
+		if m.screen == screenTree && m.buildTree.root == "PROJ-BUILD-44" {
+			break
+		}
+		m, _ = send(m, mkKey("esc"))
+	}
+	require.Equal(t, screenTree, m.screen)
+	require.Equal(t, "PROJ-BUILD-44", m.buildTree.root, "esc returns to tree A")
+}

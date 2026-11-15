@@ -730,6 +730,7 @@ func newBuildShowCmd(r *runtime) *cobra.Command {
 			}
 			// A missing estimate is decoration lost, never a failed read.
 			pr, _ := svc.Progress(cmd.Context(), b)
+			svc.FillJobAgents(cmd.Context(), &b)
 			return r.show(view.BuildJSONWithProgress(b, pr), func(o view.Out) error { return view.BuildDetailWithProgress(o, b, pr) })
 		}),
 	}

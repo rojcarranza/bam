@@ -63,6 +63,15 @@ type Provider struct {
 	AgentJobsErr   error               // returned when AgentJobMap is nil
 	AgentJobsCalls int
 	AgentJobsAsked [][]string // the agent names each AgentJobs call asked about
+	// JobAgentMap is the agent of each job, by job result key; a job left out
+	// has none in its log. JobAgentErr is returned when it is nil.
+	JobAgentMap   map[string]string
+	JobAgentErr   error
+	JobAgentCalls []string // the job result keys JobAgent was asked about
+	// Recent is what RecentBuilds lists, newest first; RecentErr is returned
+	// when it is nil.
+	Recent    []provider.Build
+	RecentErr error
 	// NoPlanSearch makes SearchPlans answer ErrUnsupported, as a server
 	// without a plan search does. Otherwise it finds, across every project,
 	// the plans whose name holds the term, ignoring case.
@@ -411,4 +420,26 @@ func (f *Provider) AgentJobs(_ context.Context, agents []provider.Agent) (map[st
 		return nil, f.AgentJobsErr
 	}
 	return nil, errs.Bamboof("no agent jobs").Wrap(errs.ErrUnsupported)
+}
+
+// JobAgent says which agent ran a job, from JobAgentMap.
+func (f *Provider) JobAgent(_ context.Context, key string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.JobAgentCalls = append(f.JobAgentCalls, key)
+	if f.JobAgentMap == nil && f.JobAgentErr != nil {
+		return "", f.JobAgentErr
+	}
+	return f.JobAgentMap[key], nil
+}
+
+// RecentBuilds lists the first limit builds of Recent.
+func (f *Provider) RecentBuilds(_ context.Context, limit int) ([]provider.Build, error) {
+	if f.Recent == nil && f.RecentErr != nil {
+		return nil, f.RecentErr
+	}
+	if limit > 0 && len(f.Recent) > limit {
+		return f.Recent[:limit], nil
+	}
+	return f.Recent, nil
 }

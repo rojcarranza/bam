@@ -11,7 +11,7 @@ func init() { commandSets = append(commandSets, addQueue) }
 
 func addQueue(root *cobra.Command, r *runtime) {
 	root.AddCommand(newQueueCmd(r))
-	subgroup(root, "agent", "Build agents: list, mine, disable, enable", groupBrowse).AddCommand(newAgentListCmd(r), newAgentMineCmd(r), newAgentSwitchCmd(r, false), newAgentSwitchCmd(r, true))
+	subgroup(root, "agent", "Build agents: list, show, mine, disable, enable", groupBrowse).AddCommand(newAgentListCmd(r), newAgentMineCmd(r), newAgentSwitchCmd(r, false), newAgentSwitchCmd(r, true), newAgentShowCmd(r))
 }
 
 func newQueueCmd(r *runtime) *cobra.Command {
@@ -75,5 +75,33 @@ func newAgentListCmd(r *runtime) *cobra.Command {
 		}),
 	}
 	cmd.Flags().BoolVar(&mine, "mine", false, "list only the agents whose names start with one you listed (bam agent mine)")
+	return cmd
+}
+
+func newAgentShowCmd(r *runtime) *cobra.Command {
+	var builds int
+	cmd := &cobra.Command{
+		Use:   "show NAME",
+		Short: "Show an agent's track record: what it builds, its latest jobs, how often they fail",
+		Long: "Show one agent's state, the jobs it runs now, its latest finished jobs and the share\n" +
+			"of its jobs that failed beside the other agents'. Bamboo's job records do not say\n" +
+			"which agent ran a job, so bam reads the first lines of each job's log in the newest\n" +
+			"builds of every plan and remembers the answer for finished jobs. It needs Bamboo's\n" +
+			"agent list, which only administrators can read.",
+		Example: "  bam agent show linux-3\n  bam agent show linux-3 --builds 100\n  bam agent show linux-3 --json",
+		Args:    cobra.ExactArgs(1),
+		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			svc, _, err := r.connect(cmd.Context(), "")
+			if err != nil {
+				return err
+			}
+			rec, err := svc.AgentRecord(cmd.Context(), args[0], builds)
+			if err != nil {
+				return err
+			}
+			return r.show(view.AgentTrackJSON(rec), func(o view.Out) error { return view.AgentTrack(o, rec) })
+		}),
+	}
+	cmd.Flags().IntVar(&builds, "builds", app.DefaultTrackBuilds, "how many of the newest builds to look through")
 	return cmd
 }

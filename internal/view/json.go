@@ -27,6 +27,9 @@ type JobDoc struct {
 	// its checkout time; 0 when Bamboo does not say.
 	QueueDurationMS    int64 `json:"queue_duration_ms"`
 	CheckoutDurationMS int64 `json:"checkout_duration_ms"`
+	// Agent is the agent that ran the job, read from its log; empty when
+	// bam did not read it or the log names none.
+	Agent string `json:"agent"`
 }
 
 type StageDoc struct {
@@ -206,7 +209,7 @@ func BuildJSONWithProgress(b provider.Build, pr provider.Progress) BuildDoc {
 	d.Stages = Docs(b.Stages, func(s provider.Stage) StageDoc {
 		return StageDoc{Name: s.Name, State: string(s.State), DurationMS: ms(s.Duration), Jobs: Docs(s.Jobs, func(j provider.Job) JobDoc {
 			return JobDoc{Key: j.Key, URL: j.URL, Name: j.Name, State: string(j.State), DurationMS: ms(j.Duration),
-				QueueDurationMS: ms(j.QueueDuration), CheckoutDurationMS: ms(j.CheckoutDuration)}
+				QueueDurationMS: ms(j.QueueDuration), CheckoutDurationMS: ms(j.CheckoutDuration), Agent: j.Agent}
 		})}
 	})
 	return d

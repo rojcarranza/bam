@@ -97,6 +97,9 @@ type Job struct {
 	QueuedAt         time.Time
 	QueueDuration    time.Duration
 	CheckoutDuration time.Duration
+	// Agent is the agent that ran the job; empty until bam reads it from the
+	// job's log (see JobAgentReader).
+	Agent string
 	// Branches is the branch each repository built, by repository name, as
 	// the finished job recorded it; nil while the job has not finished.
 	Branches map[string]string

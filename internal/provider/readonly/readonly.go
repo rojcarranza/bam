@@ -74,3 +74,19 @@ func (g *Guard) CannotListAgents(ctx context.Context) bool {
 	ac, ok := g.Provider.(provider.AgentListChecker)
 	return ok && ac.CannotListAgents(ctx)
 }
+
+// JobAgent and RecentBuilds only read, so they pass through.
+
+func (g *Guard) JobAgent(ctx context.Context, jobResultKey string) (string, error) {
+	if r, ok := g.Provider.(provider.JobAgentReader); ok {
+		return r.JobAgent(ctx, jobResultKey)
+	}
+	return "", errs.ErrUnsupported
+}
+
+func (g *Guard) RecentBuilds(ctx context.Context, limit int) ([]provider.Build, error) {
+	if r, ok := g.Provider.(provider.RecentBuilder); ok {
+		return r.RecentBuilds(ctx, limit)
+	}
+	return nil, errs.ErrUnsupported
+}

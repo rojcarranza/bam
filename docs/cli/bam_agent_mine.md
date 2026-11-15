@@ -36,7 +36,7 @@ bam agent mine [flags]
 
 ### SEE ALSO
 
-* [bam agent](bam_agent.md)	 - Build agents: list, mine, disable, enable
+* [bam agent](bam_agent.md)	 - Build agents: list, show, mine, disable, enable
 * [bam agent mine add](bam_agent_mine_add.md)	 - List name starts of the agents you support
 * [bam agent mine forget](bam_agent_mine_forget.md)	 - Forget agents bam remembers, so they stop showing as down
 * [bam agent mine list](bam_agent_mine_list.md)	 - List the name starts of the agents you support

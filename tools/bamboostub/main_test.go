@@ -388,3 +388,19 @@ func TestStubSwitchesAnAgent(t *testing.T) {
 	assert.True(t, agents[0].Enabled)
 	assert.Error(t, c.SetAgentEnabled(ctx, provider.Agent{ID: 99, Name: "nope"}, false))
 }
+
+// Intent (issue 233, BAM-34 P5): the stub lists recent builds of every plan
+// and starts each job's log with the line naming its agent, so bam agent show
+// can be run by hand against it.
+func TestStubNamesAnAgentInJobLogsAndListsRecentBuilds(t *testing.T) {
+	_, c := testStub(t)
+	recent, err := c.RecentBuilds(context.Background(), 3)
+	require.NoError(t, err)
+	assert.NotEmpty(t, recent)
+	odd, err := c.JobAgent(context.Background(), "PROJ-BUILD-JOB1-481")
+	require.NoError(t, err)
+	even, err := c.JobAgent(context.Background(), "PROJ-BUILD-JOB1-482")
+	require.NoError(t, err)
+	assert.Equal(t, "linux-1", odd)
+	assert.Equal(t, "linux-2", even)
+}

@@ -35,6 +35,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -686,17 +687,27 @@ func (s *stub) handler() http.Handler {
 	mux.HandleFunc(api+"/plan/", s.handlePlan)
 	mux.HandleFunc(api+"/result/status/", s.handleStatus)
 	mux.HandleFunc(api+"/result/", s.handleResult)
+	// The newest builds of every plan: the fixture plan's, whatever is asked.
+	mux.HandleFunc(api+"/result", func(w http.ResponseWriter, _ *http.Request) { s.serveList(w, fixturePlan) })
 	mux.HandleFunc(api+"/queue/", s.handleQueue)
 	mux.HandleFunc(api+"/queue", s.handleQueueList)
 	mux.HandleFunc(api+"/agent/", s.handleAgent)
 	mux.HandleFunc(api+"/agent", s.handleAgentList)
-	mux.HandleFunc("/download/", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/download/", func(w http.ResponseWriter, r *http.Request) {
 		body := s.fixture(w, filepath.Join("recorded", "log_download.log"))
 		if body == nil {
 			return
 		}
+		// As Bamboo does, the log starts with the line naming the agent that
+		// took the job; the stub gives odd-numbered builds to one agent and
+		// even-numbered ones to the other.
+		agent, key := "linux-2", strings.TrimSuffix(path.Base(r.URL.Path), ".log")
+		if n, err := strconv.Atoi(key[strings.LastIndex(key, "-")+1:]); err == nil && n%2 == 1 {
+			agent = "linux-1"
+		}
+		line := fmt.Sprintf("simple\t12-Sep-2026 10:00:00\tBuild %s is being prepared for building on agent %s\n", key, agent)
 		w.Header().Set("Content-Type", "text/plain")
-		_, _ = w.Write(body)
+		_, _ = w.Write(append([]byte(line), body...))
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("no route for %s %s", r.Method, r.URL.Path)

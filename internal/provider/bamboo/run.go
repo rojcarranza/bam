@@ -7,6 +7,7 @@ import (
 	"html"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -416,4 +417,62 @@ func (c *Client) logDownload(ctx context.Context, jobResultKey string, offset in
 	// reads the same whichever path a server offers.
 	from := min(max(offset, len(all)-logMax), len(all))
 	return provider.LogChunk{Lines: all[from:], Next: len(all)}, nil
+}
+
+// agentLineRe matches the line Bamboo writes at the start of a job's log
+// when an agent takes the job.
+var agentLineRe = regexp.MustCompile(`(?:started building|is being prepared for building|building) on agent (\S.*?)\s*$`)
+
+// agentLineLimit is how many lines from the start of a log bam looks through
+// for the agent line, which Bamboo writes first.
+const agentLineLimit = 40
+
+// JobAgent says which agent ran the job whose result key is jobResultKey, as
+// the first lines of its downloaded log say. It answers "" when they name no
+// agent, such as for a job that has not left the queue.
+func (c *Client) JobAgent(ctx context.Context, jobResultKey string) (string, error) {
+	i := strings.LastIndex(jobResultKey, "-")
+	if i <= 0 {
+		return "", errs.Usagef("%q is not a job result key", jobResultKey)
+	}
+	body, err := c.do(ctx, request{method: http.MethodGet, path: "/download/" + jobResultKey[:i] + "/build_logs/" + jobResultKey + ".log", raw: true})
+	if err != nil {
+		if statusOf(err) == http.StatusNotFound { // queued, or the log was cleaned up
+			return "", nil
+		}
+		return "", err
+	}
+	return agentFromLog(string(body)), nil
+}
+
+// agentFromLog finds the agent name in the first lines of a raw log, whose
+// lines look like "type<TAB>date<TAB>message".
+func agentFromLog(raw string) string {
+	for n, l := range strings.SplitN(raw, "\n", agentLineLimit+1) {
+		if n == agentLineLimit {
+			break
+		}
+		l = strings.TrimRight(l, "\r")
+		if parts := strings.SplitN(l, "\t", 3); len(parts) == 3 {
+			l = parts[2]
+		}
+		if m := agentLineRe.FindStringSubmatch(l); m != nil {
+			return m[1]
+		}
+	}
+	return ""
+}
+
+// RecentBuilds lists the newest builds of every plan on the server.
+func (c *Client) RecentBuilds(ctx context.Context, limit int) ([]provider.Build, error) {
+	q := url.Values{"expand": {"results.result"}, "includeAllStates": {"true"}}
+	items, err := pageAll[resultDTO](ctx, c, api+"/result", q, "results", limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]provider.Build, 0, len(items))
+	for _, r := range items {
+		out = append(out, c.mapBuild(r))
+	}
+	return out, nil
 }

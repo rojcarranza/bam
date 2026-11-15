@@ -98,9 +98,14 @@ func (c *Client) RepositoriesURL(planKey string) string {
 	return c.base.String() + "/branch/admin/config/configureChainBranchRepositories.action?planKey=" + url.QueryEscape(planKey)
 }
 
-// CreateBranchURL is the page that creates a plan branch of a plan by hand.
+// CreateBranchURL is the page that creates a plan branch of a plan by hand:
+// the Create plan branch form, at the address Bamboo's own Branches tab and
+// plan summary link to (Bamboo 9.0, 9.6, 12.1 and 13.0 all do).
+// createPlanBranch is the form's submit action, and the
+// createPlanBranch!doDefault address bam used before answers 404 on Bamboo
+// 9.6.27, 12.1.8 and 13.0.1.
 func (c *Client) CreateBranchURL(planKey string) string {
-	return c.base.String() + "/chain/admin/createPlanBranch!doDefault.action?buildKey=" + url.QueryEscape(planKey)
+	return c.base.String() + "/chain/admin/newPlanBranch.action?planKey=" + url.QueryEscape(planKey)
 }
 
 // crossOriginRedirectError reports a redirect to a different scheme://host:port.

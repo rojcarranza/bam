@@ -47,7 +47,7 @@ func TestAtWithNoPlanBranchSaysSoNamesTheClosestAndLinksWithoutCreating(t *testi
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	assert.Contains(t, err.Error(), `PROJ-PARENT has no plan branch for "tts"`)
 	assert.Equal(t, "the closest plan branch is tst", e.Why)
-	assert.Contains(t, e.Try, "https://bamboo.example.com/chain/admin/createPlanBranch!doDefault.action?buildKey=PROJ-PARENT")
+	assert.Contains(t, e.Try, p.CreateBranchURL("PROJ-PARENT"))
 	assert.Len(t, p.Branches["PROJ-PARENT"], 1, "nothing was created")
 }
 

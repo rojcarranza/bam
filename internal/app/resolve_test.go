@@ -99,7 +99,7 @@ func TestResolvePlanErrors(t *testing.T) {
 	_, err = s.ResolvePlan(bg, "PROJ-PROV", "zzzzzz")
 	require.ErrorAs(t, err, &e)
 	assert.Empty(t, e.Why, "nothing is close")
-	assert.Contains(t, e.Try, "chain/admin/createPlanBranch!doDefault.action?buildKey=PROJ-PROV")
+	assert.Contains(t, e.Try, s.P.CreateBranchURL("PROJ-PROV"))
 }
 
 func TestResolveBuild(t *testing.T) {

@@ -5,8 +5,10 @@ Disable a build agent (administrators only)
 ### Synopsis
 
 Take an agent out of rotation: Bamboo stops giving it builds. A build the agent is
-running now finishes first. Only a Bamboo administrator can do it. bam asks first;
-without a terminal, or with --json, it needs --yes. Undo it with bam agent enable NAME.
+running now finishes first. It needs Bamboo's restricted administration or
+administration permission, and a token that is not limited to read or trigger.
+bam asks first; without a terminal, or with --json, it needs --yes. Undo it with
+bam agent enable NAME.
 
 ```
 bam agent disable NAME [flags]

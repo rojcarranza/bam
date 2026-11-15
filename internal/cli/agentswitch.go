@@ -22,13 +22,16 @@ type agentSwitchDoc struct {
 func newAgentSwitchCmd(r *runtime, enable bool) *cobra.Command {
 	verb, past := "disable", "disabled"
 	long := "Take an agent out of rotation: Bamboo stops giving it builds. A build the agent is\n" +
-		"running now finishes first. Only a Bamboo administrator can do it. bam asks first;\n" +
-		"without a terminal, or with --json, it needs --yes. Undo it with bam agent enable NAME."
+		"running now finishes first. It needs Bamboo's restricted administration or\n" +
+		"administration permission, and a token that is not limited to read or trigger.\n" +
+		"bam asks first; without a terminal, or with --json, it needs --yes. Undo it with\n" +
+		"bam agent enable NAME."
 	if enable {
 		verb, past = "enable", "enabled"
 		long = "Put a disabled agent back in rotation: Bamboo starts giving it builds again.\n" +
-			"Only a Bamboo administrator can do it. bam asks first; without a terminal, or with\n" +
-			"--json, it needs --yes."
+			"It needs Bamboo's restricted administration or administration permission, and a\n" +
+			"token that is not limited to read or trigger. bam asks first; without a terminal,\n" +
+			"or with --json, it needs --yes."
 	}
 	var yes bool
 	cmd := &cobra.Command{

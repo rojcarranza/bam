@@ -250,6 +250,15 @@ func statusOf(err error) int {
 	return 0
 }
 
+// messageOf returns Bamboo's own error text behind err, or "".
+func messageOf(err error) string {
+	var h *httpError
+	if errors.As(err, &h) {
+		return h.Message
+	}
+	return ""
+}
+
 func (c *Client) statusError(r request, status int, body []byte) error {
 	host := c.base.Host
 	cause := &httpError{Status: status, Message: bambooMessage(body)}

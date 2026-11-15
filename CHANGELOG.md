@@ -8,7 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
-- `bam agent disable NAME` and `bam agent enable NAME` take a build agent out of rotation and put it back. bam asks first, and needs `--yes` when it cannot ask (no terminal, or `--json`). Only a Bamboo administrator can do it, and a busy agent finishes its build first.
+- `bam agent disable NAME` and `bam agent enable NAME` take a build agent out of rotation and put it back. bam asks first, and needs `--yes` when it cannot ask (no terminal, or `--json`). It needs Bamboo's restricted administration or administration permission and a token that is not limited to read or trigger; when Bamboo refuses, bam shows Bamboo's reason. A busy agent finishes its build first.
 - `--read-only` (also `BAM_READ_ONLY=1`, or `read_only: true` in the machine config) makes bam refuse every command that changes something in Bamboo: `run`, `cancel`, `build rerun`, `build tree --rerun-failed`, `set run`, `set resume`, `set rerun`, `agent disable`, `agent enable`, and the same actions in the terminal UI. A refused command prints why and exits 2; reads and `--dry-run` still work.
 - `bam skill` prints the skill that teaches AI agents to use bam (read first, ask before writing, read the exit code, start read-only), and `bam skill install` puts it in `~/.claude/skills/bam/`.
 

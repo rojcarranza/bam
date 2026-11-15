@@ -104,8 +104,12 @@ func (c *Client) Agents(ctx context.Context) ([]provider.Agent, error) {
 	return out, nil
 }
 
-// SetAgentEnabled enables or disables agent. Bamboo lets only administrators
-// do it, and a busy agent finishes its build first.
+// SetAgentEnabled enables or disables agent, and a busy agent finishes its
+// build first. Bamboo answers 200 with the agent's new enabled value, which
+// is not read. It needs the global restricted administration permission,
+// which administrators also hold, and refuses a token limited to read or
+// trigger with the same 403 even for an administrator; the refusal passes on
+// Bamboo's own reason.
 func (c *Client) SetAgentEnabled(ctx context.Context, agent provider.Agent, enabled bool) error {
 	verb := "disable"
 	if enabled {
@@ -116,8 +120,14 @@ func (c *Client) SetAgentEnabled(ctx context.Context, agent provider.Agent, enab
 	case err == nil:
 		return nil
 	case statusOf(err) == http.StatusForbidden || statusOf(err) == http.StatusUnauthorized:
-		return errs.Authf("%d from %s: only an administrator can %s an agent", statusOf(err), c.base.Host, verb).
-			WithWhy("Bamboo lets only administrators take an agent out of rotation or put it back").Wrap(err)
+		why := "it needs Bamboo's restricted administration or administration permission"
+		if msg := messageOf(err); msg != "" {
+			why = "Bamboo says: " + msg
+		}
+		return errs.Authf("%d from %s: Bamboo refused to %s %s", statusOf(err), c.base.Host, verb, agent.Name).
+			WithWhy(why).
+			WithTry("use a token of a Bamboo administrator or restricted administrator, not one limited to read or trigger").
+			Wrap(err)
 	case statusOf(err) == http.StatusNotFound || errors.Is(err, errs.ErrNotFound) ||
 		statusOf(err) == http.StatusMethodNotAllowed || statusOf(err) == http.StatusNotImplemented:
 		return errs.Bamboof("this Bamboo cannot %s an agent over REST", verb).

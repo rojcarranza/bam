@@ -66,7 +66,8 @@ func TestAgentSwitchUnknownNameAndRefusal(t *testing.T) {
 	h := switchHarness(t)
 	assert.Equal(t, 2, h.run("agent", "disable", "linux", "--yes"))
 	assert.Contains(t, h.stderr.String(), "no agent is named")
-	h.fake.SetAgentErr = errs.Authf("403 from bamboo.example.com: only an administrator can disable an agent")
+	h.fake.SetAgentErr = errs.Authf("403 from bamboo.example.com: Bamboo refused to disable linux-1").
+		WithWhy("Bamboo says: You don't have global restricted administration permission")
 	assert.Equal(t, 4, h.run("agent", "disable", "linux-1", "--yes"))
-	assert.Contains(t, h.stderr.String(), "administrator")
+	assert.Contains(t, h.stderr.String(), "Bamboo refused to disable linux-1")
 }

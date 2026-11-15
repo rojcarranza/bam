@@ -5,8 +5,9 @@ Enable a build agent (administrators only)
 ### Synopsis
 
 Put a disabled agent back in rotation: Bamboo starts giving it builds again.
-Only a Bamboo administrator can do it. bam asks first; without a terminal, or with
---json, it needs --yes.
+It needs Bamboo's restricted administration or administration permission, and a
+token that is not limited to read or trigger. bam asks first; without a terminal,
+or with --json, it needs --yes.
 
 ```
 bam agent enable NAME [flags]

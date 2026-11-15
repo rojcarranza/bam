@@ -82,8 +82,13 @@ func BuildLabel(key string) string {
 // ResolvePlan turns a target name or plan key into a PlanRef. branch
 // overrides the target's branch.
 func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef, error) {
+	return s.resolvePlanIn(ctx, s.Config(), arg, branch)
+}
+
+// resolvePlanIn is ResolvePlan against one configuration, for a caller that
+// resolves several things and must see one version of the files.
+func (s *Service) resolvePlanIn(ctx context.Context, cfg *config.Config, arg, branch string) (PlanRef, error) {
 	var ref PlanRef
-	cfg := s.Config()
 	arg = PresetName(cfg, arg)
 	switch {
 	case config.ValidTargetName(arg):

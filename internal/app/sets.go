@@ -82,7 +82,7 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 		runs := make([]SetRunPlan, 0, len(st))
 		for _, sr := range st {
 			for _, x := range sr.Expand() {
-				rp, err := s.planRun(ctx, config.SetRun{Target: x.Target, Vars: x.Vars}, o)
+				rp, err := s.planRun(ctx, cfg, config.SetRun{Target: x.Target, Vars: x.Vars}, o)
 				if err != nil {
 					if errs.KindOf(err) != errs.KindUsage {
 						return SetPlan{}, err
@@ -108,8 +108,7 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 
 // planRun resolves one run: the preset's plan and branch, then its
 // variables with the set's vars laid over the preset's defaults.
-func (s *Service) planRun(ctx context.Context, r config.SetRun, o SetOptions) (SetRunPlan, error) {
-	cfg := s.Config()
+func (s *Service) planRun(ctx context.Context, cfg *config.Config, r config.SetRun, o SetOptions) (SetRunPlan, error) {
 	t, _, err := cfg.Target(r.Target)
 	if err != nil {
 		return SetRunPlan{}, err
@@ -122,7 +121,7 @@ func (s *Service) planRun(ctx context.Context, r config.SetRun, o SetOptions) (S
 		return SetRunPlan{}, errs.Configf("preset %q runs on %s, not %s", r.Target, server.URL, s.Origin).
 			WithWhy("a set runs on one server").WithTry("give every preset of the set the same server")
 	}
-	ref, err := s.ResolvePlan(ctx, r.Target, "")
+	ref, err := s.resolvePlanIn(ctx, cfg, r.Target, "")
 	if err != nil {
 		return SetRunPlan{}, err
 	}

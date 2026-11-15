@@ -61,7 +61,7 @@ func (m *Model) loadProjects() tea.Cmd {
 // list is one request.
 func (m Model) showProjects() (tea.Model, tea.Cmd) {
 	m.home.view = homeProjects
-	m.fromProjects = false
+	m.nav.resetTo()
 	var load tea.Cmd
 	if m.svc != nil {
 		load = m.loadProjects()
@@ -162,7 +162,7 @@ func (m Model) handleProjectsKey(msg tea.KeyMsg) (Model, tea.Cmd, bool) {
 		nm.home.view = homePlans
 		shown, home := nm.goHome()
 		sm := shown.(Model)
-		sm.fromProjects = true // after setProject, which ends any older trail
+		sm.nav.resetTo(navFrame{screen: screenHome, projects: true}) // after setProject, which ends any older trail
 		return sm, tea.Batch(load, home), true
 	case key.Matches(msg, keys.Refresh):
 		if m.svc == nil {

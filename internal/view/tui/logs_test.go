@@ -31,6 +31,7 @@ func logModel() Model {
 		URL: labOrigin + "/browse/PROJ-BUILD-INT-44", Lines: logLines(),
 		Offsets: map[string]int{"PROJ-BUILD-INT-44": 4}})
 	m.screen = screenLogs
+	m.nav.resetTo(navFrame{screen: screenPlan}) // the logs were opened over the plan screen
 	return m
 }
 

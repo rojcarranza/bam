@@ -87,6 +87,7 @@ func TestNumberKeysFocusPanelsDirectly(t *testing.T) {
 func TestBackResolvesInSpecOrder(t *testing.T) {
 	m := testModel()
 	m.overlay, m.screen, m.focus = overlayHelp, screenLogs, focusStages
+	m.nav.resetTo(navFrame{screen: screenPlan}) // the logs were opened over the plan screen
 
 	m, cmd := send(m, mkKey("esc"))
 	require.Equal(t, overlayNone, m.overlay)

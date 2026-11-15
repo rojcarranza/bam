@@ -113,6 +113,7 @@ func formModel() Model {
 	m := goldenModel(80, 24)
 	m.svc = testService()
 	m.screen = screenForm
+	m.nav.resetTo(navFrame{screen: screenPlan}) // the form was opened over the plan screen
 	m.form = formState{ref: sampleRef(), target: "provision-lab", base: sampleBase(),
 		fields: buildFields(sampleBase(), sampleRef())}
 	m.form.fields[0].Value, m.form.fields[0].Touched = "beta", true
@@ -1425,7 +1426,7 @@ func TestTheStartedBuildsRowShowsRunningOnceItRuns(t *testing.T) {
 // takes it along, and a run that starts successfully clears one left over.
 func TestAnErrorLeavesWithItsScreen(t *testing.T) {
 	m := formModel()
-	m.formFrom = screenPlan
+	m.nav.resetTo(navFrame{screen: screenPlan})
 	m.err = errs.Bamboof("Bamboo refused")
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenPlan, m.screen)
@@ -1497,7 +1498,7 @@ func TestDecliningTheRepositoriesDialogLetsTheRunBeSentAgain(t *testing.T) {
 // Esc while the run is being sent must not hide a build that did start.
 func TestEscWhileSendingStillReportsTheBuild(t *testing.T) {
 	m := formModel()
-	m.formFrom = screenHome
+	m.nav.resetTo(navFrame{screen: screenHome})
 	m.revalidate()
 	m, cmd := send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
 	m, _ = send(m, mkKey("esc"))
@@ -1512,7 +1513,7 @@ func TestEscWhileSendingStillReportsTheBuild(t *testing.T) {
 
 func TestAFailedRunAfterEscLeavesNoForm(t *testing.T) {
 	m := formModel()
-	m.formFrom = screenHome
+	m.nav.resetTo(navFrame{screen: screenHome})
 	m.revalidate()
 	m, _ = send(m, tea.KeyMsg{Type: tea.KeyCtrlR})
 	m, _ = send(m, mkKey("esc"))

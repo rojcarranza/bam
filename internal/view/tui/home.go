@@ -398,7 +398,7 @@ func (m Model) goHome() (tea.Model, tea.Cmd) {
 		m.closePlan()
 	}
 	m.screen = screenHome
-	m.fromSet, m.fromTree, m.logsFromTree, m.fromBoard = false, false, false, false // Home leaves a set's or tree's build behind; esc must not return to it
+	m.nav.toHome() // Home leaves a set's, tree's or board's build behind; esc must not return to it
 	m.focus = m.homeFocus()
 	// restartHomeTick has a pointer receiver and mutates m; calling it inline
 	// as a return operand would rely on Go's unspecified evaluation order
@@ -414,7 +414,7 @@ func (m Model) showPlans() (tea.Model, tea.Cmd) {
 }
 
 func (m Model) showPresets() (tea.Model, tea.Cmd) {
-	m.fromProjects = false
+	m.nav.resetTo()
 	m.home.view = homePresets
 	m.sortPresets()
 	return m.goHome()
@@ -611,6 +611,7 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 		if !ok || t.Plan == "" {
 			return m, nil
 		}
+		m.homeBase()
 		m, _ = m.enterPlan(t.Plan, t.Plan, nil, want)
 		// A preset may name a branch, and its builds live under the branch
 		// plan. resolveTargetBuildsCmd resolves it exactly as bam run does,
@@ -621,6 +622,7 @@ func (m Model) drillFromHome(want focus) (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+	m.homeBase()
 	return m.enterPlan(p.Key, p.Key, nil, want)
 }
 

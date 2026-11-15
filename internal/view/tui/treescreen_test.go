@@ -249,7 +249,7 @@ func TestTreeBuildAfterAServerSwitchDoesNotReturnToTheTree(t *testing.T) {
 	m, _ := treeTUIModel(t)
 	m = firstTree(t, m)
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.fromTree)
+	require.Equal(t, screenTree, wayBack(m)[len(wayBack(m))-1])
 	next, _ := m.switchServer("lab")
 	m = next.(Model)
 	require.Nil(t, m.svc)

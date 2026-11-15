@@ -187,7 +187,7 @@ func fromOPS(t *testing.T) Model {
 	m := projectsModel(t)
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.fromProjects)
+	require.True(t, m.nav.trail())
 	return m
 }
 
@@ -198,7 +198,7 @@ func TestEscReturnsFromPlansToProjects(t *testing.T) {
 	require.Equal(t, "OPS", selectedProject(m), "the cursor is on the project just left")
 	require.Equal(t, "OPS", m.project, "the filter stays")
 	require.NotNil(t, cmd, "the list reloads")
-	require.False(t, m.fromProjects)
+	require.False(t, m.nav.trail())
 }
 
 func TestEscClearsThePlansFilterBeforeLeaving(t *testing.T) {
@@ -232,15 +232,15 @@ func TestPickingAProjectElsewhereEndsTheTrail(t *testing.T) {
 	m := fromOPS(t)
 	next, _ := m.setProject("PROJ") // what P and :project do
 	m = next.(Model)
-	require.False(t, m.fromProjects)
+	require.False(t, m.nav.trail())
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, homePlans, m.home.view)
 
 	m = fromOPS(t)
 	next, _ = m.showPresets()
-	require.False(t, next.(Model).fromProjects)
+	require.False(t, next.(Model).nav.trail())
 	next, _ = m.showSets()
-	require.False(t, next.(Model).fromProjects)
+	require.False(t, next.(Model).nav.trail())
 }
 
 func TestServerSwitchDropsTheProjectsTrail(t *testing.T) {
@@ -254,5 +254,5 @@ func TestServerSwitchDropsTheProjectsTrail(t *testing.T) {
 
 	m = fromOPS(t)
 	next, _ = m.switchServer("lab")
-	require.False(t, next.(Model).fromProjects)
+	require.False(t, next.(Model).nav.trail())
 }

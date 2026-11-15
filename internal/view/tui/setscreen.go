@@ -86,6 +86,7 @@ func (m Model) openSet() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.screen = screenSet
+	m.nav.resetTo() // the set screen is a root; esc there goes to the sets table
 	m.home.tickGen++
 	m.setView = setScreen{info: it.Info, rec: it.Last, board: m.boardFor(it.Info, it.Last)}
 	m.setGen++
@@ -207,7 +208,7 @@ func (m Model) openSetBuild() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	b := rows[m.setView.cursor].Build
-	m.fromSet, m.fromBoard = true, false
+	m.nav.resetTo(navFrame{screen: screenSet})
 	return m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 }
 

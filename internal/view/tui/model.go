@@ -188,19 +188,14 @@ type Model struct {
 	home  homeState
 	board boardState
 
-	train        trainState
-	setView      setScreen
-	setVars      setVarsState
-	setDry       []string // the set dry run the overlay shows on the vars prompt
-	buildTree    treeScreen
-	plan         planScreen
-	fromTree     bool // the panels were opened from the tree screen; esc returns there
-	logsFromTree bool // the log screen was opened from the tree screen; esc returns there
-	fromProjects bool // Home's plans were reached from the projects view; esc returns there
-	fromSet      bool // the panels were opened from a set screen run; esc returns there
-	fromBoard    bool // the panels were opened from the board; esc returns there
+	train     trainState
+	setView   setScreen
+	setVars   setVarsState
+	setDry    []string // the set dry run the overlay shows on the vars prompt
+	buildTree treeScreen
+	plan      planScreen
 
-	formFrom screen // where esc from the run form returns
+	nav navStack // the screens esc returns to, nearest last (nav.go)
 }
 
 // New builds the initial model. It starts no work; Init does that.
@@ -1128,7 +1123,7 @@ func (m *Model) startProject() {
 // plans, the builds and the open build all belonged to the old filter, so
 // they go before the new list loads.
 func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
-	m.fromProjects = false // a project picked any other way ends the trail
+	m.nav.dropTrail() // a project picked any other way ends the trail
 	if key == m.project {
 		return m, nil
 	}
@@ -1141,6 +1136,7 @@ func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
 	if m.screen == screenPlan {
 		m.closePlan()
 		m.screen = screenHome
+		m.nav.resetTo() // Home is the way back now, not what the plan was opened from
 		m.focus = m.homeFocus()
 	}
 	load := m.loadPlans()
@@ -1167,14 +1163,17 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 			})
 	}
 	m.leaveBuild()
-	wasBoard := m.fromBoard
-	m.fromSet, m.fromTree, m.logsFromTree, m.fromBoard = false, false, false, false
+	wasBoard := m.nav.rootedOnBoard()
 	if m.screen == screenTree {
 		// The tree is the old server's; a build key means another build here.
+		// The screen it was opened from is where the switch lands.
 		m.stopTree()
-		m.screen = m.buildTree.from
-		m.buildTree.back = nil // the plan screen to return to is the old server's
+		m.screen = screenHome
+		if f, ok := m.nav.top(); ok {
+			m.screen = f.screen
+		}
 	}
+	m.nav.resetTo() // the way back is the old server's
 	// The plan, its builds and its cache are the old server's, also when
 	// the plan screen is not the one on top.
 	m.closePlan()
@@ -1192,7 +1191,6 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	// The project filter names a project of the server being left; keeping it
 	// would hide every plan on the new one.
 	m.project = ""
-	m.fromProjects = false
 	m.projectsGen++ // a projects load from the old server is dropped
 	m.projects.setItems(nil)
 	m.plans.setItems(nil)
@@ -1521,6 +1519,9 @@ func (m Model) openStageLogs(stage string) (tea.Model, tea.Cmd) {
 	if !ok || m.svc == nil {
 		return m, nil
 	}
+	if m.screen != screenLogs {
+		m.openedFrom() // esc returns to the screen the logs were opened on
+	}
 	m.screen = screenLogs
 	m.stopFollow() // reopening replaces the log state; its follow ends first
 	// The header names the build from the start, so a slow or failed load
@@ -1536,6 +1537,9 @@ func (m Model) openLogs(jobKey string, all bool) (tea.Model, tea.Cmd) {
 	b, ok := m.currentBuild()
 	if !ok || m.svc == nil {
 		return m, nil
+	}
+	if m.screen != screenLogs {
+		m.openedFrom() // esc returns to the screen the logs were opened on
 	}
 	m.screen = screenLogs
 	// Reopening replaces the log state, so an active follow has to end first
@@ -1957,7 +1961,7 @@ func (m Model) openTriggered(b provider.Build) (tea.Model, tea.Cmd) {
 	m.err, m.cmdErr = nil, false
 	// Esc after a run returns to Home (§4.1), not to a set, a tree or a
 	// drilled plan the form was opened from.
-	m.fromSet, m.fromTree, m.logsFromTree = false, false, false
+	m.homeBase()
 	m, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 	// showBuild started the watch; note the build only after, since
 	// stopping the previous watch clears the marker.
@@ -2013,7 +2017,7 @@ func (m Model) openForm() (tea.Model, tea.Cmd) {
 		from = b.Key
 	}
 
-	m.formFrom = m.screen
+	m.openedFrom()
 	m.screen = screenForm
 	m.formGen++
 	// Name the plan while it loads, so the header is never blank.
@@ -2059,24 +2063,12 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 		}
 		m.overlay = overlayNone
 		return m, nil
-	case m.screen == screenLogs && m.logsFromTree:
-		m.stopFollow()
-		m.logsGen++ // abandon a load still in flight
-		m.logsFromTree, m.fromTree = false, false
-		// The plan screen openTreeBuild opened under the logs is left too:
-		// closing it stops its watch and drops its loads still in flight.
-		m.closePlan()
-		m.screen = screenTree
-		return m.watchTree(false) // watching paused while the logs were open
 	case m.screen == screenLogs:
 		m.stopFollow()
 		m.logsGen++ // abandon a load still in flight
-		m.screen = screenPlan
-		return m, nil
+		return m.popNav()
 	case m.screen == screenForm:
 		m.formGen++ // abandon a load still in flight
-		from := m.formFrom
-		m.screen = from
 		if m.form.advance(evEscape) {
 			// The run request is in flight and cannot be recalled. Keep its
 			// generation: triggeredMsg reports the build when it lands.
@@ -2084,13 +2076,9 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 			m.runGen++ // a check in flight must not start a run the person left
 			m.form = formState{}
 		}
-		if from == screenHome {
-			// A tick that arrived while the form was open ended the
-			// auto-refresh loop (homeTick drops beats off Home); nothing
-			// else restarts it, so returning here has to.
-			return m.goHome()
-		}
-		return m, nil
+		// Returning to Home restarts its auto-refresh: a tick that arrived
+		// while the form was open ended the loop, and nothing else restarts it.
+		return m.popNav()
 	case m.screen == screenHome:
 		// Home is the top: esc clears the active table's filter, then on a
 		// plans table reached from the projects view goes back there, and
@@ -2104,8 +2092,8 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 			m.projects.setQuery("")
 		case m.home.view == homePlans && m.plans.query != "":
 			m.plans.setQuery("")
-		case m.home.view == homePlans && m.fromProjects:
-			return m.backToProjects()
+		case m.home.view == homePlans && m.nav.trail():
+			return m.popNav()
 		}
 		return m, nil
 	case m.screen == screenPlan && m.focus == focusBuilds && m.builds.query != "":
@@ -2114,22 +2102,8 @@ func (m Model) back() (tea.Model, tea.Cmd) {
 	case m.screen == screenPlan && m.focus != focusBuilds:
 		m.focus = focusBuilds
 		return m, nil
-	case m.screen == screenPlan && len(m.plan.stack) > 0:
-		return m.popPlan()
-	case m.screen == screenPlan && m.fromBoard:
-		return m.showBoard()
-	case m.screen == screenPlan && m.fromSet:
-		// Closing the plan screen stops its watch and drops its loads still
-		// in flight, so none lands on a plan the user has left.
-		m.fromSet = false
-		m.closePlan()
-		m.screen = screenSet
-		return m, nil
-	case m.screen == screenPlan && m.fromTree:
-		m.fromTree = false
-		m.closePlan()
-		m.screen = screenTree
-		return m.watchTree(false) // watching paused while the build was open
+	case m.screen == screenPlan:
+		return m.popNav()
 	case m.screen == screenTree:
 		return m.closeTree()
 	case m.screen == screenSet:

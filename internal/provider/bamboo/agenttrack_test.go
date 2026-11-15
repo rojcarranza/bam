@@ -108,6 +108,28 @@ func TestRecentBuildsMergesThePlansThatRanLast(t *testing.T) {
 	var _ provider.JobAgentReader = c
 }
 
+// A plan that cannot be read, such as one deleted since the server-wide list,
+// is left out like a build that cannot be read; only when no plan can be read
+// does the list fail.
+func TestRecentBuildsSkipsAPlanItCannotRead(t *testing.T) {
+	res := func(key, plan, started string) string {
+		return `{"buildResultKey":"` + key + `","plan":{"key":"` + plan + `"},"buildState":"Successful","lifeCycleState":"Finished","buildStartedTime":"` + started + `"}`
+	}
+	heads := `{"results":{"size":2,"result":[` + res("PROJ-A-5", "PROJ-A", "2026-09-17T12:00:00.000Z") + `,` + res("OPS-B-3", "OPS-B", "2026-09-17T11:00:00.000Z") + `]}}`
+	c, _ := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result":       {body: heads},
+		"GET /rest/api/latest/result/OPS-B": {body: `{"results":{"size":1,"result":[` + res("OPS-B-3", "OPS-B", "2026-09-17T11:00:00.000Z") + `]}}`},
+	})
+	got, err := c.RecentBuilds(ctx, 2)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "OPS-B-3", got[0].Key)
+
+	none, _ := newTestServer(t, map[string]*route{"GET /rest/api/latest/result": {body: heads}})
+	_, err = none.RecentBuilds(ctx, 2)
+	require.Error(t, err)
+}
+
 // Intent: bam reads only the head of a job's log for its agent, so a huge
 // log is not downloaded. The server below never stops sending; reading the
 // whole body would never end.

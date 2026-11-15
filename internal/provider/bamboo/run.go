@@ -474,7 +474,8 @@ const recentReaders = 8
 // RecentBuilds lists the server's newest builds, newest first. Bamboo's
 // server-wide result list holds only each plan's newest build, so bam takes
 // the limit plans whose newest build started last and merges their own
-// builds: no other plan has a build that started later than theirs.
+// builds: no other plan has a build that started later than theirs. A plan
+// whose builds cannot be read is left out; it fails only when none can be.
 func (c *Client) RecentBuilds(ctx context.Context, limit int) ([]provider.Build, error) {
 	q := url.Values{"expand": {"results.result"}, "includeAllStates": {"true"}}
 	heads, err := pageAll[resultDTO](ctx, c, api+"/result", q, "results", 0)
@@ -496,11 +497,12 @@ func (c *Client) RecentBuilds(ctx context.Context, limit int) ([]provider.Build,
 		}
 	}
 	var (
-		out   []provider.Build
-		first error
-		mu    sync.Mutex
-		wg    sync.WaitGroup
-		sem   = make(chan struct{}, recentReaders)
+		out    []provider.Build
+		first  error
+		failed int
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		sem    = make(chan struct{}, recentReaders)
 	)
 	for _, p := range plans {
 		wg.Go(func() {
@@ -510,6 +512,7 @@ func (c *Client) RecentBuilds(ctx context.Context, limit int) ([]provider.Build,
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
+				failed++
 				if first == nil {
 					first = err
 				}
@@ -519,7 +522,7 @@ func (c *Client) RecentBuilds(ctx context.Context, limit int) ([]provider.Build,
 		})
 	}
 	wg.Wait()
-	if first != nil {
+	if len(plans) > 0 && failed == len(plans) {
 		return nil, first
 	}
 	slices.SortStableFunc(out, newestFirst)

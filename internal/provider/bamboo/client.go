@@ -120,9 +120,11 @@ const planBranchNameMax = 250
 // PlanBranchName is the name Bamboo gives the plan branch it creates for a
 // repository branch, on the Create plan branch page and by branch detection:
 // it trims spaces, replaces planBranchNameChars with "-" and keeps the first
-// 250 characters, so feature/x becomes feature-x. When another plan branch
-// already has that name, Bamboo adds " 1", " 2" and so on, which bam cannot
-// tell from a rename.
+// 250 characters, so feature/x becomes feature-x. Bamboo 9.6.27 and 13.0.1
+// refuse a repository branch with symbols other than - / . and _, so there /
+// is the one character that changes. When another plan branch already has
+// that name, Bamboo adds " 1", " 2" and so on, which bam cannot tell from a
+// rename.
 func (c *Client) PlanBranchName(repositoryBranch string) string {
 	name := []rune(strings.Map(func(r rune) rune {
 		if strings.ContainsRune(planBranchNameChars, r) {

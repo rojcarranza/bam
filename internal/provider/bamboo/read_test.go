@@ -280,15 +280,14 @@ func TestCreateBranchURLIsThePlanBranchCreatePage(t *testing.T) {
 }
 
 // Issue #239: the names Bamboo 13.0.1 and 9.6.27 gave the plan branches made
-// on their Create plan branch page for these Git branches.
+// on their Create plan branch page for these Git branches. Both refuse a Git
+// branch name with symbols other than - / . and _, so / is the one replaced
+// character a plan branch can come from there.
 func TestPlanBranchNameIsTheNameBambooGivesIt(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{})
 	for branch, want := range map[string]string{
-		"develop":             "develop",
-		"feature/PROJ-101":    "feature-PROJ-101",
-		"release/2026.11":     "release-2026.11",
-		"fix/PROJ-102#hotfix": "fix-PROJ-102-hotfix",
-		"jdoe/try@home":       "jdoe-try-home",
+		"feature/PROJ-101": "feature-PROJ-101",
+		"release/2026.11":  "release-2026.11",
 	} {
 		assert.Equal(t, want, c.PlanBranchName(branch), branch)
 	}

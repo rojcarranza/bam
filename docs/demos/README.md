@@ -30,7 +30,7 @@ link from its configured address, so the lab's own address never shows.
 ## Record
 
 You need Docker, Go, a lab Bamboo with the SETLIST plans and an agent, and a file holding jdoe's personal
-access token (`~/.forgelab/lab-jdoe-token`, or set `BAM_DEMO_TOKEN_FILE`). The token is mounted into the
+access token (default `~/.config/bam-demos/token`, or set `BAM_DEMO_TOKEN_FILE`). The token is mounted into the
 container, typed into the login prompt by a hidden step, and never written to a tape that is kept.
 
     make demos-seed       # run CI as jdoe a few times and write build/keys.env (live build keys)

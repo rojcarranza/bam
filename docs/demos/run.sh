@@ -6,7 +6,7 @@
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
-token=${BAM_DEMO_TOKEN_FILE:-$HOME/.forgelab/lab-jdoe-token}
+token=${BAM_DEMO_TOKEN_FILE:-$HOME/.config/bam-demos/token}
 [ -r "$token" ] || { echo "no jdoe token file at $token (set BAM_DEMO_TOKEN_FILE)" >&2; exit 1; }
 curl -fsS -o /dev/null -m 5 -H "Authorization: Bearer $(cat "$token")" http://localhost:8085/rest/api/latest/info \
   || { echo "the lab Bamboo does not answer on localhost:8085" >&2; exit 1; }

@@ -15,9 +15,20 @@ import (
 // maxGIFBytes keeps the README light to load.
 const maxGIFBytes = 2 << 20
 
-// denied is what no recording may show: the lab's own address, and anything that names
-// a person or computer. The recordings show placeholders only.
-var denied = []string{"localhost", "127.0.0.1", ":8085", "rcarranza-nb", "/home/rcarranza", "gmail", "@users.noreply"}
+// denied is what no recording may show: the lab's own address and mail addresses. The
+// recordings show placeholders only. BAM_DEMO_DENY adds more, comma separated: the name of
+// the recording computer and of its user, which this public file must not spell out.
+var denied = deniedTerms(os.Getenv("BAM_DEMO_DENY"))
+
+func deniedTerms(extra string) []string {
+	out := []string{"localhost", "127.0.0.1", ":8085", "gmail", "@users.noreply"}
+	for _, t := range strings.Split(extra, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
 
 var gifRef = regexp.MustCompile(`docs/demos/gifs/([a-z0-9-]+)\.gif`)
 

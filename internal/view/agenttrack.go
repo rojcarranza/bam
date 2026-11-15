@@ -97,7 +97,14 @@ func AgentTrack(o Out, r *app.AgentRecord) error {
 	if r.Slow {
 		field(o, "Warning", "its jobs fail at least twice as often as the other agents' jobs")
 	}
-	fmt.Fprintf(o.W, "\nLast %d jobs of %d recent builds:\n", len(r.Recent), r.Builds)
+	jobs, builds := "jobs", "builds"
+	if len(r.Recent) == 1 {
+		jobs = "job"
+	}
+	if r.Builds == 1 {
+		builds = "build"
+	}
+	fmt.Fprintf(o.W, "\nLast %d %s of %d recent %s:\n", len(r.Recent), jobs, r.Builds, builds)
 	if len(r.Recent) == 0 {
 		fmt.Fprintln(o.W, "none finished on this agent")
 	} else {

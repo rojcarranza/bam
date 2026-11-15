@@ -75,3 +75,23 @@ func TestBuildShowNamesTheAgent(t *testing.T) {
 	assert.Equal(t, "linux-1", doc.Agent)
 	assert.Equal(t, "linux-1", doc.Stages[0].Jobs[0].Agent)
 }
+
+// Intent: the header counts in the singular when there is one job or one
+// build, as English does ("Last 1 job of 1 recent build").
+func TestAgentShowHeaderSingular(t *testing.T) {
+	h := showHarness(t)
+	h.fake.Recent = []provider.Build{{Key: "PROJ-BUILD-1"}}
+	require.Equal(t, 0, h.run("agent", "show", "linux-1", "--builds", "1"))
+	assert.Contains(t, h.stdout.String(), "Last 1 job of 1 recent build:\n")
+	require.Equal(t, 0, h.run("agent", "show", "linux-2", "--builds", "1"))
+	assert.Contains(t, h.stdout.String(), "Last 0 jobs of 1 recent build:\n")
+}
+
+// Intent: --builds below 1 is a usage error (exit 2), not a silent default.
+func TestAgentShowRejectsNonPositiveBuilds(t *testing.T) {
+	for _, n := range []string{"0", "-3"} {
+		h := showHarness(t)
+		assert.Equal(t, 2, h.run("agent", "show", "linux-1", "--builds", n), n)
+		assert.Contains(t, h.stderr.String(), "--builds takes 1 or more", n)
+	}
+}

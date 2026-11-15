@@ -91,6 +91,9 @@ func newAgentShowCmd(r *runtime) *cobra.Command {
 		Example: "  bam agent show linux-3\n  bam agent show linux-3 --builds 100\n  bam agent show linux-3 --json",
 		Args:    cobra.ExactArgs(1),
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
+			if builds < 1 {
+				return errs.Usagef("--builds takes 1 or more, not %d", builds).WithTry("--builds 1 looks only at the newest build")
+			}
 			svc, _, err := r.connect(cmd.Context(), "")
 			if err != nil {
 				return err

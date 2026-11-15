@@ -72,8 +72,8 @@ type JobAgentReader interface {
 	JobAgent(ctx context.Context, jobResultKey string) (string, error)
 }
 
-// RecentBuilder is an optional Provider extension: it lists the newest
-// builds of every plan on the server, finished or not, newest first.
+// RecentBuilder is an optional Provider extension: it lists the server's
+// newest builds across its plans, finished or not, newest first.
 // Stages and jobs are not filled; GetBuild fills them.
 type RecentBuilder interface {
 	RecentBuilds(ctx context.Context, limit int) ([]Build, error)

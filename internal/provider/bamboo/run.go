@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -427,6 +429,9 @@ var agentLineRe = regexp.MustCompile(`(?:started building|is being prepared for 
 // for the agent line, which Bamboo writes first.
 const agentLineLimit = 40
 
+// agentLogHead is how many bytes of a job's log bam reads to find its agent.
+const agentLogHead = 64 << 10
+
 // JobAgent says which agent ran the job whose result key is jobResultKey, as
 // the first lines of its downloaded log say. It answers "" when they name no
 // agent, such as for a job that has not left the queue.
@@ -435,7 +440,7 @@ func (c *Client) JobAgent(ctx context.Context, jobResultKey string) (string, err
 	if i <= 0 {
 		return "", errs.Usagef("%q is not a job result key", jobResultKey)
 	}
-	body, err := c.do(ctx, request{method: http.MethodGet, path: "/download/" + jobResultKey[:i] + "/build_logs/" + jobResultKey + ".log", raw: true})
+	body, err := c.do(ctx, request{method: http.MethodGet, path: "/download/" + jobResultKey[:i] + "/build_logs/" + jobResultKey + ".log", raw: true, maxBody: agentLogHead})
 	if err != nil {
 		if statusOf(err) == http.StatusNotFound { // queued, or the log was cleaned up
 			return "", nil
@@ -463,16 +468,78 @@ func agentFromLog(raw string) string {
 	return ""
 }
 
-// RecentBuilds lists the newest builds of every plan on the server.
+// recentReaders is how many plans' builds RecentBuilds reads at once.
+const recentReaders = 8
+
+// RecentBuilds lists the server's newest builds, newest first. Bamboo's
+// server-wide result list holds only each plan's newest build, so bam takes
+// the limit plans whose newest build started last and merges their own
+// builds: no other plan has a build that started later than theirs.
 func (c *Client) RecentBuilds(ctx context.Context, limit int) ([]provider.Build, error) {
 	q := url.Values{"expand": {"results.result"}, "includeAllStates": {"true"}}
-	items, err := pageAll[resultDTO](ctx, c, api+"/result", q, "results", limit)
+	heads, err := pageAll[resultDTO](ctx, c, api+"/result", q, "results", 0)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]provider.Build, 0, len(items))
-	for _, r := range items {
-		out = append(out, c.mapBuild(r))
+	latest := make([]provider.Build, 0, len(heads))
+	for _, r := range heads {
+		latest = append(latest, c.mapBuild(r))
+	}
+	slices.SortStableFunc(latest, newestFirst)
+	var plans []string
+	for _, b := range latest {
+		if len(plans) == limit {
+			break
+		}
+		if b.PlanKey != "" && !slices.Contains(plans, b.PlanKey) {
+			plans = append(plans, b.PlanKey)
+		}
+	}
+	var (
+		out   []provider.Build
+		first error
+		mu    sync.Mutex
+		wg    sync.WaitGroup
+		sem   = make(chan struct{}, recentReaders)
+	)
+	for _, p := range plans {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			got, err := c.ListBuilds(ctx, p, provider.ListOptions{Limit: limit, Unfinished: true})
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				if first == nil {
+					first = err
+				}
+				return
+			}
+			out = append(out, got...)
+		})
+	}
+	wg.Wait()
+	if first != nil {
+		return nil, first
+	}
+	slices.SortStableFunc(out, newestFirst)
+	if len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
+}
+
+// newestFirst orders builds by when they started, or else joined the queue or
+// finished, the latest first; a build with no time goes last.
+func newestFirst(a, b provider.Build) int {
+	return buildTime(b).Compare(buildTime(a))
+}
+
+func buildTime(b provider.Build) time.Time {
+	for _, t := range []time.Time{b.StartedAt, b.QueuedAt, b.FinishedAt} {
+		if !t.IsZero() {
+			return t
+		}
+	}
+	return time.Time{}
 }

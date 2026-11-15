@@ -138,6 +138,9 @@ type request struct {
 	form   url.Values      // sent as an application/x-www-form-urlencoded body
 	secret map[string]bool // query or form keys whose values are redacted in logs
 	raw    bool            // do not ask for JSON (log download)
+	// maxBody, when above 0, is how many bytes of a 2xx body are read; the
+	// rest is never downloaded.
+	maxBody int64
 }
 
 // do sends r, retrying 429 and 5xx, and returns the body of a 2xx response.
@@ -204,7 +207,11 @@ func (c *Client) once(ctx context.Context, r request) (int, []byte, http.Header,
 		return 0, nil, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	data, err := io.ReadAll(resp.Body)
+	var rd io.Reader = resp.Body
+	if r.maxBody > 0 && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		rd = io.LimitReader(resp.Body, r.maxBody)
+	}
+	data, err := io.ReadAll(rd)
 	c.log.Debug("http", "method", r.method, "url", redactURL(u, r.secret), "status", resp.StatusCode, "duration", c.now().Sub(start))
 	if resp.StatusCode >= 400 && len(data) > 0 {
 		c.log.Debug("http body", "body", truncate(r.scrubSecrets(string(data)), 2048))

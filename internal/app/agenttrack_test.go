@@ -119,6 +119,16 @@ func TestAgentRecordWhenLogsCannotBeRead(t *testing.T) {
 	assert.Equal(t, errs.KindAuth, errs.KindOf(err))
 }
 
+// A build bam could not read is not counted as looked through.
+func TestAgentRecordCountsOnlyTheBuildsItRead(t *testing.T) {
+	f := trackFake()
+	f.Recent = append(f.Recent, provider.Build{Key: "PROJ-X-GONE"})
+	f.GetErrs = map[string][]error{"PROJ-X-GONE": {errs.Bamboof("Bamboo server error 500 from bamboo.example.com")}}
+	rec, err := newService(t, f).AgentRecord(context.Background(), "linux-1", 0)
+	require.NoError(t, err)
+	assert.Equal(t, 18, rec.Builds)
+}
+
 func TestAgentRecordUnknownAgentAndRefusedList(t *testing.T) {
 	f := trackFake()
 	_, err := newService(t, f).AgentRecord(context.Background(), "nope", 0)

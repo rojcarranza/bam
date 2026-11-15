@@ -110,7 +110,7 @@ func AgentTrack(o Out, r *app.AgentRecord) error {
 		}
 	}
 	if r.Unknown > 0 {
-		fmt.Fprintf(o.W, "\n%d of %d jobs are left out: their logs do not name an agent\n", r.Unknown, r.Jobs)
+		fmt.Fprintf(o.W, "\n%d of %d jobs are left out: their logs do not name an agent or could not be read\n", r.Unknown, r.Jobs)
 	}
 	return nil
 }

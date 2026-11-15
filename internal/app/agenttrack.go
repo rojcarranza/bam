@@ -238,8 +238,9 @@ func (t AgentTally) Share() float64 {
 // AgentRecord is what bam learned about one agent from the newest builds.
 type AgentRecord struct {
 	Agent provider.Agent
-	// Builds is how many builds were looked through, Jobs how many of their
-	// jobs started, and Unknown how many of those no log named an agent for.
+	// Builds is how many builds were read, Jobs how many of their jobs
+	// started, and Unknown how many of those no log named an agent for or
+	// whose log could not be read.
 	Builds, Jobs, Unknown int
 	Now                   []AgentJob // jobs the agent is running now
 	Recent                []AgentJob // its latest finished jobs, newest first, at most TrackJobs
@@ -309,13 +310,14 @@ func (s *Service) AgentRecord(ctx context.Context, name string, builds int) (*Ag
 	if readErr != nil && len(agents) == 0 && len(keys) > 0 {
 		return nil, readErr
 	}
-	rec := &AgentRecord{Agent: agent, Builds: len(recent)}
+	rec := &AgentRecord{Agent: agent}
 	mine := AgentBaseName(agent.Name)
 	others := map[string]bool{}
 	for _, b := range full {
 		if b == nil {
 			continue
 		}
+		rec.Builds++
 		for _, st := range b.Stages {
 			for _, j := range st.Jobs {
 				if !jobStarted(j.State) {

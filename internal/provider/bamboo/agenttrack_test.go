@@ -1,8 +1,9 @@
 package bamboo
 
 import (
-	"os"
-	"path/filepath"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -51,18 +52,79 @@ func TestJobAgentRejectsAKeyWithoutANumber(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Intent: the newest builds of every plan come from one paged list of
-// results, including running ones.
-func TestRecentBuildsListsEveryPlansBuilds(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("testdata", "recorded", "results.json"))
+// Intent: Bamboo's server-wide result list holds only each plan's newest
+// build (tools/record/children.go records it so), so the newest builds come
+// from the plans whose newest build started last, merged by start time. Here
+// OPS-B and PROJ-A ran last; for the two newest builds LAB-C, whose newest
+// build is older than both, is never read.
+func TestRecentBuildsMergesThePlansThatRanLast(t *testing.T) {
+	res := func(key, plan, started string) string {
+		return `{"buildResultKey":"` + key + `","plan":{"key":"` + plan + `"},"buildState":"Successful","lifeCycleState":"Finished","buildStartedTime":"` + started + `"}`
+	}
+	list := func(items ...string) string {
+		return `{"results":{"size":` + strconv.Itoa(len(items)) + `,"result":[` + strings.Join(items, ",") + `]}}`
+	}
+	c, rec := newTestServer(t, map[string]*route{
+		"GET /rest/api/latest/result": {body: list(
+			res("LAB-C-9", "LAB-C", "2026-09-17T08:00:00.000Z"),
+			res("PROJ-A-5", "PROJ-A", "2026-09-17T12:00:00.000Z"),
+			res("OPS-B-3", "OPS-B", "2026-09-17T11:00:00.000Z"),
+		)},
+		"GET /rest/api/latest/result/PROJ-A": {body: list(
+			res("PROJ-A-5", "PROJ-A", "2026-09-17T12:00:00.000Z"),
+			res("PROJ-A-4", "PROJ-A", "2026-09-17T10:00:00.000Z"),
+			res("PROJ-A-3", "PROJ-A", "2026-09-17T07:00:00.000Z"),
+		)},
+		"GET /rest/api/latest/result/LAB-C": {body: list(
+			res("LAB-C-9", "LAB-C", "2026-09-17T08:00:00.000Z"),
+		)},
+		"GET /rest/api/latest/result/OPS-B": {body: list(
+			res("OPS-B-3", "OPS-B", "2026-09-17T11:00:00.000Z"),
+			res("OPS-B-2", "OPS-B", "2026-09-17T09:00:00.000Z"),
+		)},
+	})
+	got, err := c.RecentBuilds(ctx, 2)
 	require.NoError(t, err)
-	c, rec := newTestServer(t, map[string]*route{"GET /rest/api/latest/result": {body: string(raw)}})
-	got, err := c.RecentBuilds(ctx, 5)
+	var keys []string
+	for _, b := range got {
+		keys = append(keys, b.Key)
+	}
+	assert.Equal(t, []string{"PROJ-A-5", "OPS-B-3"}, keys)
+	for _, r := range rec.all() {
+		assert.NotEqual(t, "/rest/api/latest/result/LAB-C", r.URL.Path)
+		if r.URL.Path == "/rest/api/latest/result" {
+			assert.Equal(t, "true", r.URL.Query().Get("includeAllStates"))
+		}
+	}
+
+	got, err = c.RecentBuilds(ctx, 3)
 	require.NoError(t, err)
-	assert.NotEmpty(t, got)
-	q := rec.all()[0].URL.Query()
-	assert.Equal(t, "true", q.Get("includeAllStates"))
-	assert.Equal(t, "5", q.Get("max-result"))
+	keys = nil
+	for _, b := range got {
+		keys = append(keys, b.Key)
+	}
+	assert.Equal(t, []string{"PROJ-A-5", "OPS-B-3", "PROJ-A-4"}, keys)
 	var _ provider.RecentBuilder = c
 	var _ provider.JobAgentReader = c
+}
+
+// Intent: bam reads only the head of a job's log for its agent, so a huge
+// log is not downloaded. The server below never stops sending; reading the
+// whole body would never end.
+func TestJobAgentReadsOnlyTheHeadOfALog(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(jobLogWithAgent))
+		line := []byte(strings.Repeat("build\td\tline\n", 1000))
+		for r.Context().Err() == nil {
+			if _, err := w.Write(line); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(srv.Close)
+	c, err := New(Options{BaseURL: srv.URL, Token: "test-token"})
+	require.NoError(t, err)
+	got, err := c.JobAgent(ctx, "PROJ-BUILD-JOB1-12")
+	require.NoError(t, err)
+	assert.Equal(t, "linux-1", got)
 }

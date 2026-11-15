@@ -93,7 +93,8 @@ func (r *runtime) config() (*config.Config, error) {
 	return cfg, nil
 }
 
-// current is config without remembering the result in r.cfg. The terminal
+// current is config that always checks the files and does not remember the
+// result in r.cfg; the service itself checks at most once a second. The terminal
 // UI's callbacks run on several goroutines and use this one, so nothing of
 // the runtime is written from them.
 func (r *runtime) current() (*config.Config, error) {
@@ -101,7 +102,7 @@ func (r *runtime) current() (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	return src.Current()
+	return src.Fresh()
 }
 
 // configChanged tells the source that bam itself wrote a configuration file,

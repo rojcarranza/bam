@@ -54,13 +54,19 @@ func Fixed(cfg *Config) *Source { return &Source{cfg: cfg} }
 // Current returns the configuration, reloaded first when it is stale. On a
 // failed reload it returns the last good configuration (nil if there never was
 // one) and the error.
-func (s *Source) Current() (*Config, error) {
+func (s *Source) Current() (*Config, error) { return s.current(false) }
+
+// Fresh is Current that always checks the files, even inside MinInterval. A
+// person asking for a refresh calls it.
+func (s *Source) Fresh() (*Config, error) { return s.current(true) }
+
+func (s *Source) current(force bool) (*Config, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.Options == nil {
 		return s.cfg, nil
 	}
-	if s.MinInterval > 0 && s.cfg != nil && !s.stale && time.Since(s.at) < s.MinInterval {
+	if !force && s.MinInterval > 0 && s.cfg != nil && !s.stale && time.Since(s.at) < s.MinInterval {
 		return s.cfg, s.err
 	}
 	o := s.Options()

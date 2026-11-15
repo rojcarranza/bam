@@ -7,7 +7,7 @@ gates:
   # packages it loads; the explicit gofmt check covers every .go file, including the e2e build tag.
   - name: full-suite
     after: test
-    command: "gofmt -l . | (! grep .) && GOTOOLCHAIN=local GOFLAGS=-race make test && GOTOOLCHAIN=local make lint check-fixtures"
+    command: "gofmt -l . | (! grep .) && GOTOOLCHAIN=local GOFLAGS=-race make test && GOTOOLCHAIN=local make lint check-fixtures check-demos"
   - name: docs-fresh
     after: test
     command: "GOTOOLCHAIN=local make docs && git status --porcelain docs/cli | (! grep .)"

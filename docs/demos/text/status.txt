@@ -1,0 +1,17 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run ci
+Plan     SETLIST-CI
+Vars     none
+✓ Queued   SETLIST-CI-22   https://bamboo.example.com/browse/SETLIST-CI-22
+SETLIST-CI-22 (CI)                    ✓ success  1s
+├─ stage Build                        ✓ success  1s
+├─ SETLIST-IT-25 (Integration tests)  ✓ success  6s
+│  └─ stage Test                      ✓ success  0s
+└─ SETLIST-PACKAGE-22 (Package)       ✓ success  5s
+   └─ stage Package                   ✓ success  5s
+$ bam status
+   BUILD          STATE      PROGRESS  STARTED  WHAT  LINK
+→  SETLIST-CI-22  ✓ success            1m ago   ci    https://bamboo.example.com/browse/SETLIST-CI-22
+$ bam status --short
+SETLIST-CI-22 success

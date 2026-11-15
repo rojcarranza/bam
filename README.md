@@ -6,7 +6,50 @@ The command line for Atlassian Bamboo: run a plan, follow the build, read why it
     bam logs --last --failed
     bam open --last
 
-bam works with Bamboo Data Center 9.x and later, using a personal access token. Every example below is a real run against a small Bamboo, with only the address changed to `bamboo.example.com`.
+bam works with Bamboo Data Center 9.x and later, using a personal access token.
+
+![bam runs the setlist CI plan, follows the plans it triggers and reads the failure](docs/demos/gifs/hero.gif)
+
+Every GIF in this README is a real recording of bam against a small Bamboo that runs the SETLIST sample service, with only the address changed to `bamboo.example.com`. The text blocks folded under each GIF come from an older sample pipeline (`BAMCI`, `FORGE`) and show the same commands.
+
+### What each GIF shows
+
+| You want to | GIF |
+| --- | --- |
+| Connect once and check the connection with two commands | [connect](docs/demos/gifs/connect.gif) |
+| Find any plan and see the variables it takes in two commands, without opening a page | [find-plan](docs/demos/gifs/find-plan.gif) |
+| Save a plan and its variables once; from then on it is one word | [preset-add](docs/demos/gifs/preset-add.gif) |
+| Check a run before it starts: a wrong value is refused here, not after the build is queued | [dry-run](docs/demos/gifs/dry-run.gif) |
+| Keep presets current when a plan gains or loses a variable | [preset-sync](docs/demos/gifs/preset-sync.gif) |
+| Give a whole team its presets with one command, committed next to the code | [init](docs/demos/gifs/init.gif) |
+| Start a build and follow it, with the plans it triggers, from the terminal you are already in | [run-watch](docs/demos/gifs/run-watch.gif) |
+| Deploy to staging with four variables in one line, the password masked everywhere | [run-vars](docs/demos/gifs/run-vars.gif) |
+| Run the branch you are on and read the failure before you leave the terminal | [feature-branch](docs/demos/gifs/feature-branch.gif) |
+| Push, then follow the build of that commit with one command | [watch-at](docs/demos/gifs/watch-at.gif) |
+| See the build and everything it triggered as one tree, and only the failed branch when you ask | [tree](docs/demos/gifs/tree.gif) |
+| See every build you started, or its state in your prompt | [status](docs/demos/gifs/status.gif) |
+| See why a build waits, and for what | [queue](docs/demos/gifs/queue.gif) |
+| One board for the agents, the queue and your pipelines | [top](docs/demos/gifs/top.gif) |
+| Pin the pipelines you watch once | [pin](docs/demos/gifs/pin.gif) |
+| See the agents, and keep only yours in view | [agent](docs/demos/gifs/agent.gif) |
+| Read why a build failed in one screen | [investigate](docs/demos/gifs/investigate.gif) |
+| Read the failing log without opening a page | [logs](docs/demos/gifs/logs.gif) |
+| Restart only what failed, not the whole pipeline | [rerun](docs/demos/gifs/rerun.gif) |
+| Stop a build you started by mistake, with a dry run first | [cancel](docs/demos/gifs/cancel.gif) |
+| Jump to the exact build or job page by key | [open](docs/demos/gifs/open.gif) |
+| See a plan's history and how often it fails, including the flaky one | [history](docs/demos/gifs/history.gif) |
+| Run a whole release as one command: each stage starts when the one before succeeded | [set-run](docs/demos/gifs/set-run.gif) |
+| When a stage fails, restart just that run and carry on | [set-rerun](docs/demos/gifs/set-rerun.gif) |
+| Every read command prints JSON, `--read-only` makes bam safe to hand to a script, and the exit code says how the build ended | [scripting](docs/demos/gifs/scripting.gif) |
+| Teach an AI agent to use bam safely: read first, ask before writing | [agent-skill](docs/demos/gifs/agent-skill.gif) |
+| Check who you are and what bam can do, in five short commands | [housekeeping](docs/demos/gifs/housekeeping.gif) |
+| Complete commands, presets and variable names with Tab | [completion](docs/demos/gifs/completion.gif) |
+| See how much you use bam, privately | [usage](docs/demos/gifs/usage.gif) |
+| Browse plans, builds, trees and logs with the keyboard, in one screen | [tui-browse](docs/demos/gifs/tui-browse.gif) |
+| Run a preset from a form that only allows valid values | [tui-run](docs/demos/gifs/tui-run.gif) |
+| Go from a red branch to the failing tests and their log in a few keys | [tui-failures](docs/demos/gifs/tui-failures.gif) |
+
+
 
 ## Install on Ubuntu and WSL
 
@@ -29,6 +72,12 @@ On WSL, `bam open` needs a way to reach the Windows browser:
 Without it, `bam open` prints the link and you click it. macOS and Windows: download the archive for your system from the same page and put `bam` on your PATH.
 
 ## Connect to your Bamboo
+
+**Connect once and check the connection: one command adds the server and stores the token, another checks every feature bam uses.**
+
+![bam server add stores the token, then bam doctor checks the connection](docs/demos/gifs/connect.gif)
+
+*Instead of:* Profile › Personal access tokens, then copying the token into each tool that needs it.
 
 Three steps, once. You need a personal access token: in Bamboo, open your profile, then Personal access tokens, then Create token.
 
@@ -59,16 +108,20 @@ A check marked `–` is not a problem: bam learns it the first time you use that
 
 ## The example pipeline
 
-Every example uses the same small pipeline, so each command follows from the one before:
+The GIFs use the SETLIST sample service, a small Go app whose pipeline lives in [forge-lab](https://github.com/rojcarranza/forge-lab) and whose code is [setlist-service](https://github.com/rojcarranza/setlist-service). Each plan is one step of a release:
 
 | Plan | What it does |
 | --- | --- |
-| `BAMCI-BUILD` | runs `make build`, then triggers the two plans below |
-| `BAMCI-TEST` | runs `make test` (a child of `BAMCI-BUILD`) |
-| `BAMCI-LINT` | runs `make lint` (a child of `BAMCI-BUILD`) |
-| `FORGE-PROV` | provisions a cluster; takes the variables `cluster_name` and `cluster_config` |
+| `SETLIST-CI` | builds and unit-tests, then triggers the two plans below |
+| `SETLIST-IT` | integration tests, a child of CI; its first attempt sometimes fails and a restart passes |
+| `SETLIST-PACKAGE` | builds the image, a child of CI |
+| `SETLIST-DEPLOY` | rolls a version out; takes `environment`, `version`, `region`, `replicas` and `db_password` |
+| `SETLIST-SMOKE` | checks a deployed environment |
+| `SETLIST-LOAD` | a three-minute load test |
 
-`BAMCI-*` has no variables. `FORGE-PROV` has some, so it carries the examples about variables, and those stay dry runs.
+Branch `capo-transpose` has a red build (12 failing tests), which carries the failure examples. The text blocks under the GIFs use a different, older sample (`BAMCI-*` runs `make build` and triggers `BAMCI-TEST` and `BAMCI-LINT`; `FORGE-PROV` takes `cluster_name` and `cluster_config`).
+
+Re-record any GIF with `make demo NAME=<tape>`; see [docs/demos](docs/demos/README.md).
 
 ## Commands
 
@@ -100,7 +153,16 @@ Where a command takes a build, `--last` means the build you started last from th
 
 ### Find your plan
 
+**Find any plan and see the variables it takes in two commands, without opening a page.**
+
+![bam lists the SETLIST plans, shows the deploy plan and its variables](docs/demos/gifs/find-plan.gif)
+
+*Instead of:* Projects › SETLIST › a plan › Variables, once per plan.
+
 `bam project list`, `bam plan list`, `bam plan show`, `bam plan vars` and `bam plan branches` list what exists. In Bamboo this is the Projects menu and a plan's page. Note the plan key and its variables; the next step saves them as a preset.
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam plan list BAMCI
     BAMCI  bam CI
@@ -114,6 +176,8 @@ Where a command takes a build, `--last` means the build you started last from th
     cluster_config  –      –
     cluster_name    lab1   setcheck
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | list your Bamboo projects | `bam project list` |
@@ -122,9 +186,37 @@ Where a command takes a build, `--last` means the build you started last from th
 | find a plan by part of its name | `bam plan list --match test` |
 | see which repository a plan builds | `bam build show BAMCI-BUILD`, under Revisions |
 
+
 ### Save it as a preset
 
+**Save a plan and its variables once; from then on it is one word.**
+
+![bam preset add saves the deploy plan with its variables as a named preset](docs/demos/gifs/preset-add.gif)
+
+*Instead of:* Projects › SETLIST › Deploy › Run customised › the same four fields, typed again on every run.
+
+**Check a run before it starts: a wrong value is refused here, not after the build is queued.**
+
+![bam run --dry-run checks the variables and refuses a value that is not allowed](docs/demos/gifs/dry-run.gif)
+
+*Instead of:* Run customised › fill in every field › Run › find out in the build log that a value was wrong.
+
+**Keep presets current when a plan gains or loses a variable.**
+
+![bam preset sync adds the variable the plan gained and marks the one it dropped](docs/demos/gifs/preset-sync.gif)
+
+*Instead of:* Open the plan's Variables page and compare it by eye with what you keep in notes.
+
+**Give a whole team its presets with one command, committed next to the code.**
+
+![bam init writes a team's .bam.yaml with a preset for each plan](docs/demos/gifs/init.gif)
+
+*Instead of:* Every teammate rebuilds the same run forms by hand.
+
 A preset is a plan plus the variable values you run it with, under a name you choose. Save one before your first run. `bam preset add` reads the plan's variables from Bamboo and writes the preset for you, in `~/bam/presets/`, one file per Bamboo project:
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam preset add lab1 --plan FORGE-PROV
     added preset lab1 to ~/bam/presets/forge.yaml
@@ -180,6 +272,8 @@ Check it with a dry run, which resolves and checks every value and starts nothin
 
 `bam run lab1` then works from any directory. bam reads four files, and the presets file is the one you edit:
 
+</details>
+
 | File | What it holds | Written by |
 | --- | --- | --- |
 | `~/.config/bam/config.yaml` | servers, their projects, preferences | `bam server add` |
@@ -197,9 +291,25 @@ More: [Presets](docs/presets.md), [Configuration](docs/configuration.md); `bam i
 | remove a preset | `bam preset rm lab1` |
 | generate a repository's `.bam.yaml` | `bam init --server work --project BAMCI --plan BAMCI-BUILD=ci` |
 
+
 ### Run it
 
+**Start a build and follow it, with the plans it triggers, from the terminal you are already in.**
+
+![bam run starts the CI plan and follows it and the plans it triggered until they finish](docs/demos/gifs/run-watch.gif)
+
+*Instead of:* Projects › SETLIST › CI › Run plan, then refresh Build results while the integration and package plans start.
+
+**Deploy to staging with four variables in one line, the password masked everywhere.**
+
+![bam run passes variables, and the secret prints as ********](docs/demos/gifs/run-vars.gif)
+
+*Instead of:* Projects › SETLIST › Deploy › Run customised › 4 fields › Run, then watch the build page.
+
 `bam run` starts a preset, or a plan by its key, and prints the link to the build. In Bamboo this is the plan's Run, then Run customised, page. `ci` sets `watch: true`, so bam follows the build and every build it triggers:
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam run ci
     Plan     BAMCI-BUILD
@@ -214,6 +324,8 @@ More: [Presets](docs/presets.md), [Configuration](docs/configuration.md); `bam i
 
 On a terminal the tree redraws while the builds run. bam exits 0 when every build succeeded and 1 when one did not. Ctrl-C stops watching; the builds keep running.
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | run a plan by its key and follow it | `bam run BAMCI-BUILD --watch` |
@@ -227,9 +339,19 @@ On a terminal the tree redraws while the builds run. bam exits 0 when every buil
 | test a pushed branch on a plan branch | `bam run BAMCI-BUILD --branch develop --repository bam=fix/cancel-stale-tree-reads --dry-run` (see Test a feature branch) |
 | run a saved preset | `bam run lab1` (see Save it as a preset) |
 
+
 ### Test a feature branch
 
+**Run the branch you are on and read the failure before you leave the terminal.**
+
+![bam run --branch @ builds the checked-out branch and bam investigate reads why it failed](docs/demos/gifs/feature-branch.gif)
+
+*Instead of:* Plan › Branches › find your branch › Run, then Build › Tests › Failed tests, one build page per child plan.
+
 You pushed a branch and want a plan branch to build it. Bamboo does not let bam change which branch a plan branch's repository builds, so you switch it in your browser and bam checks it before it triggers. bam never saves that page and never puts the old branch back.
+
+<details>
+<summary>The same, as text</summary>
 
 1. Find the repository's name, under Revisions:
 
@@ -264,11 +386,14 @@ You pushed a branch and want a plan branch to build it. Bamboo does not let bam 
 
 The branch stays as you left it, so the next run of a preset that names another branch asks you to switch back.
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | try another branch once | `bam run my-feature --repository bam=fix/other-branch --dry-run` |
 | do it without a preset | `bam run BAMCI-BUILD --branch develop --repository bam=fix/ignore-undotted-bam-yaml` |
 | skip the check after the build | `bam run my-feature --watch=false` |
+
 
 In the terminal UI, `R` on the preset shows the repositories as read-only rows in the run form and asks in a dialog when a branch differs.
 
@@ -293,7 +418,52 @@ Keep out of the dotfiles: tokens (`bam login` stores them in the keychain or `~/
 
 ### Follow a build
 
+**Push, then follow the build of that commit with one command.**
+
+![bam watch @ follows the build of the branch you are on](docs/demos/gifs/watch-at.gif)
+
+*Instead of:* Projects › SETLIST › CI › Branches › your branch › latest build, refreshed by hand.
+
+**See the build and everything it triggered as one tree, and only the failed branch when you ask.**
+
+![bam build tree shows a build, every plan it triggered and the failed branches](docs/demos/gifs/tree.gif)
+
+*Instead of:* Open the CI build, then each triggered plan's page, one tab per plan.
+
+**See every build you started, or its state in your prompt.**
+
+![bam status lists what you started, and --short fits a shell prompt](docs/demos/gifs/status.gif)
+
+*Instead of:* Recently viewed builds in Bamboo, plan by plan.
+
+**See why a build waits, and for what.**
+
+![bam queue shows why a build waits and how long](docs/demos/gifs/queue.gif)
+
+*Instead of:* Administration › Agents, then Build queue, then each agent's capabilities.
+
+**One board for the agents, the queue and your pipelines.**
+
+![bam top prints what needs you: agents, the queue and the pinned pipelines](docs/demos/gifs/top.gif)
+
+*Instead of:* Dashboard, Agents and Build queue pages, side by side.
+
+**Pin the pipelines you watch once.**
+
+![bam pin add pins plans to bam top and bam pin list shows them](docs/demos/gifs/pin.gif)
+
+*Instead of:* Bamboo's Favourite plans, per user and without branches.
+
+**See the agents, and keep only yours in view.**
+
+![bam agent list shows the agents; bam agent mine marks yours](docs/demos/gifs/agent.gif)
+
+*Instead of:* Administration › Agents › each agent.
+
 `bam watch` follows a build and every build it triggers until they finish. In Bamboo this is the build page, open and refreshing.
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam watch --last
     BAMCI-BUILD-7 (Build)   ✓ success  1s
@@ -304,6 +474,8 @@ Keep out of the dotfiles: tokens (`bam login` stores them in the keychain or `~/
        └─ stage Test        ✓ success  1s
 
 Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on success and 1 on failure, which makes `bam run PLAN --watch && deploy` work in a script.
+
+</details>
 
 | You want to | Type |
 | --- | --- |
@@ -320,9 +492,25 @@ Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on suc
 | see whether one agent's jobs fail more than the others' | `bam agent show linux-3` |
 | see what needs you: agents, the queue, your pinned pipelines | `bam top` (live on a terminal, `--once` to print; pin with `bam pin add integration PROJ-BUILD`) |
 
+
 ### When a build fails
 
+**Read why a build failed in one screen.**
+
+![bam build investigate shows each failed job's error lines and the likely cause](docs/demos/gifs/investigate.gif)
+
+*Instead of:* Build › each failed job › Logs › scroll to the first error, then Tests › Failed tests.
+
+**Read the failing log without opening a page.**
+
+![bam logs prints only the failed jobs' logs, the last lines](docs/demos/gifs/logs.gif)
+
+*Instead of:* Build › Logs › Download or scroll, one job at a time.
+
 Start from the failed build. `bam build investigate` picks out the error and the likely cause, and `bam logs --failed` prints only the failed jobs' logs. In Bamboo this is the build's Logs and Tests tabs. This build is `BAMCI-TEST` on a short-lived branch with a test that fails on purpose:
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam build investigate BAMCI-TEST6-2
     BAMCI-TEST6-2  ✗ failed
@@ -341,6 +529,8 @@ Start from the failed build. `bam build investigate` picks out the error and the
     Likely cause: --- FAIL: TestDemoFailure (0.00s) (job TEST)
     try: bam logs BAMCI-TEST6-2 --job TEST
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | run a plan branch and follow it | `bam run BAMCI-TEST --branch demo-readme-failing-test --watch` |
@@ -350,9 +540,25 @@ Start from the failed build. `bam build investigate` picks out the error and the
 | compare with the last green build | `bam build investigate BAMCI-TEST6-2 --compare` |
 | show only the failing branches of a tree | `bam build tree BAMCI-BUILD-7 --failed` |
 
+
 ### Retry or stop
 
+**Restart only what failed, not the whole pipeline.**
+
+![bam build tree --rerun-failed restarts only the failed plan and follows the tree](docs/demos/gifs/rerun.gif)
+
+*Instead of:* Open the failed plan's build › Run › Rerun failed jobs, then back to the parent to watch.
+
+**Stop a build you started by mistake, with a dry run first.**
+
+![bam build cancel stops a build and bam build show confirms it](docs/demos/gifs/cancel.gif)
+
+*Instead of:* Build › Actions › Stop build, then reload to see it stop.
+
 `bam build rerun` restarts a failed build's failed jobs, as Bamboo's Rerun failed jobs does: same build key, same variables, same commit. `bam build cancel` stops a queued or running build. Check a rerun first with `--dry-run`:
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam build rerun BAMCI-TEST6-2 --dry-run
     would rerun BAMCI-TEST6-2 (failed)
@@ -368,6 +574,8 @@ Start from the failed build. `bam build investigate` picks out the error and the
     stopping BAMCI-BUILD-3
       watch: bam watch BAMCI-BUILD-3
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | rerun the failed jobs and watch them | `bam build rerun BAMCI-TEST6-2 --watch` |
@@ -376,9 +584,19 @@ Start from the failed build. `bam build investigate` picks out the error and the
 | cancel a build by key | `bam build cancel BAMCI-BUILD-3` |
 | check a cancel first | `bam build cancel --last --dry-run` |
 
+
 ### Open it in Bamboo
 
+**Jump to the exact build or job page by key.**
+
+![bam url prints the link and bam open opens a build or a job](docs/demos/gifs/open.gif)
+
+*Instead of:* Search for the plan, open the build, pick the job tab.
+
 `bam open` opens a project, plan, build or job in your browser. `bam url` prints the same link without opening it, to paste into chat.
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam url BAMCI-TEST6-2
     https://bamboo.example.com/browse/BAMCI-TEST6-2
@@ -387,6 +605,8 @@ Start from the failed build. `bam build investigate` picks out the error and the
     https://bamboo.example.com/browse/BAMCI-TEST6-TEST-2
     warning: could not open a browser: exec: "xdg-open,x-www-browser,www-browser": executable file not found in $PATH
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | open the build you just started | `bam open --last` |
@@ -394,11 +614,21 @@ Start from the failed build. `bam build investigate` picks out the error and the
 | open one job of a build | `bam open BAMCI-TEST6-2 --job TEST` |
 | print the link of a plan's job | `bam url BAMCI-TEST --job TEST` |
 
+
 On WSL this opens your Windows browser once `wslu` is installed (see Install). If no browser opens, bam prints the link and a warning, as above, and the link still works.
 
 ### Look at past builds
 
+**See a plan's history and how often it fails, including the flaky one.**
+
+![bam build list, bam build show and bam plan stats show history and how often a plan fails](docs/demos/gifs/history.gif)
+
+*Instead of:* Plan › Builds, open each build, and Reports for the success rate.
+
 `bam build list`, `bam build show` and `bam plan stats` read history. In Bamboo this is the plan's build list and a build's Summary tab.
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam build show BAMCI-BUILD-7
     BAMCI-BUILD-7  ✓ success  https://bamboo.example.com/browse/BAMCI-BUILD-7
@@ -415,6 +645,8 @@ On WSL this opens your Windows browser once `wslu` is installed (see Install). I
     Duration  median 3s  p90 5s  max 5s (#1)   of 7 successful
     Failing jobs none
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | list recent builds of a plan | `bam build list BAMCI-BUILD` |
@@ -422,9 +654,25 @@ On WSL this opens your Windows browser once `wslu` is installed (see Install). I
 | see the build you just started | `bam build show --last` |
 | see how often a plan fails | `bam plan stats BAMCI-TEST` |
 
+
 ### Run plans in order
 
+**Run a whole release as one command: each stage starts when the one before succeeded.**
+
+![bam set run release runs CI, staging, smoke, then prod in two regions, stage by stage](docs/demos/gifs/set-run.gif)
+
+*Instead of:* Run CI, wait, run Deploy for staging, wait, run Smoke, wait, then Deploy once for eu and once for us.
+
+**When a stage fails, restart just that run and carry on.**
+
+![bam set rerun --failed restarts the failed run and finishes the train](docs/demos/gifs/set-rerun.gif)
+
+*Instead of:* Find the failed build, restart it, then start the next stage by hand.
+
 A set runs several presets in stages: every run of a stage at once, the next stage only when all of them succeeded. In Bamboo there is no single page for this. You write the sets under `sets:` in `.bam.yaml`: `check: [[ci]]` and `ship: [[ci], [lab1]]`.
+
+<details>
+<summary>The same, as text</summary>
 
     $ bam set run ship --dry-run
     ship
@@ -443,6 +691,8 @@ A set runs several presets in stages: every run of a stage at once, the next sta
 
 A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, train files (`bam set run -f`) and the rules: [docs/configuration.md](docs/configuration.md#sets-release-trains). `bam set list` lists your sets.
 
+</details>
+
 | You want to | Type |
 | --- | --- |
 | see a set's stages | `bam set show ship` |
@@ -451,7 +701,41 @@ A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, tr
 | continue after Ctrl-C | `bam set resume` |
 | retry the failed runs, then finish | `bam set rerun --failed` |
 
+
+### Use it in scripts and with AI agents
+
+**Every read command prints JSON, `--read-only` makes bam safe to hand to a script, and the exit code says how the build ended.**
+
+![bam --json piped to jq, --read-only refusing a run, and the exit code of a watched build](docs/demos/gifs/scripting.gif)
+
+*Instead of:* Click through each build page and copy values by hand.
+
+**Teach an AI agent to use bam safely: read first, ask before writing.**
+
+![bam skill prints the skill an AI agent reads, and a run is refused read-only](docs/demos/gifs/agent-skill.gif)
+
+*Instead of:* No equivalent.
+
+
 ### Setup and housekeeping
+
+**Check who you are and what bam can do, in five short commands.**
+
+![bam server list, whoami, project list, version and doctor](docs/demos/gifs/housekeeping.gif)
+
+*Instead of:* Profile, Personal access tokens, and each project's page.
+
+**Complete commands, presets and variable names with Tab.**
+
+![bash completion of the command, the preset and the variable name](docs/demos/gifs/completion.gif)
+
+*Instead of:* No equivalent: Bamboo has no command line.
+
+**See how much you use bam, privately.**
+
+![bam usage shows how often you ran each command; bam usage off stops the count](docs/demos/gifs/usage.gif)
+
+*Instead of:* No equivalent.
 
 - `bam server list` shows the servers you added; `bam server default work` picks the one used when none is named; `bam server rm work` removes one.
 - `bam whoami` shows who each server knows you as; `bam logout work` deletes the stored token.
@@ -461,11 +745,18 @@ A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, tr
 - `bam preset migrate` moves presets from the old machine config into your presets files.
 - Every command has `--help`, and `--debug` logs the HTTP requests bam makes.
 
+
 ## Terminal UI
 
 Typing `bam` alone opens a full-screen view of your plans, or the live `bam top` board once you have pinned pipelines (see [docs/tui.md](docs/tui.md#the-board)). You can browse, watch, read logs, run and cancel from it, with the keys shown at the bottom. `bam --project BAMCI` opens it on one project, and `bam ui` opens it explicitly. Pipe bam's output, or pass `--no-tui`, and bare `bam` prints help instead.
 
 ### The plans table
+
+**Browse plans, builds, trees and logs with the keyboard, in one screen.**
+
+![bam opens a table of plans, a plan screen with its builds and stages, the build tree and the logs](docs/demos/gifs/tui-browse.gif)
+
+*Instead of:* Projects › plan › build › each child plan › Logs: a page load per step.
 
     bam v0.2.1-544-g7ec79b3 · home · 12.1.8 · admin · project BAMCI · 3 plans · sort key↑
       PROJECT  KEY          NAME                                          STATE             #  AGE    BY
@@ -473,9 +764,15 @@ Typing `bam` alone opens a full-screen view of your plans, or the live `bam top`
       BAMCI    BAMCI-LINT   Lint                                          ✓ success         6  now    dep
       BAMCI    BAMCI-TEST   Test                                          ✓ success         6  now    dep
 
+<details>
+<summary>The same, as text</summary>
+
     home · 12.1.8 · admin                                enter open  / filter  s sort  : cmd  R run  ?help  q quit
 
 `enter` opens a plan, `/` filters, `s` sorts, `:` opens the command bar, `?` shows every key.
+
+</details>
+
 
 ### The plan screen
 
@@ -509,6 +806,19 @@ Typing `bam` alone opens a full-screen view of your plans, or the live `bam top`
 
 ### Do it in the UI
 
+**Run a preset from a form that only allows valid values.**
+
+![In the UI, R opens the run form, space cycles an option, d previews and ctrl-R starts it](docs/demos/gifs/tui-run.gif)
+
+*Instead of:* Run customised › 4 fields › Run.
+
+**Go from a red branch to the failing tests and their log in a few keys.**
+
+![In the UI, b switches to a plan branch, the build lists its failed tests and l reads the log](docs/demos/gifs/tui-failures.gif)
+
+*Instead of:* Plan › Branches › build › Tests › Failed tests.
+
+
 | You want to | Press |
 | --- | --- |
 | run the selected plan | `R`, set variables, then `ctrl-R` (`d` previews the dry run) |
@@ -521,6 +831,7 @@ Typing `bam` alone opens a full-screen view of your plans, or the live `bam top`
 | copy the selection's link | `y` |
 | save the selected build's variables as a preset | `p` |
 | go back, or quit | `esc`, `q` |
+
 
 Nothing changes on the server by accident. No lowercase key starts or stops a build: `R` only opens the run form, `ctrl-R` is the only key that starts one, and `C` always asks. Leaving the UI never stops a build. `y` copies through the terminal (OSC 52), which Windows Terminal supports. The full key list, run sets and build trees in the UI: [docs/tui.md](docs/tui.md).
 

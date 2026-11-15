@@ -1,0 +1,22 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam preset show deploy
+deploy
+Plan        SETLIST-DEPLOY
+Branch      –
+Server      (default)
+Watch       yes
+Defined in  /home/jdoe/bam/presets/setlist.yaml
+Variables
+  environment  dev
+  legacy_flag  on
+  region       eu
+  version
+$ bam preset sync deploy --dry-run
+would sync: deploy  SETLIST-DEPLOY  bam/presets/setlist.yaml
+  +  replicas     "2"
+  !  legacy_flag       not declared on SETLIST-DEPLOY (kept)
+dry run: no files written
+$ bam preset sync deploy
+deploy  SETLIST-DEPLOY  bam/presets/setlist.yaml
+review before commit: values copied from Bamboo

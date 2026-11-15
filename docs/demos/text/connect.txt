@@ -1,0 +1,21 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam server add work --url https://bamboo.example.com --project SETLIST
+added server work (https://bamboo.example.com) to /home/jdoe/.config/bam/config.yaml
+Create a personal access token at https://bamboo.example.com/profile/userAccessTokens.action
+Token:
+logged in to work as jdoe (John Doe); token stored in /home/jdoe/.config/bam/credentials.yaml (no keychain ava
+ilable)
+$ bam doctor
+✓ config             /home/jdoe/.config/bam/config.yaml
+✓ server             work (https://bamboo.example.com)
+✓ token              file
+✓ auth               jdoe (John Doe)
+✓ server version     12.1.8
+✓ plan variables     0 declared on SETLIST-CI
+✓ build variables    read from SETLIST-CI-4
+✓ logs               via entries
+✓ duration estimate  read from SETLIST-CI-4
+– failed tests       no failed build of SETLIST-CI to read
+– stop builds        learned the first time bam build cancel runs
+– rerun builds       learned the first time bam set rerun --failed runs

@@ -1,0 +1,24 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run load --watch=false
+Plan     SETLIST-LOAD
+Vars     none
+✓ Queued   SETLIST-LOAD-4   https://bamboo.example.com/browse/SETLIST-LOAD-4
+  watch: bam watch SETLIST-LOAD-4
+$ bam build cancel --last --dry-run
+would stop SETLIST-LOAD-4 (running)
+dry run: nothing stopped
+$ bam build cancel --last
+stopping SETLIST-LOAD-4
+$ bam build show --last
+SETLIST-LOAD-4  ⊘ stopped  https://bamboo.example.com/browse/SETLIST-LOAD-4
+Plan        SETLIST-LOAD
+Reason      Manual run by John Doe
+Started     10s ago
+Completed   3s ago
+Duration    6s
+Queued      0s
+Revisions   setlist-service c42d4a0
+Stages
+  – Load
+      – Load

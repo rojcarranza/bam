@@ -1,0 +1,21 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam skill | head -24
+---
+name: bam
+description: "Drive Atlassian Bamboo from the terminal with bam: find plans, run a plan or preset with variabl
+es, watch a build, read why it failed, see the queue and agents, and cancel. Use when the user mentions Bamboo
+, a build key such as PROJ-BUILD-482, a plan key, a failing Bamboo build, or asks to run, watch or investigate
+ a Bamboo build."
+# bam: Bamboo from the terminal
+`bam` talks to Bamboo Data Center over REST with the user's own token. Everything below
+works without a terminal UI. Run `bam --help` or `bam <command> --help` for the full flags.
+## Ground rules for an agent
+1. **Start read-only.** Unless the user asked you to run, stop or rerun something, add
+   `--read-only` (or run with `BAM_READ_ONLY=1`). bam then refuses every command that
+   changes Bamboo, prints `read-only mode: refused to ...` on stderr and exits 2. Never
+   work around a refusal: tell the user and let them decide to lift it.
+2. **Always pass `--json` and `--no-tui`** when you read output. JSON field names are stable;
+   text output is not. A bare `bam` opens an interactive UI, which hangs an agent.
+3. **Read the exit code**, not the text:
+   | Code | Meaning |

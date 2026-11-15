@@ -1,0 +1,15 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ source <(bam completion bash)
+$ bam ru
+$ bam run
+$ bam run d
+$ bam run deploy
+$ bam run deploy --var
+db_password=  environment=  region=       replicas=     version=
+$ bam run deploy --var ^C
+$ bam build show SETLIST-
+SETLIST-CI       (CI)                 SETLIST-LOAD     (Load test)
+SETLIST-DEPLOY   (Deploy)             SETLIST-PACKAGE  (Package)
+SETLIST-IT       (Integration tests)  SETLIST-SMOKE    (Smoke test)
+$ bam build show SETLIST-^C

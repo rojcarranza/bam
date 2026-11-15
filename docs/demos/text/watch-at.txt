@@ -1,0 +1,19 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam plan branches SETLIST-CI
+BRANCH          KEY
+capo-transpose  SETLIST-CI0
+$ bam run ci --branch @ --watch=false
+Plan     SETLIST-CI  (branch capo-transpose, SETLIST-CI0)
+Vars     none
+✓ Queued   SETLIST-CI0-9   https://bamboo.example.com/browse/SETLIST-CI0-9
+  watch: bam watch SETLIST-CI0-9
+$ bam watch @
+SETLIST-CI0-9 (CI · capo-transpose)  ✗ failed  1s  12 tests failed
+└─ stage Build                       ✗ failed  1s  Unit
+failed: SETLIST-CI0-9 https://bamboo.example.com/browse/SETLIST-CI0-9
+  failed tests: github.com/rojcarranza/setlist-service/api.TestTransposeQuery, github.com/rojcarranza/setlist-
+service/setlist.TestTransposedMovesEverySong, github.com/rojcarranza/setlist-service/transpose.TestCapoMatches
+Transpose (+9 more)
+  cause: --- FAIL: TestTransposedMovesEverySong (0.00s) (job UNIT)
+next: bam logs SETLIST-CI0-9 --failed

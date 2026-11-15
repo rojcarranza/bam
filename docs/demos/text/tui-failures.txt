@@ -1,0 +1,108 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam
+ Server:  work [bamboo.example.com]                                        <enter> drill in
+ Version: bam v0.5.1-0.20261115072253-0ea2b9e3a9e8+dirty · Bamboo 12.1.8   <R> open the run form
+ User:    jdoe                                                             <o> open in the browser
+─────────────────────────────────────────────── plans(all)[6] ──────────────────────────────────── sort key↑ ─
+  PROJECT  KEY              NAME                                      STATE             #  AGE    BY
+▸ SETLIST  SETLIST-CI       CI                                        ✓ success        46  2h     John Doe
+  SETLIST  SETLIST-DEPLOY   Deploy                                    ✓ success        16  2h     John Doe
+  SETLIST  SETLIST-IT       Integration tests                         ✓ success        50  2h     dep
+  SETLIST  SETLIST-LOAD     Load test                                 ✓ success         5  2h     John Doe
+  SETLIST  SETLIST-PACKAGE  Package                                   ✓ success        46  2h     dep
+  SETLIST  SETLIST-SMOKE    Smoke test                                ✓ success        10  2h     John Doe
+work · 12.1.8 · jdoe                                 enter open  / filter  s sort  : cmd  R run  ?help  q quit
+/CI
+───────────────────────────────────────────── plans(all)</CI>[1] ───────────────────────────────── sort key↑ ─
+  PROJECT  KEY         NAME                                           STATE             #  AGE    BY
+▸ SETLIST  SETLIST-CI  CI                                             ✓ success        46  2h     John Doe
+ CI
+ SETLIST › SETLIST-CI
+───────────────────────────────────────────────── builds[0] ──────────────────────────────────── refreshing… ─
+┏━Builds━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages─────────────────────────────────────────────────────────╮
+┃loading…                                  ┃│no builds yet                                                   │
+┃                                          ┃│                                                                │
+┃                                          ┃╰────────────────────────────────────────────────────────────────╯
+┃                                          ┃╭─Tree───────────────────────────────────────────────────────────╮
+┃                                          ┃│no builds yet                                                   │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────────────────────╯
+work · 12.1.8 · jdoe                                   enter stages  R run  l logs  t tree  / filter  esc back
+ SETLIST › SETLIST-CI                                                         ✓ success last build #46 2h ago
+───────────────────────────────────────────────── builds[25] ─────────────────────────────────────────────────
+┏━Builds━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #46───────────────────────────────────────────────────╮
+┃▸ ✓ #46    default  2h  John Doe          ┃│Manual run by John Doe · c42d4a0                                │
+┃  ✓ #45    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #44    default  2h  John Doe          ┃│▸ ✓ Build                      1s                               │
+┃  ✓ #43    default  2h  John Doe          ┃╰────────────────────────────────────────────────────────────────╯
+┃  ✓ #42    default  2h  John Doe          ┃╭─Tree · what #46 triggered──────────────────────────────────────╮
+┃  ✓ #41    default  2h  John Doe          ┃│▸ ✓ Integration tests  #50   success                            │
+┃  ✓ #40    default  2h  John Doe          ┃│  ✓ Package            #46   success                            │
+┃  ✓ #39    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #38    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #37    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #36    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #35    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #34    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #33    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #32    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #31    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #30    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #29    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #28    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #27    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #26    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #25    default  3h  John Doe          ┃│                                                                │
+┃  ✓ #24    default  3h  John Doe          ┃│                                                                │
+                         ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+                         ┃Branches                                                  ┃
+                         ┃▸ default branch                                          ┃
+                         ┃  capo-transpose  setlist - CI - capo-transpose           ┃
+                         ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+                         ┃  default branch                                          ┃
+                         ┃▸ capo-transpose  setlist - CI - capo-transpose           ┃
+ SETLIST › SETLIST-CI @ SETLIST-CI0
+ SETLIST › SETLIST-CI @ capo-transpose                                          ✗ failed last build #9 3h ago
+───────────────────────────────────────────────── builds[9] ──────────────────────────────────────────────────
+┏━Builds━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #9────────────────────────────────────────────────────╮
+┃▸ ✗ #9     capo-transpose  3h  John Doe   ┃│Manual run by John Doe · bf26cf4                                │
+┃  ✗ #8     capo-transpose  3h  John Doe   ┃│                                                                │
+┃  ✗ #7     capo-transpose  3h  John Doe   ┃│▸ ✗ Build                      1s                               │
+┃  ✗ #6     capo-transpose  3h  John Doe   ┃│                                                                │
+┃  ✗ #5     capo-transpose  3h  John Doe   ┃│12 failed tests                                                 │
+┃  ✗ #4     capo-transpose  3h  John Doe   ┃│  github.com/rojcarranza/setlist-service/api.TestTransposeQuery │
+┃  ✗ #3     capo-transpose  3h  Admin      ┃│  github.com/rojcarranza/setlist-service/setlist.TestTransposed…│
+┃  ✗ #2     capo-transpose  4h  Admin      ┃│  github.com/rojcarranza/setlist-service/transpose.TestCapoMatc…│
+┃  ✗ #1     capo-transpose  4h  First      ┃│  github.com/rojcarranza/setlist-service/transpose.TestKey      │
+┃                                          ┃│  github.com/rojcarranza/setlist-service/transpose.TestKey/A    │
+┃                                          ┃│  +7 more                                                       │
+┃                                          ┃╭─Tree · what #9 triggered───────────────────────────────────────╮
+┃                                          ┃│#9 triggered nothing                                            │
+SETLIST-CI0-9 · logs · failed                                                                              0/0
+esc back  / search  G end  f follow  n next failure  o open  w wrap  E pager
+SETLIST-CI0-UNIT-9 · logs · failed                                                                     100/100
+    transpose_test.go:46: capo 5 on G = "B", want C
+--- FAIL: TestCapoMatchesTranspose (0.00s)
+FAIL
+=== RUN   TestHealthReportsVersion
+ok      github.com/rojcarranza/setlist-service/store    0.002s
+FAIL    github.com/rojcarranza/setlist-service/transpose    0.002s
+--- PASS: TestHealthReportsVersion (0.00s)
+=== RUN   TestListSetlists
+--- PASS: TestListSetlists (0.00s)
+=== RUN   TestGetMissingSetlist
+--- PASS: TestGetMissingSetlist (0.00s)
+=== RUN   TestTransposeQuery
+    api_test.go:50: G up 2 should be A: {"id":"sunday","name":"Sunday morning","date":"2026-11-15","songs":[{"
+--- FAIL: TestTransposeQuery (0.00s)
+=== RUN   TestTransposeQueryRejectsNonNumber
+--- PASS: TestTransposeQueryRejectsNonNumber (0.00s)
+=== RUN   TestShare
+--- PASS: TestSetlistNotifiesInTime (0.00s)
+=== RUN   TestSetlistTimesOut
+--- PASS: TestShare (0.00s)
+FAIL    github.com/rojcarranza/setlist-service/api    0.004s
+--- PASS: TestSetlistTimesOut (0.01s)
+PASS
+ok      github.com/rojcarranza/setlist-service/share    0.014s
+ERROR setlist: unit tests failed

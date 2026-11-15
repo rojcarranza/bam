@@ -1,0 +1,86 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam
+ Server:  work [bamboo.example.com]                                        <enter> drill in
+ Version: bam v0.5.1-0.20261115072253-0ea2b9e3a9e8+dirty · Bamboo 12.1.8   <R> open the run form
+ User:    jdoe                                                             <o> open in the browser
+─────────────────────────────────────────────── plans(all)[6] ──────────────────────────────────── sort key↑ ─
+  PROJECT  KEY              NAME                                      STATE             #  AGE    BY
+▸ SETLIST  SETLIST-CI       CI                                        ✓ success        46  2h     John Doe
+  SETLIST  SETLIST-DEPLOY   Deploy                                    ✓ success        16  2h     John Doe
+  SETLIST  SETLIST-IT       Integration tests                         ✓ success        50  2h     dep
+  SETLIST  SETLIST-LOAD     Load test                                 ✓ success         5  2h     John Doe
+  SETLIST  SETLIST-PACKAGE  Package                                   ✓ success        46  2h     dep
+  SETLIST  SETLIST-SMOKE    Smoke test                                ✓ success        10  2h     John Doe
+work · 12.1.8 · jdoe                                 enter open  / filter  s sort  : cmd  R run  ?help  q quit
+  SETLIST  SETLIST-CI       CI                                        ✓ success        46  2h     John Doe
+▸ SETLIST  SETLIST-IT       Integration tests                         ✓ success        50  2h     dep
+▸ SETLIST  SETLIST-DEPLOY   Deploy                                    ✓ success        16  2h     John Doe
+ Deploy
+ SETLIST › SETLIST-DEPLOY
+───────────────────────────────────────────────── builds[0] ──────────────────────────────────── refreshing… ─
+┏━Builds━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages─────────────────────────────────────────────────────────╮
+┃loading…                                  ┃│no builds yet                                                   │
+┃                                          ┃│                                                                │
+┃                                          ┃╰────────────────────────────────────────────────────────────────╯
+┃                                          ┃╭─Tree───────────────────────────────────────────────────────────╮
+┃                                          ┃│no builds yet                                                   │
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────────────────────╯
+work · 12.1.8 · jdoe                                   enter stages  R run  l logs  t tree  / filter  esc back
+ SETLIST › SETLIST-DEPLOY                                                     ✓ success last build #16 2h ago
+───────────────────────────────────────────────── builds[16] ─────────────────────────────────────────────────
+┏━Builds━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #16───────────────────────────────────────────────────╮
+┃▸ ✓ #16    default  2h  John Doe          ┃│Manual run by John Doe · c42d4a0                                │
+┃  ✓ #15    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #14    default  2h  John Doe          ┃│▸ ✓ Deploy                     4s                               │
+┃  ✓ #13    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #12    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #11    default  2h  John Doe          ┃│                                                                │
+┃  ✓ #10    default  3h  John Doe          ┃│                                                                │
+┃  ✓ #9     default  3h  John Doe          ┃│                                                                │
+┃  ✓ #8     default  3h  Admin             ┃│                                                                │
+┃  ✓ #7     default  4h  Admin             ┃│                                                                │
+┃  ✓ #6     default  4h  Admin             ┃│                                                                │
+┃  ✗ #5     default  4h  Admin             ┃│                                                                │
+┃  ✗ #4     default  4h  Admin             ┃│                                                                │
+┃  – #3     default  4h  Admin             ┃│                                                                │
+┃  – #2     default  5h  Admin             ┃│                                                                │
+┃  ✗ #1     default  9h  Admin             ┃│                                                                │
+┃                                          ┃╭─Tree · what #16 triggered──────────────────────────────────────╮
+┃                                          ┃│#16 triggered nothing                                           │
+ SETLIST-DEPLOY-16 · ✓ success · refreshing…
+ 1 succeeded
+ SETLIST-DEPLOY-16 (Deploy)  ✓ success  4s
+ └─ ✓ stage Deploy  4s
+work · 12.1.8 · jdoe                                                  enter build  l logs  r refresh  esc back
+ SETLIST-DEPLOY-16 · ✓ success
+┏━Builds━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Stages · #16 · loading─────────────────────────────────────────╮
+┃loading…                                  ┃│Manual run by John Doe · c42d4a0                                │
+┃                                          ┃│▸ ✓ Deploy                     4s                               │
+     ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+     ┃Keys · 1-24 of 75 · j k g G scroll                                                                ┃
+     ┃MOVE  j k ↑ ↓          up / down in the focused panel                                             ┃
+     ┃      g G              first / last row                                                           ┃
+     ┃      tab              next panel: Builds, Stages, Tree                                           ┃
+     ┃      shift-tab        previous panel                                                             ┃
+     ┃      1 2 3            focus Builds, Stages, Tree (on Home: open the plan screen there)           ┃
+     ┃      enter            drill in: a build's stages, expand a stage, open a triggered plan          ┃
+     ┃      esc              back one level, close an overlay; from Stages or Tree to Builds; from a    ┃
+     ┃                       triggered plan to its parent; from Builds to Home; from a project's plans  ┃
+     ┃                       to :projects                                                               ┃
+     ┃HOME  enter            open the plan screen; on a preset, show what it sends                      ┃
+     ┃      E                edit the selected preset's file                                            ┃
+     ┃      D                remove the selected preset (asks first)                                    ┃
+     ┃      s                next sort column                                                           ┃
+     ┃      :                command bar: :plans :presets :sets :projects :tree :stats :top :project    ┃
+     ┃                       :server :sort :q                                                           ┃
+     ┃      m                pin the selected plan to bam top (asks for the group); also on a plan's    ┃
+     ┃                       screen                                                                     ┃
+     ┃BOARD tab              next panel: Needs you, Your agents, Queue, Pinned                          ┃
+     ┃      a                your agents, queue and Needs you only, or the whole server; enter on a     ┃
+     ┃                       pool lists its agents                                                      ┃
+     ┃      Needs you        what to act on: your agents that are down or disabled, builds of yours     ┃
+     ┃                       waiting over 5 minutes, pinned pipelines that failed or run slow           ┃
+     ┃      Agents           your agents, building, idle, down or disabled; with none listed, every     ┃
+     ┃                       agent of the server                                                        ┃
+     ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛

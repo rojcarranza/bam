@@ -1,0 +1,50 @@
+────────────────────────────────────────────────────────────────────────────────
+>
+$
+$ bam pin add release SETLIST-CI SETLIST-DEPLOY SETLIST-SMOKE
+Pinned SETLIST-CI in release
+Pinned SETLIST-DEPLOY in release
+Pinned SETLIST-SMOKE in release
+$ bam top --once
+work  https://bamboo.example.com  Bamboo 12.1.8
+NEEDS YOU
+  ! CI@capo-transpose: the last build, SETLIST-CI0-9, failed
+AGENTS
+  1 agents: 0 building · 1 idle · 0 down · 0 disabled
+  Show only your agents: bam agent mine add NAME-START
+YOUR QUEUE
+  Nothing waits for you
+  1 more build waits for other agents
+PINNED
+  release
+    PIPELINE             LAST 10     NOW  LAST  USUAL
+    CI                   ✓✓✓✓✓✓✓✓✓✓  –    1s    1s
+      CI@capo-transpose  ✗✗✗✗✗✗✗✗✗   –    1s    –
+    Deploy               –✗✗✓✓✓✓✓✓✓  –    3s    3s
+    Smoke test           ✓✓✗✓✓✗✓     –    1s    1s
+$ bam top
+ work · Bamboo 12.1.8                                                                          updated 1s ago
+┏━Needs you━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃▸ ! CI@capo-transpose: the last build, SETLIST-CI0-9, failed                                                ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+╭─Agents─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  ░░░░░░░░░░ 0 building · 1 idle · 0 down · 0 disabled                                                      │
+│  busy ▁ 0%–0%  queued █ 1–1  since opened, lowest–highest                                                  │
+│  Show only your agents: bam agent mine add NAME-START                                                      │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─Your queue · 0 of 1────────────────────────────────────────────────────────────────────────────────────────╮
+│  Nothing waits for you                                                                                     │
+│  1 more build waits for other agents                                                                       │
+╭─Pinned─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│  release                                                                                                   │
+│▸ CI                  ✓✓✓✓✓✓✓✓✓✓ – last 1s · usual 1s                                                       │
+│    ├─ ✓ stage Build  1s                                                                                    │
+│    ├─ SETLIST-IT-31 (Integration tests)  ✓ success  6s                                                     │
+│    │  └─ ✓ stage Test  1s                                                                                  │
+│    └─ SETLIST-PACKAGE-28 (Package)  ✓ success  5s                                                          │
+│       └─ ✓ stage Package  5s                                                                               │
+│    CI@capo-transpose ✗✗✗✗✗✗✗✗✗  – last 1s · usual –                                                        │
+│  Deploy              –✗✗✓✓✓✓✓✓✓ – last 3s · usual 3s                                                       │
+│  Smoke test          ✓✓✗✓✓✗✓    – last 1s · usual 1s                                                       │
+│                                                                                                            │
+work             enter open  l logs  t tree  i why  P pin  a agents  tab panel  : cmd  ?help  o Bamboo  q quit

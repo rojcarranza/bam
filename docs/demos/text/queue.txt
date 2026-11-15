@@ -1,0 +1,26 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run load --watch=false | tee /tmp/load.out
+Plan     SETLIST-LOAD
+Vars     none
+✓ Queued   SETLIST-LOAD-7   https://bamboo.example.com/browse/SETLIST-LOAD-7
+  watch: bam watch SETLIST-LOAD-7
+$ echo $L
+SETLIST-LOAD-7
+$ bam run ci --watch=false
+Plan     SETLIST-CI
+✓ Queued   SETLIST-CI-46   https://bamboo.example.com/browse/SETLIST-CI-46
+  watch: bam watch SETLIST-CI-46
+$ bam queue | grep -E '^#|SETLIST'
+#  BUILD          REASON        WAITED  WHY
+2  SETLIST-CI-46  Manual build  2s      agents are free, 1 before it
+$ bam build cancel $L
+stopping SETLIST-LOAD-7
+$ bam queue | grep -E '^#|SETLIST'; bam watch --last
+2  SETLIST-CI-46  Manual build  12s     agents are free, 1 before it
+SETLIST-CI-46 (CI)                    ✓ success  18s
+├─ stage Build                        ✓ success  1s
+├─ SETLIST-IT-50 (Integration tests)  ✓ success  12s
+│  └─ stage Test                      ✓ success  0s
+└─ SETLIST-PACKAGE-46 (Package)       ✓ success  11s
+   └─ stage Package                   ✓ success  11s

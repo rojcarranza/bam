@@ -1,0 +1,9 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam url SETLIST-DEPLOY
+https://bamboo.example.com/browse/SETLIST-DEPLOY
+$ bam url SETLIST-CI-14
+https://bamboo.example.com/browse/SETLIST-CI-14
+$ bam open SETLIST-CI-14 --job UNIT
+browser: opening https://bamboo.example.com/browse/SETLIST-CI-UNIT-14
+opening https://bamboo.example.com/browse/SETLIST-CI-UNIT-14

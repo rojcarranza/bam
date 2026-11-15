@@ -1,0 +1,81 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam
+ Server:  work [bamboo.example.com]                                        <enter> drill in
+ Version: bam v0.5.1-0.20261115072253-0ea2b9e3a9e8+dirty · Bamboo 12.1.8   <R> open the run form
+ User:    jdoe                                                             <o> open in the browser
+─────────────────────────────────────────────── plans(all)[6] ──────────────────────────────────── sort key↑ ─
+  PROJECT  KEY              NAME                                      STATE             #  AGE    BY
+▸ SETLIST  SETLIST-CI       CI                                        ✓ success        45  1m     John Doe
+  SETLIST  SETLIST-DEPLOY   Deploy                                    ✓ success        15  1m     John Doe
+  SETLIST  SETLIST-IT       Integration tests                         ✓ success        49  1m     dep
+  SETLIST  SETLIST-LOAD     Load test                                 ✓ success         5  33m    John Doe
+  SETLIST  SETLIST-PACKAGE  Package                                   ✓ success        45  1m     dep
+  SETLIST  SETLIST-SMOKE    Smoke test                                ✓ success        10  1m     John Doe
+work · 12.1.8 · jdoe                                 enter open  / filter  s sort  : cmd  R run  ?help  q quit
+▸ SETLIST  SETLIST-CI       CI                                        ✓ success        45  2m     John Doe
+:presets    presets
+ User:    jdoe                                                             <P> filter by project
+────────────────────────────────────────────── presets(all)[5] ──────────────────────────────── sort preset↑ ─
+  PRESET  PLAN            BRANCH                                                    STATE             #  AGE
+▸ ci      SETLIST-CI      default                                                   ✓ success        45  2m
+  deploy  SETLIST-DEPLOY  default                                                   ✓ success        15  1m
+  it      SETLIST-IT      default                                                   ✓ success        49  1m
+  load    SETLIST-LOAD    default                                                   ✓ success         5  33m
+  smoke   SETLIST-SMOKE   default                                                   ✓ success        10  1m
+  ci      SETLIST-CI      default                                                   ✓ success        45  2m
+▸ deploy  SETLIST-DEPLOY  default                                                   ✓ success        15  1m
+ Deploy
+ SETLIST-DEPLOY · preset deploy
+┏━Variables━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃loading the plan's variables…                                                                               ┃
+┃                                                                                                            ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+work · 12.1.8 · jdoe                                                                                esc cancel
+┃▸ db_password           ********                            preset                                          ┃
+┃  environment           prod                                dev | staging | prod                            ┃
+┃  region                us                                  eu | us                                         ┃
+┃  replicas              2                                   from #15                                        ┃
+┃  version               1.0.1                               required                                        ┃
+┃  revision              newest                              #15 built c42d4a0                               ┃
+┃4 of 5 changed from the plan's values                                                                       ┃
+work · 12.1.8 · jdoe                                enter edit  a add  x remove  d dry-run  ^R run  esc cancel
+┃  db_password           ********                            preset                                          ┃
+┃▸ environment           prod                                dev | staging | prod                            ┃
+┃▸ environment           dev                                 dev | staging | prod                            ┃
+┃3 of 5 changed from the plan's values                                                                       ┃
+┃▸ environment           staging                             dev | staging | prod                            ┃
+                         ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+                         ┃Would send                                                ┃
+                         ┃plan SETLIST-DEPLOY                                       ┃
+                         ┃                                                          ┃
+                         ┃db_password=********                                      ┃
+                         ┃environment=staging                                       ┃
+                         ┃region=us                                                 ┃
+                         ┃version=1.0.1                                             ┃
+                         ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+ SETLIST › SETLIST-DEPLOY                                                     ✓ success last build #16 2s ago
+───────────────────────────────────────────────── builds[16] ─────────────────────────────────────────────────
+╭─Builds───────────────────────────────────╮┏━Stages · #16━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│▸ ✓ #16    default  now  John Doe         │┃Manual run by John Doe · c42d4a0                                ┃
+│  ✓ #15    default  1m   John Doe         │┃                                                                ┃
+│  ✓ #14    default  1m   John Doe         │┃▸ ✓ Deploy                     4s                               ┃
+│  ✓ #13    default  2m   John Doe         │┃                                                                ┃
+│  ✓ #12    default  29m  John Doe         │┃                                                                ┃
+│  ✓ #11    default  29m  John Doe         │┃                                                                ┃
+│  ✓ #10    default  1h   John Doe         │┃                                                                ┃
+│  ✓ #9     default  1h   John Doe         │┃                                                                ┃
+│  ✓ #8     default  1h   Admin            │┃                                                                ┃
+│  ✓ #7     default  1h   Admin            │┃                                                                ┃
+│  ✓ #6     default  1h   Admin            │┃                                                                ┃
+│  ✗ #5     default  1h   Admin            │┃                                                                ┃
+│  ✗ #4     default  2h   Admin            │┃                                                                ┃
+│  – #3     default  2h   Admin            │┃                                                                ┃
+│  – #2     default  2h   Admin            │┃                                                                ┃
+│  ✗ #1     default  6h   Admin            │┃                                                                ┃
+│                                          │┃                                                                ┃
+│                                          │┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+│                                          │╭─Tree · what #16 triggered──────────────────────────────────────╮
+│                                          ││#16 triggered nothing                                           │
+╰──────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────╯
+work · 12.1.8 · jdoe                                           enter expand  l logs  R run  t tree  esc builds

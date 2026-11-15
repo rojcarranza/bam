@@ -1,0 +1,30 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ git branch --show-current
+capo-transpose
+$ bam run ci --branch @
+Plan     SETLIST-CI  (branch capo-transpose, SETLIST-CI0)
+Vars     none
+✓ Queued   SETLIST-CI0-8   https://bamboo.example.com/browse/SETLIST-CI0-8
+SETLIST-CI0-8 (CI · capo-transpose)  ✗ failed  1s  12 tests failed
+└─ stage Build                       ✗ failed  1s  Unit
+failed: SETLIST-CI0-8 https://bamboo.example.com/browse/SETLIST-CI0-8
+  failed tests: github.com/rojcarranza/setlist-service/api.TestTransposeQuery, github.com/rojcarranza/setlist-
+service/setlist.TestTransposedMovesEverySong, github.com/rojcarranza/setlist-service/transpose.TestCapoMatches
+Transpose (+9 more)
+  cause: --- FAIL: TestTransposedMovesEverySong (0.00s) (job UNIT)
+next: bam logs SETLIST-CI0-8 --failed
+$ bam build investigate --last
+SETLIST-CI0-8  ✗ failed
+Reason: Manual run by John Doe
+Build / Unit (UNIT)  first error at line 32
+       29  === RUN   TestTransposedMovesEverySong
+       30      setlist_test.go:57: song 0 key = "B", want "C"
+       31      setlist_test.go:57: song 1 key = "E", want "F"
+  >    32  --- FAIL: TestTransposedMovesEverySong (0.00s)
+       33  === RUN   TestTransposedLeavesOriginal
+       34  --- PASS: TestTransposedLeavesOriginal (0.00s)
+       35  FAIL
+       40  === RUN   TestKey
+       41  === RUN   TestKey/G
+       42      transpose_test.go:30: Key("G", 5) = "B", want "C"

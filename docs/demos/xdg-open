@@ -1,0 +1,3 @@
+#!/bin/sh
+# Stand-in for the desktop's browser opener: the container has no browser, so say what a browser would open.
+echo "browser: opening $1"

@@ -1,7 +1,7 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X github.com/rojcarranza/bam/internal/cli.version=$(VERSION)
 
-.PHONY: build install test lint e2e record check-fixtures docs stub gate release
+.PHONY: build install test lint e2e record check-fixtures docs stub gate release demos demos-seed demo check-demos
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/bam ./cmd/bam
@@ -35,3 +35,16 @@ gate:
 
 release:
 	./scripts/release.sh $(VERSION)
+
+# README demo GIFs: recorded in a container against the lab Bamboo (docs/demos/README.md).
+demos-seed:
+	docs/demos/run.sh /demo/docs/demos/seed.sh
+
+demos: demos-seed
+	docs/demos/run.sh /demo/docs/demos/record.sh
+
+demo:
+	docs/demos/run.sh /demo/docs/demos/record.sh $(NAME)
+
+check-demos:
+	go run ./tools/checkdemos

@@ -1,0 +1,53 @@
+# The .bam.yaml of the demo clone of the sample setlist service: one preset per plan, a
+# check and verify sets, and the release train ci -> staging -> smoke -> prod eu -> prod us.
+version: 1
+servers:
+  work:
+    url: "https://bamboo.example.com"
+default_server: work
+projects: [SETLIST]
+targets:
+  ci:
+    plan: SETLIST-CI
+    watch: true
+  deploy:
+    plan: SETLIST-DEPLOY
+    defaults:
+      environment: dev
+      region: eu
+      replicas: "2"
+      db_password: "${DB_PASSWORD}"
+    options:
+      environment: [dev, staging, prod]
+      region: [eu, us]
+    required: [version]
+    watch: true
+  smoke:
+    plan: SETLIST-SMOKE
+    defaults:
+      environment: dev
+      version: "1.0.1"
+    watch: true
+  it:
+    plan: SETLIST-IT
+    watch: true
+  load:
+    plan: SETLIST-LOAD
+    watch: true
+sets:
+  check:
+    - [ci]
+  verify:
+    - [it]
+    - [smoke]
+  release:
+    stages:
+      - [ci]
+      - - target: deploy
+          vars: {environment: staging, version: "1.0.1"}
+      - - target: smoke
+          vars: {environment: staging}
+      - - target: deploy
+          vars: {environment: prod, region: eu, version: "1.0.1"}
+      - - target: deploy
+          vars: {environment: prod, region: us, version: "1.0.1"}

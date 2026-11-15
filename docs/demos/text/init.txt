@@ -1,0 +1,29 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam init --server work --project SETLIST --plan SETLIST-CI=ci --plan SETLIST-DEPLOY=deploy --plan SETLIST-SM
+OKE=smoke
+wrote /home/jdoe/setlist-service/.bam.yaml
+review before commit: values copied from Bamboo
+$ head -22 .bam.yaml
+version: 1
+servers:
+  work:
+    url: "https://bamboo.example.com"
+default_server: work
+projects: [SETLIST]
+targets:
+  ci:
+    plan: SETLIST-CI
+    # SETLIST-CI lists no variables of its own; global and deployment variables are not read, so add any the r
+un needs under defaults
+    server: work
+    watch: true
+  deploy:
+    plan: SETLIST-DEPLOY
+    defaults:
+      # db_password: "${DB_PASSWORD}"
+      environment: "dev"
+      region: "eu"
+      replicas: "2"
+      version: ""
+$ bam preset list

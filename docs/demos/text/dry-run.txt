@@ -1,0 +1,13 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run deploy --var version=1.0.2 --var environment=staging --dry-run
+Plan     SETLIST-DEPLOY
+Vars     db_password=******** (env)  environment=staging (flag)  region=eu (preset)  replicas=2 (preset)  vers
+ion=1.0.2 (flag)
+dry run: nothing triggered
+$ bam run deploy --var version=1.0.2 --var environment=qa --dry-run
+error: environment="qa" is not allowed by preset deploy
+  allowed: dev, staging, prod
+$ bam run deploy --dry-run
+error: version is required by preset deploy
+  try: --var version=VALUE

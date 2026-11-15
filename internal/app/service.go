@@ -73,6 +73,17 @@ func (s *Service) Config() *config.Config {
 	return cfg
 }
 
+// configNow is Config for a use case that sends something to Bamboo. When the
+// files changed and no longer parse, it returns that error instead of acting on
+// the last good copy: a run must not go out with values the person just edited
+// away.
+func (s *Service) configNow() (*config.Config, error) {
+	if s.Cfg == nil {
+		return nil, nil
+	}
+	return s.Cfg.Current()
+}
+
 // ProjectKeys is the projects that scope navigation on this server
 // (config.ProjectKeys), or nil when none is configured. The terminal UI calls
 // it so that it never reads the configuration itself.

@@ -82,7 +82,11 @@ func BuildLabel(key string) string {
 // ResolvePlan turns a target name or plan key into a PlanRef. branch
 // overrides the target's branch.
 func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef, error) {
-	return s.resolvePlanIn(ctx, s.Config(), arg, branch)
+	cfg, err := s.configNow()
+	if err != nil {
+		return PlanRef{}, err
+	}
+	return s.resolvePlanIn(ctx, cfg, arg, branch)
 }
 
 // resolvePlanIn is ResolvePlan against one configuration, for a caller that

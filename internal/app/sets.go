@@ -56,7 +56,10 @@ type SetPlan struct {
 // shows before the first trigger. It triggers nothing.
 func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPlan, error) {
 	var set config.ResolvedSet
-	cfg := s.Config()
+	cfg, err := s.configNow()
+	if err != nil {
+		return SetPlan{}, err
+	}
 	if o.File != "" {
 		abs, err := filepath.Abs(o.File)
 		if err != nil {

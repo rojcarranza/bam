@@ -131,3 +131,14 @@ func replaceOnce(t *testing.T, s, old, repl string) string {
 	require.Contains(t, s, old)
 	return strings.Replace(s, old, repl, 1)
 }
+
+// A save that no longer parses must stop a run, not send the last good values.
+func TestARunIsRefusedWhileTheConfigFileDoesNotParse(t *testing.T) {
+	svc, path := liveService(t)
+	writeLive(t, path, "version: 1\ntargets: [unbalanced\n")
+	_, err := svc.ResolvePlan(context.Background(), "provision-lab", "")
+	require.Error(t, err)
+	_, err = svc.PlanSet(context.Background(), "nightly", SetOptions{})
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "unknown set", "the parse error is shown, not a missing set")
+}

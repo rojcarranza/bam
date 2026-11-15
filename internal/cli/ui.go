@@ -83,14 +83,14 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 		// cached Config holds the .bam.yaml parsed at start-up. The server
 		// connection is untouched by this.
 		Targets: func() ([]app.TargetInfo, error) {
-			fresh, err := r.config()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}
 			return app.DescribeTargets(fresh, r.env.Getenv)
 		},
 		Sets: func() ([]app.SetInfo, error) {
-			fresh, err := r.config()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 			if err != nil {
 				return "", err
 			}
-			fresh, err := r.config()
+			fresh, err := r.current()
 			if err != nil {
 				return "", err
 			}
@@ -111,7 +111,7 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 		},
 		// EditorCmd opens a preset file in the editor bam run --edit uses.
 		EditorCmd: func(path string) (*exec.Cmd, error) {
-			cfg, err := r.config()
+			cfg, err := r.current()
 			if err != nil {
 				return nil, err
 			}
@@ -120,7 +120,7 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 		},
 		// RemovePreset reads the files fresh, as preset rm does.
 		RemovePreset: func(name string) ([]string, error) {
-			fresh, err := r.config()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}
@@ -131,7 +131,7 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 		// The board reads the pins fresh on every refresh and writes only
 		// bam's own settings file.
 		Monitor: func() ([]config.PinGroup, error) {
-			fresh, err := r.config()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}

@@ -43,9 +43,9 @@ func (s *Service) Investigate(ctx context.Context, b provider.Build, o Investiga
 	if err != nil {
 		return inv, err
 	}
-	if s.Config() != nil {
+	if cfg := s.Config(); cfg != nil {
 		// A broken children: map is for bam build tree to report; it only costs this hint.
-		if m, err := s.Config().Children(); err == nil {
+		if m, err := cfg.Children(); err == nil {
 			inv.Children = m[b.PlanKey]
 		}
 	}

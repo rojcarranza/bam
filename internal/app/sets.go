@@ -56,23 +56,24 @@ type SetPlan struct {
 // shows before the first trigger. It triggers nothing.
 func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPlan, error) {
 	var set config.ResolvedSet
+	cfg := s.Config()
 	if o.File != "" {
 		abs, err := filepath.Abs(o.File)
 		if err != nil {
 			return SetPlan{}, errs.Configf("cannot resolve %s", o.File).WithWhy(err.Error())
 		}
-		if set, err = s.Config().LoadSetFileNamed(abs, o.recordedName); err != nil {
+		if set, err = cfg.LoadSetFileNamed(abs, o.recordedName); err != nil {
 			return SetPlan{}, err
 		}
 		o.File, name = abs, set.Name
 	} else {
 		var ok bool
 		var err error
-		if set, ok, err = s.Config().Set(name); err != nil {
+		if set, ok, err = cfg.Set(name); err != nil {
 			return SetPlan{}, err
 		}
 		if !ok {
-			return SetPlan{}, UnknownSet(s.Config(), name)
+			return SetPlan{}, UnknownSet(cfg, name)
 		}
 	}
 	p := SetPlan{Name: name, Origin: s.Origin, Timeout: time.Duration(set.Timeout), VarNames: varNames(o.Vars), File: o.File}
@@ -108,11 +109,12 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 // planRun resolves one run: the preset's plan and branch, then its
 // variables with the set's vars laid over the preset's defaults.
 func (s *Service) planRun(ctx context.Context, r config.SetRun, o SetOptions) (SetRunPlan, error) {
-	t, _, err := s.Config().Target(r.Target)
+	cfg := s.Config()
+	t, _, err := cfg.Target(r.Target)
 	if err != nil {
 		return SetRunPlan{}, err
 	}
-	server, err := s.Config().SelectServer(o.Server, t.Server)
+	server, err := cfg.SelectServer(o.Server, t.Server)
 	if err != nil {
 		return SetRunPlan{}, err
 	}

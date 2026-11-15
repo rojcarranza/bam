@@ -99,8 +99,9 @@ func (s *Service) DefaultProject() string {
 func (s *Service) Build(ctx context.Context, key string) (provider.Build, error) {
 	b, err := s.P.GetBuild(ctx, key)
 	if err != nil && errors.Is(err, errs.ErrNotFound) {
-		if rec, ok, _ := s.State.Last(s.Config().RepoRoot); ok && rec.BuildKey == key && rec.Origin == s.Origin {
-			_ = s.State.Forget(s.Config().RepoRoot)
+		root := s.Config().RepoRoot
+		if rec, ok, _ := s.State.Last(root); ok && rec.BuildKey == key && rec.Origin == s.Origin {
+			_ = s.State.Forget(root)
 			return b, errs.Bamboof("the last build %s no longer exists on %s", key, s.Server.Alias).
 				WithWhy("it was removed on the server, so bam forgot it").Wrap(errs.ErrNotFound)
 		}

@@ -38,11 +38,12 @@ func (s *Service) Run(ctx context.Context, ref PlanRef, vs VarSet) (provider.Bui
 	if ref.Target != nil {
 		rec.Target = ref.Target.Name
 	}
+	repoRoot := s.Config().RepoRoot
 	run := JournalRun{BuildKey: b.Key, Origin: s.Origin, Server: s.Server.Alias, PlanKey: ref.PlanKey, Branch: ref.Branch,
-		Target: rec.Target, RepoRoot: s.Config().RepoRoot, StartedAt: rec.TriggeredAt}
+		Target: rec.Target, RepoRoot: repoRoot, StartedAt: rec.TriggeredAt}
 	// The build is already running; failing to remember it only loses --last
 	// and the status list.
-	_ = s.State.Record(s.Config().RepoRoot, rec, run)
+	_ = s.State.Record(repoRoot, rec, run)
 	return b, nil
 }
 

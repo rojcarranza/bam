@@ -38,8 +38,8 @@ type globalFlags struct {
 type runtime struct {
 	env   Env
 	flags globalFlags
-	// src is the configuration source, made on first use; cfg is what it last
-	// returned, for commands that read it after config() has run.
+	// src is the configuration source, made on first use; cfg is the first one
+	// it returned, for commands that read it after config() has run.
 	src   *config.Source
 	cfg   *config.Config
 	trees *app.TreeStore
@@ -79,16 +79,27 @@ func (r *runtime) source() (*config.Source, error) {
 // the last call, so the terminal UI's panels and its service see an edit made
 // while it is open, and a preset or pin bam wrote itself.
 func (r *runtime) config() (*config.Config, error) {
+	cfg, err := r.current()
+	if err != nil {
+		return nil, err
+	}
+	// r.cfg is set once: the terminal UI calls config from several goroutines,
+	// and a later write would race with the reads of commands.
+	if r.cfg == nil {
+		r.cfg = cfg
+	}
+	return cfg, nil
+}
+
+// current is config without remembering the result in r.cfg. The terminal
+// UI's callbacks run on several goroutines and use this one, so nothing of
+// the runtime is written from them.
+func (r *runtime) current() (*config.Config, error) {
 	src, err := r.source()
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := src.Current()
-	if err != nil {
-		return nil, err
-	}
-	r.cfg = cfg
-	return cfg, nil
+	return src.Current()
 }
 
 // configChanged tells the source that bam itself wrote a configuration file,

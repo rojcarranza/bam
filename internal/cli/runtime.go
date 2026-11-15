@@ -188,6 +188,9 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 	if r.env.Paths.AgentJobs != "" {
 		svc.AgentJobs = &app.AgentJobStore{Dir: r.env.Paths.AgentJobs}
 	}
+	if r.env.Paths.JobAgents != "" {
+		svc.JobAgents = &app.JobAgentStore{Dir: r.env.Paths.JobAgents}
+	}
 	return svc, backend, nil
 }
 

@@ -41,6 +41,9 @@ type Service struct {
 	// AgentJobs keeps the jobs each agent can run between runs; nil keeps
 	// them for this process only.
 	AgentJobs *AgentJobStore
+	// JobAgents keeps which agent ran each finished job between runs; nil
+	// reads every log again.
+	JobAgents *JobAgentStore
 	Getenv    func(string) string
 	// Checkout returns the branch checked out in the working directory; nil
 	// when bam has no repository to ask. "@" in a branch means this branch.

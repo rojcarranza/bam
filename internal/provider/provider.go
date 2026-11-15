@@ -64,6 +64,21 @@ type AgentSwitcher interface {
 	SetAgentEnabled(ctx context.Context, agent Agent, enabled bool) error
 }
 
+// JobAgentReader is an optional Provider extension: it says which agent ran a
+// job. Bamboo's job records do not, so the Bamboo provider reads it from the
+// first lines of the job's log. JobAgent answers "" when the log names none,
+// and an error wrapping errs.ErrUnsupported when the server cannot say.
+type JobAgentReader interface {
+	JobAgent(ctx context.Context, jobResultKey string) (string, error)
+}
+
+// RecentBuilder is an optional Provider extension: it lists the server's
+// newest builds across its plans, finished or not, newest first.
+// Stages and jobs are not filled; GetBuild fills them.
+type RecentBuilder interface {
+	RecentBuilds(ctx context.Context, limit int) ([]Build, error)
+}
+
 // PlanSearcher is an optional Provider extension: it finds plans by name on
 // the server, across every project. SearchPlans answers an error wrapping
 // errs.ErrUnsupported when the server has no plan search, and the caller

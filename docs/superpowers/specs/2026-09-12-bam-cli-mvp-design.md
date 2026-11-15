@@ -127,6 +127,7 @@ Generated data is kept out of files that people edit:
 
 - Capability results: `$XDG_CACHE_HOME/bam/capabilities.json`, keyed by server origin.
 - Which jobs each agent can run, for why a queued build waits: `$XDG_CACHE_HOME/bam/agent-jobs/`, one file per server origin, each agent's list kept an hour.
+- Which agent ran each finished job, read from the job's log for `bam agent show` and `bam build show`: `$XDG_CACHE_HOME/bam/job-agents/`, one file per server origin.
 - Last-build record: `$XDG_STATE_HOME/bam/state.json`, keyed by repository root.
 - Command tally for `bam usage`: `$XDG_STATE_HOME/bam/usage.json`, command names and counts by day, never arguments.
 

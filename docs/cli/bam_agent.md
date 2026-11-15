@@ -1,6 +1,6 @@
 ## bam agent
 
-Build agents: list, mine, disable, enable
+Build agents: list, show, mine, disable, enable
 
 ```
 bam agent [flags]
@@ -30,4 +30,5 @@ bam agent [flags]
 * [bam agent enable](bam_agent_enable.md)	 - Enable a build agent (administrators only)
 * [bam agent list](bam_agent_list.md)	 - List the build agents: online, enabled and busy
 * [bam agent mine](bam_agent_mine.md)	 - The agents you support: add, rm, list, forget
+* [bam agent show](bam_agent_show.md)	 - Show an agent's track record: what it builds, its latest jobs, how often they fail
 

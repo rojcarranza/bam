@@ -51,6 +51,7 @@ bam build show PROJ-BUILD-482 --json --no-tui # one build: stages, jobs, failed 
 bam tree PROJ-BUILD-482 --json --no-tui       # a build and every build it triggered
 bam preset list --json --no-tui               # the user's named runs (presets)
 bam agent list --json --no-tui                # build agents
+bam agent show linux-3 --json --no-tui        # one agent's recent jobs and failure share
 ```
 
 A build key is `PLAN-NUMBER` (`PROJ-BUILD-482`). `--last` means the last build bam triggered

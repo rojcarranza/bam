@@ -23,8 +23,8 @@ import (
 func setService(t *testing.T, p *fake.Provider) *Service {
 	t.Helper()
 	svc := newService(t, p)
-	svc.Cfg.Project.Targets["publish-specs"] = config.Target{Plan: "PROJ-BUILD"}
-	svc.Cfg.Project.Sets = map[string]config.Set{"release": {Stages: []config.Stage{
+	svc.Config().Project.Targets["publish-specs"] = config.Target{Plan: "PROJ-BUILD"}
+	svc.Config().Project.Sets = map[string]config.Set{"release": {Stages: []config.Stage{
 		{{Target: "publish-specs"}},
 		{{Target: "provision-lab", Vars: config.StringMap{"cluster_name": "alpha", "compute_nodes": "4"}}},
 	}}}
@@ -50,17 +50,17 @@ func TestPlanSetResolvesEveryRunWithSetVarsOverDefaults(t *testing.T) {
 	typ, _ := prov.Vars.Get("cluster_type")
 	require.Equal(t, "k8s", typ.Value, "preset defaults still apply")
 	require.Equal(t, []string{"compute_nodes"}, p.VarNames)
-	require.Equal(t, "k8s", svc.Cfg.Project.Targets["provision-lab"].Defaults["cluster_type"])
-	require.NotContains(t, svc.Cfg.Project.Targets["provision-lab"].Defaults, "cluster_name", "the preset itself is untouched")
+	require.Equal(t, "k8s", svc.Config().Project.Targets["provision-lab"].Defaults["cluster_type"])
+	require.NotContains(t, svc.Config().Project.Targets["provision-lab"].Defaults, "cluster_name", "the preset itself is untouched")
 }
 
 func TestPlanSetCollectsEveryError(t *testing.T) {
 	svc := setService(t, fakeBamboo())
-	prov := svc.Cfg.Project.Targets["provision-lab"]
+	prov := svc.Config().Project.Targets["provision-lab"]
 	prov.Branch = "no-such-branch"
-	svc.Cfg.Project.Targets["provision-lab"] = prov
-	svc.Cfg.Project.Targets["build"] = config.Target{Plan: "PROJ-BUILD", Required: []string{"release_tag"}}
-	svc.Cfg.Project.Sets["release"] = config.Set{Stages: []config.Stage{
+	svc.Config().Project.Targets["provision-lab"] = prov
+	svc.Config().Project.Targets["build"] = config.Target{Plan: "PROJ-BUILD", Required: []string{"release_tag"}}
+	svc.Config().Project.Sets["release"] = config.Set{Stages: []config.Stage{
 		{{Target: "provision-lab"}},
 		{{Target: "build"}},
 		{{Target: "publish-specs"}},
@@ -92,10 +92,10 @@ func TestPlanSetWarnsAboutAnUndeclaredVar(t *testing.T) {
 
 func TestPlanSetRejectsAnotherServer(t *testing.T) {
 	svc := setService(t, fakeBamboo())
-	svc.Cfg.Project.Servers["lab"] = config.Server{URL: "https://bamboo.lab.example"}
-	tg := svc.Cfg.Project.Targets["publish-specs"]
+	svc.Config().Project.Servers["lab"] = config.Server{URL: "https://bamboo.lab.example"}
+	tg := svc.Config().Project.Targets["publish-specs"]
 	tg.Server = "lab"
-	svc.Cfg.Project.Targets["publish-specs"] = tg
+	svc.Config().Project.Targets["publish-specs"] = tg
 	_, err := svc.PlanSet(context.Background(), "release", SetOptions{})
 	require.Equal(t, errs.KindConfig, errs.KindOf(err))
 	require.Contains(t, err.Error(), "bamboo.lab.example")
@@ -220,7 +220,7 @@ func TestRunSetFailedNotesKnownRestartRefusal(t *testing.T) {
 func TestRunSetParallelStageWaitsForEveryRun(t *testing.T) {
 	fp := trainBamboo(map[string]provider.State{"PROJ-BUILD": provider.StateFailed, "PROJ-PROV12": provider.StateSuccess})
 	svc := setService(t, fp)
-	svc.Cfg.Project.Sets["release"] = config.Set{Stages: []config.Stage{
+	svc.Config().Project.Sets["release"] = config.Set{Stages: []config.Stage{
 		{{Target: "publish-specs"}, {Target: "provision-lab", Vars: config.StringMap{"cluster_name": "a"}}},
 		{{Target: "build"}},
 	}}
@@ -245,7 +245,7 @@ func TestRunSetTriggerErrorFailsThatRunOnly(t *testing.T) {
 	fp := trainBamboo(map[string]provider.State{"PROJ-PROV12": provider.StateSuccess})
 	fp.TriggerErrs = map[string]error{"PROJ-BUILD": errs.Bamboof("queue full")}
 	svc := setService(t, fp)
-	svc.Cfg.Project.Sets["release"] = config.Set{Stages: []config.Stage{
+	svc.Config().Project.Sets["release"] = config.Set{Stages: []config.Stage{
 		{{Target: "publish-specs"}, {Target: "provision-lab", Vars: config.StringMap{"cluster_name": "a"}}},
 	}}
 	id, evs := runSet(t, svc)
@@ -312,9 +312,9 @@ func TestRunSetPresetTimeoutFailsTheRunAndStopsNothing(t *testing.T) {
 	fp := trainBamboo(map[string]provider.State{"PROJ-PROV12": provider.StateSuccess})
 	forever(fp, "PROJ-BUILD")
 	svc := setService(t, fp)
-	tg := svc.Cfg.Project.Targets["publish-specs"]
+	tg := svc.Config().Project.Targets["publish-specs"]
 	tg.Timeout = config.Duration(time.Minute)
-	svc.Cfg.Project.Targets["publish-specs"] = tg
+	svc.Config().Project.Targets["publish-specs"] = tg
 	id, evs := runSet(t, svc)
 	require.Empty(t, fp.Stopped)
 	require.Len(t, fp.Triggered, 1)
@@ -328,9 +328,9 @@ func TestRunSetTimeoutEndsWithATimeoutError(t *testing.T) {
 	fp := trainBamboo(nil)
 	forever(fp, "PROJ-BUILD")
 	svc := setService(t, fp)
-	s := svc.Cfg.Project.Sets["release"]
+	s := svc.Config().Project.Sets["release"]
 	s.Timeout = config.Duration(time.Hour)
-	svc.Cfg.Project.Sets["release"] = s
+	svc.Config().Project.Sets["release"] = s
 	id, evs := runSet(t, svc)
 	last := evs[len(evs)-1]
 	require.Equal(t, SetError, last.Type)
@@ -370,7 +370,7 @@ func TestRunSetInterruptLeavesAResumableRecord(t *testing.T) {
 // saveRecord stores a record of the set "release" for svc's repository.
 func saveRecord(t *testing.T, svc *Service, rec SetRecord) SetRecord {
 	t.Helper()
-	rec.Version, rec.Set, rec.Repo = 1, "release", svc.Cfg.RepoRoot
+	rec.Version, rec.Set, rec.Repo = 1, "release", svc.Config().RepoRoot
 	if rec.Origin == "" {
 		rec.Origin = svc.Origin
 	}
@@ -502,8 +502,8 @@ func TestSetStatusFetchesLiveBuilds(t *testing.T) {
 
 func TestDescribeSetMasksSecrets(t *testing.T) {
 	svc := setService(t, fakeBamboo())
-	svc.Cfg.Project.Sets["release"].Stages[1][0].Vars["db_password"] = "${LAB_DB_PASSWORD}"
-	info, err := DescribeSet(svc.Cfg, func(string) string { return "" }, "release")
+	svc.Config().Project.Sets["release"].Stages[1][0].Vars["db_password"] = "${LAB_DB_PASSWORD}"
+	info, err := DescribeSet(svc.Config(), func(string) string { return "" }, "release")
 	require.NoError(t, err)
 	require.Equal(t, "release", info.Name)
 	require.Equal(t, "publish-specs", info.Stages[0][0].Target)
@@ -518,10 +518,10 @@ func TestDescribeSetMasksSecrets(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{"cluster_name", "compute_nodes", "db_password"}, names, "sorted by name")
-	all, err := DescribeSets(svc.Cfg, func(string) string { return "" })
+	all, err := DescribeSets(svc.Config(), func(string) string { return "" })
 	require.NoError(t, err)
 	require.Len(t, all, 1)
-	_, err = DescribeSet(svc.Cfg, func(string) string { return "" }, "nope")
+	_, err = DescribeSet(svc.Config(), func(string) string { return "" }, "nope")
 	require.Equal(t, errs.KindUsage, errs.KindOf(err))
 }
 
@@ -550,7 +550,7 @@ func TestRunSetRecordFailureMidStageEndsTheSet(t *testing.T) {
 	svc := setService(t, fp)
 	svc.P = gatedProvider{Provider: fp, key: "PROJ-PROV12-1", gate: gate}
 	svc.Getenv = func(string) string { return "x" }
-	svc.Cfg.Project.Sets["release"] = config.Set{Stages: []config.Stage{
+	svc.Config().Project.Sets["release"] = config.Set{Stages: []config.Stage{
 		{{Target: "publish-specs"}, {Target: "provision-lab", Vars: config.StringMap{"cluster_name": "a"}}},
 	}}
 	p, err := svc.PlanSet(context.Background(), "release", SetOptions{})
@@ -758,7 +758,7 @@ func TestRerunAdoptsABuildThatSucceededAfterAll(t *testing.T) {
 // cluster_name: alpha and beta.
 func matrixService(t *testing.T, p *fake.Provider) *Service {
 	svc := setService(t, p)
-	svc.Cfg.Project.Sets["release"] = config.Set{Stages: []config.Stage{
+	svc.Config().Project.Sets["release"] = config.Set{Stages: []config.Stage{
 		{{Target: "publish-specs"}},
 		{{Target: "provision-lab", Vars: config.StringMap{"compute_nodes": "4"},
 			Matrix: &config.Matrix{Sets: []config.StringMap{{"cluster_name": "alpha"}, {"cluster_name": "beta"}}}}},
@@ -858,7 +858,7 @@ func TestResumeRefusesAChangedMatrix(t *testing.T) {
 
 func TestDescribeSetShowsTheMatrixAndItsRuns(t *testing.T) {
 	svc := matrixService(t, fakeBamboo())
-	info, err := DescribeSet(svc.Cfg, func(string) string { return "" }, "release")
+	info, err := DescribeSet(svc.Config(), func(string) string { return "" }, "release")
 	require.NoError(t, err)
 	run := info.Stages[1][0]
 	require.NotNil(t, run.Matrix)
@@ -872,11 +872,11 @@ func TestDescribeSetShowsTheMatrixAndItsRuns(t *testing.T) {
 // project file refuses one). set show and set list must mask it.
 func TestDescribeSetMasksASecretInTheMatrix(t *testing.T) {
 	svc := setService(t, fakeBamboo())
-	svc.Cfg.Project.Sets["rel"] = config.Set{Stages: []config.Stage{
+	svc.Config().Project.Sets["rel"] = config.Set{Stages: []config.Stage{
 		{{Target: "publish-specs", Matrix: &config.Matrix{Product: map[string][]string{"db_password": {"hunter2"}, "env": {"qa"}}}}},
 		{{Target: "provision-lab", Matrix: &config.Matrix{Sets: []config.StringMap{{"db_password": "s3cr3t"}, {"db_password": "${PW}"}}}}},
 	}}
-	info, err := DescribeSet(svc.Cfg, func(string) string { return "" }, "rel")
+	info, err := DescribeSet(svc.Config(), func(string) string { return "" }, "rel")
 	require.NoError(t, err)
 	product, list := info.Stages[0][0], info.Stages[1][0]
 	require.Equal(t, "db_password=[********] env=[qa]", product.MatrixLine)
@@ -884,8 +884,8 @@ func TestDescribeSetMasksASecretInTheMatrix(t *testing.T) {
 	require.Equal(t, []config.StringMap{{"db_password": "********"}, {"db_password": "${PW}"}}, list.Matrix)
 	require.NotContains(t, fmt.Sprint(info), "hunter2")
 	require.NotContains(t, fmt.Sprint(info), "s3cr3t")
-	require.Equal(t, "publish-specs", svc.Cfg.Project.Sets["rel"].Stages[0][0].Target)
-	require.Equal(t, "hunter2", svc.Cfg.Project.Sets["rel"].Stages[0][0].Matrix.Product["db_password"][0], "the configuration itself is untouched")
+	require.Equal(t, "publish-specs", svc.Config().Project.Sets["rel"].Stages[0][0].Target)
+	require.Equal(t, "hunter2", svc.Config().Project.Sets["rel"].Stages[0][0].Matrix.Product["db_password"][0], "the configuration itself is untouched")
 }
 
 func TestLatestSetRunIsThisRepositorysNewest(t *testing.T) {

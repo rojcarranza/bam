@@ -21,19 +21,19 @@ func resolvedTarget(t *testing.T, cfg *config.Config, name string) config.Resolv
 
 func TestPlanSyncAddsAndMarks(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	lab := s.Cfg.Project.Targets["provision-lab"]
+	lab := s.Config().Project.Targets["provision-lab"]
 	lab.Defaults["old_flag"] = "on"
-	s.Cfg.Project.Targets["provision-lab"] = lab
+	s.Config().Project.Targets["provision-lab"] = lab
 
-	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
+	p, err := s.PlanSync(bg, resolvedTarget(t, s.Config(), "provision-lab"))
 	require.NoError(t, err)
 	assert.Equal(t, "provision-lab", p.Name)
 	assert.Equal(t, "PROJ-PROV", p.Plan)
-	assert.Equal(t, s.Cfg.ProjectPath, p.File)
+	assert.Equal(t, s.Config().ProjectPath, p.File)
 	assert.Equal(t, []config.DraftVar{{Name: "cluster_name", Value: ""}}, p.Added)
 	assert.Equal(t, []string{"old_flag"}, p.Stale)
 	require.Len(t, p.Edits, 1)
-	assert.Equal(t, SyncEdit{Path: s.Cfg.ProjectPath, KeyPath: []string{"targets"}, Edit: config.TargetEdit{
+	assert.Equal(t, SyncEdit{Path: s.Config().ProjectPath, KeyPath: []string{"targets"}, Edit: config.TargetEdit{
 		Add:    p.Added,
 		Mark:   []string{"old_flag"},
 		Unmark: []string{"cluster_type", "compute_nodes", "db_password"},
@@ -43,26 +43,26 @@ func TestPlanSyncAddsAndMarks(t *testing.T) {
 
 func TestPlanSyncSpreadsEditsAcrossLayers(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	s.Cfg.Machine.Targets = map[string]config.Target{"provision-lab": {Defaults: config.StringMap{"cluster_type": "dcos", "stale_here": "1"}}}
-	s.Cfg.Machine.Repos = map[string]config.Repo{s.Cfg.RepoRoot: {Targets: map[string]config.Target{"provision-lab": {Plan: "PROJ-PROV"}}}}
+	s.Config().Machine.Targets = map[string]config.Target{"provision-lab": {Defaults: config.StringMap{"cluster_type": "dcos", "stale_here": "1"}}}
+	s.Config().Machine.Repos = map[string]config.Repo{s.Config().RepoRoot: {Targets: map[string]config.Target{"provision-lab": {Plan: "PROJ-PROV"}}}}
 
-	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
+	p, err := s.PlanSync(bg, resolvedTarget(t, s.Config(), "provision-lab"))
 	require.NoError(t, err)
-	assert.Equal(t, s.Cfg.MachinePath, p.File, "added names go to the last layer that sets plan")
+	assert.Equal(t, s.Config().MachinePath, p.File, "added names go to the last layer that sets plan")
 	require.Len(t, p.Edits, 3)
 	assert.Empty(t, p.Edits[0].Edit.Add)
 	assert.Equal(t, []string{"cluster_type"}, p.Edits[1].Edit.Unmark)
 	assert.Equal(t, []string{"stale_here"}, p.Edits[1].Edit.Mark)
-	assert.Equal(t, []string{"repos", s.Cfg.RepoRoot, "targets"}, p.Edits[2].KeyPath)
+	assert.Equal(t, []string{"repos", s.Config().RepoRoot, "targets"}, p.Edits[2].KeyPath)
 	assert.Equal(t, p.Added, p.Edits[2].Edit.Add)
 }
 
 func TestPlanSyncUpToDateHasNoAdds(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	lab := s.Cfg.Project.Targets["provision-lab"]
+	lab := s.Config().Project.Targets["provision-lab"]
 	lab.Defaults["cluster_name"] = "x"
-	s.Cfg.Project.Targets["provision-lab"] = lab
-	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
+	s.Config().Project.Targets["provision-lab"] = lab
+	p, err := s.PlanSync(bg, resolvedTarget(t, s.Config(), "provision-lab"))
 	require.NoError(t, err)
 	assert.Empty(t, p.Added)
 	assert.Empty(t, p.Stale)
@@ -73,7 +73,7 @@ func TestPlanSyncMasksNewSecrets(t *testing.T) {
 	f := fakeBamboo()
 	f.Variables["PROJ-PROV"] = append(f.Variables["PROJ-PROV"], provider.Variable{Name: "api_secret", Masked: true})
 	s := newService(t, f)
-	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
+	p, err := s.PlanSync(bg, resolvedTarget(t, s.Config(), "provision-lab"))
 	require.NoError(t, err)
 	assert.Contains(t, p.Added, config.DraftVar{Name: "api_secret", Value: "${API_SECRET}"})
 }
@@ -81,10 +81,10 @@ func TestPlanSyncMasksNewSecrets(t *testing.T) {
 // A lean preset leaves out what the plan already sends; sync must not copy it back.
 func TestPlanSyncAddsMissingVariablesButNotStoredSecrets(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	lab := s.Cfg.Project.Targets["provision-lab"]
+	lab := s.Config().Project.Targets["provision-lab"]
 	lab.Defaults = config.StringMap{"cluster_name": "x"}
-	s.Cfg.Project.Targets["provision-lab"] = lab
-	p, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
+	s.Config().Project.Targets["provision-lab"] = lab
+	p, err := s.PlanSync(bg, resolvedTarget(t, s.Config(), "provision-lab"))
 	require.NoError(t, err)
 	var added []string
 	for _, v := range p.Added {
@@ -98,7 +98,7 @@ func TestPlanSyncNeedsDeclaredVariables(t *testing.T) {
 	f := fakeBamboo()
 	f.VariablesErr = errs.Bamboof("no").Wrap(errs.ErrUnsupported)
 	s := newService(t, f)
-	_, err := s.PlanSync(bg, resolvedTarget(t, s.Cfg, "provision-lab"))
+	_, err := s.PlanSync(bg, resolvedTarget(t, s.Config(), "provision-lab"))
 	require.Error(t, err)
 	assert.Equal(t, errs.KindBamboo, errs.KindOf(err))
 	assert.True(t, errors.Is(err, errs.ErrUnsupported))

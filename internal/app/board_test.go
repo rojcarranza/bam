@@ -125,10 +125,10 @@ func TestBoardReadsPinsAndFlagsFailedAndSlowOnes(t *testing.T) {
 func TestBoardDoesNotReadAPresetOfAnotherServer(t *testing.T) {
 	svc := newService(t, nil)
 	svc.P = boardBamboo(svc.Clock.Now())
-	svc.Cfg.Project.Servers["lab"] = config.Server{URL: "http://bamboo.lab.example:8085"}
-	svc.Cfg.Project.Targets["deploy-lab"] = config.Target{Plan: "PROJ-BUILD", Server: "lab"}
-	svc.Cfg.Project.Targets["deploy-work"] = config.Target{Plan: "PROJ-BUILD", Server: "work"}
-	svc.Cfg.Project.Targets["provision-lab2"] = config.Target{Plan: "LAB-PROV", Branch: "develop", Server: "lab"}
+	svc.Config().Project.Servers["lab"] = config.Server{URL: "http://bamboo.lab.example:8085"}
+	svc.Config().Project.Targets["deploy-lab"] = config.Target{Plan: "PROJ-BUILD", Server: "lab"}
+	svc.Config().Project.Targets["deploy-work"] = config.Target{Plan: "PROJ-BUILD", Server: "work"}
+	svc.Config().Project.Targets["provision-lab2"] = config.Target{Plan: "LAB-PROV", Branch: "develop", Server: "lab"}
 	b, err := svc.Board(context.Background(), pins("release", "deploy-lab", "deploy-work", "unknown-preset", "provision-lab2"))
 	require.NoError(t, err)
 	got := b.Groups[0].Pins

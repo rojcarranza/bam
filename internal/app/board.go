@@ -384,7 +384,7 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 		return s.followBranches(ctx, v, prev)
 	}
 	plan, branch := config.SplitPin(pin)
-	if t, ok, _ := s.Cfg.Target(PresetName(s.Cfg, plan)); ok && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
+	if t, ok, _ := s.Config().Target(PresetName(s.Config(), plan)); ok && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
 		v.Err = errs.Usagef("preset %s is on server %s; bam top shows one server, %s", t.Name, t.Server, s.Server.Alias)
 		return v
 	}

@@ -16,7 +16,7 @@ import (
 func serviceWithDefault(key string) *app.Service {
 	svc := testService()
 	if key != "" {
-		svc.Cfg.Project = &config.ProjectFile{Version: 1, DefaultProject: key}
+		svc.Config().Project = &config.ProjectFile{Version: 1, DefaultProject: key}
 	}
 	return svc
 }
@@ -71,7 +71,7 @@ func TestLoadPlansCmdLoadsAProjectOutsideTheConfiguredList(t *testing.T) {
 	f := svc.P.(*fake.Provider)
 	f.Projects = append(f.Projects, provider.Project{Key: "LAB", Name: "Lab"})
 	f.Plans["LAB"] = []provider.Plan{{Key: "LAB-SMOKE", Name: "Smoke", ProjectKey: "LAB"}}
-	svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"PROJ"}}
+	svc.Config().Project = &config.ProjectFile{Version: 1, Projects: []string{"PROJ"}}
 
 	got := loadPlansCmd(context.Background(), svc, "LAB", 0)().(plansLoadedMsg)
 	require.Len(t, got.Plans, 1)

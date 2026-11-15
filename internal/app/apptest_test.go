@@ -99,7 +99,7 @@ func newService(t *testing.T, p *fake.Provider) *Service {
 	root := t.TempDir()
 	return &Service{
 		P:      p,
-		Cfg:    testConfig(root),
+		Cfg:    config.Fixed(testConfig(root)),
 		Server: config.ResolvedServer{Alias: "work", URL: "https://bamboo.example.com"},
 		Origin: "https://bamboo.example.com",
 		Clock:  newClock(),

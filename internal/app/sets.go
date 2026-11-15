@@ -61,18 +61,18 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 		if err != nil {
 			return SetPlan{}, errs.Configf("cannot resolve %s", o.File).WithWhy(err.Error())
 		}
-		if set, err = s.Cfg.LoadSetFileNamed(abs, o.recordedName); err != nil {
+		if set, err = s.Config().LoadSetFileNamed(abs, o.recordedName); err != nil {
 			return SetPlan{}, err
 		}
 		o.File, name = abs, set.Name
 	} else {
 		var ok bool
 		var err error
-		if set, ok, err = s.Cfg.Set(name); err != nil {
+		if set, ok, err = s.Config().Set(name); err != nil {
 			return SetPlan{}, err
 		}
 		if !ok {
-			return SetPlan{}, UnknownSet(s.Cfg, name)
+			return SetPlan{}, UnknownSet(s.Config(), name)
 		}
 	}
 	p := SetPlan{Name: name, Origin: s.Origin, Timeout: time.Duration(set.Timeout), VarNames: varNames(o.Vars), File: o.File}
@@ -108,11 +108,11 @@ func (s *Service) PlanSet(ctx context.Context, name string, o SetOptions) (SetPl
 // planRun resolves one run: the preset's plan and branch, then its
 // variables with the set's vars laid over the preset's defaults.
 func (s *Service) planRun(ctx context.Context, r config.SetRun, o SetOptions) (SetRunPlan, error) {
-	t, _, err := s.Cfg.Target(r.Target)
+	t, _, err := s.Config().Target(r.Target)
 	if err != nil {
 		return SetRunPlan{}, err
 	}
-	server, err := s.Cfg.SelectServer(o.Server, t.Server)
+	server, err := s.Config().SelectServer(o.Server, t.Server)
 	if err != nil {
 		return SetRunPlan{}, err
 	}
@@ -214,7 +214,7 @@ func (s *Service) RunSet(ctx context.Context, p SetPlan, lock SetLockOptions) (s
 	}
 	now := s.Clock.Now()
 	rec := SetRecord{Version: 1, ID: NewSetID(p.Name, now), Set: p.Name, File: p.File, Origin: p.Origin,
-		Repo: s.Cfg.RepoRoot, StartedAt: now.UTC(), Status: SetRunning, VarNames: p.VarNames}
+		Repo: s.Config().RepoRoot, StartedAt: now.UTC(), Status: SetRunning, VarNames: p.VarNames}
 	if rec.VarNames == nil {
 		rec.VarNames = []string{}
 	}
@@ -930,12 +930,12 @@ func maskedMatrix(m *config.Matrix) *config.Matrix {
 
 // LatestSetRun is this repository's newest record of set.
 func (s *Service) LatestSetRun(set string) (SetRecord, bool, error) {
-	return s.Sets.Latest(s.Cfg.RepoRoot, set, nil)
+	return s.Sets.Latest(s.Config().RepoRoot, set, nil)
 }
 
 // SetHistory is this repository's newest runs of set, newest first, at most n.
 func (s *Service) SetHistory(set string, n int) ([]SetRecord, error) {
-	recs, err := s.Sets.History(s.Cfg.RepoRoot, set)
+	recs, err := s.Sets.History(s.Config().RepoRoot, set)
 	if err != nil {
 		return nil, err
 	}

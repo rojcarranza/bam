@@ -8,7 +8,7 @@ import (
 )
 
 func TestProjectKeysComesFromTheConfiguration(t *testing.T) {
-	s := &Service{Cfg: testConfig(t.TempDir()), Server: config.ResolvedServer{Alias: "work"}}
+	s := &Service{Cfg: config.Fixed(testConfig(t.TempDir())), Server: config.ResolvedServer{Alias: "work"}}
 	assert.Equal(t, []string{"PROJ"}, s.ProjectKeys())
 
 	assert.Nil(t, (&Service{}).ProjectKeys(), "no configuration means no scope")
@@ -17,7 +17,7 @@ func TestProjectKeysComesFromTheConfiguration(t *testing.T) {
 func TestDefaultProjectComesFromTheConfiguration(t *testing.T) {
 	cfg := testConfig(t.TempDir())
 	cfg.Project.DefaultProject = "proj"
-	s := &Service{Cfg: cfg, Server: config.ResolvedServer{Alias: "work"}}
+	s := &Service{Cfg: config.Fixed(cfg), Server: config.ResolvedServer{Alias: "work"}}
 	assert.Equal(t, "PROJ", s.DefaultProject())
 
 	assert.Empty(t, (&Service{}).DefaultProject(), "no configuration means every project")

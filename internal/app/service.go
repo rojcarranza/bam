@@ -31,13 +31,16 @@ type Service struct {
 	// ReadOnly makes the Service refuse starting, resuming or rerunning a set
 	// before it takes a lock or writes a record; P refuses the calls themselves.
 	ReadOnly bool
-	Cfg      *config.Config
-	Server   config.ResolvedServer
-	Origin   string // credential.Origin(Server.URL)
-	Clock    Clock
-	State    *StateStore
-	Sets     *SetStore
-	Trees    *TreeStore // finished trees seen before; nil keeps none
+	// Cfg is where the configuration comes from; read it through Config. It
+	// reloads when a file changed, so a set or preset added while the UI is open
+	// is seen by every use case, not only by the panels.
+	Cfg    *config.Source
+	Server config.ResolvedServer
+	Origin string // credential.Origin(Server.URL)
+	Clock  Clock
+	State  *StateStore
+	Sets   *SetStore
+	Trees  *TreeStore // finished trees seen before; nil keeps none
 	// AgentJobs keeps the jobs each agent can run between runs; nil keeps
 	// them for this process only.
 	AgentJobs *AgentJobStore
@@ -58,23 +61,37 @@ type Service struct {
 	pinTrees  pinTreeCache  // the trees under the board's pins
 }
 
+// Config is the current configuration: the files are read again when one
+// changed since the last call. When a reload fails, such as a file saved
+// halfway through an edit, it is the last good configuration. Nil with no
+// source.
+func (s *Service) Config() *config.Config {
+	if s.Cfg == nil {
+		return nil
+	}
+	cfg, _ := s.Cfg.Current()
+	return cfg
+}
+
 // ProjectKeys is the projects that scope navigation on this server
 // (config.ProjectKeys), or nil when none is configured. The terminal UI calls
 // it so that it never reads the configuration itself.
 func (s *Service) ProjectKeys() []string {
-	if s.Cfg == nil {
+	cfg := s.Config()
+	if cfg == nil {
 		return nil
 	}
-	return s.Cfg.ProjectKeys(s.Server)
+	return cfg.ProjectKeys(s.Server)
 }
 
 // DefaultProject is the project the terminal UI opens on for this server
 // (config.DefaultProject), or "" for every project.
 func (s *Service) DefaultProject() string {
-	if s.Cfg == nil {
+	cfg := s.Config()
+	if cfg == nil {
 		return ""
 	}
-	return s.Cfg.DefaultProject(s.Server)
+	return cfg.DefaultProject(s.Server)
 }
 
 // Build fetches a build. When the last build recorded for this repository no
@@ -82,8 +99,8 @@ func (s *Service) DefaultProject() string {
 func (s *Service) Build(ctx context.Context, key string) (provider.Build, error) {
 	b, err := s.P.GetBuild(ctx, key)
 	if err != nil && errors.Is(err, errs.ErrNotFound) {
-		if rec, ok, _ := s.State.Last(s.Cfg.RepoRoot); ok && rec.BuildKey == key && rec.Origin == s.Origin {
-			_ = s.State.Forget(s.Cfg.RepoRoot)
+		if rec, ok, _ := s.State.Last(s.Config().RepoRoot); ok && rec.BuildKey == key && rec.Origin == s.Origin {
+			_ = s.State.Forget(s.Config().RepoRoot)
 			return b, errs.Bamboof("the last build %s no longer exists on %s", key, s.Server.Alias).
 				WithWhy("it was removed on the server, so bam forgot it").Wrap(errs.ErrNotFound)
 		}

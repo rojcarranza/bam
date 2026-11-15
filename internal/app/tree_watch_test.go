@@ -149,7 +149,7 @@ func TestWatchTreeGivesUpAfterThreeFailedRefreshes(t *testing.T) {
 
 func TestWatchTreeEndsAtOnceOnAConfigError(t *testing.T) {
 	svc := treeService(t, treeFake())
-	svc.Cfg.Project.Children = map[string][]string{"proj-api": {"OPS-DEPLOY"}}
+	svc.Config().Project.Children = map[string][]string{"proj-api": {"OPS-DEPLOY"}}
 	evs := collectTree(svc.WatchTree(context.Background(), "PROJ-API-142", TreeOptions{}))
 	require.Len(t, evs, 1)
 	require.Equal(t, errs.KindConfig, errs.KindOf(evs[0].Err))

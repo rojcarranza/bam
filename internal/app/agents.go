@@ -174,10 +174,11 @@ func agentPool(name string) (string, int) {
 
 // AgentStarts is the name starts of the agents you support on this server.
 func (s *Service) AgentStarts() []string {
-	if s.Cfg == nil {
+	cfg := s.Config()
+	if cfg == nil {
 		return nil
 	}
-	return s.Cfg.AgentStarts(s.Server)
+	return cfg.AgentStarts(s.Server)
 }
 
 // myAgents reads your agents from the list as, and keeps the names it saw.

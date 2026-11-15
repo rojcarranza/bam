@@ -71,7 +71,7 @@ func TestRestartLeavesTheLastBuildAlone(t *testing.T) {
 	s := newService(t, restartBamboo(oldResult(), provider.Build{Key: "PROJ-BUILD-9", State: provider.StateQueued}))
 	_, _, err := s.Restart(bg, "PROJ-BUILD-9")
 	require.NoError(t, err)
-	_, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	_, ok, _ := s.State.Last(s.Config().RepoRoot)
 	assert.False(t, ok, "a restart is not a trigger")
 }
 

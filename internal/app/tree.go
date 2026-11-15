@@ -209,7 +209,7 @@ func (s *Service) buildTree(ctx context.Context, key string, o TreeOptions, done
 			return Tree{}, nil, err
 		}
 	}
-	configured, err := s.Cfg.Children()
+	configured, err := s.Config().Children()
 	if err != nil {
 		return Tree{}, nil, err
 	}

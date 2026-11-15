@@ -28,7 +28,7 @@ func (s *Service) CommitPlan(ctx context.Context, arg, branch string) (string, e
 			return "", errs.Usagef("%s already means the checked-out branch, so --branch %s does not apply", arg, branch).
 				WithTry("bam watch PROJ-PLAN --branch @, or drop --branch")
 		}
-		rec, ok, err := s.State.Last(s.Cfg.RepoRoot)
+		rec, ok, err := s.State.Last(s.Config().RepoRoot)
 		if err != nil {
 			return "", err
 		}

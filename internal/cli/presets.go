@@ -441,7 +441,9 @@ func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file str
 	if err := checkPresetElsewhere(cfg, d.Name, path); err != nil {
 		return "", err
 	}
-	return path, config.WriteTarget(path, []string{"presets"}, d, force)
+	err = config.WriteTarget(path, []string{"presets"}, d, force)
+	r.configChanged()
+	return path, err
 }
 
 // checkPresetElsewhere refuses to add name to path when another presets file

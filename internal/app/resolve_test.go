@@ -143,7 +143,7 @@ func TestResolveBuild(t *testing.T) {
 	_, err = s.ResolveBuild(bg, BuildArg{Arg: "482"})
 	require.ErrorAs(t, err, &e)
 	assert.Equal(t, "a build number needs its plan, as in PROJ-PLAN-482", e.Try)
-	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-480", Origin: s.Origin}))
+	require.NoError(t, s.State.SetLast(s.Config().RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-480", Origin: s.Origin}))
 	for _, arg := range []string{"482", "#482"} {
 		key, err = s.ResolveBuild(bg, BuildArg{Arg: arg})
 		require.NoError(t, err, arg)
@@ -174,12 +174,12 @@ func TestResolveBuildLast(t *testing.T) {
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	assert.Contains(t, err.Error(), "no build triggered from this repository")
 
-	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-482", Origin: s.Origin}))
+	require.NoError(t, s.State.SetLast(s.Config().RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-482", Origin: s.Origin}))
 	key, err := s.ResolveBuild(bg, BuildArg{Last: true})
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-BUILD-482", key)
 
-	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "LAB-X-1", Origin: "http://bamboo.lab.example:8085"}))
+	require.NoError(t, s.State.SetLast(s.Config().RepoRoot, LastRecord{BuildKey: "LAB-X-1", Origin: "http://bamboo.lab.example:8085"}))
 	_, err = s.ResolveBuild(bg, BuildArg{Last: true})
 	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
 }
@@ -228,23 +228,23 @@ func TestResolveFrom(t *testing.T) {
 
 func TestBuildForgetsExpiredLastBuild(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-1", Origin: s.Origin}))
+	require.NoError(t, s.State.SetLast(s.Config().RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-1", Origin: s.Origin}))
 	_, err := s.Build(bg, "PROJ-BUILD-1")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errs.ErrNotFound))
 	assert.Contains(t, err.Error(), "no longer exists")
-	_, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	_, ok, _ := s.State.Last(s.Config().RepoRoot)
 	assert.False(t, ok)
 }
 
 func TestBuildKeepsLastBuildRecordFromAnotherOrigin(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-1", Origin: "https://other.example.com"}))
+	require.NoError(t, s.State.SetLast(s.Config().RepoRoot, LastRecord{BuildKey: "PROJ-BUILD-1", Origin: "https://other.example.com"}))
 	_, err := s.Build(bg, "PROJ-BUILD-1")
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errs.ErrNotFound))
 	assert.NotContains(t, err.Error(), "no longer exists", "the record belongs to a different server, so bam must not claim to have forgotten it")
-	rec, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	rec, ok, _ := s.State.Last(s.Config().RepoRoot)
 	require.True(t, ok, "the record from the other origin must survive")
 	assert.Equal(t, "https://other.example.com", rec.Origin)
 }

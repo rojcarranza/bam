@@ -115,7 +115,8 @@ func newServerAddCmd(r *runtime) *cobra.Command {
 			if err := config.SetMachineServer(r.env.Paths.MachineConfig, alias, config.Server{URL: url, Projects: projects}); err != nil {
 				return err
 			}
-			r.cfg = nil // reload with the new alias
+			r.cfg = nil
+			r.configChanged() // reload with the new alias
 			fmt.Fprintf(r.env.Stdout, "added server %s (%s) to %s\n", alias, url, r.env.Paths.MachineConfig)
 			if r.env.StdinTTY && r.env.StdoutTTY {
 				return login(cmd, r, alias, false)

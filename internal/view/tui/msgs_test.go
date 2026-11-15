@@ -86,7 +86,7 @@ func testService() *app.Service {
 		MachinePath: "config.yaml",
 		RepoRoot:    "/repo",
 	}
-	return &app.Service{P: f, Cfg: cfg, Clock: app.SystemClock{},
+	return &app.Service{P: f, Cfg: config.Fixed(cfg), Clock: app.SystemClock{},
 		State:  &app.StateStore{Path: filepath.Join(stateDir, "state.json")},
 		Getenv: func(string) string { return "" }}
 }
@@ -141,7 +141,7 @@ func TestLoadPlansCmdUsesTheConfiguredProjects(t *testing.T) {
 		provider.Project{Key: "LAB", Name: "Lab"})
 	f.Plans["OPS"] = []provider.Plan{{Key: "OPS-NIGHTLY", Name: "Nightly", ProjectKey: "OPS"}}
 	f.Plans["LAB"] = []provider.Plan{{Key: "LAB-SMOKE", Name: "Smoke", ProjectKey: "LAB"}}
-	svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"PROJ", "OPS", "GONE"}}
+	svc.Config().Project = &config.ProjectFile{Version: 1, Projects: []string{"PROJ", "OPS", "GONE"}}
 
 	got := loadPlansCmd(context.Background(), svc, "", 3)().(plansLoadedMsg)
 	require.Equal(t, 3, got.Gen)
@@ -172,7 +172,7 @@ func TestLoadProjectsCmdListsOnlyTheConfiguredProjects(t *testing.T) {
 	f.Projects = append(f.Projects,
 		provider.Project{Key: "OPS", Name: "Operations"},
 		provider.Project{Key: "LAB", Name: "Lab"})
-	svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
+	svc.Config().Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
 
 	got := loadProjectsCmd(context.Background(), svc, streamPicker, 0)().(projectsLoadedMsg)
 	keys := []string{}
@@ -267,7 +267,7 @@ func TestLoadProjectsCmdReportsConfiguredProjectsMissingOnTheServer(t *testing.T
 	svc := testService()
 	f := svc.P.(*fake.Provider)
 	f.Projects = append(f.Projects, provider.Project{Key: "OPS", Name: "Operations"})
-	svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "GONE", "PROJ"}}
+	svc.Config().Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "GONE", "PROJ"}}
 
 	got := loadProjectsCmd(context.Background(), svc, streamProjects, 7)().(projectsLoadedMsg)
 	require.Equal(t, streamProjects, got.Stream)

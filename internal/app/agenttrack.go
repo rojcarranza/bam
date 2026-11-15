@@ -57,7 +57,7 @@ func (s *JobAgentStore) load(origin string) []jobAgentEntry {
 		return nil
 	}
 	var f jobAgentFile
-	if json.Unmarshal(data, &f) != nil || f.Version != 1 {
+	if json.Unmarshal(data, &f) != nil || f.Version != 2 {
 		return nil
 	}
 	return f.Jobs
@@ -95,7 +95,7 @@ func (s *JobAgentStore) Add(origin string, jobs map[string]string) {
 	if len(have) > jobAgentKeep {
 		have = have[len(have)-jobAgentKeep:]
 	}
-	data, err := json.Marshal(jobAgentFile{Version: 1, Jobs: have})
+	data, err := json.Marshal(jobAgentFile{Version: 2, Jobs: have})
 	if err != nil {
 		return
 	}
@@ -247,8 +247,9 @@ type AgentRecord struct {
 	This                  AgentTally // all its finished jobs in the builds
 	Others                AgentTally // every other agent's finished jobs in the builds
 	OtherAgents           int        // how many other agents ran one
-	// Slow is true when This.Share is at least twice Others.Share and the
-	// agent failed enough jobs for that to mean something.
+	// Slow is true when This.Share is at least twice Others.Share, the agent
+	// failed at least slowMinJobs jobs and the other agents finished at least
+	// slowMinJobs, so the comparison means something.
 	Slow bool
 }
 

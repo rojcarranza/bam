@@ -423,7 +423,7 @@ func (c *Client) logDownload(ctx context.Context, jobResultKey string, offset in
 
 // agentLineRe matches the line Bamboo writes at the start of a job's log
 // when an agent takes the job.
-var agentLineRe = regexp.MustCompile(`(?:started building|is being prepared for building|building) on agent (\S.*?)\s*$`)
+var agentLineRe = regexp.MustCompile(`(?:started building|is being prepared for building|building) on agent (\S.*?)(?:, bamboo version:.*)?\s*$`)
 
 // agentLineLimit is how many lines from the start of a log bam looks through
 // for the agent line, which Bamboo writes first.

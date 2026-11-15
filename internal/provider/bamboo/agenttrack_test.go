@@ -16,7 +16,7 @@ import (
 // lines. The log below is written by hand from Atlassian's description of the
 // line, not recorded, and kept inline because the owner's private fixture
 // denylist rejects a file that holds the word agent on its own.
-const jobLogWithAgent = "simple\t17-Sep-2026 17:28:50\tBuild PROJ-BUILD-JOB1-12 is being prepared for building on agent linux-1\n" +
+const jobLogWithAgent = "simple\t17-Sep-2026 17:28:50\tBuild Proj - Build - Default Job #12 (PROJ-BUILD-JOB1-12) started building on agent linux-1, bamboo version: 9.2.1\n" +
 	"simple\t17-Sep-2026 17:28:51\tBuild working directory is /var/bamboo/build-dir/PROJ-BUILD-JOB1\n" +
 	"build\t17-Sep-2026 17:28:52\tStarting task Checkout\n"
 
@@ -32,6 +32,7 @@ func TestJobAgentReadsTheAgentLine(t *testing.T) {
 
 func TestAgentFromLog(t *testing.T) {
 	assert.Equal(t, "linux-2 (2)", agentFromLog("simple\t01-Jan-2026 10:00:00\tBuild X-Y-J-1 started building on agent linux-2 (2)\r\n"))
+	assert.Equal(t, "linux-3", agentFromLog("simple\td\tBuild X-Y-J-1 started building on agent linux-3, bamboo version: 10.2.1\n"))
 	assert.Equal(t, "a", agentFromLog("Build X is being prepared for building on agent a"))
 	assert.Equal(t, "", agentFromLog("simple\tdate\tno agent here\n"))
 	// The line is read only near the start of a log.

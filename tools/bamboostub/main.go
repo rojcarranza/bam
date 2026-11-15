@@ -705,7 +705,7 @@ func (s *stub) handler() http.Handler {
 		if n, err := strconv.Atoi(key[strings.LastIndex(key, "-")+1:]); err == nil && n%2 == 1 {
 			agent = "linux-1"
 		}
-		line := fmt.Sprintf("simple\t12-Sep-2026 10:00:00\tBuild %s is being prepared for building on agent %s\n", key, agent)
+		line := fmt.Sprintf("simple\t12-Sep-2026 10:00:00\tBuild %s started building on agent %s, bamboo version: 9.2.1\n", key, agent)
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write(append([]byte(line), body...))
 	})

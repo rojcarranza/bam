@@ -208,7 +208,12 @@ func UnknownTarget(cfg *config.Config, name string) error {
 	return e.WithWhy("presets: " + strings.Join(names, ", "))
 }
 
-// ResolveBranch returns the branch plan key of branch on plan master.
+// ResolveBranch returns the branch plan key of branch on plan master. branch
+// is a plan branch's name or the repository branch it was made for: Bamboo
+// names the plan branch of feature/x feature-x, and the server does not say
+// which repository branch a plan branch builds, so feature/x (or @ on that
+// checkout) finds feature-x by the server's naming rule. A plan branch named
+// exactly branch comes first.
 func (s *Service) ResolveBranch(ctx context.Context, master, branch string) (string, error) {
 	branch, err := s.ExpandBranch(branch)
 	if err != nil {
@@ -224,6 +229,13 @@ func (s *Service) ResolveBranch(ctx context.Context, master, branch string) (str
 			return b.Key, nil
 		}
 		names = append(names, b.ShortName)
+	}
+	if named := s.P.PlanBranchName(branch); named != branch {
+		for _, b := range branches {
+			if b.ShortName == named {
+				return b.Key, nil
+			}
+		}
 	}
 	e := errs.Usagef("%s has no plan branch for %q", master, branch)
 	if c := errs.Nearest(branch, names); c != "" {

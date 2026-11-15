@@ -279,6 +279,21 @@ func TestCreateBranchURLIsThePlanBranchCreatePage(t *testing.T) {
 	assert.Equal(t, base+"/chain/admin/newPlanBranch.action?planKey=PROJ-PLAN", c.CreateBranchURL("PROJ-PLAN"))
 }
 
+// Issue #239: the names Bamboo 13.0.1 and 9.6.27 gave the plan branches made
+// on their Create plan branch page for these Git branches.
+func TestPlanBranchNameIsTheNameBambooGivesIt(t *testing.T) {
+	c, _ := newTestServer(t, map[string]*route{})
+	for branch, want := range map[string]string{
+		"develop":             "develop",
+		"feature/PROJ-101":    "feature-PROJ-101",
+		"release/2026.11":     "release-2026.11",
+		"fix/PROJ-102#hotfix": "fix-PROJ-102-hotfix",
+		"jdoe/try@home":       "jdoe-try-home",
+	} {
+		assert.Equal(t, want, c.PlanBranchName(branch), branch)
+	}
+}
+
 // Bamboo carries the queue figures on the job records of a build: the
 // recorded failed build's job waited 73 s for an agent, and a recorded job
 // that skipped checkout reports -3.

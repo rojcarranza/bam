@@ -367,6 +367,12 @@ func (f *Provider) CreateBranchURL(planKey string) string {
 	return f.BaseURL + "/chain/admin/newPlanBranch.action?planKey=" + planKey
 }
 
+// PlanBranchName stands in for Bamboo's naming rule with its common case:
+// a slash becomes "-".
+func (f *Provider) PlanBranchName(repositoryBranch string) string {
+	return strings.ReplaceAll(repositoryBranch, "/", "-")
+}
+
 func (f *Provider) RepositoriesURL(planKey string) string {
 	return f.BaseURL + "/branch/admin/config/configureChainBranchRepositories.action?planKey=" + planKey
 }

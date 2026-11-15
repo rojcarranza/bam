@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/config"
@@ -71,6 +72,7 @@ func (r *runtime) source() (*config.Source, error) {
 	if err != nil {
 		return nil, err
 	}
+	src.MinInterval = time.Second
 	r.src = src
 	return src, nil
 }

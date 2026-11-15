@@ -104,7 +104,7 @@ func TestSourceReloadsAfterBamsOwnWriteWithUnchangedStamp(t *testing.T) {
 	svc, path := liveService(t)
 	st, err := os.Stat(path)
 	require.NoError(t, err)
-	body := replaceOnce(t, liveProject, "branch: develop", "branch: develops")
+	body := replaceOnce(t, liveProject, "branch: develop", "branch: develoq")
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 	require.NoError(t, os.Chtimes(path, st.ModTime(), st.ModTime()))
 	svc.Cfg.MarkStale()
@@ -112,7 +112,7 @@ func TestSourceReloadsAfterBamsOwnWriteWithUnchangedStamp(t *testing.T) {
 	tg, ok, err := cfg.Target("provision-lab")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, "develops", tg.Branch)
+	require.Equal(t, "develoq", tg.Branch)
 }
 
 func TestSourceKeepsTheLastGoodConfigWhenAFileIsBroken(t *testing.T) {

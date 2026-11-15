@@ -40,3 +40,27 @@ func TestSourceNoticesAFileThatAppearsLater(t *testing.T) {
 	_, ok, _ = fresh.Target("deploy")
 	require.True(t, ok, "a presets file added while open is read")
 }
+
+func TestSourceWithAnIntervalChecksTheFilesOnlyOnceInIt(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0o755))
+	project := filepath.Join(root, ".bam.yaml")
+	require.NoError(t, os.WriteFile(project, []byte("version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n"), 0o644))
+	src, err := NewSource(func() LoadOptions {
+		return LoadOptions{WorkDir: root, Home: root, MachineFile: filepath.Join(root, "m.yaml"), Getenv: func(string) string { return "" }}
+	})
+	require.NoError(t, err)
+	src.MinInterval = time.Hour
+	_, err = src.Current() // starts the interval
+	require.NoError(t, err)
+
+	require.NoError(t, os.WriteFile(project, []byte("version: 1\nservers: {work: {url: https://bamboo.example.com}}\ntargets:\n  a: {plan: PROJ-A}\n  b: {plan: PROJ-B}\n"), 0o644))
+	cfg, _ := src.Current()
+	_, ok, _ := cfg.Target("b")
+	require.False(t, ok, "inside the interval the files are not checked")
+
+	src.MarkStale()
+	cfg, _ = src.Current()
+	_, ok, _ = cfg.Target("b")
+	require.True(t, ok, "bam's own write is seen at once")
+}

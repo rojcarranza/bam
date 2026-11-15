@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Source is the one answer to "is this configuration current". It holds the
@@ -23,12 +24,17 @@ type Source struct {
 	// Options gives the load options. It runs on every check, so a presets file
 	// that appears at another path is noticed.
 	Options func() LoadOptions
+	// MinInterval is how long a check of the files stays good. Zero checks on
+	// every call. MarkStale ignores it. The terminal UI sets one second so a
+	// board refresh does not stat the files for every pin.
+	MinInterval time.Duration
 
 	mu    sync.Mutex
 	cfg   *Config
 	stamp string
 	stale bool
 	err   error
+	at    time.Time // when the files were last checked
 }
 
 // NewSource loads once, as Load does, and returns the source that keeps the
@@ -54,8 +60,12 @@ func (s *Source) Current() (*Config, error) {
 	if s.Options == nil {
 		return s.cfg, nil
 	}
+	if s.MinInterval > 0 && s.cfg != nil && !s.stale && time.Since(s.at) < s.MinInterval {
+		return s.cfg, s.err
+	}
 	o := s.Options()
 	stamp := stampOf(o)
+	s.at = time.Now()
 	if s.cfg != nil && !s.stale && stamp == s.stamp {
 		return s.cfg, s.err
 	}

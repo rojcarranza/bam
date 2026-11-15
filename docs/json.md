@@ -20,7 +20,7 @@ Within a major version fields are only added, never renamed, retyped or removed.
      "started_at":"2026-09-12T11:56:20Z","finished_at":"2026-09-12T12:00:00Z","queue_duration_ms":0,
      "duration_ms":220000,"agent":"","revisions":[],"stages":[{"name":"Test","state":"failed",
      "duration_ms":31000,"jobs":[{"key":"PROJ-BUILD-INT-45","url":"...","name":"Integration",
-     "state":"failed","duration_ms":31000,"queue_duration_ms":0,"checkout_duration_ms":0}]}],"failed_tests":[],"failed_test_details":[]}
+     "state":"failed","duration_ms":31000,"queue_duration_ms":0,"checkout_duration_ms":0,"agent":""}]}],"failed_tests":[],"failed_test_details":[]}
 
 - `failed_test_details`: each failed test as `{"name":"...","message":"..."}`, in the order of `failed_tests`. `message` is the error text Bamboo reports, with secret-looking values masked as `********`, and is `""` when the server gives none.
 - `queue_position` and `queue_length`: a queued build's place in the server's queue, counted from 1, and how many builds are queued. Both are absent when the build is not queued or the server cannot list its queue.

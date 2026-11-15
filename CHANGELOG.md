@@ -18,6 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - A build tree counts as finished by one rule: every build ended and none for a quiet minute. A tree read before Bamboo queued its child builds is no longer kept for the session or saved, so a late child is not missing from the terminal UI's tree or from the next read. The tree watch and a pinned pipeline's tree settle by the same rule, and trees saved by an earlier version are read again once.
 
+- The link bam prints when a plan has no plan branch of the name you asked for (`--branch`, `@` for the checked-out branch, and presets) opens Bamboo's Create plan branch page. Before, it opened Page not found on Bamboo 12.1.8 and 13.0.1.
+
 ## [0.5.0] - 2026-11-14
 
 ### Added

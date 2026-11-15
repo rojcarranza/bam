@@ -276,7 +276,7 @@ func TestRepositoriesURLIsTheBranchRepositoriesTab(t *testing.T) {
 func TestCreateBranchURLIsThePlanBranchCreatePage(t *testing.T) {
 	c, _ := newTestServer(t, map[string]*route{})
 	base := c.URL("")[:len(c.URL(""))-len("/browse/")]
-	assert.Equal(t, base+"/chain/admin/createPlanBranch!doDefault.action?buildKey=PROJ-PLAN", c.CreateBranchURL("PROJ-PLAN"))
+	assert.Equal(t, base+"/chain/admin/newPlanBranch.action?planKey=PROJ-PLAN", c.CreateBranchURL("PROJ-PLAN"))
 }
 
 // Bamboo carries the queue figures on the job records of a build: the

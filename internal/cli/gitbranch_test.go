@@ -30,7 +30,7 @@ func TestAtBranchWithNoPlanBranchPrintsTheCreateLinkAndCreatesNothing(t *testing
 	assert.Equal(t, 2, h.run("plan", "show", "PROJ-PROV", "--branch", "@"))
 	assert.Contains(t, h.stderr.String(), `PROJ-PROV has no plan branch for "devlop"`)
 	assert.Contains(t, h.stderr.String(), "the closest plan branch is develop")
-	assert.Contains(t, h.stderr.String(), "/chain/admin/createPlanBranch!doDefault.action?buildKey=PROJ-PROV")
+	assert.Contains(t, h.stderr.String(), h.fake.CreateBranchURL("PROJ-PROV"))
 
 	h.env.GitBranch = func(string) (string, error) { return "develop", nil }
 	assert.Equal(t, 0, h.run("plan", "show", "PROJ-PROV", "--branch", "@"))

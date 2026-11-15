@@ -637,7 +637,9 @@ func (s *stub) handleAgentList(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, out)
 }
 
-// switchAgent serves PUT agent/ID/enable and agent/ID/disable.
+// switchAgent serves PUT agent/ID/enable and agent/ID/disable as Bamboo
+// 12.1.8 does: 200 with the agent's new enabled value, and an empty 404 for
+// an agent id it does not have.
 func (s *stub) switchAgent(w http.ResponseWriter, r *http.Request, id, verb string) {
 	n, err := strconv.Atoi(id)
 	if err != nil || r.Method != http.MethodPut || (verb != "enable" && verb != "disable") {
@@ -659,11 +661,11 @@ func (s *stub) switchAgent(w http.ResponseWriter, r *http.Request, id, verb stri
 			}
 			s.agents[n] = verb == "enable"
 			s.mu.Unlock()
-			w.WriteHeader(http.StatusNoContent)
+			writeJSON(w, []byte(`{"enabled":`+strconv.FormatBool(verb == "enable")+`}`))
 			return
 		}
 	}
-	http.NotFound(w, r)
+	w.WriteHeader(http.StatusNotFound)
 }
 
 func sortedKeys(m map[string]bool) []string {

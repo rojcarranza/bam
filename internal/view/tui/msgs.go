@@ -361,9 +361,9 @@ func openFormCmd(ctx context.Context, svc *app.Service, planKey string, target *
 			// By name through the service, which reads the files as they are
 			// now: the table's copy may be older than an edit, or than a save
 			// that no longer parses, and a run must not send either.
-			ref, err = svc.ResolvePlan(ctx, target.Name, "")
+			ref, err = svc.ResolvePlanToRun(ctx, target.Name, "")
 		} else {
-			ref, err = svc.ResolvePlan(ctx, planKey, "")
+			ref, err = svc.ResolvePlanToRun(ctx, planKey, "")
 		}
 		if err != nil {
 			return errMsg{Err: err, Where: "run", Stream: streamRun, Gen: gen}

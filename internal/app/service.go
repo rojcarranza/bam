@@ -73,7 +73,7 @@ func (s *Service) Config() *config.Config {
 	return cfg
 }
 
-// configNow is Config for a use case that sends something to Bamboo. It always
+// configNow is Config for a run about to be sent to Bamboo. It always
 // checks the files, even inside the source's interval. When the
 // files changed and no longer parse, it returns that error instead of acting on
 // the last good copy: a run must not go out with values the person just edited

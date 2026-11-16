@@ -136,8 +136,10 @@ func replaceOnce(t *testing.T, s, old, repl string) string {
 func TestARunIsRefusedWhileTheConfigFileDoesNotParse(t *testing.T) {
 	svc, path := liveService(t)
 	writeLive(t, path, "version: 1\ntargets: [unbalanced\n")
-	_, err := svc.ResolvePlan(context.Background(), "provision-lab", "")
+	_, err := svc.ResolvePlanToRun(context.Background(), "provision-lab", "")
 	require.Error(t, err)
+	_, err = svc.ResolvePlan(context.Background(), "PROJ-BUILD", "")
+	require.NoError(t, err, "browsing a plan key keeps working on the last good copy")
 	_, err = svc.PlanSet(context.Background(), "nightly", SetOptions{})
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "unknown set", "the parse error is shown, not a missing set")

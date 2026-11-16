@@ -82,6 +82,14 @@ func BuildLabel(key string) string {
 // ResolvePlan turns a target name or plan key into a PlanRef. branch
 // overrides the target's branch.
 func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef, error) {
+	return s.resolvePlanIn(ctx, s.Config(), arg, branch)
+}
+
+// ResolvePlanToRun is ResolvePlan for a run about to be sent: it checks the
+// files now, and refuses when they no longer parse, instead of resolving
+// against the last good copy. Browsing keeps ResolvePlan, which works on the
+// last good copy until the file is fixed.
+func (s *Service) ResolvePlanToRun(ctx context.Context, arg, branch string) (PlanRef, error) {
 	cfg, err := s.configNow()
 	if err != nil {
 		return PlanRef{}, err

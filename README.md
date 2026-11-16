@@ -485,6 +485,7 @@ Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on suc
 | get a desktop notification when it finishes | `bam watch BAMCI-BUILD --notify` |
 | draw the tree of a build and its children | `bam build tree BAMCI-BUILD-7` |
 | follow that tree until every build finishes | `bam build tree BAMCI-BUILD-7 --watch` |
+| see which builds of a finished tree waited for an agent and which ran side by side | `bam build tree BAMCI-BUILD-7 --timing` |
 | stop waiting after 30 minutes | `bam watch --last --timeout 30m` |
 | see every build you started in the last day, across repositories | `bam status` |
 | put the current build's state in your shell prompt | `bam status --short` |

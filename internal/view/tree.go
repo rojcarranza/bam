@@ -303,6 +303,8 @@ type TreeDoc struct {
 	State    string      `json:"state"`
 	Warnings []string    `json:"warnings"`
 	Root     TreeNodeDoc `json:"root"`
+	// Timing is set by bam build tree --timing only.
+	Timing *TimingDoc `json:"timing,omitempty"`
 }
 
 type TreeNodeDoc struct {

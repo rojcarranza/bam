@@ -1,0 +1,9 @@
+timing:
+  PROJ-API-142      ██████████████████████████████                           run 10m00s
+    OPS-DEPLOY-88                                 ░░░░░███████████████       wait 1m30s · run 5m00s
+      OPS-SMOKE-51                                                    █████  run 1m30s
+    PROJ-DOCS-30                                  ██████                     wait 1s · run 2m00s
+    OPS-AUDIT-9     no times from Bamboo
+                    0s───────────────────────────────────────────────18m00s
+  ░ waited for an agent  █ ran
+  1 not drawn: still running

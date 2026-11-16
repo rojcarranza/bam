@@ -172,7 +172,7 @@ func threeBuilds() []provider.Build {
 	for i, n := range []int{44, 43, 42} {
 		b := sampleBuild()
 		b.Key, b.Number = "PROJ-BUILD-"+strconv.Itoa(n), n
-		b.Stages = nil // a listing carries no stages
+		b.Stages, b.FailedTests = nil, nil // a listing carries no stages and no failed tests
 		if i == 0 {
 			b.State = provider.StateFailed
 		} else {

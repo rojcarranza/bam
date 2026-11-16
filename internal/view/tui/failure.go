@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/rojcarranza/bam/internal/app"
@@ -43,10 +44,20 @@ func (m Model) openInvestigate() (tea.Model, tea.Cmd) {
 }
 
 // investigateCmd reads b's failed logs and renders them with the printer
-// bam build investigate uses.
+// bam build investigate uses. b may be a row of a build list, which carries
+// no stages and no failed tests, so the build is read whole first, as bam
+// build investigate does.
 func investigateCmd(ctx context.Context, svc *app.Service, b provider.Build, o func(*bytes.Buffer) view.Out, gen int) tea.Cmd {
+	title := "Why " + b.Key + " failed"
 	return func() tea.Msg {
-		inv, err := svc.Investigate(ctx, b, app.InvestigateOptions{Context: investigateContext, Max: investigateMax})
+		whole, err := svc.Build(ctx, b.Key)
+		if err != nil {
+			return errMsg{Err: err, Where: "investigate", Stream: streamInfo, Gen: gen}
+		}
+		if whole.State != provider.StateFailed { // restarted since the screen read it
+			return infoLoadedMsg{Gen: gen, Title: title, Body: fmt.Sprintf("%s is %s now; nothing to investigate\n", whole.Key, whole.State)}
+		}
+		inv, err := svc.Investigate(ctx, whole, app.InvestigateOptions{Context: investigateContext, Max: investigateMax})
 		if err != nil {
 			return errMsg{Err: err, Where: "investigate", Stream: streamInfo, Gen: gen}
 		}
@@ -54,7 +65,7 @@ func investigateCmd(ctx context.Context, svc *app.Service, b provider.Build, o f
 		if err := view.Investigation(o(&buf), inv); err != nil {
 			return errMsg{Err: err, Where: "investigate", Stream: streamInfo, Gen: gen}
 		}
-		return infoLoadedMsg{Gen: gen, Title: "Why " + b.Key + " failed", Body: buf.String()}
+		return infoLoadedMsg{Gen: gen, Title: title, Body: buf.String()}
 	}
 }
 

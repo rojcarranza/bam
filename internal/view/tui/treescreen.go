@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -14,7 +13,7 @@ import (
 )
 
 // treeScreen is one build's tree: what the watch last sent, the cursor over
-// its build rows, and where esc returns.
+// its build rows.
 type treeScreen struct {
 	root       string
 	tree       app.Tree
@@ -24,9 +23,7 @@ type treeScreen struct {
 	failed     bool             // the watch ended in an error; tree is the last one it had
 	progress   app.TreeProgress // how far the first refresh got, until have
 	cursor     int              // over build rows only
-	from       screen
-	back       *planReturn     // the plan screen t was pressed on, when from is screenPlan
-	restarting map[string]bool // builds a rerun is restarting now
+	restarting map[string]bool  // builds a rerun is restarting now
 }
 
 type treeEventMsg struct {
@@ -51,25 +48,18 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 	if m.svc == nil || key == "" {
 		return m, nil
 	}
-	from := m.screen
-	var back *planReturn
-	switch {
-	case from == screenTree:
-		from, back = m.buildTree.from, m.buildTree.back
-	case from == screenPlan && m.plan.key != "":
+	if m.screen == screenPlan && m.plan.key != "" {
 		// A build opened on the tree starts a fresh plan screen; esc off the
-		// tree draws this one again, stack, cursor and watch included.
-		back = &planReturn{frame: m.currentFrame(m.focus), stack: slices.Clone(m.plan.stack),
-			fromSet: m.fromSet, fromTree: m.fromTree, fromBoard: m.fromBoard}
-		if m.fromTree {
-			prev := m.buildTree
-			back.tree = &prev
-		}
-		m.fromSet, m.fromTree, m.fromBoard = false, false, false
+		// tree draws this one again, drill stack, cursor and watch included.
+		frame := m.currentFrame(m.focus)
+		m.nav.push(navFrame{screen: screenPlan, plan: &frame, clean: true})
+		m.nav.pinTree(m.buildTree)
+	} else if m.screen != screenTree {
+		m.openedFrom()
 	}
 	m.stopWatch()
 	m.rerunGen++ // a rerun started on another tree reports to that one only
-	m.buildTree = treeScreen{root: key, from: from, back: back}
+	m.buildTree = treeScreen{root: key}
 	if t, ok := m.trees[key]; ok {
 		m.buildTree.tree, m.buildTree.have = t, true
 	} else if t, ok := m.savedTree(key); ok {
@@ -107,39 +97,7 @@ func (m *Model) stopTree() {
 func (m Model) closeTree() (tea.Model, tea.Cmd) {
 	m.stopTree()
 	m.rerunGen++ // a rerun result for the closed screen is dropped
-	m.fromTree, m.logsFromTree = false, false
-	if back := m.buildTree.back; back != nil {
-		m.buildTree.back = nil
-		m.fromSet, m.fromBoard = back.fromSet, back.fromBoard
-		f := back.frame
-		next, cmd := m.enterPlan(f.key, f.buildsPlan, f.wantOf(), f.focus)
-		next.plan.stack = back.stack
-		next.restoreCursors(f)
-		if back.fromTree && back.tree != nil {
-			// The plan screen came from an earlier tree screen: esc on it
-			// goes back there, so that screen is the current tree again.
-			next.fromTree = true
-			next.buildTree = *back.tree
-			next.buildTree.restarting = nil
-		}
-		return next, cmd
-	}
-	m.screen = m.buildTree.from
-	switch m.screen {
-	case screenHome, screenSet:
-		// A build opened on the tree left its plan screen behind; nothing
-		// of it may follow the user off the tree.
-		m.closePlan()
-		if m.screen == screenHome {
-			return m.goHome()
-		}
-	case screenBoard:
-		m.closePlan()
-		return m.showBoard()
-	case screenTree:
-		m.screen = screenPlan
-	}
-	return m, nil
+	return m.popNav()
 }
 
 func (m Model) handleTreeEvent(msg treeEventMsg) (tea.Model, tea.Cmd) {
@@ -365,20 +323,19 @@ func (m Model) openTreeBuild(logs, all bool) (tea.Model, tea.Cmd) {
 	}
 	b := n.Build
 	m.stopTree()
-	m.fromTree, m.fromSet, m.fromBoard = true, false, false
+	m.openedFrom()
 	next, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
 	if !logs {
 		return next, cmd
 	}
-	next.logsFromTree = true
 	// A build still running has no failed jobs to show: l follows its
 	// current stage, as it does on the plan screen.
 	if !all && !b.State.Finished() {
 		after, logsCmd := next.openStageLogs("")
-		return after, tea.Batch(cmd, logsCmd)
+		return after.(Model).logsOverTree(), tea.Batch(cmd, logsCmd)
 	}
 	after, logsCmd := next.openLogs("", all)
-	return after, tea.Batch(cmd, logsCmd)
+	return after.(Model).logsOverTree(), tea.Batch(cmd, logsCmd)
 }
 
 func (m Model) treeScreenView() string {
@@ -533,4 +490,13 @@ func (m Model) handleTreeRerun(msg treeRerunMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m.watchTree(true)
+}
+
+// logsOverTree makes esc on logs opened from the tree screen go straight back
+// to the tree, not through the plan screen opened under them.
+func (m Model) logsOverTree() Model {
+	if m.screen == screenLogs {
+		m.nav.pop() // the plan screen's frame: the tree's is below it
+	}
+	return m
 }

@@ -139,7 +139,7 @@ func (m Model) showBoard() (tea.Model, tea.Cmd) {
 		m.closePlan()
 	}
 	m.screen = screenBoard
-	m.fromSet, m.fromTree, m.logsFromTree, m.fromBoard = false, false, false, false
+	m.nav.resetTo() // the board is a root: nothing is below it
 	m.board.tickGen++
 	load := m.loadBoard(true)
 	return m, tea.Batch(load, boardBeats(m.board.tickGen))
@@ -455,16 +455,15 @@ func (m Model) boardOpen(logs bool) (tea.Model, tea.Cmd) {
 		if pin.PlanKey == "" {
 			return m, nil
 		}
-		next, cmd := m.enterPlan(m.masterOf(pin.PlanKey), pin.PlanKey, nil, focusBuilds)
-		next.fromBoard = true
-		return next, cmd
+		m.nav.resetTo(navFrame{screen: screenBoard})
+		return m.enterPlan(m.masterOf(pin.PlanKey), pin.PlanKey, nil, focusBuilds)
 	}
 	b, ok := m.boardBuild()
 	if !ok {
 		return m, nil
 	}
+	m.nav.resetTo(navFrame{screen: screenBoard})
 	next, cmd := m.enterPlan(m.masterOf(b.PlanKey), b.PlanKey, &b, focusStages)
-	next.fromBoard = true
 	if !logs {
 		return next, cmd
 	}

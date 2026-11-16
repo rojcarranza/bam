@@ -134,7 +134,7 @@ func TestBoardEnterOpensAChildBuildAndTOpensItsTree(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.Equal(t, screenPlan, opened.screen)
 	require.Equal(t, "PROJ-K8S0", opened.plan.key)
-	require.True(t, opened.fromBoard)
+	require.Equal(t, []screen{screenBoard}, wayBack(opened))
 
 	opened, _ = send(m, mkKey("t"))
 	require.Equal(t, screenTree, opened.screen)

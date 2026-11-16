@@ -330,7 +330,7 @@ func TestEnterOnATreeRowOpensTheChildPlanAndEscComesBack(t *testing.T) {
 	require.Equal(t, "PROJ-PROV", m.plan.key)
 	require.Equal(t, "PROJ-PROV-7", m.detail.Key)
 	require.Equal(t, focusStages, m.focus)
-	require.Len(t, m.plan.stack, 1)
+	require.Equal(t, 1, drilled(m))
 
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, focusBuilds, m.focus)
@@ -338,7 +338,7 @@ func TestEnterOnATreeRowOpensTheChildPlanAndEscComesBack(t *testing.T) {
 	require.Equal(t, "PROJ-BUILD", m.plan.key, "esc on Builds pops the drill stack")
 	require.Equal(t, "PROJ-BUILD-44", m.detail.Key)
 	require.Equal(t, focusTree, m.focus, "focus returns to where the drill started")
-	require.Empty(t, m.plan.stack)
+	require.Zero(t, drilled(m))
 
 	m.focus = focusBuilds
 	m, _ = send(m, mkKey("esc"))
@@ -659,13 +659,13 @@ func TestServerSwitchFromASetScreenDropsThePlanCache(t *testing.T) {
 // cache or pin from an earlier visit.
 func TestEnteringFromTheSetScreenStartsFresh(t *testing.T) {
 	m := setScreenModel(t, failedRec(), "")
-	m.plan.stack = []planFrame{{key: "PROJ-PROV", buildsPlan: "PROJ-PROV"}}
+	m.nav.push(navFrame{screen: screenPlan, plan: &planFrame{key: "PROJ-PROV", buildsPlan: "PROJ-PROV"}})
 	m.plan.cache = map[string]provider.Build{"PROJ-PROV-7": {Key: "PROJ-PROV-7"}}
 	m.plan.older = "PROJ-PROV-7"
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter"))
 	require.Equal(t, screenPlan, m.screen)
-	require.Empty(t, m.plan.stack)
+	require.Equal(t, []screen{screenSet}, wayBack(m), "the set is the way back; no drill survives")
 	require.Empty(t, m.plan.cache)
 	require.Empty(t, m.plan.older)
 
@@ -680,8 +680,8 @@ func TestEscAfterARunReturnsHome(t *testing.T) {
 	m := setScreenModel(t, failedRec(), "")
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.fromSet)
-	m.plan.stack = []planFrame{{key: "PROJ-PROV", buildsPlan: "PROJ-PROV"}}
+	require.Equal(t, []screen{screenSet}, wayBack(m))
+	m.nav.push(navFrame{screen: screenPlan, plan: &planFrame{key: "PROJ-PROV", buildsPlan: "PROJ-PROV"}})
 
 	queued := sampleBuild()
 	queued.Key, queued.Number, queued.State = "PROJ-BUILD-46", 46, provider.StateQueued
@@ -689,8 +689,7 @@ func TestEscAfterARunReturnsHome(t *testing.T) {
 	m.form.phase = formSending
 	m, _ = send(m, triggeredMsg{Gen: m.runGen, Build: queued})
 	require.Equal(t, screenPlan, m.screen)
-	require.Empty(t, m.plan.stack)
-	require.False(t, m.fromSet)
+	require.Equal(t, []screen{screenHome}, wayBack(m), "a run leaves the set and the drill behind")
 
 	m, _ = send(m, mkKey("esc")) // Stages to Builds
 	m, _ = send(m, mkKey("esc"))
@@ -705,25 +704,22 @@ func TestTreeFromADrilledPlanComesBackToIt(t *testing.T) {
 	m.focus = focusTree
 	m, _ = send(m, mkKey("enter")) // drill into PROJ-PROV-7
 	require.Equal(t, "PROJ-PROV", m.plan.key)
-	require.Len(t, m.plan.stack, 1)
+	require.Equal(t, 1, drilled(m))
 
 	m = firstTree(t, m)
 	require.Equal(t, "PROJ-PROV-7", m.buildTree.root)
 	m, _ = send(m, mkKey("enter")) // the root
 	require.Equal(t, screenPlan, m.screen)
-	require.True(t, m.fromTree)
 	m, _ = send(m, mkKey("esc")) // Stages to Builds
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenTree, m.screen, "esc returns to the tree, not down the drill stack")
-	require.False(t, m.fromTree)
 
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, "PROJ-PROV", m.plan.key)
 	require.Equal(t, "PROJ-PROV-7", m.detail.Key)
 	require.Equal(t, focusStages, m.focus, "focus is where t was pressed")
-	require.Len(t, m.plan.stack, 1, "the drill stack is restored")
-	require.False(t, m.fromTree)
+	require.Equal(t, 1, drilled(m), "the drill stack is restored")
 
 	m, _ = send(m, mkKey("esc")) // Stages to Builds
 	m, _ = send(m, mkKey("esc"))
@@ -843,8 +839,8 @@ func TestEscOffThePlanScreenDropsLateResults(t *testing.T) {
 		mark func(*Model)
 		want screen
 	}{
-		{"set", func(m *Model) { m.fromSet = true }, screenSet},
-		{"tree", func(m *Model) { m.fromTree = true }, screenTree},
+		{"set", func(m *Model) { m.nav.resetTo(navFrame{screen: screenSet}) }, screenSet},
+		{"tree", func(m *Model) { m.nav.resetTo(navFrame{screen: screenTree}) }, screenTree},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := planWithTree(t)
@@ -925,15 +921,14 @@ func TestATreeFromAPlanFromATreeKeepsTheWayBack(t *testing.T) {
 
 	m, _ = send(m, mkKey("enter")) // the root build: its plan screen, from tree A
 	require.Equal(t, screenPlan, m.screen)
-	require.True(t, m.fromTree)
+	require.Equal(t, []screen{screenHome, screenTree}, wayBack(m))
 
 	m, _ = send(m, mkKey("t")) // tree B, on the open build
 	require.Equal(t, screenTree, m.screen)
 	m, _ = send(m, mkKey("esc"))
 	require.Equal(t, screenPlan, m.screen)
-	require.True(t, m.fromTree, "the plan screen still came from tree A")
+	require.Equal(t, []screen{screenHome, screenTree}, wayBack(m), "the plan screen still came from tree A")
 	require.Equal(t, "PROJ-BUILD-44", m.buildTree.root)
-	require.Equal(t, screenHome, m.buildTree.from)
 
 	m.focus = focusBuilds
 	m, _ = send(m, mkKey("esc"))

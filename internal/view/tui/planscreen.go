@@ -24,9 +24,7 @@ type planScreen struct {
 
 	restGen int // bumped by every Builds cursor move
 
-	// stack holds the plan screens Enter on a Tree row came from; cache
-	// holds finished builds by key.
-	stack []planFrame
+	// cache holds finished builds by key.
 	cache map[string]provider.Build
 
 	tree       treePreview
@@ -36,7 +34,7 @@ type planScreen struct {
 	buildsStale   bool // the last Builds load failed; the rows are older
 }
 
-// planFrame is one plan screen on the drill stack: enough to draw it again
+// planFrame is one plan screen on the way back: enough to draw it again
 // with the cursor where it was.
 type planFrame struct {
 	key, buildsPlan string
@@ -46,18 +44,6 @@ type planFrame struct {
 	stageCursor int             // Stages: the row under the cursor
 	expanded    map[string]bool // Stages: which stages were open
 	treeCursor  int             // Tree: the row under the cursor
-}
-
-// planReturn is the plan screen t was pressed on: closing the tree screen
-// draws it again, with its drill stack and its way back to a set or to the
-// tree screen it was itself opened from.
-type planReturn struct {
-	frame     planFrame
-	stack     []planFrame
-	fromSet   bool
-	fromTree  bool
-	fromBoard bool
-	tree      *treeScreen // the tree screen the plan screen came from, when fromTree
 }
 
 // currentFrame is the plan screen as it stands, with focus f.
@@ -447,26 +433,14 @@ func (m Model) drillTree() (Model, tea.Cmd) {
 	if n.Loop {
 		return m, nil
 	}
-	stack := append(m.plan.stack, m.currentFrame(focusTree))
+	frame := m.currentFrame(focusTree)
 	var want *provider.Build
 	if !n.NotRun {
 		b := n.Build
 		want = &b
 	}
-	m, cmd := m.openPlan(m.masterOf(n.PlanKey), n.PlanKey, want, focusStages)
-	m.plan.stack = stack
-	return m, cmd
-}
-
-// popPlan goes back to the plan screen the last Tree drill came from.
-func (m Model) popPlan() (Model, tea.Cmd) {
-	last := len(m.plan.stack) - 1
-	f := m.plan.stack[last]
-	stack := m.plan.stack[:last]
-	m, cmd := m.openPlan(f.key, f.buildsPlan, f.wantOf(), f.focus)
-	m.plan.stack = stack
-	m.restoreCursors(f)
-	return m, cmd
+	m.nav.push(navFrame{screen: screenPlan, plan: &frame})
+	return m.openPlan(m.masterOf(n.PlanKey), n.PlanKey, want, focusStages)
 }
 
 // planCompact is the small-terminal form: name line only, one panel.

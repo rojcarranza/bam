@@ -130,16 +130,16 @@ func TestLeavingASetBuildOtherwiseForgetsTheSet(t *testing.T) {
 	m := setScreenModel(t, failedRec(), "")
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter"))
-	require.True(t, m.fromSet)
+	require.Equal(t, []screen{screenSet}, wayBack(m))
 	next, _ := m.runCommandLine("plans")
 	m = next.(Model)
-	require.False(t, m.fromSet, ":plans leaves the set behind")
+	require.Empty(t, wayBack(m), ":plans leaves the set behind")
 
 	m = setScreenModel(t, failedRec(), "")
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter"))
 	next, _ = m.switchServer("lab")
-	require.False(t, next.(Model).fromSet, "switching server leaves the set behind")
+	require.Empty(t, wayBack(next.(Model)), "switching server leaves the set behind")
 }
 
 func TestSOnTheSetScreenOpensTheServerPicker(t *testing.T) {

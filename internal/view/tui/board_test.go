@@ -444,7 +444,7 @@ func TestBoardEnterOnAPinWithNoBuildsOpensItsPlan(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, "PROJ-NEW", m.plan.key)
-	require.True(t, m.fromBoard)
+	require.Equal(t, []screen{screenBoard}, wayBack(m))
 }
 
 func TestBoardEnterOnAPinOpensItsPlanAndEscComesBack(t *testing.T) {
@@ -453,11 +453,11 @@ func TestBoardEnterOnAPinOpensItsPlanAndEscComesBack(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.Equal(t, screenPlan, m.screen)
 	require.Equal(t, "PROJ-BUILD", m.plan.key)
-	require.True(t, m.fromBoard)
+	require.Equal(t, []screen{screenBoard}, wayBack(m))
 
 	m, cmd = send(m, mkKey("esc"))
 	require.Equal(t, screenBoard, m.screen)
-	require.False(t, m.fromBoard)
+	require.Empty(t, wayBack(m))
 	require.NotNil(t, cmd, "the board reads again and its beat restarts")
 }
 

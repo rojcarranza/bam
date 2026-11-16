@@ -76,7 +76,7 @@ A left click selects the row under the pointer and focuses its panel, on Home's 
 | | `shift-tab` | previous panel |
 | | `1` `2` `3` | focus Builds, Stages, Tree (on Home: open the plan screen there) |
 | | `enter` | drill in: a build's stages, expand a stage, open a triggered plan |
-| | `esc` | back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to Home; from a project's plans to `:projects` |
+| | `esc` | back one level, close an overlay; from Stages or Tree to Builds; from a triggered plan to its parent; from Builds to the screen the plan was opened from (Home, the board, a set, a tree); from a project's plans to `:projects` |
 | Home | `enter` | open the plan screen; on a preset, show what it sends |
 | | `E` | edit the selected preset's file |
 | | `D` | remove the selected preset (asks first) |

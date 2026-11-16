@@ -91,6 +91,7 @@ Queued and running builds are not counted. `other` counts stopped, not built and
 - `from_log`: `true` for a build its parent's job log links to (a script started it through the REST API and printed its page), `false` for one whose reason names its parent. `stage` names the parent's stage whose job started it, and is present only with `from_log`.
 - `build`: the `bam build show --json` document, without `progress`; `null` for `not_run`.
 - `--watch --json` writes one such document per change, one per line.
+- `timing`: present only with `--timing`: `{"start":"2026-10-08T09:00:00Z","duration_ms":304000,"unfinished":0,"builds":[{"key":"PROJ-API-7","plan_key":"PROJ-API","depth":0,"queued_offset_ms":0,"wait_ms":4000,"started_offset_ms":4000,"run_ms":300000,"finished_offset_ms":304000,"timed":true}]}`. `builds` lists the finished builds of the tree, parents first; never-run, `loop` and `superseded` builds are left out, and `unfinished` counts the builds left out because they had not finished. Offsets are milliseconds from `start`, the earliest queue time in the tree. A build with `"timed":false` has no usable times from Bamboo, and its offsets and durations are `null`; `start` is `null` and `duration_ms` is `0` when no build has times.
 
 ## Build investigation
 

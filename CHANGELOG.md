@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- The terminal UI's set screen keeps re-reading a set another bam holds after you open one of its builds and press esc, instead of freezing until `r`.
 - The terminal UI now reads `.bam.yaml`, the machine config and the presets again when a file changes, in every part of bam. A set or preset added while the UI is open can be run, a preset you edit reaches the sets that use it, and a pin on a new preset resolves on the board, instead of failing with `unknown set` or `unknown preset` until restart.
 - One failed poll no longer ends a watch. `bam watch`, `bam run --watch`, `bam logs --follow`, a set run and the terminal UI's build watch now try three times in a row before they give up, as the tree watch already did, so a single dropped connection no longer exits with code 5 or records a set run as failed while Bamboo still builds. A mistyped key and a refused token still end at once.
 

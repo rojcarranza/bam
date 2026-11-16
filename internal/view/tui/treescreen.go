@@ -65,7 +65,7 @@ func (m Model) openTree(key string) (tea.Model, tea.Cmd) {
 	} else if t, ok := m.savedTree(key); ok {
 		m.buildTree.tree, m.buildTree.have = t, true
 	}
-	m.screen = screenTree
+	m.show(screenTree)
 	return m.watchTree(false)
 }
 

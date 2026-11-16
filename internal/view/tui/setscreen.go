@@ -85,9 +85,8 @@ func (m Model) openSet() (tea.Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
-	m.screen = screenSet
+	m.show(screenSet)
 	m.nav.resetTo() // the set screen is a root; esc there goes to the sets table
-	m.home.tickGen++
 	m.setView = setScreen{info: it.Info, rec: it.Last, board: m.boardFor(it.Info, it.Last)}
 	m.setGen++
 	return m, loadSetCmd(m.baseCtx(), m.svc, it.Info.Name, m.setGen)
@@ -112,7 +111,8 @@ func (m Model) handleSetLoaded(msg setLoadedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.setView.rec, m.setView.elsewhere, m.setView.lock = msg.Rec, msg.Elsewhere, msg.Lock
 	m.setView.board = m.boardFor(m.setView.info, msg.Rec)
-	return m, m.setPollCmd()
+	cmd := m.restartSetPoll()
+	return m, cmd
 }
 
 // setRows is every run of the board, stage after stage.
@@ -302,12 +302,15 @@ const setPollEvery = 5 * time.Second
 
 type setPollMsg struct{ Gen int }
 
-// setPollCmd re-reads the set in setPollEvery while another bam holds it,
-// or nil when nothing needs polling.
-func (m Model) setPollCmd() tea.Cmd {
+// restartSetPoll ends the running poll and, while the set screen shows a set
+// another bam holds, starts a new one. Bumping the generation ends the old
+// loop, so two never run at once: not after a load, not after a way back to
+// the screen.
+func (m *Model) restartSetPoll() tea.Cmd {
+	m.setPollGen++
 	if m.setView.elsewhere == "" || m.screen != screenSet {
 		return nil
 	}
-	gen := m.setGen
+	gen := m.setPollGen
 	return tea.Tick(setPollEvery, func(time.Time) tea.Msg { return setPollMsg{Gen: gen} })
 }

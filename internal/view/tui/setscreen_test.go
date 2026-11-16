@@ -118,10 +118,9 @@ func TestSetScreenKeyLineFitsAt80Columns(t *testing.T) {
 
 func TestSetScreenPollsWhileHeldElsewhere(t *testing.T) {
 	m := setScreenModel(t, &app.SetRecord{ID: "release-1", Set: "release", Status: app.SetRunning}, "pid 77 on desk, since 09:15")
-	cmd := m.setPollCmd()
-	require.NotNil(t, cmd, "a set held elsewhere is re-read")
+	require.NotNil(t, m.restartSetPoll(), "a set held elsewhere is re-read")
 	m.setView.elsewhere = ""
-	require.Nil(t, m.setPollCmd(), "no polling when nothing is held elsewhere")
+	require.Nil(t, m.restartSetPoll(), "no polling when nothing is held elsewhere")
 }
 
 // Leaving a set's build any other way than esc forgets that it came from the

@@ -145,7 +145,7 @@ type Model struct {
 	connGen, detailGen             int
 	pickerGen, presetsGen, infoGen int
 	cancelGen                      int
-	setsGen, setGen                int
+	setsGen, setGen, setPollGen    int
 	projectsGen                    int
 	treeGen                        int
 	treePreviewGen                 int
@@ -204,7 +204,7 @@ func New(d Deps) Model {
 		deps:     d,
 		ctx:      context.Background(),
 		server:   d.Initial,
-		screen:   screenHome,
+		screen:   startScreen(d),
 		focus:    focusPlans,
 		plans:    newList(planMatchText),
 		builds:   newList(func(b provider.Build) string { return b.Key + " " + b.Branch + " " + b.Reason }),
@@ -214,9 +214,6 @@ func New(d Deps) Model {
 		picker:   newList(func(p pickerItem) string { return p.Label + " " + p.Detail }),
 		now:      time.Now,
 		input:    textinput.New(),
-	}
-	if d.StartOnBoard {
-		m.screen = screenBoard
 	}
 	m.board.whole = d.WholeServer
 	m.plans.setOrder(planLess(m.home.sort))
@@ -604,8 +601,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.setGen++
 		return m, tea.Batch(loadSetCmd(m.baseCtx(), m.svc, set, m.setGen), m.loadSets())
 	case setPollMsg:
-		if msg.Gen != m.setGen || m.screen != screenSet {
+		if msg.Gen != m.setPollGen || m.screen != screenSet {
 			return m, nil
+		}
+		if m.svc == nil {
+			cmd := m.restartSetPoll()
+			return m, cmd
 		}
 		m.setGen++
 		return m, loadSetCmd(m.baseCtx(), m.svc, m.setView.info.Name, m.setGen)
@@ -1135,8 +1136,8 @@ func (m Model) setProject(key string) (tea.Model, tea.Cmd) {
 	m.plans.setItems(nil)
 	if m.screen == screenPlan {
 		m.closePlan()
-		m.screen = screenHome
-		m.nav.resetTo() // Home is the way back now, not what the plan was opened from
+		m.show(screenHome) // restartHomeTick below starts its loop
+		m.nav.resetTo()    // Home is the way back now, not what the plan was opened from
 		m.focus = m.homeFocus()
 	}
 	load := m.loadPlans()
@@ -1164,14 +1165,16 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	}
 	m.leaveBuild()
 	wasBoard := m.nav.rootedOnBoard()
+	var loops tea.Cmd
 	if m.screen == screenTree {
 		// The tree is the old server's; a build key means another build here.
 		// The screen it was opened from is where the switch lands.
 		m.stopTree()
-		m.screen = screenHome
+		to := screenHome
 		if f, ok := m.nav.top(); ok {
-			m.screen = f.screen
+			to = f.screen
 		}
+		loops = m.show(to)
 	}
 	m.nav.resetTo() // the way back is the old server's
 	// The plan, its builds and its cache are the old server's, also when
@@ -1179,9 +1182,10 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	m.closePlan()
 	m.trees = nil
 	if m.screen == screenPlan {
-		m.screen = screenHome
 		if wasBoard {
-			m.screen = screenBoard
+			m.show(screenBoard) // connectedMsg starts the new server's beats
+		} else {
+			m.show(screenHome)
 		}
 		m.focus = m.homeFocus()
 	}
@@ -1209,7 +1213,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	m.home.live = nil
 	m.board = boardState{tickGen: m.board.tickGen + 1, loadGen: m.board.loadGen + 1}
 
-	cmds := []tea.Cmd{}
+	cmds := []tea.Cmd{loops}
 	cmds = append(cmds, m.restartHomeTick())
 	if m.deps.Targets != nil {
 		cmds = append(cmds, loadPresetsCmd(m.deps, m.presetsGen))
@@ -1522,7 +1526,7 @@ func (m Model) openStageLogs(stage string) (tea.Model, tea.Cmd) {
 	if m.screen != screenLogs {
 		m.openedFrom() // esc returns to the screen the logs were opened on
 	}
-	m.screen = screenLogs
+	m.show(screenLogs)
 	m.stopFollow() // reopening replaces the log state; its follow ends first
 	// The header names the build from the start, so a slow or failed load
 	// still says whose logs these are.
@@ -1541,7 +1545,7 @@ func (m Model) openLogs(jobKey string, all bool) (tea.Model, tea.Cmd) {
 	if m.screen != screenLogs {
 		m.openedFrom() // esc returns to the screen the logs were opened on
 	}
-	m.screen = screenLogs
+	m.show(screenLogs)
 	// Reopening replaces the log state, so an active follow has to end first
 	// or its chunks land in the view that replaced it.
 	m.stopFollow()
@@ -2018,7 +2022,7 @@ func (m Model) openForm() (tea.Model, tea.Cmd) {
 	}
 
 	m.openedFrom()
-	m.screen = screenForm
+	m.show(screenForm)
 	m.formGen++
 	// Name the plan while it loads, so the header is never blank.
 	m.form = formState{phase: formLoading, ref: app.PlanRef{PlanKey: planKey}}
@@ -2202,4 +2206,13 @@ func (m Model) expandErr() (tea.Model, tea.Cmd) {
 	}
 	m.overlay = overlayError
 	return m, nil
+}
+
+// startScreen is the screen bam opens on. It is the one place the screen is
+// set other than show: no loop is running yet, and Init starts the first.
+func startScreen(d Deps) screen {
+	if d.StartOnBoard {
+		return screenBoard
+	}
+	return screenHome
 }

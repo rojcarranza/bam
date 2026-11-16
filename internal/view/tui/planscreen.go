@@ -107,8 +107,7 @@ type treePreview struct {
 // lands on it once the list arrives. The drill stack and cache survive, so
 // Enter on a Tree row and esc back keep them.
 func (m Model) openPlan(key, buildsPlan string, want *provider.Build, f focus) (Model, tea.Cmd) {
-	m.screen = screenPlan
-	m.home.tickGen++ // Home's auto-refresh stops while it is not visible
+	m.show(screenPlan) // leaving Home ends its auto-refresh
 	m.leaveBuild()
 	m.plan.key, m.plan.want, m.plan.older = key, want, ""
 	m.plan.restGen++

@@ -187,8 +187,8 @@ func TestBoardPinGroupsSpacedOnlyWhileEveryPinFits(t *testing.T) {
 		}
 		return -1
 	}
-	require.Equal(t, at("alpha")+3, at("beta"), "alpha, its pin, an empty row, then beta: %q", text)
-	require.Empty(t, text[at("beta")-1])
+	require.Equal(t, at("Alpha")+3, at("Beta"), "alpha, its pin, an empty row, then beta: %q", text)
+	require.Empty(t, text[at("Beta")-1])
 
 	// More pins than the panel holds: the empty row goes before a pin does.
 	var many []app.PinView
@@ -202,11 +202,11 @@ func TestBoardPinGroupsSpacedOnlyWhileEveryPinFits(t *testing.T) {
 	right = cols(m.View(), 90, 200)
 	var gap int
 	for i, l := range right {
-		if strings.Contains(l, "beta") {
+		if strings.Contains(l, "Beta") {
 			gap = i
 		}
 	}
-	require.NotEmpty(t, strings.TrimSpace(strings.Trim(right[gap-1], "│ ")), "no empty row above beta: pins would be cut")
+	require.NotEmpty(t, strings.TrimSpace(strings.Trim(right[gap-1], "│ ")), "no empty row above Beta: pins would be cut")
 	require.Contains(t, strings.Join(right, "\n"), "PROJ-P32 ", "every pin shows")
 }
 
@@ -295,4 +295,41 @@ func TestWideBoardCountsTheOfflineAgentsItHasNoRoomFor(t *testing.T) {
 	}
 	require.Greater(t, shown, 4, "more than the one-column four")
 	require.Contains(t, ansi.Strip(strings.Join(agents.lines, "\n")), fmt.Sprintf("… and %d more offline or disabled", len(data.Agents.Away)-shown))
+}
+
+// Intent (BAM-101 piece 1): a pinned group is headed by its name on a ruled
+// line with the group's state at the right, and each pin's pass record sits
+// muted under its row, before the pin's tree and branches.
+func TestBoardPinnedGroupHeadingAndPassRecord(t *testing.T) {
+	failed := provider.Build{Key: "PROJ-REL-9", Number: 9, State: provider.StateFailed, FinishedAt: goldenNow.Add(-time.Hour)}
+	passed := provider.Build{Key: "PROJ-REL-8", Number: 8, State: provider.StateSuccess, FinishedAt: goldenNow.Add(-26 * time.Hour)}
+	groups := []app.PinGroupView{{Name: "release-train", Pins: []app.PinView{
+		{Pin: "PROJ-REL", PlanKey: "PROJ-REL", Results: []provider.Build{failed, passed}},
+		{Pin: "PROJ-NEW", PlanKey: "PROJ-NEW"},
+	}}}
+	right := cols(boardWith(200, 50, 0, groups).View(), 90, 200)
+	var text []string
+	for _, l := range right {
+		text = append(text, strings.TrimSpace(strings.Trim(l, "│ ")))
+	}
+	head, row, rec, next := -1, -1, -1, -1
+	for i, l := range text {
+		switch {
+		case strings.HasPrefix(l, "Release train ─"):
+			head = i
+		case strings.HasPrefix(l, "▸ PROJ-REL"):
+			row = i
+		case strings.HasPrefix(l, "1 of 2 passed"):
+			rec = i
+		case strings.HasPrefix(l, "PROJ-NEW"):
+			next = i
+		}
+	}
+	require.GreaterOrEqual(t, head, 0, "%q", text)
+	require.True(t, strings.HasSuffix(text[head], "2 pipelines · 1 failing"), text[head])
+	require.Equal(t, head+1, row)
+	require.Equal(t, row+1, rec)
+	require.Contains(t, text[rec], "failing for 1 build since ")
+	require.Contains(t, text[rec], "last pass #8 1d ago")
+	require.Equal(t, rec+1, next, "a pin with no results has no record line")
 }

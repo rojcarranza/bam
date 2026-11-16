@@ -117,7 +117,7 @@ func TestBoardCutsALongPinnedNameToTheTerminal(t *testing.T) {
 	var row string
 	for _, l := range strings.Split(strings.TrimRight(buf.String(), "\n"), "\n") {
 		assert.LessOrEqual(t, style.Width(l), 80, l)
-		if strings.HasPrefix(style.Strip(l), "    Integrate every") {
+		if row == "" && strings.HasPrefix(style.Strip(l), "    Integrate every") {
 			row = style.Strip(l)
 		}
 	}

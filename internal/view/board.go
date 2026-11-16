@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -209,7 +211,10 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		return nil
 	}
 	for _, g := range b.Groups {
-		fmt.Fprintln(w, "  "+style.Bold(o.Style, g.Name))
+		fmt.Fprintln(w, "  "+RuledLine(GroupTitle(g.Name), GroupState(g), ruleWidth(o),
+			func(s string) string { return style.Bold(o.Style, s) },
+			func(s string) string { return style.Dim(o.Style, s) },
+			func(s string) string { return style.Dim(o.Style, s) }))
 		t := Table{Headers: []string{"PIPELINE", "LAST 10", "NOW", "LAST", "USUAL"}, Flex: []int{0}, Indent: "    "}
 		var failed []string
 		for _, p := range g.Pins {
@@ -230,6 +235,24 @@ func Board(o Out, b app.Board, url func(string) string) error {
 				return err
 			}
 		}
+		now := time.Now()
+		if o.Now != nil {
+			now = o.Now()
+		}
+		for _, p := range g.Pins {
+			if p.Err != nil {
+				continue
+			}
+			if rec := PassRecord(p.Results, now); rec != "" {
+				label := p.Label()
+				if o.Width > 0 {
+					if room := o.Width - 4 - utf8.RuneCountInString(" · "+rec); utf8.RuneCountInString(label) > room {
+						label = string([]rune(label)[:max(room, 8)-1]) + "…"
+					}
+				}
+				fmt.Fprintln(w, "    "+style.Dim(o.Style, label+" · "+rec))
+			}
+		}
 		for _, f := range failed {
 			fmt.Fprintln(w, f)
 		}
@@ -240,6 +263,15 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		}
 	}
 	return nil
+}
+
+// ruleWidth is the width of a group's heading: the output's, or 80 when it has
+// none.
+func ruleWidth(o Out) int {
+	if o.Width <= 0 {
+		return 78
+	}
+	return max(o.Width-2, 20)
 }
 
 // pinTree prints the pipelines a pin's build started, as bam build tree does,

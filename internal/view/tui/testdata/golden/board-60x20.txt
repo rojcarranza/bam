@@ -14,7 +14,7 @@
 │▸ 1  PROJ-BUILD-500  7m  Manual build                     │
 ╰──────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────╮
-│  integration                                             │
+│  Integration ──────── 2 pipelines · 1 failing · 1 running│
 │▸ Build and test  ✓✗          –           last 3m · usual │
 ╰──────────────────────────────────────────────────────────╯
 lab         enter open  l logs  t tree  i why  P pin  q quit

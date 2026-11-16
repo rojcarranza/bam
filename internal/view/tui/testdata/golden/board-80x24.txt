@@ -16,9 +16,9 @@
 │  2  OPS-NIGHTLY-3   –   Scheduled                                            │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────────────────────────╮
-│  integration                                                                 │
+│  Integration ──────────────────────────── 2 pipelines · 1 failing · 1 running│
 │▸ Build and test           ✓✗          –                 last 3m · usual 3m   │
+│    1 of 2 passed · failing for 1 build · last pass #3                        │
 │  Provision a lab cluster  ✓✓          #9 running 3m/4m  last 4m · usual 4m   │
-│                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 lab    enter open  l logs  t tree  i why  P pin  tab panel  : cmd  ?help  q quit

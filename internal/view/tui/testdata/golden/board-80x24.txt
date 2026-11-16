@@ -1,7 +1,6 @@
  lab · Bamboo 12.1.8                                             updated 0s ago
 ┏━Needs you━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃▸ ! agent linux-2 is offline                                                  ┃
-┃  ! PROJ-BUILD-500 has waited 7m in the queue                                 ┃
 ┃  ! Build and test: the last build, PROJ-BUILD-44, failed                     ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ╭─Agents───────────────────────────────────────────────────────────────────────╮
@@ -11,14 +10,15 @@
 │  linux-3  remote  disabled                                                   │
 │  Show only your agents: bam agent mine add NAME-START                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-╭─Queue · 2────────────────────────────────────────────────────────────────────╮
-│▸ 1  PROJ-BUILD-500  7m  Manual build                                         │
-│  2  OPS-NIGHTLY-3   –   Scheduled                                            │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────────────────────────╮
 │  Integration ────────────────────────── 2 pipelines · 1 failing · 1 running  │
 │▸ Build and test           ✓✗          –                 last 3m · usual 3m   │
 │    1 of 2 passed · failing for 1 build · last pass #3                        │
 │  Provision a lab cluster  ✓✓          #9 running 3m/4m  last 4m · usual 4m   │
+│    2 of 2 passed · passing for 2 builds                                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 lab    enter open  l logs  t tree  i why  P pin  tab panel  : cmd  ?help  q quit

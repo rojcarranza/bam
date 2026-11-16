@@ -28,12 +28,12 @@ const (
 	boardMinRows, boardMinCols = 20, 60
 )
 
-// boardEvery is the board's beat: agents, the queue and running builds are
-// read again on each. A variable only so tests can make the beat fire at once.
+// boardEvery is the board's beat: agents and running builds are read again on
+// each. A variable only so tests can make the beat fire at once.
 var boardEvery = 15 * time.Second
 
 // boardRedrawEvery is the board's redraw beat: it only draws the screen
-// again, so the data age and queue waits count up between reads. It never
+// again, so the data age and the time builds run count up between reads. It never
 // reads the server. A variable only so tests can make it fire at once.
 var boardRedrawEvery = time.Second
 
@@ -41,7 +41,6 @@ type boardPanel int
 
 const (
 	boardNeeds boardPanel = iota
-	boardQueue
 	boardPins
 	boardAgents // a tab stop only while Your agents is shown
 	boardPanels
@@ -51,9 +50,9 @@ const (
 // when it is shown, and is skipped otherwise.
 func (b *boardState) boardOrder() []boardPanel {
 	if b.data.Mine != nil {
-		return []boardPanel{boardNeeds, boardAgents, boardQueue, boardPins}
+		return []boardPanel{boardNeeds, boardAgents, boardPins}
 	}
-	return []boardPanel{boardNeeds, boardQueue, boardPins}
+	return []boardPanel{boardNeeds, boardPins}
 }
 
 // tab moves the focus delta panels along the tab order.
@@ -81,9 +80,14 @@ type boardState struct {
 	cursor           [boardPanels]int
 	// whole is true while the board shows the whole server, not only your
 	// agents: bam top --all, and the a key.
-	whole  bool
-	groups []app.PinGroup
-	// busy and queued are the chart samples, oldest first.
+	whole bool
+	// agentRows is whether the terminal is big enough for Your agents to list
+	// the build of each building agent; below it the panel keeps one line a
+	// pool. It is set when the size or the data changes.
+	agentRows bool
+	groups    []app.PinGroup
+	// busy and queued are the chart samples of the whole-server view, oldest
+	// first; queued is how many builds wait.
 	busy, queued []float64
 	// seen holds the Needs you entries already shown, so the bell rings only
 	// for one that is new.
@@ -211,6 +215,7 @@ func (m Model) boardLoaded(msg boardLoadedMsg) Model {
 	}
 	now := m.now()
 	b.stale = false
+	b.agentRows = m.agentRowsFit()
 	b.loadedAt = now
 	if msg.Full {
 		b.fullAt = now
@@ -223,7 +228,7 @@ func (m Model) boardLoaded(msg boardLoadedMsg) Model {
 		b.busy = appendSample(b.busy, float64(a.Busy)/float64(a.Online))
 	}
 	if data.QueueOK {
-		b.queued = appendSample(b.queued, float64(len(data.Queue)+data.QueueOthers))
+		b.queued = appendSample(b.queued, float64(data.QueueLength))
 	}
 	fresh := false
 	next := map[string]bool{}
@@ -265,13 +270,8 @@ func (b *boardState) rows(p boardPanel) int {
 	switch p {
 	case boardNeeds:
 		return len(b.data.Needs)
-	case boardQueue:
-		return len(b.data.Queue)
 	case boardAgents:
-		if b.data.Mine == nil {
-			return 0
-		}
-		return len(b.data.Mine.Pools)
+		return len(b.agentSels())
 	}
 	return len(b.pinSels())
 }
@@ -305,14 +305,9 @@ func readNothing(d app.Board) bool {
 	return tried
 }
 
-// buildByKey is the build the board read with this key: queued, running
-// or a pin's result.
+// buildByKey is the build the board read with this key: a pin's, a pipeline
+// of its tree.
 func (b *boardState) buildByKey(key string) (provider.Build, bool) {
-	for _, q := range b.data.Queue {
-		if q.Key == key {
-			return provider.Build{Key: q.Key, PlanKey: q.PlanKey, Number: q.Number, State: provider.StateQueued}, true
-		}
-	}
 	for _, g := range b.data.Groups {
 		for _, p := range g.Rows() {
 			if p.Current != nil && p.Current.Key == key {
@@ -339,7 +334,25 @@ func (b *boardState) buildByKey(key string) (provider.Build, bool) {
 	return provider.Build{}, false
 }
 
-// selectedBuild is the build under the cursor: a queued build, a pin's build
+// agentBuild is the build the selected line of Your agents runs, as a build
+// to open: the board holds only its key, plan and state.
+func (b *boardState) agentBuild() (provider.Build, bool) {
+	sels := b.agentSels()
+	c := b.cursor[boardAgents]
+	if b.data.Mine == nil || c >= len(sels) || sels[c].agent < 0 {
+		return provider.Build{}, false
+	}
+	a := b.data.Mine.Pools[sels[c].pool].Agents[sels[c].agent]
+	if a.Build == nil {
+		return provider.Build{}, false
+	}
+	if got, ok := b.buildByKey(a.Build.BuildKey); ok {
+		return got, true
+	}
+	return provider.Build{Key: a.Build.BuildKey, PlanKey: a.Build.PlanKey, State: provider.StateRunning}, true
+}
+
+// selectedBuild is the build under the cursor: an agent's build, a pin's build
 // running now or else its newest result, or the build a Needs you line names.
 func (m Model) boardBuild() (provider.Build, bool) {
 	b := &m.board
@@ -349,10 +362,8 @@ func (m Model) boardBuild() (provider.Build, bool) {
 		if c < len(b.data.Needs) && b.data.Needs[c].Build != "" {
 			return b.buildByKey(b.data.Needs[c].Build)
 		}
-	case boardQueue:
-		if c < len(b.data.Queue) {
-			return b.buildByKey(b.data.Queue[c].Key)
-		}
+	case boardAgents:
+		return b.agentBuild()
 	default:
 		if rows := b.pinSels(); c < len(rows) {
 			if n := rows[c].node; n != nil {
@@ -406,7 +417,7 @@ func (m Model) handleBoardKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.AllLogs):
 		return m.boardToggleWhole()
 	case key.Matches(msg, keys.Enter):
-		if m.board.panel == boardAgents {
+		if m.board.panel == boardAgents && m.board.onPool() {
 			return m.boardPoolInfo()
 		}
 		return m.boardOpen(false)
@@ -507,8 +518,8 @@ func (m Model) boardSelectionURL() string {
 	return ""
 }
 
-// boardPinKey is P: unpin the selected pipeline, or pin the selected queued
-// build's plan after asking for the group.
+// boardPinKey is P: unpin the selected pipeline, or pin the plan of the build
+// the selected agent runs after asking for the group.
 func (m Model) boardPinKey() (tea.Model, tea.Cmd) {
 	if pin, ok := m.boardPin(); ok {
 		if m.deps.PinRemove == nil {
@@ -522,7 +533,7 @@ func (m Model) boardPinKey() (tea.Model, tea.Cmd) {
 			return boardPinnedMsg{Status: "unpinned " + name}
 		}
 	}
-	if m.board.panel != boardQueue || m.deps.PinAdd == nil {
+	if m.board.panel != boardAgents || m.deps.PinAdd == nil {
 		return m, nil
 	}
 	b, ok := m.boardBuild()
@@ -641,11 +652,11 @@ func (m Model) boardBody() []string {
 		drawn[i] = strings.Split(bx.render(b.panel == bx.panel), "\n")
 	}
 	var lines []string
-	if len(boxes) == 4 && boxes[3].x > 0 { // two columns: Pinned beside the rest
-		left := append(append(drawn[0], drawn[1]...), drawn[2]...)
+	if len(boxes) == 3 && boxes[2].x > 0 { // two columns: Pinned beside the rest
+		left := append(append([]string{}, drawn[0]...), drawn[1]...)
 		for i, l := range left {
-			if i < len(drawn[3]) {
-				l += drawn[3][i]
+			if i < len(drawn[2]) {
+				l += drawn[2][i]
 			}
 			lines = append(lines, l)
 		}
@@ -690,7 +701,7 @@ func (bx boardBox) render(focused bool) string {
 	return panel(bx.title, focused, bx.w, bx.h, strings.Join(window(body, bx.cursor, bx.h-2), "\n"))
 }
 
-// boardBoxes lays the four panels out, as both drawings of the board do:
+// boardBoxes lays the three panels out, as both drawings of the board do:
 // tight below roomyRows, roomy from it.
 func (m Model) boardBoxes() []boardBox {
 	if m.height >= roomyRows {
@@ -708,26 +719,23 @@ func (m Model) boardBoxes() []boardBox {
 	ah := 4 + min(awayCount(b), awayMax)
 	switch {
 	case b.data.Mine != nil:
-		ah = min(len(m.mineLines())+2, 4+awayMax)
+		mineLines, _ := m.mineLines(inner)
+		ah = min(len(mineLines)+2, 4+awayMax)
 	case m.hintMine():
 		ah++ // the hint line
 	}
 	nh = max(min(nh, h-ah-7), 3)
-	rest := h - nh - ah
-	queue, queueCursor := m.queueLines(inner)
-	qh := max(min(len(queue)+2, rest-4), 3)
-	ph := rest - qh
+	ph := h - nh - ah
 
-	agents := m.agentLines(inner, awayMax)
+	agents, selLine := m.agentLinesSel(inner, awayMax)
 	if b.data.Mine != nil {
 		agents = fitMine(agents, b.data.Mine, ah-2)
 	}
 	pins, pinCursor, pinInfo := m.pinLinesInfo(inner, false, ph-2)
 	return []boardBox{
 		{panel: boardNeeds, title: "Needs you", y: 0, w: m.width, h: nh, lines: needs, cursor: b.cursor[boardNeeds]},
-		{panel: boardAgents, title: m.agentsTitle(), y: nh, w: m.width, h: ah, lines: agents, cursor: m.agentCursorLine()},
-		{panel: boardQueue, title: m.queueTitle(), y: nh + ah, w: m.width, h: qh, lines: queue, cursor: queueCursor},
-		{panel: boardPins, title: "Pinned", y: nh + ah + qh, w: m.width, h: ph, lines: pins, cursor: pinCursor, info: pinInfo},
+		{panel: boardAgents, title: m.agentsTitle(), y: nh, w: m.width, h: ah, lines: agents, cursor: m.agentCursorLine(selLine)},
+		{panel: boardPins, title: "Pinned", y: nh + ah, w: m.width, h: ph, lines: pins, cursor: pinCursor, info: pinInfo},
 	}
 }
 
@@ -774,16 +782,23 @@ func (m Model) needsLines(w int) []string {
 }
 
 func (m Model) agentLines(inner, awayMax int) []string {
+	lines, _ := m.agentLinesSel(inner, awayMax)
+	return lines
+}
+
+// agentLinesSel is agentLines with the line each selectable row of Your agents
+// is on.
+func (m Model) agentLinesSel(inner, awayMax int) ([]string, []int) {
 	b := &m.board
 	if !b.have {
-		return []string{dimStyle.Render("  reading the agents…")}
+		return []string{dimStyle.Render("  reading the agents…")}, nil
 	}
 	a := b.data.Agents
 	if a == nil {
-		return []string{"  " + b.data.AgentsNote}
+		return []string{"  " + b.data.AgentsNote}, nil
 	}
 	if b.data.Mine != nil {
-		return m.mineLines()
+		return m.mineLines(inner)
 	}
 	share := 0.0
 	if a.Online > 0 {
@@ -810,7 +825,7 @@ func (m Model) agentLines(inner, awayMax int) []string {
 	if m.hintMine() {
 		out = append(out, dimStyle.Render("  Show only your agents: bam agent mine add NAME-START"))
 	}
-	return out
+	return out, nil
 }
 
 // chartLine draws the busy and queued charts with their ranges, as wide as
@@ -860,35 +875,110 @@ func mineStyle(s app.AgentState) lipgloss.Style {
 	return dimStyle
 }
 
-// mineLines is the Your agents panel: the four counts, one row per pool with
-// a mark per agent, the names of the agents that are down or disabled, and a
-// row for each name start no agent matches. The cursor moves over the pools.
-func (m Model) mineLines() []string {
-	b := &m.board
-	mine := b.data.Mine
-	paint := func(s app.AgentState, mark string) string { return mineStyle(s).Render(mark) }
-	out := []string{"  " + view.MineSummary(mine)}
-	for i, p := range mine.Pools {
-		out = append(out, m.cursorFor(b.panel == boardAgents, i == b.cursor[boardAgents])+view.MinePoolLine(p, paint))
+// agentSel is one line of Your agents the cursor can stand on: a pool, or one
+// of its building agents (agent is its index in the pool, -1 for the pool).
+type agentSel struct{ pool, agent int }
+
+// agentSels is the lines the cursor moves over: each pool and, while the
+// terminal has the room to list them, each of its building agents.
+func (b *boardState) agentSels() []agentSel {
+	if b.data.Mine == nil {
+		return nil
 	}
-	for _, a := range mine.Away {
-		out = append(out, "  "+mineStyle(a.State).Render("!")+" "+view.MineAwayLine(a))
-	}
-	for _, s := range mine.NoMatch {
-		out = append(out, dimStyle.Render("  "+view.MineNoMatchLine(s)))
+	var out []agentSel
+	for i, p := range b.data.Mine.Pools {
+		out = append(out, agentSel{i, -1})
+		if !b.agentRows {
+			continue
+		}
+		for j, a := range p.Agents {
+			if a.State == app.AgentBuilding {
+				out = append(out, agentSel{i, j})
+			}
+		}
 	}
 	return out
 }
 
-// fitMine keeps the Your agents lines within h rows. The counts and pools
-// stay, since the cursor scrolls over the pools; when the down, disabled and
-// unmatched rows after them do not all fit, the last row that fits says how
-// many are left out, so none is cut without notice.
+// onPool says whether the cursor of Your agents is on a pool's own line.
+func (b *boardState) onPool() bool {
+	sels := b.agentSels()
+	c := b.cursor[boardAgents]
+	return c < len(sels) && sels[c].agent < 0
+}
+
+// agentRowsFit says whether the terminal is big enough for Your agents to
+// list the build of each building agent: the board's two columns and its
+// roomy layout.
+func (m Model) agentRowsFit() bool { return m.width >= wideCols && m.height >= roomyRows }
+
+// mineLines is the Your agents panel: the four counts, then each pool with
+// its line of marks, a row for each building agent (its number, job, plan
+// with branch, the pin group's name and the time it runs) and one line that
+// names its idle agents; then the names of the agents that are down or
+// disabled, and a row for each name start no agent matches. It also gives the
+// line each selectable row is on, in the order of agentSels. A terminal too
+// small for the rows keeps one line a pool.
+func (m Model) mineLines(inner int) (lines []string, selLine []int) {
+	b := &m.board
+	mine := b.data.Mine
+	paint := func(s app.AgentState, mark string) string { return mineStyle(s).Render(mark) }
+	lines = []string{"  " + view.MineSummary(mine)}
+	var rows []view.MineRow
+	now := m.now()
+	if b.agentRows {
+		for _, p := range mine.Pools {
+			rows = append(rows, view.MineRows(p, now)...)
+		}
+	}
+	cols := view.MineColumns(rows, inner)
+	cur := 0
+	pick := func() string {
+		sel := m.cursorFor(b.panel == boardAgents, cur == b.cursor[boardAgents])
+		selLine = append(selLine, len(lines))
+		cur++
+		return sel
+	}
+	for _, p := range mine.Pools {
+		lines = append(lines, pick()+view.MinePoolLine(p, paint))
+		if !b.agentRows {
+			continue
+		}
+		for _, r := range view.MineRows(p, now) {
+			text := view.MineRowText(r, cols, func(part, s string) string {
+				if part == "group" {
+					return accentStyle.Render(s)
+				}
+				return dimStyle.Render(s)
+			})
+			lines = append(lines, pick()+text)
+		}
+		if idle := view.MineIdleLine(p); idle != "" {
+			lines = append(lines, dimStyle.Render("    "+idle))
+		}
+	}
+	if b.data.WorkNote != "" && b.agentRows {
+		lines = append(lines, dimStyle.Render("  "+b.data.WorkNote))
+	}
+	for _, a := range mine.Away {
+		lines = append(lines, "  "+mineStyle(a.State).Render("!")+" "+view.MineAwayLine(a))
+	}
+	for _, s := range mine.NoMatch {
+		lines = append(lines, dimStyle.Render("  "+view.MineNoMatchLine(s)))
+	}
+	return lines, selLine
+}
+
+// fitMine keeps the Your agents lines within h rows. The counts, pools and
+// agent rows stay, since the cursor scrolls over them; when the down, disabled
+// and unmatched rows after them do not all fit, the last row that fits says
+// how many are left out, so none is cut without notice.
 func fitMine(lines []string, mine *app.MyAgents, h int) []string {
 	if len(lines) <= h {
 		return lines
 	}
-	head := 1 + len(mine.Pools)
+	tail := len(mine.Away) + len(mine.NoMatch)
+	head := len(lines) - tail
 	keep := max(h-head-1, 0)
 	hidden := lines[head+keep:]
 	away := max(len(mine.Away)-keep, 0)
@@ -906,23 +996,12 @@ func fitMine(lines []string, mine *app.MyAgents, h int) []string {
 }
 
 // agentCursorLine is the line of the Your agents panel the cursor is on.
-func (m Model) agentCursorLine() int {
-	if m.board.data.Mine == nil {
+func (m Model) agentCursorLine(selLine []int) int {
+	c := m.board.cursor[boardAgents]
+	if m.board.data.Mine == nil || c >= len(selLine) {
 		return 0
 	}
-	return 1 + m.board.cursor[boardAgents]
-}
-
-// queueTitle names the queue panel by what it lists.
-func (m Model) queueTitle() string {
-	d := m.board.data
-	switch {
-	case !m.board.have || !d.QueueOK:
-		return "Queue"
-	case d.QueueFiltered:
-		return fmt.Sprintf("Your queue · %d of %d", len(d.Queue), len(d.Queue)+d.QueueOthers)
-	}
-	return fmt.Sprintf("Queue · %d", len(d.Queue))
+	return selLine[c]
 }
 
 // agentsTitle names the agents panel by what it shows.
@@ -939,7 +1018,7 @@ func (m Model) agentsTitle() string {
 // boardToggleWhole is a: your agents only, or every agent of the server. It
 // does nothing when no agents are listed.
 func (m Model) boardToggleWhole() (tea.Model, tea.Cmd) {
-	if !m.board.data.MineSet && !m.board.data.QueueFiltered && !m.board.whole {
+	if !m.board.data.MineSet && !m.board.whole {
 		m.status = "nothing is listed as yours: bam agent mine add NAME-START"
 		return m, nil
 	}
@@ -949,100 +1028,33 @@ func (m Model) boardToggleWhole() (tea.Model, tea.Cmd) {
 	return m, m.loadBoard(true)
 }
 
-// boardPoolInfo is enter on a pool of Your agents: its agents and their health.
+// boardPoolInfo is enter on a pool of Your agents: its agents, their health
+// and what each building one builds.
 func (m Model) boardPoolInfo() (tea.Model, tea.Cmd) {
 	mine := m.board.data.Mine
+	sels := m.board.agentSels()
 	c := m.board.cursor[boardAgents]
-	if mine == nil || c >= len(mine.Pools) {
+	if mine == nil || c >= len(sels) {
 		return m, nil
 	}
-	p := mine.Pools[c]
+	p := mine.Pools[sels[c].pool]
 	var sb strings.Builder
 	for _, a := range p.Agents {
-		fmt.Fprintf(&sb, "%s %s\n", view.MineMark(a.State), view.MineAwayLineOrName(a))
-	}
-	return m.openInfo(p.Name+"…", sb.String()), nil
-}
-
-// queueLines draws the queue, one line per build, and says which line holds
-// the cursor. The columns are as wide as their widest value, and why a build
-// waits comes before the trigger reason: when the line is too wide the
-// reason is cut short with an ellipsis, then the agents' names go, then
-// long keys are shortened, so the why stays readable.
-func (m Model) queueLines(inner int) ([]string, int) {
-	b := &m.board
-	switch {
-	case !b.have:
-		return []string{dimStyle.Render("  reading the queue…")}, 0
-	case !b.data.QueueOK:
-		return []string{"  " + b.data.QueueNote}, 0
-	case len(b.data.Queue) == 0 && b.data.QueueOthers == 0:
-		return []string{dimStyle.Render("  The queue is empty")}, 0
-	case len(b.data.Queue) == 0:
-		return []string{dimStyle.Render("  Nothing waits for you"), dimStyle.Render("  " + view.OthersText(b.data.QueueOthers))}, 0
-	}
-	waits := make([]string, len(b.data.Queue))
-	posW, keyW, waitW := 0, 0, 0
-	for i, r := range b.data.Queue {
-		// Waited is as of the last read; it keeps counting until the next.
-		w := r.Waited + max(m.now().Sub(b.loadedAt), 0)
-		waits[i] = brief(w)
-		if l, ok := app.LongWait(w); ok {
-			waits[i] = l
-		}
-		if w <= 0 {
-			waits[i] = "0s"
-		}
-		if r.AtLeast {
-			waits[i] = "–" // bam did not read this build's wait
-		}
-		posW = max(posW, len(fmt.Sprint(r.Position)))
-		keyW = max(keyW, lipgloss.Width(r.Key))
-		waitW = max(waitW, lipgloss.Width(waits[i]))
-	}
-	// A long key must not push a why past the panel: shorten the KEY
-	// column, down to a floor, until the shortest form of every why fits.
-	needW := 0
-	for _, r := range b.data.Queue {
-		if r.Why != nil {
-			short := *r.Why
-			short.Agents = nil
-			needW = max(needW, lipgloss.Width(view.WhyText(&short)))
-		}
-	}
-	if fit := inner - (2 + posW + 2 + 2 + waitW + 2) - needW; fit < keyW {
-		keyW = max(fit, min(keyW, 10))
-	}
-	var out []string
-	for i, r := range b.data.Queue {
-		key := r.Key
-		if lipgloss.Width(key) > keyW {
-			key = ansi.Truncate(key, keyW, "…")
-		}
-		head := fmt.Sprintf("%s%-*d  %-*s  %-*s  ", m.cursorFor(b.panel == boardQueue, i == b.cursor[boardQueue]), posW, r.Position, keyW, key, waitW, waits[i])
-		room := inner - lipgloss.Width(head)
-		why := view.WhyText(r.Why)
-		if r.Why != nil && len(r.Why.Agents) > 0 && lipgloss.Width(why) > room {
-			short := *r.Why
-			short.Agents = nil
-			why = view.WhyText(&short)
-		}
-		if lipgloss.Width(why) > room {
-			why = ansi.Truncate(why, max(room, 1), "…")
-		}
-		text := r.Reason
-		if why != "" {
-			text = why
-			if rest := room - lipgloss.Width(why+" · "); r.Reason != "" && rest > 1 {
-				text += " · " + ansi.Truncate(r.Reason, rest, "…")
+		fmt.Fprintf(&sb, "%s %s", view.MineMark(a.State), view.MineAwayLineOrName(a))
+		if a.State == app.AgentBuilding {
+			if b := a.Build; b != nil {
+				fmt.Fprintf(&sb, "  %s  %s", b.Job, b.Label())
+				if b.Group != "" {
+					sb.WriteString("  " + view.MineGroupName(b.Group))
+				}
+				sb.WriteString("  " + view.MineElapsed(b.RunningFor(m.now())))
+			} else {
+				sb.WriteString(" · build not found")
 			}
 		}
-		out = append(out, head+dimStyle.Render(text))
+		sb.WriteString("\n")
 	}
-	if b.data.QueueOthers > 0 {
-		out = append(out, dimStyle.Render("  "+view.OthersText(b.data.QueueOthers)))
-	}
-	return out, b.cursor[boardQueue]
+	return m.openInfo(p.Name+"…", sb.String()), nil
 }
 
 // pinGap is the space between the columns of a pin's row: its name, its

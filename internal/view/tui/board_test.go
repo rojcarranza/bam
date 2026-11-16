@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -44,11 +43,8 @@ func sampleBoard(at time.Time) app.Board {
 			{ID: 2, Name: "linux-2", Type: "REMOTE", Enabled: true},
 			{ID: 3, Name: "linux-3", Type: "REMOTE", Online: true},
 		}},
-		QueueOK: true,
-		Queue: []app.QueueRow{
-			{Position: 1, QueueEntry: provider.QueueEntry{Key: "PROJ-BUILD-500", PlanKey: "PROJ-BUILD", Number: 500, Reason: "Manual build"}, Waited: 7 * time.Minute},
-			{Position: 2, QueueEntry: provider.QueueEntry{Key: "OPS-NIGHTLY-3", PlanKey: "OPS-NIGHTLY", Number: 3, Reason: "Scheduled"}, Waited: 20 * time.Second, AtLeast: true},
-		},
+		QueueOK:     true,
+		QueueLength: 2,
 		Groups: []app.PinGroupView{
 			{Name: "integration", Pins: []app.PinView{
 				{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD", Name: "Build and test", Results: []provider.Build{failed, ok(3)}, Last: 192 * time.Second, Usual: 3 * time.Minute},
@@ -56,6 +52,16 @@ func sampleBoard(at time.Time) app.Board {
 			}},
 		},
 	}
+	b.Needs = app.NeedsYou(b, at)
+	return b
+}
+
+// withQueuedPin adds a group whose pipeline has a build waiting 7 minutes for
+// an agent, which Needs you says. The board is not drawn with it unless a test
+// asks, so the pins above it keep their places.
+func withQueuedPin(b app.Board, at time.Time) app.Board {
+	q := provider.Build{Key: "PROJ-BUILD-500", PlanKey: "OPS-NIGHTLY", Number: 500, State: provider.StateQueued, QueuedAt: at.Add(-7 * time.Minute)}
+	b.Groups = append(b.Groups, app.PinGroupView{Name: "nightly", Pins: []app.PinView{{Pin: "OPS-NIGHTLY", PlanKey: "OPS-NIGHTLY", Name: "Nightly checks", Current: &q}}})
 	b.Needs = app.NeedsYou(b, at)
 	return b
 }
@@ -73,6 +79,14 @@ func boardModel(w, h int) Model {
 	m.now = func() time.Time { return goldenNow }
 	m.board.loading, m.board.loadGen = true, 1
 	m, _ = send(m, boardLoadedMsg{Gen: 1, Full: true, Board: sampleBoard(goldenNow)})
+	return m
+}
+
+// boardModelQueued is boardModel with a pipeline waiting for an agent.
+func boardModelQueued(w, h int) Model {
+	m := boardModel(w, h)
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: withQueuedPin(sampleBoard(goldenNow), goldenNow)})
 	return m
 }
 
@@ -99,7 +113,7 @@ func TestBoardSmallTerminalHidesEverythingButNeedsYou(t *testing.T) {
 // still leave room for the whole Pinned panel, bottom border included.
 func TestBoardGolden60x20FullNeeds(t *testing.T) {
 	m := boardModel(60, 20)
-	data := sampleBoard(goldenNow)
+	data := withQueuedPin(sampleBoard(goldenNow), goldenNow)
 	data.Agents.Away = append(data.Agents.Away, provider.Agent{ID: 4, Name: "linux-4", Type: "REMOTE", Enabled: true})
 	data.Agents.Offline++
 	data.Needs = app.NeedsYou(data, goldenNow)
@@ -125,7 +139,7 @@ func TestBoardHeaderSaysHowOldTheDataIs(t *testing.T) {
 // waits counting up on a board nobody touches, without reading the server.
 func TestBoardRedrawBeatCountsUpBetweenReadsWithoutReading(t *testing.T) {
 	instantBoardTick(t)
-	m := boardModel(100, 30)
+	m := boardModelQueued(100, 30)
 	_, cmd := m.showBoard()
 	var redraws int
 	for _, msg := range runBatch(cmd) {
@@ -137,7 +151,7 @@ func TestBoardRedrawBeatCountsUpBetweenReadsWithoutReading(t *testing.T) {
 
 	m.board.tickGen = 1
 	require.Contains(t, m.View(), "updated 0s ago")
-	require.Contains(t, ansi.Strip(m.View()), "PROJ-BUILD-500  7m", "the read wait is on screen")
+	require.Contains(t, ansi.Strip(m.View()), "PROJ-BUILD-500 has waited 7m for an agent", "the wait is on screen")
 	now := goldenNow.Add(8 * time.Second)
 	m.now = func() time.Time { return now }
 	m, cmd = send(m, boardRedrawMsg{Gen: 1})
@@ -146,7 +160,7 @@ func TestBoardRedrawBeatCountsUpBetweenReadsWithoutReading(t *testing.T) {
 	require.IsType(t, boardRedrawMsg{}, msgs[0], "and never reads the server")
 	v := ansi.Strip(m.View())
 	require.Contains(t, v, "updated 8s ago")
-	require.Regexp(t, `OPS-NIGHTLY-3\s+–`, v, "a wait bam did not read stays a dash between reads")
+	require.Contains(t, v, "PROJ-BUILD-500 has waited 7m for an agent", "a wait is counted from when the build queued, so it grows with the clock")
 
 	_, cmd = send(m, boardRedrawMsg{Gen: 0})
 	require.Nil(t, cmd, "a redraw beat of an older generation ends its loop")
@@ -250,7 +264,7 @@ func TestBoardMarksStaleAfterAFailedRead(t *testing.T) {
 	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: app.Board{AgentsNote: "no", QueueNote: "no", Groups: refused}})
 	require.True(t, m.board.stale)
 	require.Contains(t, m.View(), "stale")
-	require.Contains(t, m.View(), "PROJ-BUILD-500", "what was read before stays on screen")
+	require.Contains(t, m.View(), "PROJ-BUILD-44", "what was read before stays on screen")
 
 	m.board.loadGen++
 	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: sampleBoard(goldenNow)})
@@ -272,7 +286,7 @@ func TestBoardShowsPinsWhenAgentsAndQueueAreRefused(t *testing.T) {
 	m.board.loading, m.board.loadGen = true, 1
 	data := sampleBoard(goldenNow)
 	data.Agents, data.AgentsNote = nil, "the agent list needs admin rights"
-	data.Queue, data.QueueOK, data.QueueNote = nil, false, "the queue was refused"
+	data.QueueLength, data.QueueOK, data.QueueNote = 0, false, "the queue was refused"
 	m, _ = send(m, boardLoadedMsg{Gen: 1, Full: true, Board: data})
 	require.False(t, m.board.stale)
 	require.Contains(t, m.View(), "PROJ-BUILD-44")
@@ -303,7 +317,7 @@ func TestBoardUnpinningTheLastPinWithAgentsAndQueueRefused(t *testing.T) {
 	m.board.loading, m.board.loadGen = true, 1
 	data := sampleBoard(goldenNow)
 	data.Agents, data.AgentsNote = nil, "the agent list needs admin rights"
-	data.Queue, data.QueueOK, data.QueueNote = nil, false, "the queue was refused"
+	data.QueueLength, data.QueueOK, data.QueueNote = 0, false, "the queue was refused"
 	m, _ = send(m, boardLoadedMsg{Gen: 1, Full: true, Board: data})
 	require.Contains(t, m.View(), "PROJ-BUILD-44")
 
@@ -320,9 +334,9 @@ func TestBoardDropsAReadOfAnOlderRequest(t *testing.T) {
 	m := boardModel(100, 30)
 	m.board.loadGen = 5
 	b := sampleBoard(goldenNow)
-	b.Queue = nil
+	b.QueueLength = 0
 	m, _ = send(m, boardLoadedMsg{Gen: 4, Board: b})
-	require.Len(t, m.board.data.Queue, 2)
+	require.Equal(t, 2, m.board.data.QueueLength)
 }
 
 // A refresh through the real use case: a refused agent list is a line on the
@@ -339,45 +353,29 @@ func TestBoardReadsTheServerThroughTheUseCase(t *testing.T) {
 	require.Nil(t, m.board.data.Agents)
 	require.Contains(t, m.View(), "could not be read")
 	require.False(t, m.board.stale, "the queue was read, so the data is fresh")
-	require.Len(t, m.board.data.Queue, 1)
-}
-
-// A build whose wait bam did not read shows a dash, and keeps showing it as
-// time passes: bam no longer guesses "at least" from when it first saw it.
-func TestBoardShowsADashForAWaitItDidNotRead(t *testing.T) {
-	m := boardModel(100, 30)
-	now := goldenNow.Add(2 * time.Minute)
-	m.now = func() time.Time { return now }
-	m.board.loadGen++
-	b := sampleBoard(now)
-	b.Queue[1].Waited = 0
-	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: b})
-	v := ansi.Strip(m.View())
-	require.Regexp(t, `OPS-NIGHTLY-3\s+–`, v)
-	require.NotContains(t, v, "at least")
-	require.Regexp(t, `PROJ-BUILD-500\s+7m`, v, "a read wait is the record's")
+	require.Equal(t, 1, m.board.data.QueueLength)
 }
 
 // ---- bell ----
 
 func TestBoardRingsOnceWhenSomethingNewNeedsYou(t *testing.T) {
 	rings := 0
-	m := boardModel(100, 30)
+	m := boardModelQueued(100, 30)
 	m.deps.Bell = func() { rings++ }
 	load := func(b app.Board) {
 		m.board.loadGen++
 		m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Board: b})
 	}
 
-	load(sampleBoard(goldenNow))
+	load(withQueuedPin(sampleBoard(goldenNow), goldenNow))
 	require.Zero(t, rings, "what was already there does not ring")
 
-	later := sampleBoard(goldenNow)
-	later.Queue[0].Waited = 9 * time.Minute // its text changes, it is still the same line
+	later := withQueuedPin(sampleBoard(goldenNow), goldenNow)
+	later.Groups[1].Pins[0].Current.QueuedAt = goldenNow.Add(-9 * time.Minute) // its text changes, it is still the same line
 	load(later)
 	require.Zero(t, rings, "a line that only changes its numbers is not new")
 
-	more := sampleBoard(goldenNow)
+	more := withQueuedPin(sampleBoard(goldenNow), goldenNow)
 	more.Agents.Away = append(more.Agents.Away, provider.Agent{ID: 5, Name: "linux-5", Type: "REMOTE", Enabled: true})
 	more.Needs = app.NeedsYou(more, goldenNow)
 	load(more)
@@ -398,8 +396,7 @@ func TestBoardBellCanBeSilenced(t *testing.T) {
 // ---- keys ----
 
 func pinCursor(m Model) Model {
-	m, _ = send(m, mkKey("tab")) // Queue
-	m, _ = send(m, mkKey("tab")) // Pinned
+	m, _ = send(m, mkKey("tab")) // Pinned: with no agents set, Needs you and Pinned are the panels
 	return m
 }
 
@@ -407,9 +404,7 @@ func TestBoardTabMovesBetweenPanels(t *testing.T) {
 	m := boardModel(100, 30)
 	require.Equal(t, boardNeeds, m.board.panel)
 	m, _ = send(m, mkKey("tab"))
-	require.Equal(t, boardQueue, m.board.panel)
-	m, _ = send(m, mkKey("tab"))
-	require.Equal(t, boardPins, m.board.panel)
+	require.Equal(t, boardPins, m.board.panel, "no agents set: Needs you, then Pinned")
 	m, _ = send(m, mkKey("tab"))
 	require.Equal(t, boardNeeds, m.board.panel)
 	m, _ = send(m, mkKey("shift+tab"))
@@ -461,20 +456,8 @@ func TestBoardEnterOnAPinOpensItsPlanAndEscComesBack(t *testing.T) {
 	require.NotNil(t, cmd, "the board reads again and its beat restarts")
 }
 
-func TestBoardEnterOnAQueuedBuildOpensTheBuild(t *testing.T) {
-	m := boardModel(100, 30)
-	m, _ = send(m, mkKey("tab"))
-	m, _ = send(m, mkKey("enter"))
-	require.Equal(t, screenPlan, m.screen)
-	require.Equal(t, "PROJ-BUILD-500", m.detail.Key)
-	m, _ = send(m, mkKey("esc")) // from Stages to Builds, as on every plan screen
-	require.Equal(t, screenPlan, m.screen)
-	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, screenBoard, m.screen)
-}
-
 func TestBoardEnterOnANeedOpensItsBuild(t *testing.T) {
-	m := boardModel(100, 30)
+	m := boardModelQueued(100, 30)
 	// The first need is the agent; step to the queue wait, which names a build.
 	for i, n := range m.board.data.Needs {
 		if n.Kind == "queue_wait" {
@@ -534,13 +517,13 @@ func TestBoardIOnANeedExplainsTheFailedBuild(t *testing.T) {
 		t.Fatalf("no %s need", kind)
 		return m
 	}
-	m := needAt(boardModel(100, 30), "pin_failed")
+	m := needAt(boardModelQueued(100, 30), "pin_failed")
 	m, cmd := send(m, mkKey("i"))
 	require.Equal(t, overlayInfo, m.overlay)
 	require.NotNil(t, cmd)
 	require.Contains(t, m.infoPane.title, "PROJ-BUILD-44")
 
-	m = needAt(boardModel(100, 30), "queue_wait")
+	m = needAt(boardModelQueued(100, 30), "queue_wait")
 	m, _ = send(m, mkKey("i"))
 	require.Equal(t, overlayNone, m.overlay)
 	require.Contains(t, m.status, "PROJ-BUILD-500 did not fail")
@@ -549,7 +532,7 @@ func TestBoardIOnANeedExplainsTheFailedBuild(t *testing.T) {
 func TestBoardOAndYActOnTheSelection(t *testing.T) {
 	var opened string
 	var clip bytes.Buffer
-	m := pinCursor(boardModel(100, 30))
+	m := pinCursor(boardModelQueued(100, 30))
 	m.deps.Open = func(u string) error { opened = u; return nil }
 	m.deps.Clipboard = &clip
 	_, cmd := send(m, mkKey("o"))
@@ -559,10 +542,15 @@ func TestBoardOAndYActOnTheSelection(t *testing.T) {
 	cmd()
 	require.Contains(t, clip.String(), "\x1b]52;", "y copies through the terminal")
 
-	m, _ = send(m, mkKey("shift+tab")) // Queue
+	m, _ = send(m, mkKey("shift+tab")) // Needs you
+	for i, n := range m.board.data.Needs {
+		if n.Kind == "queue_wait" {
+			m.board.cursor[boardNeeds] = i
+		}
+	}
 	_, cmd = send(m, mkKey("o"))
 	cmd()
-	require.Equal(t, labOrigin+"/browse/PROJ-BUILD-500", opened, "a queued build opens its own page")
+	require.Equal(t, labOrigin+"/browse/PROJ-BUILD-500", opened, "a build a need names opens its own page")
 }
 
 // A server switch from the board drops the old server's board at once: until
@@ -644,40 +632,6 @@ func TestBoardPUnpinsThePinnedPipeline(t *testing.T) {
 	require.Len(t, boardReads(cmd), 1, "the board reads the settings again")
 }
 
-func TestBoardPPinsAQueuedBuildsPlanAfterAskingForTheGroup(t *testing.T) {
-	var group, plan string
-	m := boardModel(100, 30)
-	m.deps.PinAdd = func(g, p string) error { group, plan = g, p; return nil }
-	m, _ = send(m, mkKey("tab")) // Queue, first row
-	m, _ = send(m, mkKey("P"))
-	require.Equal(t, inputPin, m.inputFor)
-	require.Contains(t, m.input.Prompt, "PROJ-BUILD")
-	for _, r := range "release" {
-		m, _ = send(m, mkKey(string(r)))
-	}
-	m, cmd := send(m, mkKey("enter"))
-	require.Equal(t, inputNone, m.inputFor)
-	msg := cmd()
-	require.Equal(t, "release", group)
-	require.Equal(t, "PROJ-BUILD", plan)
-	m, _ = send(m, msg)
-	require.Contains(t, m.status, "pinned PROJ-BUILD in release")
-}
-
-func TestBoardPWithAnEmptyGroupPinsNothingAndEscCancels(t *testing.T) {
-	calls := 0
-	m := boardModel(100, 30)
-	m.deps.PinAdd = func(string, string) error { calls++; return nil }
-	m, _ = send(m, mkKey("tab"))
-	m, _ = send(m, mkKey("P"))
-	m, cmd := send(m, mkKey("enter"))
-	require.Nil(t, cmd)
-	m, _ = send(m, mkKey("P"))
-	m, _ = send(m, mkKey("esc"))
-	require.Equal(t, inputNone, m.inputFor)
-	require.Zero(t, calls)
-}
-
 func TestBoardPShowsAWriteFailureInTheStatusBar(t *testing.T) {
 	m := pinCursor(boardModel(100, 30))
 	m.deps.PinRemove = func(string) error { return errors.New("PROJ-BUILD is pinned in .bam.yaml; edit it there") }
@@ -729,132 +683,6 @@ func TestBoardStartsOnTheBoardWhenAsked(t *testing.T) {
 	require.Equal(t, screenBoard, m.screen)
 	m = New(Deps{})
 	require.Equal(t, screenHome, m.screen, "without pins bam opens the plan table")
-}
-
-// Intent (BAM-34 P3) and finding test-1: the live board's queue says why each
-// build waits, as bam queue's WHY column does. The why comes before the
-// trigger reason on the build's line; when the line is too wide the trigger
-// reason is shortened with an ellipsis, then the agents' names go, and the
-// why itself stays whole, so it is readable at 80 columns. Every line stays
-// inside its panel.
-func TestBoardQueueSaysWhyABuildWaits(t *testing.T) {
-	data := sampleBoard(goldenNow)
-	data.Queue[0].Why = &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}
-	data.Queue[1].Why = &provider.Why{Case: provider.WhyNoAgent}
-	data.Queue[1].AtLeast = false
-	for _, c := range []struct {
-		w     int
-		lines []string
-	}{
-		{120, []string{
-			"7m   2 agents can run it (linux-1, linux-2), all busy, offline or disabled · Manual build",
-			"20s  no agent can run it · Scheduled",
-		}},
-		{90, []string{
-			"7m   2 agents can run it, all busy, offline or disabled · Manual b…",
-			"20s  no agent can run it · Scheduled",
-		}},
-		{80, []string{
-			"7m   2 agents can run it, all busy, offline or disabled",
-			"20s  no agent can run it · Scheduled",
-		}},
-		{60, []string{"20s  no agent can run it · Scheduled"}},
-	} {
-		m := boardModel(c.w, 30)
-		m.board.loadGen++
-		m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
-		v := ansi.Strip(m.View())
-		for _, l := range strings.Split(v, "\n") {
-			require.LessOrEqual(t, ansi.StringWidth(l), c.w, "width %d: %q", c.w, l)
-		}
-		for _, want := range c.lines {
-			require.Contains(t, v, want, "width %d:\n%s", c.w, v)
-		}
-	}
-}
-
-// Finding tui-queue-scroll-orphan: with more queued builds than the Queue
-// panel holds, the panel always starts on a build, and the cursor's build
-// stays in view wherever the cursor goes.
-func TestBoardQueueScrollKeepsEachReasonWithItsBuild(t *testing.T) {
-	data := sampleBoard(goldenNow)
-	data.Queue = nil
-	for i := 1; i <= 6; i++ {
-		key := fmt.Sprintf("PROJ-Q%d-%d", i, i)
-		data.Queue = append(data.Queue, app.QueueRow{Position: i, QueueEntry: provider.QueueEntry{Key: key, PlanKey: fmt.Sprintf("PROJ-Q%d", i), Number: i, Reason: "Manual build"}, Waited: time.Minute,
-			Why: &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}})
-	}
-	for h := 22; h <= 30; h++ {
-		m := boardModel(80, h)
-		m.board.loadGen++
-		m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
-		m.board.panel = boardQueue
-		queueScrollCheck(t, m, len(data.Queue))
-	}
-}
-
-func queueScrollCheck(t *testing.T, m Model, n int) {
-	t.Helper()
-	for c := range n {
-		m.board.cursor[boardQueue] = c
-		lines := strings.Split(ansi.Strip(m.View()), "\n")
-		top := -1
-		for i, l := range lines {
-			if strings.Contains(l, "━Queue") {
-				top = i + 1
-				break
-			}
-		}
-		require.GreaterOrEqual(t, top, 1, "queue panel in:\n%s", strings.Join(lines, "\n"))
-		first := lines[top]
-		require.Contains(t, first, "PROJ-Q", "height %d cursor %d: queue panel starts on %q", m.height, c, first)
-		require.Contains(t, strings.Join(lines, "\n"), fmt.Sprintf("▸ %d  PROJ-Q%d-%d", c+1, c+1, c+1), "height %d cursor %d", m.height, c)
-	}
-}
-
-// Finding test-2 (round 4): one long build key widens the KEY column for
-// every queued build. At 80 columns the key is shortened with an ellipsis so
-// each build's why stays whole inside the panel, not cut at its border.
-func TestBoardQueueLongKeyKeepsTheWhyWhole(t *testing.T) {
-	data := sampleBoard(goldenNow)
-	busy := &provider.Why{Case: provider.WhyBusy, Count: 2, Agents: []string{"linux-1", "linux-2"}}
-	data.Queue[0].Why = busy
-	data.Queue[1].Why = busy
-	data.Queue[1].Key = "PROJ-LONGPLANNAME-905"
-	data.Queue[1].AtLeast = false
-	m := boardModel(80, 30)
-	m.board.loadGen++
-	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
-	v := ansi.Strip(m.View())
-	n := 0
-	for _, l := range strings.Split(v, "\n") {
-		require.LessOrEqual(t, ansi.StringWidth(l), 80, "%q", l)
-		if strings.Contains(l, "2 agents can run it, all busy, offline or disabled") {
-			n++
-		}
-	}
-	require.Equal(t, 2, n, "both queued builds show their whole why:\n%s", v)
-	require.Regexp(t, `PROJ-LONG[A-Z]*…`, v, "the long key is shortened:\n%s", v)
-}
-
-// Intent (BAM-42 P3): the queue panel says it lists your part, counts the rest
-// on a line under the builds, and a asks for the whole server even when no
-// agents are listed but a pin or project filters the queue.
-func TestBoardQueuePanelSaysItIsYourPartAndCountsTheRest(t *testing.T) {
-	m := boardModel(100, 30)
-	data := sampleBoard(goldenNow)
-	data.QueueFiltered, data.QueueOthers = true, 37
-	m.board.loadGen++
-	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
-	v := ansi.Strip(m.View())
-	require.Contains(t, v, "Your queue · 2 of 39")
-	require.Contains(t, v, "37 more builds wait for other agents")
-	require.Equal(t, 2, m.board.rows(boardQueue), "the count line is not a row the cursor lands on")
-	require.Contains(t, v, "a agents", "the key line offers a while the queue is filtered")
-
-	m, _ = send(m, mkKey("a"))
-	require.True(t, m.board.whole)
-	require.NotContains(t, m.status, "nothing is listed")
 }
 
 // The chart line fits the Agents panel once both charts are full and their

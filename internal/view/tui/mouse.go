@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"slices"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -106,13 +108,10 @@ func (m Model) boardMouse(msg tea.MouseMsg, wheel int) (tea.Model, tea.Cmd) {
 		if b.have && line < len(b.data.Needs) {
 			row = line
 		}
-	case boardQueue:
-		if b.have && line < len(b.data.Queue) {
-			row = line
-		}
 	case boardAgents:
-		if pools := len(b.data.Mine.Pools); line >= 1 && line <= pools {
-			row = line - 1
+		_, selLine := m.mineLines(bx.w - 2 - 2*roomyPad)
+		if i := slices.Index(selLine, line); i >= 0 {
+			row = i
 		}
 	case boardPins:
 		if line < len(bx.info) {

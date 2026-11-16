@@ -1,0 +1,728 @@
+{
+    "expand": "plans",
+    "link": {
+        "href": "http://bamboo.example.com/rest/api/latest/plan",
+        "rel": "self"
+    },
+    "plans": {
+        "size": 9,
+        "expand": "plan",
+        "start-index": 0,
+        "max-result": 9,
+        "plan": [
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "OPS",
+                "projectName": "bamboo-lab",
+                "project": {
+                    "id": 720897,
+                    "key": "OPS",
+                    "name": "bamboo-lab",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/OPS",
+                        "rel": "self"
+                    }
+                },
+                "description": "Build and push the CI image",
+                "id": 786433,
+                "shortName": "Build Image",
+                "buildName": "Build Image",
+                "shortKey": "BUILD",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/OPS-BUILD",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 0.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 0,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 0,
+                    "branch": []
+                },
+                "key": "OPS-BUILD",
+                "name": "bamboo-lab - Build Image",
+                "planKey": {
+                    "key": "OPS-BUILD"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "LAB",
+                "projectName": "setlist",
+                "project": {
+                    "id": 1769473,
+                    "key": "LAB",
+                    "name": "setlist",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/LAB",
+                        "rel": "self"
+                    }
+                },
+                "description": "Format, vet and unit tests on main and feat/* branches, then integration tests and packaging",
+                "id": 1835013,
+                "shortName": "CI",
+                "buildName": "CI",
+                "shortKey": "CI",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CI",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 3.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 1,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 1,
+                    "branch": [
+                        {
+                            "expand": "latestResult,master",
+                            "description": "Format, vet and unit tests on main and feat/* branches, then integration tests and packaging",
+                            "shortName": "feature-x",
+                            "shortKey": "CI0",
+                            "enabled": true,
+                            "isFavourite": false,
+                            "latestResult": {
+                                "link": {
+                                    "href": "http://bamboo.example.com/rest/api/latest/result/LAB-CI0-11",
+                                    "rel": "self"
+                                },
+                                "plan": {
+                                    "id": 1835021,
+                                    "shortName": "feature-x",
+                                    "shortKey": "CI0",
+                                    "type": "chain_branch",
+                                    "enabled": true,
+                                    "link": {
+                                        "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CI0",
+                                        "rel": "self"
+                                    },
+                                    "master": {
+                                        "id": 1835013,
+                                        "shortName": "CI",
+                                        "shortKey": "CI",
+                                        "type": "chain",
+                                        "enabled": true,
+                                        "link": {
+                                            "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CI",
+                                            "rel": "self"
+                                        },
+                                        "key": "LAB-CI",
+                                        "name": "setlist - CI",
+                                        "planKey": {
+                                            "key": "LAB-CI"
+                                        }
+                                    },
+                                    "key": "LAB-CI0",
+                                    "name": "setlist - CI - feature-x",
+                                    "planKey": {
+                                        "key": "LAB-CI0"
+                                    }
+                                },
+                                "master": {
+                                    "id": 1835013,
+                                    "shortName": "CI",
+                                    "shortKey": "CI",
+                                    "type": "chain",
+                                    "enabled": true,
+                                    "link": {
+                                        "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CI",
+                                        "rel": "self"
+                                    },
+                                    "key": "LAB-CI",
+                                    "name": "setlist - CI",
+                                    "planKey": {
+                                        "key": "LAB-CI"
+                                    }
+                                },
+                                "buildResultKey": "LAB-CI0-11",
+                                "id": -1,
+                                "specsResult": false,
+                                "key": "LAB-CI0-11",
+                                "planResultKey": {
+                                    "key": "LAB-CI0-11",
+                                    "entityKey": {
+                                        "key": "LAB-CI0"
+                                    },
+                                    "resultNumber": 11
+                                },
+                                "state": "Failed",
+                                "buildState": "Failed",
+                                "lifeCycleState": "Finished",
+                                "number": 11,
+                                "buildNumber": 11
+                            },
+                            "link": {
+                                "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CI0",
+                                "rel": "self"
+                            },
+                            "master": {
+                                "id": 1835013,
+                                "shortName": "CI",
+                                "shortKey": "CI",
+                                "type": "chain",
+                                "enabled": true,
+                                "link": {
+                                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-CI",
+                                    "rel": "self"
+                                },
+                                "key": "LAB-CI",
+                                "name": "setlist - CI",
+                                "planKey": {
+                                    "key": "LAB-CI"
+                                }
+                            },
+                            "latestCurrentlyActive": {
+                                "key": "LAB-CI0-12",
+                                "lifeCycleState": "InProgress",
+                                "number": 12
+                            },
+                            "workflowType": "manual",
+                            "divergent": false,
+                            "awaitingSpecsExecution": false,
+                            "key": "LAB-CI0",
+                            "name": "setlist - CI - feature-x"
+                        }
+                    ]
+                },
+                "key": "LAB-CI",
+                "name": "setlist - CI",
+                "planKey": {
+                    "key": "LAB-CI"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "LAB",
+                "projectName": "setlist",
+                "project": {
+                    "id": 1769473,
+                    "key": "LAB",
+                    "name": "setlist",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/LAB",
+                        "rel": "self"
+                    }
+                },
+                "description": "Builds the image and rolls it out to namespace the setlist-ENVIRONMENT namespace",
+                "id": 1835017,
+                "shortName": "Deploy",
+                "buildName": "Deploy",
+                "shortKey": "DEPLOY",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-DEPLOY",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 6.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 0,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 0,
+                    "branch": []
+                },
+                "key": "LAB-DEPLOY",
+                "name": "setlist - Deploy",
+                "planKey": {
+                    "key": "LAB-DEPLOY"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "LAB",
+                "projectName": "setlist",
+                "project": {
+                    "id": 1769473,
+                    "key": "LAB",
+                    "name": "setlist",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/LAB",
+                        "rel": "self"
+                    }
+                },
+                "description": "End-to-end tests against the real HTTP server; the first attempt of every 4th build fails on a chat timeout",
+                "id": 1835009,
+                "shortName": "Integration tests",
+                "buildName": "Integration tests",
+                "shortKey": "IT",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-IT",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 8.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 1,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 1,
+                    "branch": [
+                        {
+                            "expand": "master",
+                            "description": "End-to-end tests against the real HTTP server; the first attempt of every 4th build fails on a chat timeout",
+                            "shortName": "feature-x",
+                            "shortKey": "IT0",
+                            "enabled": true,
+                            "isFavourite": false,
+                            "link": {
+                                "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-IT0",
+                                "rel": "self"
+                            },
+                            "master": {
+                                "id": 1835009,
+                                "shortName": "Integration tests",
+                                "shortKey": "IT",
+                                "type": "chain",
+                                "enabled": true,
+                                "link": {
+                                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-IT",
+                                    "rel": "self"
+                                },
+                                "key": "LAB-IT",
+                                "name": "setlist - Integration tests",
+                                "planKey": {
+                                    "key": "LAB-IT"
+                                }
+                            },
+                            "workflowType": "manual",
+                            "divergent": false,
+                            "awaitingSpecsExecution": false,
+                            "key": "LAB-IT0",
+                            "name": "setlist - Integration tests - feature-x"
+                        }
+                    ]
+                },
+                "key": "LAB-IT",
+                "name": "setlist - Integration tests",
+                "planKey": {
+                    "key": "LAB-IT"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "LAB",
+                "projectName": "setlist",
+                "project": {
+                    "id": 1769473,
+                    "key": "LAB",
+                    "name": "setlist",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/LAB",
+                        "rel": "self"
+                    }
+                },
+                "description": "Holds the service under load for about three minutes; fails on errors or a slow p95",
+                "id": 1835015,
+                "shortName": "Load test",
+                "buildName": "Load test",
+                "shortKey": "LOAD",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-LOAD",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 182.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 0,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 0,
+                    "branch": []
+                },
+                "key": "LAB-LOAD",
+                "name": "setlist - Load test",
+                "planKey": {
+                    "key": "LAB-LOAD"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "LAB",
+                "projectName": "setlist",
+                "project": {
+                    "id": 1769473,
+                    "key": "LAB",
+                    "name": "setlist",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/LAB",
+                        "rel": "self"
+                    }
+                },
+                "description": "Versioned linux binary as a tarball artifact",
+                "id": 1835011,
+                "shortName": "Package",
+                "buildName": "Package",
+                "shortKey": "PACKAGE",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-PACKAGE",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 8.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 1,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 1,
+                    "branch": [
+                        {
+                            "expand": "latestResult,master",
+                            "description": "Versioned linux binary as a tarball artifact",
+                            "shortName": "feature-x",
+                            "shortKey": "PACKAGE0",
+                            "enabled": true,
+                            "isFavourite": false,
+                            "latestResult": {
+                                "link": {
+                                    "href": "http://bamboo.example.com/rest/api/latest/result/LAB-PACKAGE0-1",
+                                    "rel": "self"
+                                },
+                                "plan": {
+                                    "id": 1835023,
+                                    "shortName": "feature-x",
+                                    "shortKey": "PACKAGE0",
+                                    "type": "chain_branch",
+                                    "enabled": true,
+                                    "link": {
+                                        "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-PACKAGE0",
+                                        "rel": "self"
+                                    },
+                                    "master": {
+                                        "id": 1835011,
+                                        "shortName": "Package",
+                                        "shortKey": "PACKAGE",
+                                        "type": "chain",
+                                        "enabled": true,
+                                        "link": {
+                                            "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-PACKAGE",
+                                            "rel": "self"
+                                        },
+                                        "key": "LAB-PACKAGE",
+                                        "name": "setlist - Package",
+                                        "planKey": {
+                                            "key": "LAB-PACKAGE"
+                                        }
+                                    },
+                                    "key": "LAB-PACKAGE0",
+                                    "name": "setlist - Package - feature-x",
+                                    "planKey": {
+                                        "key": "LAB-PACKAGE0"
+                                    }
+                                },
+                                "master": {
+                                    "id": 1835011,
+                                    "shortName": "Package",
+                                    "shortKey": "PACKAGE",
+                                    "type": "chain",
+                                    "enabled": true,
+                                    "link": {
+                                        "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-PACKAGE",
+                                        "rel": "self"
+                                    },
+                                    "key": "LAB-PACKAGE",
+                                    "name": "setlist - Package",
+                                    "planKey": {
+                                        "key": "LAB-PACKAGE"
+                                    }
+                                },
+                                "buildResultKey": "LAB-PACKAGE0-1",
+                                "id": -1,
+                                "specsResult": false,
+                                "key": "LAB-PACKAGE0-1",
+                                "planResultKey": {
+                                    "key": "LAB-PACKAGE0-1",
+                                    "entityKey": {
+                                        "key": "LAB-PACKAGE0"
+                                    },
+                                    "resultNumber": 1
+                                },
+                                "state": "Successful",
+                                "buildState": "Successful",
+                                "lifeCycleState": "Finished",
+                                "number": 1,
+                                "buildNumber": 1
+                            },
+                            "link": {
+                                "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-PACKAGE0",
+                                "rel": "self"
+                            },
+                            "master": {
+                                "id": 1835011,
+                                "shortName": "Package",
+                                "shortKey": "PACKAGE",
+                                "type": "chain",
+                                "enabled": true,
+                                "link": {
+                                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-PACKAGE",
+                                    "rel": "self"
+                                },
+                                "key": "LAB-PACKAGE",
+                                "name": "setlist - Package",
+                                "planKey": {
+                                    "key": "LAB-PACKAGE"
+                                }
+                            },
+                            "workflowType": "manual",
+                            "divergent": false,
+                            "awaitingSpecsExecution": false,
+                            "key": "LAB-PACKAGE0",
+                            "name": "setlist - Package - feature-x"
+                        }
+                    ]
+                },
+                "key": "LAB-PACKAGE",
+                "name": "setlist - Package",
+                "planKey": {
+                    "key": "LAB-PACKAGE"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "LAB",
+                "projectName": "setlist",
+                "project": {
+                    "id": 1769473,
+                    "key": "LAB",
+                    "name": "setlist",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/LAB",
+                        "rel": "self"
+                    }
+                },
+                "description": "Checks /health and /api/setlists on a deployed environment",
+                "id": 1835019,
+                "shortName": "Smoke test",
+                "buildName": "Smoke test",
+                "shortKey": "SMOKE",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/LAB-SMOKE",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 1.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 0,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 0,
+                    "branch": []
+                },
+                "key": "LAB-SMOKE",
+                "name": "setlist - Smoke test",
+                "planKey": {
+                    "key": "LAB-SMOKE"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "WAIT",
+                "projectName": "wait demo",
+                "project": {
+                    "id": 720898,
+                    "key": "WAIT",
+                    "name": "wait demo",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/WAIT",
+                        "rel": "self"
+                    }
+                },
+                "id": 786435,
+                "shortName": "Hold",
+                "buildName": "Hold",
+                "shortKey": "HOLD",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/OPS-HOLD",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": false,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 1050.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 0,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 0,
+                    "branch": []
+                },
+                "key": "OPS-HOLD",
+                "name": "wait demo - Hold",
+                "planKey": {
+                    "key": "OPS-HOLD"
+                }
+            },
+            {
+                "expand": "actions,stages,branches",
+                "projectKey": "WAIT",
+                "projectName": "wait demo",
+                "project": {
+                    "id": 720898,
+                    "key": "WAIT",
+                    "name": "wait demo",
+                    "description": "",
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/project/WAIT",
+                        "rel": "self"
+                    }
+                },
+                "id": 786437,
+                "shortName": "Needs a capability",
+                "buildName": "Needs a capability",
+                "shortKey": "NOCAP",
+                "type": "chain",
+                "enabled": true,
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/plan/OPS-NOCAP",
+                    "rel": "self"
+                },
+                "isFavourite": false,
+                "isActive": true,
+                "isBuilding": false,
+                "averageBuildTimeInSeconds": 0.0,
+                "actions": {
+                    "size": 9,
+                    "start-index": 0,
+                    "max-result": 9
+                },
+                "stages": {
+                    "size": 1,
+                    "start-index": 0,
+                    "max-result": 1
+                },
+                "branches": {
+                    "size": 0,
+                    "expand": "branch",
+                    "start-index": 0,
+                    "max-result": 0,
+                    "branch": []
+                },
+                "key": "OPS-NOCAP",
+                "name": "wait demo - Needs a capability",
+                "planKey": {
+                    "key": "OPS-NOCAP"
+                }
+            }
+        ]
+    }
+}

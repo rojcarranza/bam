@@ -26,26 +26,25 @@ func newTopCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "top",
 		GroupID: groupBrowse,
-		Short:   "Print what needs you: agents, the queue and your pinned pipelines",
+		Short:   "Print what needs you: agents, what they build and your pinned pipelines",
 		Long: "Print one board of the server: its version, what needs you, the agent counts and\n" +
-			"every agent that is offline or disabled, the queue with the time each build\n" +
-			"waited, and your pinned pipelines by group with their last 10 results.\n\n" +
-			"Needs you lists an enabled agent that is offline, a build of yours that waited\n" +
-			"more than 5 minutes (one line per reason it waits), a pinned pipeline whose last\n" +
+			"every agent that is offline or disabled, and your pinned pipelines by group\n" +
+			"with their last 10 results.\n\n" +
+			"Needs you lists an enabled agent that is offline, a build of a pinned pipeline\n" +
+			"that waited more than 5 minutes for an agent, a pinned pipeline whose last\n" +
 			"build failed, and a pinned build running half again past its usual time.\n\n" +
 			"With agents: set (bam agent mine add NAME-START) the board shows only your\n" +
 			"agents, each building, idle, disabled or down, and Needs you raises your agents\n" +
-			"that are down or disabled. With agents:, a pin or projects: set, the queue lists\n" +
-			"only your builds (one of your agents can run one of its jobs, its plan is pinned\n" +
-			"or its project is in projects:) with their place in the whole queue, and one\n" +
-			"line counts the builds that wait for other agents. --all shows every agent and\n" +
-			"the whole queue of the server.\n\n" +
+			"that are down or disabled. On the live board each building agent has a row with\n" +
+			"the job it runs, its plan and branch, its pin group and how long it runs, and\n" +
+			"the idle agents of a pool are named on one line. --all shows every agent of the\n" +
+			"server.\n\n" +
 			"With --tree, each pin that started other pipelines prints them as bam build\n" +
 			"tree does, under its group's table; with --json each pin gains tree. The live board\n" +
 			"always draws them (space folds a tree).\n\n" +
 			"Pin pipelines with bam pin add, or list groups under monitor: in the machine file\n" +
-			"or .bam.yaml. When Bamboo refuses the agent list or the queue (the agent list\n" +
-			"needs an administrator), the board says so in one line and prints the rest.\n" +
+			"or .bam.yaml. When Bamboo refuses the agent list (it needs an administrator), the\n" +
+			"board says so in one line and prints the rest.\n" +
 			"bam top only reads from Bamboo.\n\n" +
 			"On a terminal bam top opens the live board, which refreshes by itself (see\n" +
 			"docs/tui.md). With --once, --json or a pipe it prints the board once.",
@@ -81,7 +80,7 @@ func newTopCmd(r *runtime) *cobra.Command {
 			return r.show(view.BoardJSON(b, svc.P.URL), func(o view.Out) error { return view.Board(o, b, svc.P.URL) })
 		}),
 	}
-	cmd.Flags().BoolVar(&all, "all", false, "show every agent and the whole queue of the server, not only your part")
+	cmd.Flags().BoolVar(&all, "all", false, "show every agent of the server, not only your part")
 	cmd.Flags().BoolVar(&tree, "tree", false, "print the tree of child pipelines under each pin (with --once or --json)")
 	cmd.Flags().BoolVar(&once, "once", false, "print the board once instead of opening the live board")
 	return cmd

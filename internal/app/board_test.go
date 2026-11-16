@@ -37,10 +37,13 @@ func boardBamboo(now time.Time) *fake.Provider {
 
 func pins(g string, pin ...string) []config.PinGroup { return []config.PinGroup{{Name: g, Pins: pin}} }
 
-func TestBoardCountsAgentsAndListsTheQueue(t *testing.T) {
+// Intent (BAM-101 P2): the board counts the queue from the one list and reads
+// no queued build; a wait is news only for a pinned pipeline's build.
+func TestBoardCountsAgentsAndTheQueueWithoutReadingQueuedBuilds(t *testing.T) {
 	svc := newService(t, nil)
 	now := svc.Clock.Now()
-	svc.P = boardBamboo(now)
+	p := boardBamboo(now)
+	svc.P = p
 	b, err := svc.Board(context.Background(), nil)
 	require.NoError(t, err)
 
@@ -53,16 +56,44 @@ func TestBoardCountsAgentsAndListsTheQueue(t *testing.T) {
 	assert.Equal(t, 1, b.Agents.Disabled)
 	require.Len(t, b.Agents.Away, 2)
 
-	require.Len(t, b.Queue, 2)
-	assert.Equal(t, 7*time.Minute, b.Queue[0].Waited)
-	assert.False(t, b.Queue[0].AtLeast)
-	assert.True(t, b.Queue[1].AtLeast, "no time in the record: counted from when bam saw it")
-	assert.Equal(t, time.Duration(0), b.Queue[1].Waited)
+	assert.True(t, b.QueueOK)
+	assert.Equal(t, 2, b.QueueLength)
+	assert.Zero(t, p.GetCalls("PROJ-BUILD-500"), "the board reads no queued build")
+	assert.Zero(t, p.GetCalls("PROJ-PROV-9"))
+	assert.Equal(t, []Need{{Kind: "agent_offline", Text: "agent linux-2 is offline"}}, b.Needs,
+		"a build waiting for an agent is news only when a pinned pipeline's build waits")
+}
 
-	assert.Equal(t, []Need{
-		{Kind: "agent_offline", Text: "agent linux-2 is offline"},
-		{Kind: "queue_wait", Text: "PROJ-BUILD-500 has waited 7m in the queue", Build: "PROJ-BUILD-500"},
-	}, b.Needs, "a disabled agent is a choice, not a need")
+func TestNeedsYouSaysAPinnedBuildWaitedOverFiveMinutes(t *testing.T) {
+	svc := newService(t, nil)
+	now := svc.Clock.Now()
+	p := boardBamboo(now)
+	p.History["PROJ-BUILD"] = []provider.Build{
+		{Key: "PROJ-BUILD-500", Number: 500, State: provider.StateQueued, QueuedAt: now.Add(-12 * time.Minute)},
+		{Key: "PROJ-BUILD-499", Number: 499, State: provider.StateSuccess, Duration: time.Minute, FinishedAt: now.Add(-time.Hour)},
+	}
+	p.History["PROJ-PROV12"] = []provider.Build{{Key: "PROJ-PROV12-9", Number: 9, State: provider.StateQueued, QueuedAt: now.Add(-3 * time.Minute)}}
+	svc.P = p
+	b, err := svc.Board(context.Background(), pins("integration", "PROJ-BUILD", "PROJ-PROV@develop"))
+	require.NoError(t, err)
+	assert.Contains(t, b.Needs, Need{Kind: "queue_wait", Text: "PROJ-BUILD-500 has waited 12m for an agent", Build: "PROJ-BUILD-500"})
+	for _, n := range b.Needs {
+		assert.NotContains(t, n.Text, "PROJ-PROV12-9", "under 5 minutes is not news")
+		assert.NotContains(t, n.Text, "PROJ-PROV-9", "a build of an unpinned plan is not news")
+	}
+}
+
+func TestNeedsYouReadsAPinnedQueuedBuildOnceWhenTheListGivesNoTime(t *testing.T) {
+	svc := newService(t, nil)
+	now := svc.Clock.Now()
+	p := boardBamboo(now)
+	p.History["PROJ-BUILD"] = []provider.Build{{Key: "PROJ-BUILD-500", Number: 500, State: provider.StateQueued}}
+	p.Sequences = map[string][]provider.Build{"PROJ-BUILD-500": {{Key: "PROJ-BUILD-500", State: provider.StateQueued, QueuedAt: now.Add(-9 * time.Minute)}}}
+	svc.P = p
+	b, err := svc.Board(context.Background(), pins("integration", "PROJ-BUILD"))
+	require.NoError(t, err)
+	assert.Contains(t, b.Needs, Need{Kind: "queue_wait", Text: "PROJ-BUILD-500 has waited 9m for an agent", Build: "PROJ-BUILD-500"})
+	assert.Equal(t, 1, p.GetCalls("PROJ-BUILD-500"))
 }
 
 func TestBoardSaysWhatBambooRefused(t *testing.T) {

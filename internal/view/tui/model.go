@@ -352,6 +352,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		m.board.agentRows = m.agentRowsFit()
 		// The viewport holds its own width and height, so a resize has to
 		// reach it or the log stays wrapped for the old terminal.
 		m.logs.resize(m.width, m.logHeight())

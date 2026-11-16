@@ -60,15 +60,15 @@ func TestBoardYourAgentsShowsCountsPoolsAndWhatIsWrong(t *testing.T) {
 func TestBoardYourAgentsIsATabStopOnlyWhenShown(t *testing.T) {
 	m := mineBoard(120, 45, 5)
 	var order []boardPanel
-	for range 4 {
+	for range 3 {
 		order = append(order, m.board.panel)
 		m, _ = send(m, mkKey("tab"))
 	}
-	require.Equal(t, []boardPanel{boardNeeds, boardAgents, boardQueue, boardPins}, order)
+	require.Equal(t, []boardPanel{boardNeeds, boardAgents, boardPins}, order)
 
 	m = boardModel(120, 45)
 	m, _ = send(m, mkKey("tab"))
-	require.Equal(t, boardQueue, m.board.panel, "no agents set: tab goes from Needs you to the queue, as before")
+	require.Equal(t, boardPins, m.board.panel, "no agents set: tab goes from Needs you to Pinned; there is no queue panel")
 }
 
 func TestBoardEnterOnAPoolListsItsAgents(t *testing.T) {

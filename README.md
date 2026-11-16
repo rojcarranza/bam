@@ -29,7 +29,7 @@ Every GIF in this README is a real recording of bam against a small Bamboo that 
 | See the build and everything it triggered as one tree, and only the failed branch when you ask | [tree](docs/demos/gifs/tree.gif) |
 | See every build you started, or its state in your prompt | [status](docs/demos/gifs/status.gif) |
 | See why a build waits, and for what | [queue](docs/demos/gifs/queue.gif) |
-| One board for the agents, the queue and your pipelines | [top](docs/demos/gifs/top.gif) |
+| One board for the agents, what they build and your pipelines | [top](docs/demos/gifs/top.gif) |
 | Pin the pipelines you watch once | [pin](docs/demos/gifs/pin.gif) |
 | See the agents, and keep only yours in view | [agent](docs/demos/gifs/agent.gif) |
 | Read why a build failed in one screen | [investigate](docs/demos/gifs/investigate.gif) |
@@ -442,9 +442,9 @@ Keep out of the dotfiles: tokens (`bam login` stores them in the keychain or `~/
 
 *Instead of:* Administration › Agents, then Build queue, then each agent's capabilities.
 
-**One board for the agents, the queue and your pipelines.**
+**One board for the agents, what they build and your pipelines.**
 
-![bam top prints what needs you: agents, the queue and the pinned pipelines](docs/demos/gifs/top.gif)
+![bam top prints what needs you: agents, what they build and the pinned pipelines](docs/demos/gifs/top.gif)
 
 *Instead of:* Dashboard, Agents and Build queue pages, side by side.
 
@@ -491,7 +491,7 @@ Watching never stops a build, so Ctrl-C is safe. A finished build exits 0 on suc
 | put the current build's state in your shell prompt | `bam status --short` |
 | see why a queued build waits | `bam queue`, then `bam agent list` |
 | see whether one agent's jobs fail more than the others' | `bam agent show linux-3` |
-| see what needs you: agents, the queue, your pinned pipelines | `bam top` (live on a terminal, `--once` to print; pin with `bam pin add integration PROJ-BUILD`) |
+| see what needs you: agents, what they build, your pinned pipelines | `bam top` (live on a terminal, `--once` to print; pin with `bam pin add integration PROJ-BUILD`) |
 
 
 ### When a build fails

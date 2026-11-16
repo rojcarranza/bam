@@ -45,24 +45,6 @@ func TestPUnpinsThePinTheCursorWasOnAfterARefreshWhileAwayFromPinned(t *testing.
 	require.Equal(t, []string{"PROJ-PROV"}, removed)
 }
 
-// Intent (BAM-53, machine 6, defect 2): the cursor of Queue was a number, so
-// a read that queued a build above it moved P onto another build's plan.
-func TestPOnAQueuedBuildStaysOnItAfterARefreshQueuesAnotherAbove(t *testing.T) {
-	m := boardModel(100, 30)
-	m.deps.PinAdd = func(_, _ string) error { return nil }
-	m, _ = send(m, mkKey("tab")) // Queue
-	m, _ = send(m, mkKey("j"))   // OPS-NIGHTLY-3
-	m = readAgain(m, func(b *app.Board) {
-		first := app.QueueRow{Position: 1, QueueEntry: provider.QueueEntry{Key: "LAB-FIRST-1", PlanKey: "LAB-FIRST", Number: 1}}
-		b.Queue = append([]app.QueueRow{first}, b.Queue...)
-	})
-	b, ok := m.boardBuild()
-	require.True(t, ok)
-	require.Equal(t, "OPS-NIGHTLY-3", b.Key)
-	m, _ = send(m, mkKey("P"))
-	require.Contains(t, m.input.Prompt, "pin OPS-NIGHTLY to group")
-}
-
 // Intent (BAM-53, machine 6, defect 3): the cursor of Your agents was a
 // number too, so enter on a pool opened the pool that took its place.
 func TestEnterOnAPoolStaysOnItAfterARefreshAddsAPoolAbove(t *testing.T) {

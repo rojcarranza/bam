@@ -12,7 +12,7 @@
     },
     {
       "kind": "queue_wait",
-      "text": "PROJ-PROV-9 has waited 7m in the queue"
+      "text": "PROJ-BUILD-500 has waited 7m for an agent"
     }
   ],
   "agents": {
@@ -40,31 +40,9 @@
       }
     ]
   },
-  "queue": [
-    {
-      "position": 1,
-      "key": "PROJ-PROV-9",
-      "url": "https://bamboo.example.com/browse/PROJ-PROV-9",
-      "plan_key": "PROJ-PROV",
-      "number": 9,
-      "reason": "Code has changed",
-      "waited_ms": 420000,
-      "waited_at_least": false,
-      "mine": true
-    },
-    {
-      "position": 2,
-      "key": "PROJ-OTHER-3",
-      "url": "https://bamboo.example.com/browse/PROJ-OTHER-3",
-      "plan_key": "PROJ-OTHER",
-      "number": 3,
-      "reason": "Manual build",
-      "waited_ms": 0,
-      "waited_at_least": true,
-      "mine": true
-    }
-  ],
-  "queue_others": 0,
+  "queue": [],
+  "queue_others": 2,
+  "queue_length": 2,
   "pins": [
     {
       "name": "integration",

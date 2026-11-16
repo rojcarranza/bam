@@ -2,7 +2,7 @@
 ┏━Needs you━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃▸ ! agent linux-2 is offline                              ┃
 ┃  ! agent linux-4 is offline                              ┃
-┃  ! PROJ-BUILD-500 has waited 7m in the queue             ┃
+┃  ! Build and test: the last build, PROJ-BUILD-44, failed ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ╭─Agents───────────────────────────────────────────────────╮
 │  █████░░░░░ 1 building · 1 idle · 2 down · 1 disabled    │
@@ -10,11 +10,11 @@
 │  linux-2  remote  offline                                │
 │  … and 2 more offline or disabled                        │
 ╰──────────────────────────────────────────────────────────╯
-╭─Queue · 2────────────────────────────────────────────────╮
-│▸ 1  PROJ-BUILD-500  7m  Manual build                     │
-╰──────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────╮
 │  Integration ────── 2 pipelines · 1 failing · 1 running  │
-│▸ Build and test  ✓✗          –           last 3m · usual │
+│▸ Build and test  ✓✗          –            last 3m · usual│
+│    1 of 2 passed · failing for 1 build · last pass #3    │
+│  Provision a l…  ✓✓          #9 running   last 4m · usual│
+│    2 of 2 passed · passing for 2 builds                  │
 ╰──────────────────────────────────────────────────────────╯
 lab         enter open  l logs  t tree  i why  P pin  q quit

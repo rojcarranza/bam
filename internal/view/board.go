@@ -19,10 +19,12 @@ type BoardDoc struct {
 	Needs       []NeedDoc       `json:"needs_you"`
 	Agents      *BoardAgentsDoc `json:"agents"`
 	AgentsNote  string          `json:"agents_note,omitempty"`
+	// Queue is always empty: the board reads no queued build. The fields stay
+	// so a script that reads them keeps working; QueueOthers is how many
+	// builds wait, the same as QueueLength.
 	Queue       []QueueDoc      `json:"queue"`
-	// QueueOthers counts the waiting builds the queue leaves out because
-	// they wait for other agents, pipelines or projects.
 	QueueOthers int             `json:"queue_others"`
+	QueueLength int             `json:"queue_length"`
 	QueueNote   string          `json:"queue_note,omitempty"`
 	Pins        []BoardGroupDoc `json:"pins"`
 }
@@ -91,8 +93,9 @@ func BoardJSON(b app.Board, url func(string) string) BoardDoc {
 		Server:      BoardServerDoc{Alias: b.Server, URL: b.URL, Version: b.Version},
 		Needs:       Docs(b.Needs, func(n app.Need) NeedDoc { return NeedDoc{Kind: n.Kind, Text: n.Text} }),
 		AgentsNote:  b.AgentsNote,
-		Queue:       BoardQueueJSON(b.Queue, url),
-		QueueOthers: b.QueueOthers,
+		Queue:       []QueueDoc{},
+		QueueOthers: b.QueueLength,
+		QueueLength: b.QueueLength,
 		QueueNote:   b.QueueNote,
 		Pins:        []BoardGroupDoc{},
 	}
@@ -100,6 +103,7 @@ func BoardJSON(b app.Board, url func(string) string) BoardDoc {
 		d.Agents = &BoardAgentsDoc{Total: a.Total, Online: a.Online, Busy: a.Busy, Offline: a.Offline, Disabled: a.Disabled, Away: AgentsJSON(a.Away)}
 		if b.Mine != nil {
 			d.Agents.Mine = mineDoc(b.Mine)
+			d.Agents.Mine.WorkNote = b.WorkNote
 		}
 	}
 	for _, g := range b.Groups {
@@ -141,8 +145,8 @@ func pinBuildDoc(b provider.Build, url func(string) string) BoardPinBuild {
 		StartedAt: timePtr(b.StartedAt), DurationMS: ms(b.Duration)}
 }
 
-// Board prints the board: the server, what needs you, the agents, the queue
-// and the pinned pipelines by group.
+// Board prints the board: the server, what needs you, the agents with what
+// they build, and the pinned pipelines by group.
 func Board(o Out, b app.Board, url func(string) string) error {
 	w := o.W
 	head := b.Server
@@ -164,8 +168,11 @@ func Board(o Out, b app.Board, url func(string) string) error {
 
 	if b.Mine != nil {
 		section(o, "YOUR AGENTS")
-		for _, l := range MineLines(b.Mine, minePaint(o)) {
+		for _, l := range MineLines(b.Mine, minePaint(o), b.At) {
 			fmt.Fprintln(w, "  "+l)
+		}
+		if b.WorkNote != "" {
+			fmt.Fprintln(w, "  "+style.Dim(o.Style, b.WorkNote))
 		}
 	} else if a := b.Agents; a == nil {
 		section(o, "AGENTS")
@@ -182,26 +189,6 @@ func Board(o Out, b app.Board, url func(string) string) error {
 		}
 		if !b.MineSet {
 			fmt.Fprintln(w, "  "+style.Dim(o.Style, "Show only your agents: bam agent mine add NAME-START"))
-		}
-	}
-
-	section(o, queueTitle(b))
-	switch {
-	case !b.QueueOK:
-		fmt.Fprintln(w, "  "+b.QueueNote)
-	case len(b.Queue) == 0 && b.QueueOthers == 0:
-		fmt.Fprintln(w, "  The queue is empty")
-	default:
-		if len(b.Queue) == 0 {
-			fmt.Fprintln(w, "  Nothing waits for you")
-		} else {
-			t := queueTable(o, b.Queue, url, "  ")
-			if err := t.Render(o); err != nil {
-				return err
-			}
-		}
-		if b.QueueOthers > 0 {
-			fmt.Fprintln(w, "  "+style.Dim(o.Style, OthersText(b.QueueOthers)))
 		}
 	}
 
@@ -333,12 +320,4 @@ func now(o Out, p app.PinView) string {
 // words as the summary of your own agents.
 func AgentSummaryText(a *app.AgentSummary) string {
 	return fmt.Sprintf("%d building · %d idle · %d down · %d disabled", a.Busy, a.Online-a.Busy, a.Offline, a.Disabled)
-}
-
-// queueTitle names the queue section by what it lists.
-func queueTitle(b app.Board) string {
-	if b.QueueFiltered {
-		return "YOUR QUEUE"
-	}
-	return "QUEUE"
 }

@@ -22,6 +22,9 @@ func topHarness(t *testing.T) *harness {
 	h := queueHarness(t)
 	h.fake.AgentList = append(h.fake.AgentList, provider.Agent{ID: 3, Name: "linux-3", Type: "REMOTE", Online: true, Enabled: false})
 	h.fake.Sequences["PROJ-PROV-9"] = []provider.Build{{Key: "PROJ-PROV-9", State: provider.StateQueued, QueuedAt: fixedNow.Add(-8 * time.Minute)}}
+	// A build of the pinned PROJ-BUILD has waited 8 minutes for an agent.
+	waiting := provider.Build{Key: "PROJ-BUILD-483", PlanKey: "PROJ-BUILD", Number: 483, State: provider.StateQueued, QueuedAt: fixedNow.Add(-8 * time.Minute)}
+	h.fake.History["PROJ-BUILD"] = append([]provider.Build{waiting}, h.fake.History["PROJ-BUILD"]...)
 	return h
 }
 
@@ -38,10 +41,11 @@ func TestTopWithPins(t *testing.T) {
 	out := h.stdout.String()
 	assert.Contains(t, out, "Bamboo 9.6.2")
 	assert.Contains(t, out, "! agent linux-2 is offline")
-	assert.Contains(t, out, "! PROJ-PROV-9 has waited 8m in the queue")
+	assert.Contains(t, out, "! PROJ-BUILD-483 has waited 8m for an agent", "a pinned pipeline's build that waits over 5 minutes")
 	assert.Contains(t, out, "3 agents: 1 building · 0 idle · 1 down · 1 disabled")
 	assert.Contains(t, out, "linux-3  remote  disabled")
-	assert.Regexp(t, `1\s+PROJ-PROV-9\s+Code has changed\s+8m00s`, out)
+	assert.NotContains(t, out, "QUEUE", "the board has no queue section")
+	assert.NotContains(t, out, "PROJ-PROV-9", "a queued build of an unpinned plan is not news")
 	assert.Contains(t, out, "Integration ──")
 	assert.Regexp(t, `Build and test\s+.*2m11s`, out, "a pin that is a plan key shows the plan's name")
 	assert.Regexp(t, `provision-lab\s+.*`, out)
@@ -53,7 +57,7 @@ func TestTopWithoutPinsSaysHowToPin(t *testing.T) {
 	require.Equal(t, 0, h.run("top"))
 	out := h.stdout.String()
 	assert.Contains(t, out, "AGENTS")
-	assert.Contains(t, out, "QUEUE")
+	assert.NotContains(t, out, "QUEUE")
 	assert.Contains(t, out, "No pipelines pinned. Pin one with: bam pin add GROUP PLAN")
 }
 
@@ -63,20 +67,16 @@ func TestTopWithoutAdministratorRightsStillPrintsTheRest(t *testing.T) {
 	require.Equal(t, 0, h.run("top"))
 	out := h.stdout.String()
 	assert.Contains(t, out, "the agent list is not shown: Bamboo refused it")
-	assert.Contains(t, out, "PROJ-PROV-9")
 	assert.NotContains(t, out, "offline")
 	assert.Empty(t, h.stderr.String())
 
 	h.fake.QueueErr = errs.Bamboof("boom")
-	require.Equal(t, 0, h.run("top"))
-	assert.Contains(t, h.stdout.String(), "the queue could not be read")
-}
-
-func TestTopWithAnEmptyQueue(t *testing.T) {
-	h := topHarness(t)
-	h.fake.QueueEntries = nil
-	require.Equal(t, 0, h.run("top"))
-	assert.Contains(t, h.stdout.String(), "The queue is empty")
+	require.Equal(t, 0, h.run("top", "--json"))
+	var doc struct {
+		QueueNote string `json:"queue_note"`
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Contains(t, doc.QueueNote, "queue could not be read", "the JSON still says so; the text has no queue section")
 }
 
 func TestTopJSON(t *testing.T) {
@@ -90,11 +90,9 @@ func TestTopJSON(t *testing.T) {
 			Total, Offline, Disabled int
 			Away                     []map[string]any
 		}
-		Queue []struct {
-			Key      string
-			WaitedMS int64 `json:"waited_ms"`
-		}
-		Pins []struct {
+		Queue       []any `json:"queue"`
+		QueueLength int   `json:"queue_length"`
+		Pins        []struct {
 			Name      string
 			Pipelines []struct {
 				Pin     string
@@ -107,7 +105,8 @@ func TestTopJSON(t *testing.T) {
 	assert.Equal(t, "9.6.2", doc.Server.Version)
 	assert.Equal(t, 3, doc.Agents.Total)
 	assert.Len(t, doc.Agents.Away, 2)
-	assert.Equal(t, int64(8*60*1000), doc.Queue[0].WaitedMS)
+	assert.Empty(t, doc.Queue, "queue stays a field, now empty")
+	assert.Equal(t, 3, doc.QueueLength, "the length of the server's queue")
 	require.Len(t, doc.Pins, 1)
 	assert.Equal(t, "integration", doc.Pins[0].Name)
 	assert.Equal(t, "PROJ-BUILD", doc.Pins[0].Pipelines[0].Pin)

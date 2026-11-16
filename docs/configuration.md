@@ -211,7 +211,7 @@ monitor:
 
 ## Your agents (`agents`)
 
-`agents:` lists the name starts of the build agents you support, so `bam top` shows those agents, their health and the builds that wait for them instead of the whole server's (see [the board](tui.md#the-board)):
+`agents:` lists the name starts of the build agents you support, so `bam top` shows those agents, their health and the builds they run instead of the whole server's (see [the board](tui.md#the-board)):
 
 ```yaml
 agents: [team-a-agent, team-b-agent]

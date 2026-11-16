@@ -72,6 +72,11 @@ type Provider struct {
 	// when it is nil.
 	Recent    []provider.Build
 	RecentErr error
+	// Running is what RunningBuilds lists; RunningErr is returned when it is
+	// set. RunningCalls counts the calls.
+	Running      provider.RunningBuilds
+	RunningErr   error
+	RunningCalls int
 	// NoPlanSearch makes SearchPlans answer ErrUnsupported, as a server
 	// without a plan search does. Otherwise it finds, across every project,
 	// the plans whose name holds the term, ignoring case.
@@ -448,4 +453,15 @@ func (f *Provider) RecentBuilds(_ context.Context, limit int) ([]provider.Build,
 		return f.Recent[:limit], nil
 	}
 	return f.Recent, nil
+}
+
+// RunningBuilds lists Running.
+func (f *Provider) RunningBuilds(_ context.Context) (provider.RunningBuilds, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.RunningCalls++
+	if f.RunningErr != nil {
+		return provider.RunningBuilds{}, f.RunningErr
+	}
+	return f.Running, nil
 }

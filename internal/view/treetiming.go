@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/rojcarranza/bam/internal/view/style"
 )
 
@@ -40,6 +41,9 @@ func treeTiming(root *app.TreeNode) timing {
 			return
 		}
 		b := n.Build
+		if b.State == provider.StateSkipped { // it never ran, as a build not run
+			return
+		}
 		if !app.TreeFinished(b.State) {
 			t.Running++
 			return

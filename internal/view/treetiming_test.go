@@ -90,6 +90,14 @@ func TestTreeTimingTextFailedOnlyDropsASuccessfulBranch(t *testing.T) {
 	assert.Contains(t, buf.String(), "OPS-SMOKE-51")
 }
 
+func TestTreeTimingLeavesOutASkippedBuild(t *testing.T) {
+	tr := timedTree()
+	tr.Root.Children = append(tr.Root.Children, tnode("OPS-SKIP-3", provider.StateSkipped, 0))
+	o, buf := testOut(false)
+	require.NoError(t, TreeTimingText(o, tr, false))
+	assert.NotContains(t, buf.String(), "OPS-SKIP-3")
+}
+
 func TestTreeTimingTextWithNoTimesSaysSo(t *testing.T) {
 	root := tnode("PROJ-API-142", provider.StateSuccess, time.Minute)
 	o, buf := testOut(false)

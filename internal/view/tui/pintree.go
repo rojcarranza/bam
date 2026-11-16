@@ -151,6 +151,7 @@ func pinFoldable(p app.PinView) bool {
 type pinPart struct {
 	group   int
 	row     string
+	record  string // the muted pass-record line under the row, "" for none
 	rowSp   []linkSpan
 	rowOrd  int
 	tree    []string
@@ -208,6 +209,11 @@ func (m Model) pinLinesInfo(inner int, roomy bool, capLines int) ([]string, int,
 			rowText, rowSp := m.pinTextSpans(p, "", cols)
 			part := &pinPart{group: gi, rowOrd: n, row: m.cursorFor(focused, n == cur) + rowText, rowSp: shiftSpans(rowSp, 2)}
 			n++
+			if p.Err == nil {
+				if rec := view.PassRecord(p.Results, m.now()); rec != "" {
+					part.record = dimStyle.Render("    " + rec)
+				}
+			}
 			if !b.folded[p.Pin] {
 				for _, l := range pinTreeRows(p, m.treeLineText) {
 					sel := l.node != nil && !l.node.NotRun
@@ -255,7 +261,7 @@ func (m Model) pinLinesInfo(inner int, roomy bool, capLines int) ([]string, int,
 	total := func() int {
 		t := len(b.data.Groups)
 		for _, p := range parts {
-			t += 1 + p.height() + len(p.tail)
+			t += 1 + p.recordLines() + p.height() + len(p.tail)
 		}
 		return t
 	}
@@ -314,12 +320,16 @@ func (m Model) pinLinesInfo(inner int, roomy bool, capLines int) ([]string, int,
 				put("", -1, nil)
 			}
 			group = p.group
-			put("  "+titleStyle.Render(b.data.Groups[group].Name), -1, nil)
+			g := b.data.Groups[group]
+			put("  "+view.RuledLine(view.GroupTitle(g.Name), view.GroupState(g), max(inner-4, 1), func(s string) string { return titleStyle.Render(s) }, func(s string) string { return dimStyle.Render(s) }, func(s string) string { return dimStyle.Render(s) }), -1, nil)
 		}
 		if p.rowOrd == cur {
 			cursorLine = len(out)
 		}
 		put(p.row, p.rowOrd, p.rowSp)
+		if p.record != "" {
+			put(p.record, -1, nil)
+		}
 		switch {
 		case p.fold:
 			put(dimStyle.Render(fmt.Sprintf("      ▸ %s · space opens", pipelinesText(p.count))), -1, nil)
@@ -377,6 +387,14 @@ func pipelinesText(n int) string {
 		return "1 child pipeline"
 	}
 	return fmt.Sprintf("%d child pipelines", n)
+}
+
+// recordLines is 1 when the pin has a pass-record line under its row.
+func (p *pinPart) recordLines() int {
+	if p.record != "" {
+		return 1
+	}
+	return 0
 }
 
 // height is the lines a pin's tree takes below its row.

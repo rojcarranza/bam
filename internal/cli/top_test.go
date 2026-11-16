@@ -42,7 +42,7 @@ func TestTopWithPins(t *testing.T) {
 	assert.Contains(t, out, "3 agents: 1 building · 0 idle · 1 down · 1 disabled")
 	assert.Contains(t, out, "linux-3  remote  disabled")
 	assert.Regexp(t, `1\s+PROJ-PROV-9\s+Code has changed\s+8m00s`, out)
-	assert.Contains(t, out, "integration")
+	assert.Contains(t, out, "Integration ──")
 	assert.Regexp(t, `Build and test\s+.*2m11s`, out, "a pin that is a plan key shows the plan's name")
 	assert.Regexp(t, `provision-lab\s+.*`, out)
 	assert.Contains(t, out, "! provision-lab: the last build, PROJ-PROV12-8, failed")

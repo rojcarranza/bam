@@ -117,7 +117,7 @@ func TestBoardCutsALongPinnedNameToTheTerminal(t *testing.T) {
 	var row string
 	for _, l := range strings.Split(strings.TrimRight(buf.String(), "\n"), "\n") {
 		assert.LessOrEqual(t, style.Width(l), 80, l)
-		if strings.HasPrefix(style.Strip(l), "    Integrate every") {
+		if row == "" && strings.HasPrefix(style.Strip(l), "    Integrate every") {
 			row = style.Strip(l)
 		}
 	}
@@ -129,6 +129,24 @@ func TestBoardCutsALongPinnedNameToTheTerminal(t *testing.T) {
 	o.Width = 80
 	require.NoError(t, Board(o, b, boardURL))
 	assert.Contains(t, buf.String(), long, "a pipe keeps the full name")
+}
+
+// Intent: a pinned pipeline's pass-record line stays within the terminal width
+// at every width, and a short name is printed whole, never padded.
+func TestBoardKeepsAPassRecordLineWithinTheTerminal(t *testing.T) {
+	b := sampleBoard()
+	b.Groups[0].Pins[0].Name = "lab"
+	for width := 10; width <= 120; width++ {
+		o, buf := testOut(true)
+		o.Width = width
+		require.NoError(t, Board(o, b, boardURL), "width %d", width)
+		for _, l := range strings.Split(buf.String(), "\n") {
+			if plain := style.Strip(l); strings.HasPrefix(plain, "    lab") && strings.Contains(plain, " · ") {
+				assert.LessOrEqual(t, style.Width(l), width, "width %d: %s", width, l)
+				assert.NotContains(t, l, "\x00", "width %d: a short name is not padded", width)
+			}
+		}
+	}
 }
 
 // Intent (BAM-42 P4, issue 193): a pin's branches print under it, indented,
@@ -154,4 +172,24 @@ func TestBoardPrintsAPinsBranchesUnderIt(t *testing.T) {
 	require.Equal(t, "PROJ-BUILD12", pin.Branches[0].PlanKey)
 	require.Equal(t, 4, pin.BranchesMore)
 	require.Empty(t, pin.Branches[0].Branches)
+}
+
+// Intent: a pinned group's heading stays within the terminal width on narrow
+// terminals too, where the heading floor would otherwise push it past the edge.
+func TestBoardKeepsTheGroupHeadingWithinNarrowTerminals(t *testing.T) {
+	b := sampleBoard()
+	for width := 3; width <= 40; width++ {
+		o, buf := testOut(true)
+		o.Width = width
+		require.NoError(t, Board(o, b, boardURL), "width %d", width)
+		lines := strings.Split(buf.String(), "\n")
+		heading := -1
+		for i, l := range lines {
+			if style.Strip(l) == "PINNED" {
+				heading = i + 1
+			}
+		}
+		require.Greater(t, heading, 0, "width %d: the PINNED section is printed", width)
+		assert.LessOrEqual(t, style.Width(lines[heading]), width, "width %d: %s", width, lines[heading])
+	}
 }

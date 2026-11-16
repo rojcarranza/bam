@@ -166,15 +166,15 @@ func TestShortPinnedFoldsFinishedTreesThenCutsTheLongest(t *testing.T) {
 
 	// Pinned of 20 rows (4 spent on frame): the finished tree folds first.
 	m := treeBoardModel(120, 40, mod)
-	lines, _ := m.pinLines(100, false, 16)
+	lines, _ := m.pinLines(100, false, 19)
 	text := ansi.Strip(strings.Join(lines, "\n"))
 	require.Contains(t, text, "▸ 4 child pipelines · space opens", "finished and all succeeded: folded first")
 	require.Contains(t, text, "PROJ-K8S0-4", "the running tree is still open")
 	require.NotContains(t, text, "more · t opens")
 
 	// Shorter still: the longest tree is cut, and says so.
-	lines, _ = m.pinLines(100, false, 9)
-	require.LessOrEqual(t, len(lines), 9)
+	lines, _ = m.pinLines(100, false, 12)
+	require.LessOrEqual(t, len(lines), 12)
 	text = ansi.Strip(strings.Join(lines, "\n"))
 	require.Regexp(t, `\+\d+ more · t opens the tree`, text)
 	require.Contains(t, text, "▸ 4 child pipelines", "the finished tree stays folded")
@@ -281,15 +281,15 @@ func TestSpaceOpensATreeFoldedToFitAShortPanel(t *testing.T) {
 			Results: []provider.Build{doneRoot}, Tree: doneTree})
 	}))
 	m.board.cursor[boardPins] = 5 // the finished pin's own row
-	lines, _ := m.pinLines(100, false, 16)
+	lines, _ := m.pinLines(100, false, 19)
 	require.Contains(t, ansi.Strip(strings.Join(lines, "\n")), "▸ 4 child pipelines · space opens")
 	m, _ = send(m, mkKey(" "))
-	lines, _ = m.pinLines(100, false, 16)
+	lines, _ = m.pinLines(100, false, 19)
 	text := ansi.Strip(strings.Join(lines, "\n"))
 	require.NotContains(t, text, "4 child pipelines · space opens", "the tree is open now")
 	require.Contains(t, text, "PROJ-OKA-1")
 	m, _ = send(m, mkKey(" "))
-	lines, _ = m.pinLines(100, false, 16)
+	lines, _ = m.pinLines(100, false, 19)
 	require.Contains(t, ansi.Strip(strings.Join(lines, "\n")), "▸ 4 child pipelines · space opens", "and space folds it again")
 }
 

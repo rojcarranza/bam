@@ -54,6 +54,35 @@ func TestTreeTimingTextOnANarrowTerminalKeepsEveryLineInWidth(t *testing.T) {
 	}
 }
 
+func TestTreeTimingTextKeepsLongWaitsAndRunsInWidth(t *testing.T) {
+	t0 := fixedNow.Add(-2 * time.Hour)
+	root := tnode("PROJ-API-142", provider.StateSuccess, 0)
+	root.Build.QueuedAt = t0
+	root.Build.StartedAt = t0.Add(12*time.Minute + 30*time.Second)
+	root.Build.FinishedAt = root.Build.StartedAt.Add(45*time.Minute + 10*time.Second)
+	for _, width := range []int{80, 100} {
+		o, buf := testOut(false)
+		o.Width = width
+		require.NoError(t, TreeTimingText(o, app.Tree{Root: root, State: provider.StateSuccess}, false))
+		assert.Contains(t, buf.String(), "wait 12m30s · run 45m10s")
+		for _, l := range strings.Split(strings.TrimRight(buf.String(), "\n"), "\n") {
+			assert.Less(t, len([]rune(l)), width, l)
+		}
+	}
+}
+
+func TestTreeTimingJSONStartIsNullWithoutTimes(t *testing.T) {
+	root := tnode("PROJ-API-142", provider.StateSuccess, time.Minute)
+	raw, err := json.Marshal(TreeTimingJSON(app.Tree{Root: root, State: provider.StateSuccess}, false))
+	require.NoError(t, err)
+	var doc struct {
+		Timing map[string]json.RawMessage `json:"timing"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
+	assert.JSONEq(t, "null", string(doc.Timing["start"]))
+	assert.JSONEq(t, "0", string(doc.Timing["duration_ms"]))
+}
+
 func TestTreeTimingTextFailedOnlyDropsASuccessfulBranch(t *testing.T) {
 	o, buf := testOut(false)
 	require.NoError(t, TreeTimingText(o, timedTree(), true))
@@ -86,6 +115,8 @@ func TestTreeTimingJSONAddsOnlyATimingField(t *testing.T) {
 		Timing TimingDoc `json:"timing"`
 	}
 	require.NoError(t, json.Unmarshal(timed, &doc))
+	require.NotNil(t, doc.Timing.Start)
+	assert.Equal(t, fixedNow.Add(-time.Hour).UTC(), *doc.Timing.Start)
 	assert.Equal(t, int64(18*60*1000), doc.Timing.DurationMS)
 	assert.Equal(t, 1, doc.Timing.Unfinished)
 	byKey := map[string]TimingBuildDoc{}

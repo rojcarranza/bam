@@ -84,7 +84,6 @@ const (
 	timingMinCells     = 20
 	timingMaxCells     = 60
 	timingDefaultCells = 40
-	timingTailWidth    = 22 // "wait 1m30s · run 5m00s"
 )
 
 // TreeTimingText prints the timeline of a finished tree run: one line per
@@ -105,10 +104,13 @@ func TreeTimingText(o Out, t app.Tree, failedOnly bool) error {
 	}
 	total := tm.End.Sub(tm.Start)
 	labels := make([]string, len(tm.Rows))
-	lw := 0
+	lw, tw := 0, 0
 	for i, r := range tm.Rows {
 		labels[i] = strings.Repeat("  ", r.Depth) + r.Key
 		lw = max(lw, len([]rune(labels[i])))
+		if r.Timed {
+			tw = max(tw, len([]rune(timingTail(r))))
+		}
 	}
 	cells, tails := timingDefaultCells, true
 	if o.Width > 0 {
@@ -116,7 +118,7 @@ func TreeTimingText(o Out, t app.Tree, failedOnly bool) error {
 		// tail such as "wait 12s · run 3m05s". On a terminal too narrow for
 		// the tail at the shortest bar, the bar keeps the room.
 		room := o.Width - 1 - 2 - lw - 2
-		if cells = room - 2 - timingTailWidth; cells < timingMinCells {
+		if cells = room - 2 - tw; cells < timingMinCells {
 			cells, tails = max(10, min(timingMaxCells, room)), false
 		}
 		cells = min(timingMaxCells, cells)
@@ -210,7 +212,7 @@ func timingAxis(w io.Writer, lw, cells int, total time.Duration, tm timing) erro
 // TimingDoc is the timeline in bam build tree --timing --json. Offsets count
 // milliseconds from start, the earliest time in the tree.
 type TimingDoc struct {
-	Start      time.Time        `json:"start"`
+	Start      *time.Time       `json:"start"` // null when no build has times
 	DurationMS int64            `json:"duration_ms"`
 	Unfinished int              `json:"unfinished"` // builds left out because they had not finished
 	Builds     []TimingBuildDoc `json:"builds"`
@@ -238,8 +240,10 @@ func TreeTimingJSON(t app.Tree, failedOnly bool) TreeDoc {
 		root = pruneFailed(root)
 	}
 	tm := treeTiming(root)
-	td := TimingDoc{Start: tm.Start.UTC(), Unfinished: tm.Running, Builds: []TimingBuildDoc{}}
+	td := TimingDoc{Unfinished: tm.Running, Builds: []TimingBuildDoc{}}
 	if !tm.Start.IsZero() {
+		start := tm.Start.UTC()
+		td.Start = &start
 		td.DurationMS = tm.End.Sub(tm.Start).Milliseconds()
 	}
 	for _, r := range tm.Rows {

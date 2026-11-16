@@ -1,0 +1,213 @@
+{
+    "expand": "results",
+    "link": {
+        "href": "http://bamboo.example.com/rest/api/latest/result",
+        "rel": "self"
+    },
+    "results": {
+        "size": 1,
+        "expand": "result",
+        "start-index": 0,
+        "max-result": 1,
+        "result": [
+            {
+                "expand": "plan,artifacts,comments,labels,jiraIssues,variables,stages",
+                "link": {
+                    "href": "http://bamboo.example.com/rest/api/latest/result/OPS-HOLD-7",
+                    "rel": "self"
+                },
+                "plan": {
+                    "id": 786435,
+                    "shortName": "Hold",
+                    "shortKey": "HOLD",
+                    "type": "chain",
+                    "enabled": true,
+                    "link": {
+                        "href": "http://bamboo.example.com/rest/api/latest/plan/OPS-HOLD",
+                        "rel": "self"
+                    },
+                    "key": "OPS-HOLD",
+                    "name": "wait demo - Hold",
+                    "planKey": {
+                        "key": "OPS-HOLD"
+                    }
+                },
+                "planName": "Hold",
+                "projectName": "wait demo",
+                "buildResultKey": "OPS-HOLD-7",
+                "id": 2752521,
+                "buildStartedTime": "2026-11-16T19:10:58.651Z",
+                "prettyBuildStartedTime": "Mon, 16 Nov, 07:10 PM",
+                "buildDurationInSeconds": 0,
+                "buildDuration": 0,
+                "buildDurationDescription": "global.unknown",
+                "buildRelativeTime": "",
+                "continuable": false,
+                "onceOff": false,
+                "restartable": false,
+                "notRunYet": false,
+                "finished": false,
+                "successful": false,
+                "buildReason": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">jdoe</a>",
+                "reasonSummary": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">jdoe</a>",
+                "specsResult": false,
+                "comments": {
+                    "size": 0,
+                    "start-index": 0,
+                    "max-result": 0
+                },
+                "labels": {
+                    "size": 0,
+                    "start-index": 0,
+                    "max-result": 0
+                },
+                "jiraIssues": {
+                    "size": 0,
+                    "start-index": 0,
+                    "max-result": 0
+                },
+                "variables": {
+                    "size": 0,
+                    "start-index": 0,
+                    "max-result": 0
+                },
+                "stages": {
+                    "size": 1,
+                    "expand": "stage",
+                    "start-index": 0,
+                    "max-result": 1,
+                    "stage": [
+                        {
+                            "expand": "results",
+                            "name": "Hold",
+                            "description": "",
+                            "id": 2785285,
+                            "lifeCycleState": "InProgress",
+                            "state": "Unknown",
+                            "displayClass": "InProgress",
+                            "displayMessage": "1 job currently building",
+                            "collapsedByDefault": false,
+                            "manual": false,
+                            "restartable": false,
+                            "runnable": false,
+                            "results": {
+                                "size": 1,
+                                "expand": "result",
+                                "start-index": 0,
+                                "max-result": 1,
+                                "result": [
+                                    {
+                                        "expand": "plan,artifacts,comments,labels,jiraIssues,variables,logFiles",
+                                        "link": {
+                                            "href": "http://bamboo.example.com/rest/api/latest/result/OPS-HOLD-SL-7",
+                                            "rel": "self"
+                                        },
+                                        "plan": {
+                                            "id": 786436,
+                                            "shortName": "Sleep",
+                                            "shortKey": "HOLD-SL",
+                                            "type": "job",
+                                            "enabled": true,
+                                            "link": {
+                                                "href": "http://bamboo.example.com/rest/api/latest/plan/OPS-HOLD-SL",
+                                                "rel": "self"
+                                            },
+                                            "key": "OPS-HOLD-SL",
+                                            "name": "wait demo - Hold - Sleep",
+                                            "planKey": {
+                                                "key": "OPS-HOLD-SL"
+                                            }
+                                        },
+                                        "planName": "Sleep",
+                                        "projectName": "wait demo",
+                                        "buildResultKey": "OPS-HOLD-SL-7",
+                                        "id": 2752522,
+                                        "buildStartedTime": "2026-11-16T19:10:58.649Z",
+                                        "prettyBuildStartedTime": "Mon, 16 Nov, 07:10 PM",
+                                        "buildDurationInSeconds": 0,
+                                        "buildDuration": 0,
+                                        "buildDurationDescription": "global.unknown",
+                                        "buildRelativeTime": "",
+                                        "queueStartedTime": "2026-11-16T19:10:58.635Z",
+                                        "prettyQueueStartedTime": "Mon, 16 Nov, 07:10 PM",
+                                        "queueTimeInSeconds": 0,
+                                        "queueDuration": 14,
+                                        "prettyQueueDuration": "< 1 sec",
+                                        "vcsUpdateStartedTime": "2026-11-16T19:10:58.649Z",
+                                        "prettyVcsUpdateStartedTime": "Mon, 16 Nov, 07:10 PM",
+                                        "vcsUpdateInSeconds": 0,
+                                        "vcsUpdateDuration": 0,
+                                        "prettyVcsUpdateDuration": "< 1 sec",
+                                        "onceOff": false,
+                                        "buildReason": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">jdoe</a>",
+                                        "reasonSummary": "Manual run by <a href=\"http://bamboo.example.com/browse/user/jdoe\">jdoe</a>",
+                                        "specsResult": false,
+                                        "comments": {
+                                            "size": 0,
+                                            "start-index": 0,
+                                            "max-result": 0
+                                        },
+                                        "labels": {
+                                            "size": 0,
+                                            "start-index": 0,
+                                            "max-result": 0
+                                        },
+                                        "jiraIssues": {
+                                            "size": 0,
+                                            "start-index": 0,
+                                            "max-result": 0
+                                        },
+                                        "variables": {
+                                            "size": 0,
+                                            "start-index": 0,
+                                            "max-result": 0
+                                        },
+                                        "logFiles": [
+                                            "http://bamboo.example.com/download/OPS-HOLD-SL/build_logs/plan-786435-SL-7.log"
+                                        ],
+                                        "key": "OPS-HOLD-SL-7",
+                                        "planResultKey": {
+                                            "key": "OPS-HOLD-SL-7",
+                                            "entityKey": {
+                                                "key": "OPS-HOLD-SL"
+                                            },
+                                            "resultNumber": 7
+                                        },
+                                        "state": "Unknown",
+                                        "buildState": "Unknown",
+                                        "lifeCycleState": "InProgress",
+                                        "number": 7,
+                                        "buildNumber": 7,
+                                        "artifacts": {
+                                            "size": 1,
+                                            "start-index": 0,
+                                            "max-result": 1
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "key": "OPS-HOLD-7",
+                "planResultKey": {
+                    "key": "OPS-HOLD-7",
+                    "entityKey": {
+                        "key": "OPS-HOLD"
+                    },
+                    "resultNumber": 7
+                },
+                "state": "Unknown",
+                "buildState": "Unknown",
+                "lifeCycleState": "InProgress",
+                "number": 7,
+                "buildNumber": 7,
+                "artifacts": {
+                    "size": 0,
+                    "start-index": 0,
+                    "max-result": 0
+                }
+            }
+        ]
+    }
+}

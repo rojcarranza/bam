@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -169,30 +168,4 @@ func TestBoardRemembersAnAgentAcrossReadsAndForgetsItOnRequest(t *testing.T) {
 	b, err = svc.Board(context.Background(), nil)
 	require.NoError(t, err)
 	assert.Zero(t, b.Mine.Total())
-}
-
-// With 201 agents of which 30 are yours, the board asks for the details of
-// your 30 only; the whole-server view asks for all 201.
-func TestBoardAsksAgentDetailsForYourAgentsOnly(t *testing.T) {
-	b := queuedBuild()
-	var all []provider.Agent
-	for i := range 201 {
-		name := fmt.Sprintf("other-agent-%d", i)
-		if i < 30 {
-			name = fmt.Sprintf("team-a-agent-%d", i)
-		}
-		all = append(all, agent(name, true, true, false))
-	}
-	svc, p := whyService(t, b, all, nil)
-	svc.Config().Project.Agents = starts
-	_, err := svc.Board(context.Background(), nil)
-	require.NoError(t, err)
-	require.Equal(t, 1, p.AgentJobsCalls)
-	assert.Len(t, p.AgentJobsAsked[0], 30)
-
-	svc2, p2 := whyService(t, b, all, nil)
-	svc2.Config().Project.Agents = starts
-	_, err = svc2.Board(WholeServer(context.Background()), nil)
-	require.NoError(t, err)
-	assert.Len(t, p2.AgentJobsAsked[0], 201)
 }

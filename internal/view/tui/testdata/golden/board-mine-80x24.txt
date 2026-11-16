@@ -3,7 +3,7 @@
 ┃▸ ! agent team-a-agent-pool-0 is down                                         ┃
 ┃  ! agent team-a-agent-pool-1 is disabled                                     ┃
 ┃  ! agent team-a-agent-pool-9 is down: Bamboo no longer lists it              ┃
-┃  ! PROJ-BUILD-500 has waited 7m in the queue                                 ┃
+┃  ! Build and test: the last build, PROJ-BUILD-44, failed                     ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ╭─Your agents──────────────────────────────────────────────────────────────────╮
 │  1 building · 2 idle · 2 down · 1 disabled                                   │
@@ -11,14 +11,14 @@
 │  ! team-a-agent-pool-0  down                                                 │
 │  … 2 more down or disabled · 1 start matches no agent                        │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-╭─Queue · 2────────────────────────────────────────────────────────────────────╮
-│▸ 1  PROJ-BUILD-500  7m  Manual build                                         │
-│  2  OPS-NIGHTLY-3   –   Scheduled                                            │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────────────────────────╮
 │  Integration ────────────────────────── 2 pipelines · 1 failing · 1 running  │
 │▸ Build and test           ✓✗          –                 last 3m · usual 3m   │
 │    1 of 2 passed · failing for 1 build · last pass #3                        │
 │  Provision a lab cluster  ✓✓          #9 running 3m/4m  last 4m · usual 4m   │
+│    2 of 2 passed · passing for 2 builds                                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 lab        enter open  l logs  t tree  i why  P pin  a agents  tab panel  q quit

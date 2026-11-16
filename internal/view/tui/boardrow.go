@@ -5,7 +5,7 @@ type rowKind string
 
 const (
 	rowNeed  rowKind = "need"  // a Needs you line
-	rowQueue rowKind = "queue" // a queued build
+	rowBuild rowKind = "build" // a building agent of Your agents
 	rowPool  rowKind = "pool"  // an agent pool of Your agents
 	rowPin   rowKind = "pin"   // a pin's own row, or one of its branch rows
 	rowChild rowKind = "child" // a pipeline of a pin's tree
@@ -37,14 +37,15 @@ func (b *boardState) boardRows(p boardPanel) []boardRow {
 		for _, n := range b.data.Needs {
 			out = append(out, boardRow{Kind: rowNeed, Key: needID(n)})
 		}
-	case boardQueue:
-		for _, q := range b.data.Queue {
-			out = append(out, boardRow{Kind: rowQueue, Key: q.Key})
-		}
 	case boardAgents:
 		if b.data.Mine != nil {
-			for _, pl := range b.data.Mine.Pools {
-				out = append(out, boardRow{Kind: rowPool, Key: pl.Name})
+			for _, sel := range b.agentSels() {
+				pl := b.data.Mine.Pools[sel.pool]
+				if sel.agent < 0 {
+					out = append(out, boardRow{Kind: rowPool, Key: pl.Name})
+				} else {
+					out = append(out, boardRow{Kind: rowBuild, Key: pl.Agents[sel.agent].Name, Parent: pl.Name})
+				}
 			}
 		}
 	default:

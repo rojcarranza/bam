@@ -48,7 +48,7 @@ bam [flags]
 * [bam set](bam_set.md)	 - Release trains: presets run in ordered stages
 * [bam skill](bam_skill.md)	 - Print the skill that teaches AI agents to use bam, or install it
 * [bam status](bam_status.md)	 - Show every build you started with bam in the last day, and how it is going
-* [bam top](bam_top.md)	 - Print what needs you: agents, the queue and your pinned pipelines
+* [bam top](bam_top.md)	 - Print what needs you: agents, what they build and your pinned pipelines
 * [bam tree](bam_tree.md)	 - Show a build and every build it triggered, as a tree
 * [bam ui](bam_ui.md)	 - Open the terminal UI
 * [bam url](bam_url.md)	 - Print the Bamboo URL of a project, plan, build or job

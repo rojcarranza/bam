@@ -35,13 +35,14 @@ func clickOpening(m Model, x, y int) Model {
 	return m
 }
 
-// cellAfter is the cell of the first occurrence of text on the line that
-// holds anchor, so a number is found on the row it belongs to.
+// cellAfter is the cell of the last occurrence of text on the line that holds
+// anchor, so a number is found on the row it belongs to, and a name the left
+// column repeats is found in Pinned, the right one.
 func cellAfter(t *testing.T, m Model, anchor, text string) (x, y int) {
 	t.Helper()
 	for y, line := range strings.Split(plain(m), "\n") {
 		if strings.Contains(line, anchor) {
-			if i := strings.Index(line, text); i >= 0 {
+			if i := strings.LastIndex(line, text); i >= 0 {
 				return len([]rune(line[:i])), y
 			}
 		}
@@ -114,7 +115,7 @@ func TestBoardClickOnABorderOrBlankSpaceOpensNothing(t *testing.T) {
 	for _, size := range boardSizes2 {
 		m, opened := recordOpener(treeBoardModel(size[0], size[1], nil))
 		_, y := cellAfter(t, m, "usual", "Top pipeline")
-		pins := m.boardBoxes()[3]
+		pins := m.boardBoxes()[2]
 		m = clickOpening(m, pins.x, y)                 // the left border
 		m = clickOpening(m, pins.x+pins.w-1, y)        // the right border
 		m = clickOpening(m, pins.x+2, pins.y+1)        // the title border
@@ -148,18 +149,6 @@ func TestBoardClickUnderTheOpenHelpOpensNothing(t *testing.T) {
 func TestBoardClickSelectsInEveryPanelAndWheelScrollsIt(t *testing.T) {
 	for _, size := range boardSizes2 {
 		m, opened := recordOpener(treeBoardModel(size[0], size[1], nil))
-		rows := len(m.board.data.Queue)
-		require.Greater(t, rows, 1, "the sample queue has rows to move over")
-		qx, qy := cellOf(t, m, m.board.data.Queue[1].Key)
-		m = clickOpening(m, qx, qy)
-		require.Equal(t, boardQueue, m.board.panel)
-		require.Equal(t, 1, m.board.cursor[boardQueue])
-
-		m, _ = send(m, wheel(qx, qy, true))
-		require.Equal(t, 0, m.board.cursor[boardQueue], "wheel up moves the queue's cursor")
-		m, _ = send(m, wheel(qx, qy, false))
-		require.Equal(t, min(wheelRows, rows-1), m.board.cursor[boardQueue])
-
 		nx, ny := cellOf(t, m, "Needs you")
 		m, _ = send(m, wheel(nx+3, ny+3, false))
 		require.Equal(t, boardNeeds, m.board.panel, "the wheel focuses the panel under it")
@@ -169,7 +158,7 @@ func TestBoardClickSelectsInEveryPanelAndWheelScrollsIt(t *testing.T) {
 		m, _ = send(m, wheel(px, py, false))
 		require.Equal(t, boardPins, m.board.panel)
 		require.Equal(t, min(wheelRows, len(m.board.pinSels())-1), m.board.cursor[boardPins])
-		require.Empty(t, *opened, "the wheel and a queue click open nothing")
+		require.Empty(t, *opened, "the wheel opens nothing")
 	}
 }
 

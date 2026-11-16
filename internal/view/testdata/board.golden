@@ -2,18 +2,13 @@ work  https://bamboo.example.com  Bamboo 12.1.8
 
 NEEDS YOU
   ! agent linux-2 is offline
-  ! PROJ-PROV-9 has waited 7m in the queue
+  ! PROJ-BUILD-500 has waited 7m for an agent
 
 AGENTS
   4 agents: 1 building · 1 idle · 1 down · 1 disabled
   linux-2  remote  offline
   linux-3  remote  disabled
   Show only your agents: bam agent mine add NAME-START
-
-QUEUE
-  #  BUILD         REASON            WAITED
-  1  PROJ-PROV-9   Code has changed  7m00s
-  2  PROJ-OTHER-3  Manual build      –
 
 PINNED
   Integration ──────────────────────────────────────────────────────────── 2 pipelines · 1 running

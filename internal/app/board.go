@@ -29,7 +29,7 @@ const (
 	PinBranches  = 10
 
 	boardReaders = 6  // reads in flight at once
-	waitReads    = 25 // queued builds whose own record is read for the time waited
+	waitReads    = 25 // queued builds whose own record bam queue reads for the time waited
 )
 
 // Board is what bam top shows: the server, its agents and queue, and the
@@ -48,15 +48,18 @@ type Board struct {
 	// MineSet is true when agents: lists name starts, so the board can show
 	// the empty state apart from "not set".
 	MineSet bool
-	// Queue is the builds that wait for you; with QueueFiltered, QueueOthers
-	// more wait for other agents, pipelines or projects.
-	Queue         []QueueRow
-	QueueOthers   int
-	QueueFiltered bool
-	QueueOK       bool // the queue was read; an empty Queue is then really empty
-	QueueNote     string
-	Groups        []PinGroupView
-	Needs         []Need
+	// Work is the build each busy one of your agents runs, by agent name, and
+	// WorkNote a line saying why some are missing; empty without Mine.
+	Work     AgentWork
+	WorkNote string
+	// QueueLength is how many builds wait in the server's queue, read as one
+	// list: the board reads no queued build. QueueOK is false when the list
+	// could not be read, and QueueNote says why.
+	QueueLength int
+	QueueOK     bool
+	QueueNote   string
+	Groups      []PinGroupView
+	Needs       []Need
 }
 
 // AgentSummary counts the agents and lists those that are not working.
@@ -143,7 +146,7 @@ func (g PinGroupView) Rows() []PinView {
 
 // Need is one line of the Needs you list.
 type Need struct {
-	Kind string // agent_offline, queue_wait, pin_failed, pin_child_failed or pin_slow
+	Kind string // agent_offline, queue_wait (a pinned pipeline's build), pin_failed, pin_child_failed or pin_slow
 	Text string
 	// Build is the build the line is about, "" for an agent. The text
 	// changes as time passes; Kind and Build name the same line throughout.
@@ -186,25 +189,54 @@ func (s *Service) RefreshBoard(ctx context.Context, groups []config.PinGroup, pr
 		known = prev.Groups
 	}
 	b.Groups = s.readPins(ctx, groups, known)
-	pinned := map[string]bool{}
-	for _, g := range b.Groups {
-		for _, p := range g.Pins {
-			if p.PlanKey != "" {
-				pinned[p.PlanKey] = true
-			}
-		}
-	}
-	if q, others, filtered, err := s.BoardQueue(ctx, pinned); err != nil {
+	if q, err := s.P.Queue(ctx); err != nil {
 		b.QueueNote = refusal("the queue", err)
 	} else {
-		b.QueueOK = true
-		b.Queue, b.QueueOthers, b.QueueFiltered = q, others, filtered
+		b.QueueOK, b.QueueLength = true, len(q)
+	}
+	if b.Mine != nil {
+		b.Work = s.boardWork(ctx, as, b.Groups, prev)
+		b.WorkNote = b.Work.Note
+		s.markWork(b.Mine, b.Work)
 	}
 	if err := ctx.Err(); err != nil {
 		return Board{}, err
 	}
 	b.Needs = NeedsYou(b, now)
 	return b, nil
+}
+
+// boardWork is what the busy ones of your agents build. The full read
+// (prev nil) looks it up; the quick read keeps the answer of the board on
+// screen, so Bamboo is asked once a minute and only while an agent is busy.
+func (s *Service) boardWork(ctx context.Context, as []provider.Agent, groups []PinGroupView, prev *Board) AgentWork {
+	if prev != nil {
+		return prev.Work
+	}
+	var busy []provider.Agent
+	for _, a := range OnlyAgents(as, s.AgentStarts()) {
+		if a.Busy && a.Online && a.Enabled {
+			busy = append(busy, a)
+		}
+	}
+	return s.LookAgentWork(ctx, busy, groups)
+}
+
+// markWork sets Build on each of your building agents the lookup found a
+// build for, and clears it on the others.
+func (s *Service) markWork(m *MyAgents, w AgentWork) {
+	for i := range m.Pools {
+		for j := range m.Pools[i].Agents {
+			a := &m.Pools[i].Agents[j]
+			a.Build = nil
+			if a.State != AgentBuilding {
+				continue
+			}
+			if b, ok := w.BuildOf(a.Name); ok {
+				a.Build = &b
+			}
+		}
+	}
 }
 
 // refusal is the one line that says why a part of the board is missing.
@@ -246,52 +278,6 @@ func summarizeAgents(as []provider.Agent) *AgentSummary {
 func (s *Service) QueueRows(ctx context.Context) ([]QueueRow, error) {
 	rows, _, err := s.readQueue(ctx, func([]provider.QueueEntry) []bool { return nil })
 	return rows, err
-}
-
-// BoardQueue is the queue the board shows: the builds that wait for you, with
-// their true place in the whole queue, and how many others wait. A build is
-// yours when one of your agents can run one of its jobs, its plan is in
-// pinned (the plan keys of the pins), or its project is in projects:. With
-// none of the three set, or when ctx asks for the whole server, every build is
-// yours. When bam cannot tell which jobs your agents run, a build no pin or
-// project names is shown, never hidden. The waits and reasons are read for
-// your builds first, wherever they sit, up to waitReads.
-func (s *Service) BoardQueue(ctx context.Context, pinned map[string]bool) (rows []QueueRow, others int, filtered bool, err error) {
-	filtered = ctx.Value(agentScopeKey{}) != false &&
-		(len(s.AgentStarts()) > 0 || len(pinned) > 0 || len(s.ProjectKeys()) > 0)
-	if !filtered {
-		rows, err = s.QueueRows(ctx)
-		return rows, 0, false, err
-	}
-	rows, others, err = s.readQueue(ctx, func(q []provider.QueueEntry) []bool { return s.mineBuilds(ctx, q, pinned) })
-	return rows, others, true, err
-}
-
-// mineBuilds says, for each queued entry, whether it is yours.
-func (s *Service) mineBuilds(ctx context.Context, q []provider.QueueEntry, pinned map[string]bool) []bool {
-	projects := map[string]bool{}
-	for _, k := range s.ProjectKeys() {
-		projects[strings.ToUpper(k)] = true
-	}
-	var runs map[string]bool
-	known := false
-	if len(s.AgentStarts()) > 0 {
-		if agents, ok := s.whyAgents(ctx); ok {
-			agents = s.scopeAgents(ctx, agents)
-			plans := make([]string, 0, len(q))
-			for _, e := range q {
-				plans = append(plans, e.PlanKey)
-			}
-			runs, known = s.planRunners(ctx, agents, plans)
-		}
-	}
-	mine := make([]bool, len(q))
-	for i, e := range q {
-		project, _, _ := strings.Cut(e.PlanKey, "-")
-		mine[i] = pinned[e.PlanKey] || projects[strings.ToUpper(project)] || runs[e.PlanKey] ||
-			(len(s.AgentStarts()) > 0 && !known)
-	}
-	return mine
 }
 
 // readQueue reads the queue and the wait of up to waitReads builds, yours
@@ -527,6 +513,15 @@ func (s *Service) readPinBuilds(ctx context.Context, v PinView, usual bool, prev
 			v.Results = append(v.Results, b)
 		}
 	}
+	if c := v.Current; c != nil && c.State == provider.StateQueued && c.QueuedAt.IsZero() {
+		// The list gives no time the build began waiting; its own record does.
+		if b, err := s.P.GetBuild(ctx, c.Key); err == nil {
+			c.QueuedAt = b.QueuedAt
+			if c.QueuedAt.IsZero() {
+				c.QueuedAt = b.StartedAt
+			}
+		}
+	}
 	if len(v.Results) > 0 {
 		v.Last = v.Results[0].Duration
 	}
@@ -558,8 +553,8 @@ func (s *Service) readPinTree(ctx context.Context, v PinView, full bool, prev *P
 }
 
 // NeedsYou is the Needs you list: an enabled agent that is offline (with
-// agents: set, one of yours that is down or disabled), a build
-// waiting over NeedsWait, a pinned pipeline whose last build failed, a child
+// agents: set, one of yours that is down or disabled), a build of a pinned
+// pipeline waiting over NeedsWait, a pinned pipeline whose last build failed, a child
 // pipeline of a pin that failed, and a
 // pinned build running NeedsSlowFactor past its usual time.
 func NeedsYou(b Board, now time.Time) []Need {
@@ -573,7 +568,6 @@ func NeedsYou(b Board, now time.Time) []Need {
 			}
 		}
 	}
-	out = append(out, needsQueue(b.Queue)...)
 	for _, g := range b.Groups {
 		for _, p := range g.Rows() {
 			if p.Err != nil {
@@ -585,56 +579,17 @@ func NeedsYou(b Board, now time.Time) []Need {
 			for _, k := range failedChildren(p.Tree) {
 				out = append(out, Need{Kind: "pin_child_failed", Text: fmt.Sprintf("%s: the child pipeline %s failed", p.Label(), k.Build.Key), Build: k.Build.Key})
 			}
+			if c := p.Current; c != nil && c.State == provider.StateQueued && !c.QueuedAt.IsZero() {
+				if wait := now.Sub(c.QueuedAt); wait > NeedsWait {
+					out = append(out, Need{Kind: "queue_wait", Text: fmt.Sprintf("%s has waited %s for an agent", c.Key, shortDuration(wait)), Build: c.Key})
+				}
+			}
 			if c := p.Current; c != nil && c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
 				if run := now.Sub(c.StartedAt); float64(run) > NeedsSlowFactor*float64(p.Usual) {
 					out = append(out, Need{Kind: "pin_slow", Text: fmt.Sprintf("%s: %s has run %s, usually %s", p.Label(), c.Key, shortDuration(run), shortDuration(p.Usual)), Build: c.Key})
 				}
 			}
 		}
-	}
-	return out
-}
-
-// needsQueue is the Needs you lines for builds waiting over NeedsWait.
-// Builds that wait for the same reason become one line with a count, led by
-// the one that has waited longest; a build bam has no wait for is left out.
-func needsQueue(q []QueueRow) []Need {
-	type group struct {
-		why   string
-		rows  []QueueRow
-		first int
-	}
-	var groups []*group
-	byWhy := map[string]*group{}
-	for _, r := range q {
-		if r.Waited <= NeedsWait {
-			continue
-		}
-		why := WaitReason(r.Why)
-		g := byWhy[why]
-		if g == nil {
-			g = &group{why: why, first: len(groups)}
-			byWhy[why] = g
-			groups = append(groups, g)
-		}
-		g.rows = append(g.rows, r)
-	}
-	var out []Need
-	for _, g := range groups {
-		longest := g.rows[0]
-		for _, r := range g.rows {
-			if r.Waited > longest.Waited {
-				longest = r
-			}
-		}
-		text := fmt.Sprintf("%s has waited %s in the queue", longest.Key, shortDuration(longest.Waited))
-		if len(g.rows) > 1 {
-			text = fmt.Sprintf("%d builds have waited over %s in the queue, the longest %s for %s", len(g.rows), shortDuration(NeedsWait), longest.Key, shortDuration(longest.Waited))
-		}
-		if g.why != "" {
-			text += ": " + g.why
-		}
-		out = append(out, Need{Kind: "queue_wait", Text: text, Build: longest.Key})
 	}
 	return out
 }

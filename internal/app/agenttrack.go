@@ -356,7 +356,29 @@ func (s *Service) AgentRecord(ctx context.Context, name string, builds int) (*Ag
 			}
 		}
 	}
+	rec.addRunningNow(s.agentNow(ctx, agent, rec))
 	rec.OtherAgents = len(others)
 	rec.Slow = rec.This.Failed >= slowMinJobs && rec.Others.Jobs >= slowMinJobs && rec.This.Share() >= 2*rec.Others.Share() && rec.This.Share() > 0
 	return rec, nil
+}
+
+// agentNow is the job the agent runs now when the newest builds did not show
+// it, such as a build on a plan branch, from the lookup bam top uses. nil when
+// the agent is not busy, runs a job already listed, or bam found no build.
+func (s *Service) agentNow(ctx context.Context, agent provider.Agent, rec *AgentRecord) *AgentJob {
+	if !agent.Busy || !agent.Online || len(rec.Now) > 0 {
+		return nil
+	}
+	work := s.LookAgentWork(ctx, []provider.Agent{agent}, nil)
+	b, ok := work.BuildOf(agent.Name)
+	if !ok {
+		return nil
+	}
+	return &AgentJob{Key: b.Job, BuildKey: b.BuildKey, Name: b.Label(), State: provider.StateRunning}
+}
+
+func (r *AgentRecord) addRunningNow(j *AgentJob) {
+	if j != nil {
+		r.Now = append(r.Now, *j)
+	}
 }

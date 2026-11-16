@@ -96,3 +96,20 @@ type PlanSearcher interface {
 type StopChecker interface {
 	CannotStop(ctx context.Context) bool
 }
+
+// RunningBuilder is an optional Provider extension: it lists the builds in
+// progress with their stages and jobs, on main plans and on plan branches.
+type RunningBuilder interface {
+	RunningBuilds(ctx context.Context) (RunningBuilds, error)
+}
+
+// RunningBuilds is the builds in progress. A list the server lacks, or that
+// took too long to read, leaves its flag set; the builds of the other list
+// are still there.
+type RunningBuilds struct {
+	Builds []Build
+	// MainMissing is true when the list of main plans' running builds could
+	// not be read, and BranchesMissing when the list of plan branches' could
+	// not be read.
+	MainMissing, BranchesMissing bool
+}

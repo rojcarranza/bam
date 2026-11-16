@@ -22,11 +22,14 @@ func boardWith(w, h, needs int, groups []app.PinGroupView) Model {
 	m := boardModel(w, h)
 	data := sampleBoard(goldenNow)
 	data.Agents.Away = nil // the sample's offline agent is a need of its own
-	data.Queue = nil
+	var waiting []app.PinView
 	for i := 1; i <= needs; i++ {
 		key := fmt.Sprintf("PROJ-BUILD-%d", i)
-		data.Queue = append(data.Queue, app.QueueRow{Position: i, QueueEntry: provider.QueueEntry{Key: key, PlanKey: "PROJ-BUILD", Number: i, Reason: "Manual build"}, Waited: 9 * time.Minute,
-			Why: &provider.Why{Case: provider.WhyBusy, Count: i + 1}}) // each reason is its own, so each is a line of Needs you
+		q := provider.Build{Key: key, PlanKey: "PROJ-BUILD", Number: i, State: provider.StateQueued, QueuedAt: goldenNow.Add(-9 * time.Minute)}
+		waiting = append(waiting, app.PinView{Pin: key, PlanKey: "PROJ-BUILD", Name: key, Current: &q})
+	}
+	if needs > 0 {
+		data.Groups = append(data.Groups, app.PinGroupView{Name: "waiting", Pins: waiting})
 	}
 	if groups != nil {
 		data.Groups = groups
@@ -60,17 +63,17 @@ func TestBoardPanelsFillTheTerminalAtEverySize(t *testing.T) {
 				if h < roomyRows {
 					continue
 				}
-				sz := boardSizes(w, h-2, 3, 4, 2)
+				sz := boardSizes(w, h-2, 3, 4)
 				if sz.wide {
 					require.Equal(t, w, sz.leftW+sz.rightW)
-					require.Equal(t, h-2, sz.needs+sz.agents+sz.queue, "%dx%d left column", w, h)
+					require.Equal(t, h-2, sz.needs+sz.agents, "%dx%d left column", w, h)
 					require.Equal(t, h-2, sz.pins, "%dx%d right column", w, h)
 				} else {
-					require.Equal(t, h-2, sz.needs+sz.agents+sz.queue+sz.pins, "%dx%d", w, h)
+					require.Equal(t, h-2, sz.needs+sz.agents+sz.pins, "%dx%d", w, h)
 					third := (h - 2 - sz.agents) / 3
 					require.GreaterOrEqual(t, sz.pins, third, "%dx%d Pinned keeps a third", w, h)
 				}
-				for _, v := range []int{sz.needs, sz.agents, sz.queue, sz.pins} {
+				for _, v := range []int{sz.needs, sz.agents, sz.pins} {
 					require.GreaterOrEqual(t, v, roomyMinPanel, "%dx%d every panel shows a line", w, h)
 				}
 				// the bottom border of the last panel sits on the row above the status bar
@@ -100,10 +103,10 @@ func TestBoardNeedsYouShowsMoreThanFourAndCountsThem(t *testing.T) {
 		total := len(m.board.data.Needs)
 		require.GreaterOrEqual(t, total, c.needs)
 		v := ansi.Strip(m.View())
-		shown := strings.Count(v, "has waited 9m in the queue")
+		shown := strings.Count(v, "has waited 9m for an agent")
 		require.Greater(t, shown, 4, "%d columns", c.w)
 		require.Less(t, shown, total, "%d columns: it scrolls once it fills its rows", c.w)
-		require.Contains(t, v, fmt.Sprintf("Needs you · %d of %d", shown, total))
+		require.Contains(t, v, fmt.Sprintf("Needs you · %d of %d", shown+1, total), "the failed build's line comes first")
 	}
 }
 
@@ -112,7 +115,7 @@ func TestBoardNeedsYouCountsWhenAllFit(t *testing.T) {
 	total := len(m.board.data.Needs)
 	v := ansi.Strip(m.View())
 	require.Contains(t, v, fmt.Sprintf("Needs you · %d", total))
-	require.Equal(t, 3, strings.Count(v, "has waited 9m in the queue"))
+	require.Equal(t, 3, strings.Count(v, "has waited 9m for an agent"))
 	require.Contains(t, v, "Build and test: the last build", "every need is shown")
 }
 
@@ -135,7 +138,7 @@ func TestBoardPanelsKeepEmptyRowsAndColumns(t *testing.T) {
 			}
 			require.Empty(t, strings.TrimSpace(strings.Trim(lines[j-1], "│┃")), "%v: the row above the bottom of %q is empty", size, l)
 		}
-		require.GreaterOrEqual(t, panels, 3)
+		require.GreaterOrEqual(t, panels, 2, "the left column's two panels, or all three in one column")
 	}
 }
 
@@ -149,7 +152,7 @@ func TestBoardBelowFortyRowsStaysTight(t *testing.T) {
 	require.Equal(t, 200, ansi.StringWidth(lines[1]))
 }
 
-// From 160 columns the left column stacks Needs you, Agents and Queue at 45%
+// From 160 columns the left column stacks Needs you and Agents at 45%
 // of the width and Pinned fills the right column from top to bottom.
 func TestBoardTwoColumnsFromOneHundredSixtyWide(t *testing.T) {
 	one := strings.Split(ansi.Strip(boardModel(159, 50).View()), "\n")
@@ -161,9 +164,9 @@ func TestBoardTwoColumnsFromOneHundredSixtyWide(t *testing.T) {
 	require.Contains(t, two[1], "Needs you")
 	require.Contains(t, two[1], "Pinned", "Pinned heads the right column")
 	require.Equal(t, 72, len([]rune(two[1][:strings.Index(two[1], "╭")])), "left column is 45%% of 160")
-	require.Equal(t, 1, strings.Count(strings.Join(two, "\n"), "Queue"))
+	require.NotContains(t, strings.Join(two, "\n"), "Queue", "there is no queue panel")
 	require.Equal(t, 2, strings.Count(two[48], "╯")+strings.Count(two[48], "┛"), "both columns end on the same row: %q", two[48])
-	require.Equal(t, 3, strings.Count(strings.Join(cols(v, 0, 72), "\n"), "╭")+strings.Count(strings.Join(cols(v, 0, 72), "\n"), "┏"), "three panels stack on the left")
+	require.Equal(t, 2, strings.Count(strings.Join(cols(v, 0, 72), "\n"), "╭")+strings.Count(strings.Join(cols(v, 0, 72), "\n"), "┏"), "two panels stack on the left")
 }
 
 // A group gets an empty row above it while every pin still fits; when they
@@ -257,11 +260,10 @@ func awayBoard(n int) (Model, app.Board) {
 	return m, data
 }
 
-// Intent (issue 251): bam top gives Needs you and Agents more room. On the
-// two-column board the queue takes only the rows its lines
-// need, and Needs you and Agents share the rest of the left column, so every
-// need and every offline agent shows where the queue's empty rows were.
-func TestWideBoardGivesTheQueuesEmptyRowsToNeedsYouAndAgents(t *testing.T) {
+// Intent (issue 251, BAM-101 P2): bam top gives Needs you and Agents more
+// room. With no queue panel, they share the whole left column of the
+// two-column board, so every need and every offline agent shows.
+func TestWideBoardGivesNeedsYouAndAgentsTheWholeLeftColumn(t *testing.T) {
 	m, data := awayBoard(12)
 	v := ansi.Strip(m.View())
 	for _, a := range data.Agents.Away {
@@ -271,10 +273,8 @@ func TestWideBoardGivesTheQueuesEmptyRowsToNeedsYouAndAgents(t *testing.T) {
 	require.Contains(t, v, fmt.Sprintf("Needs you · %d━", len(data.Needs)), "every need shows")
 
 	boxes := m.boardBoxes()
-	queue := boxes[2]
-	require.Equal(t, boardQueue, queue.panel)
-	require.Equal(t, len(queue.lines)+roomyFrame, queue.h, "the queue takes the rows its lines need")
-	require.Equal(t, 57-2-queue.h, boxes[0].h+boxes[1].h, "Needs you and Agents take the rest")
+	require.Len(t, boxes, 3)
+	require.Equal(t, 57-2, boxes[0].h+boxes[1].h, "Needs you and Agents take the whole left column")
 	spare := func(bx boardBox) int { return bx.h - len(bx.lines) - roomyFrame }
 	require.Contains(t, []int{0, 1}, spare(boxes[0])-spare(boxes[1]), "and share the rows they do not need evenly")
 }

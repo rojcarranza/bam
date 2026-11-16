@@ -39,6 +39,9 @@ type MyAgent struct {
 	// when bam last saw it listed.
 	Gone bool
 	Seen time.Time
+	// Build is the job a building agent runs, when bam found it; nil for an
+	// agent that does not build, and for one whose build was not found.
+	Build *AgentBuild
 }
 
 // MyPool is the agents whose names differ only in their final number.

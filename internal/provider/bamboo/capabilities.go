@@ -40,6 +40,11 @@ type Capabilities struct {
 	// AgentJobs is whether the jobs each agent can run are readable (it
 	// needs an administrator).
 	AgentJobs string `json:"agent_jobs,omitempty"` // yes | no
+	// RunningMain is whether the result list names the builds in progress on
+	// main plans, and RunningBranches whether the plan list names each
+	// branch's current build.
+	RunningMain     string `json:"running_main,omitempty"`     // yes | no
+	RunningBranches string `json:"running_branches,omitempty"` // yes | no
 	// PlanSearch is whether the server searches plans by name.
 	PlanSearch string `json:"plan_search,omitempty"` // yes | no
 }

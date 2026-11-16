@@ -27,11 +27,8 @@ func sampleBoard() app.Board {
 			{ID: 2, Name: "linux-2", Type: "REMOTE", Enabled: true},
 			{ID: 3, Name: "linux-3", Type: "REMOTE", Online: true},
 		}},
-		Queue: []app.QueueRow{
-			{Position: 1, QueueEntry: provider.QueueEntry{Key: "PROJ-PROV-9", PlanKey: "PROJ-PROV", Number: 9, Reason: "Code has changed"}, Waited: 7 * time.Minute},
-			{Position: 2, QueueEntry: provider.QueueEntry{Key: "PROJ-OTHER-3", PlanKey: "PROJ-OTHER", Number: 3, Reason: "Manual build"}, AtLeast: true},
-		},
-		QueueOK: true,
+		QueueLength: 2,
+		QueueOK:     true,
 		Groups: []app.PinGroupView{{Name: "integration", Pins: []app.PinView{
 			{Pin: "PROJ-BUILD", PlanKey: "PROJ-BUILD", Name: "Build and test", Current: &running,
 				Progress: provider.Progress{Valid: true, Percent: 0.62, Average: 10 * time.Minute},
@@ -42,7 +39,7 @@ func sampleBoard() app.Board {
 				Last: 9 * time.Minute, Usual: 10 * time.Minute},
 			{Pin: "PROJ-GONE@x", Err: errors.New("PROJ-GONE has no plan branch for \"x\"")},
 		}}},
-		Needs: []app.Need{{Kind: "agent_offline", Text: "agent linux-2 is offline"}, {Kind: "queue_wait", Text: "PROJ-PROV-9 has waited 7m in the queue"}},
+		Needs: []app.Need{{Kind: "agent_offline", Text: "agent linux-2 is offline"}, {Kind: "queue_wait", Text: "PROJ-BUILD-500 has waited 7m for an agent"}},
 	}
 }
 
@@ -56,7 +53,7 @@ func TestBoardGolden(t *testing.T) {
 
 func TestBoardWithoutPinsOrAgentsGolden(t *testing.T) {
 	b := sampleBoard()
-	b.Groups, b.Agents, b.Needs, b.Queue = nil, nil, nil, nil
+	b.Groups, b.Agents, b.Needs = nil, nil, nil
 	b.AgentsNote = "the agent list is not shown: Bamboo refused it (it may need an administrator)"
 	o, buf := testOut(false)
 	require.NoError(t, Board(o, b, boardURL))
@@ -69,38 +66,24 @@ func TestBoardJSONGolden(t *testing.T) {
 	golden(t, "board_json", string(out)+"\n")
 }
 
-// Intent (BAM-42 P3): the queue of the board reads in plain words: a wait of
-// 48 hours or more is days and hours, a wait bam did not read is a dash, and a
-// line counts the builds that wait for others.
-func TestQueueWaitsReadAsDaysAndDashes(t *testing.T) {
-	for _, c := range []struct {
-		row  app.QueueRow
-		want string
-	}{
-		{app.QueueRow{Waited: 47*time.Hour + 59*time.Minute}, "47h59m"},
-		{app.QueueRow{Waited: 48 * time.Hour}, "2d 0h"},
-		{app.QueueRow{Waited: 1372*time.Hour + 36*time.Minute}, "57d 4h"},
-		{app.QueueRow{Waited: 5 * time.Minute, AtLeast: true}, "–"},
-	} {
-		require.Equal(t, c.want, waitedText(c.row))
-	}
+// Intent (BAM-101 P2): the board has no queue section; the queue is a count in
+// the JSON and the text keeps no list of it.
+func TestBoardTextHasNoQueueSection(t *testing.T) {
+	var sb strings.Builder
+	require.NoError(t, Board(Out{W: &sb}, sampleBoard(), func(k string) string { return k }))
+	assert.NotContains(t, strings.ToUpper(sb.String()), "QUEUE")
+	assert.Contains(t, sb.String(), "PROJ-BUILD-500 has waited 7m for an agent")
 }
 
-func TestBoardTextCountsTheBuildsThatWaitForOthers(t *testing.T) {
-	b := sampleBoard()
-	b.QueueFiltered, b.QueueOthers = true, 37
-	var sb strings.Builder
-	require.NoError(t, Board(Out{W: &sb}, b, func(k string) string { return k }))
-	out := sb.String()
-	require.Contains(t, out, "YOUR QUEUE")
-	require.Contains(t, out, "37 more builds wait for other agents")
-	require.Contains(t, out, "1 building · 1 idle · 1 down · 1 disabled")
-	require.Equal(t, "1 more build waits for other agents", OthersText(1))
-
-	doc := BoardJSON(b, func(k string) string { return k })
-	require.Equal(t, 37, doc.QueueOthers)
-	require.NotNil(t, doc.Queue[0].Mine)
-	require.True(t, *doc.Queue[0].Mine)
+func TestBoardJSONKeepsTheQueueFieldsAndAddsItsLength(t *testing.T) {
+	doc := BoardJSON(sampleBoard(), func(k string) string { return k })
+	assert.Empty(t, doc.Queue, "the queue list stays a field, empty")
+	assert.Equal(t, 2, doc.QueueLength)
+	assert.Equal(t, 2, doc.QueueOthers)
+	out, err := json.Marshal(doc)
+	require.NoError(t, err)
+	assert.Contains(t, string(out), `"queue":[]`, "an empty list, never null")
+	assert.Contains(t, string(out), `"queue_length":2`)
 }
 
 // Intent (issue #183): bam top --once shows a pinned plan's name cut at its

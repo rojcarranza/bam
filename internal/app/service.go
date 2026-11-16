@@ -55,10 +55,11 @@ type Service struct {
 	// nil when bam has no repository to ask.
 	Head func() (sha string, pushed bool, err error)
 
-	estimates estimateCache // medians of plan histories, for servers without progress
-	scans     scanCache     // the newest tree scan of each plan, for TreeOptions.Shared
-	why       whyCache      // agent answers behind provider.Why
-	pinTrees  pinTreeCache  // the trees under the board's pins
+	estimates estimateCache  // medians of plan histories, for servers without progress
+	scans     scanCache      // the newest tree scan of each plan, for TreeOptions.Shared
+	why       whyCache       // agent answers behind provider.Why
+	pinTrees  pinTreeCache   // the trees under the board's pins
+	work      agentWorkCache // which agent runs each job that runs now
 }
 
 // Config is the current configuration: the files are read again when one

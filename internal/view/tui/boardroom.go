@@ -22,37 +22,33 @@ const (
 )
 
 // boardLayout is how the roomy board shares the terminal: heights of the
-// four panels, and the widths of its columns (equal in one column).
+// three panels, and the widths of its columns (equal in one column).
 type boardLayout struct {
-	wide                       bool
-	leftW, rightW              int
-	needs, agents, queue, pins int
+	wide                bool
+	leftW, rightW       int
+	needs, agents, pins int
 }
 
 // boardSizes shares h body rows (the terminal less its header and status bar)
 // and w columns. In one column the agents panel takes the rows its lines
 // need, Needs you shows all its lines until it fills a third of what is left,
-// then scrolls, the queue takes its lines up to a third of that and Pinned the
-// rest, never less than a third. In two columns Pinned fills the right
-// column; on the left the queue takes the rows its lines need, up to a third,
-// and Needs you and the agents share the rest (see shareRows).
-func boardSizes(w, h, needsLines, agentLines, queueLines int) boardLayout {
+// then scrolls, and Pinned takes the rest, never less than a third. In two
+// columns Pinned fills the right column and Needs you and the agents share
+// the left (see shareRows).
+func boardSizes(w, h, needsLines, agentLines int) boardLayout {
 	l := boardLayout{wide: w >= wideCols, leftW: w, rightW: w}
 	if l.wide {
 		l.leftW = w * 45 / 100
 		l.rightW = w - l.leftW
-		l.queue = max(min(queueLines+roomyFrame, h/3), roomyMinPanel)
-		l.needs, l.agents = shareRows(h-l.queue, needsLines+roomyFrame, agentLines+roomyFrame)
+		l.needs, l.agents = shareRows(h, needsLines+roomyFrame, agentLines+roomyFrame)
 		l.pins = h
 		return l
 	}
-	l.agents = min(agentLines+roomyFrame, h-3*roomyMinPanel)
+	l.agents = min(agentLines+roomyFrame, h-2*roomyMinPanel)
 	rest := h - l.agents
 	third := max(rest/3, roomyMinPanel+2)
 	l.needs = min(needsLines+roomyFrame, third)
-	l.queue = min(queueLines+roomyFrame, third)
-	l.queue = max(l.queue, roomyMinPanel)
-	l.pins = rest - l.needs - l.queue
+	l.pins = rest - l.needs
 	return l
 }
 
@@ -88,7 +84,7 @@ func roomyPanel(title string, focused bool, w, h int, body []string, cursor int)
 	return panel(title, focused, w, h, strings.Join(lines, "\n"))
 }
 
-// roomyBoxes is the roomy board's four panels.
+// roomyBoxes is the roomy board's three panels.
 func (m Model) roomyBoxes() []boardBox {
 	b := &m.board
 	h := m.height - 2
@@ -105,9 +101,8 @@ func (m Model) roomyBoxes() []boardBox {
 	if wide {
 		awayMax = awayCount(b)
 	}
-	agents := m.agentLines(inner, awayMax)
-	queue, queueCursor := m.queueLines(inner)
-	sz := boardSizes(m.width, h, len(needs), len(agents), len(queue))
+	agents, selLine := m.agentLinesSel(inner, awayMax)
+	sz := boardSizes(m.width, h, len(needs), len(agents))
 	if room := sz.agents - roomyFrame; wide && len(agents) > room {
 		if b.data.Mine != nil {
 			agents = fitMine(agents, b.data.Mine, room)
@@ -129,22 +124,21 @@ func (m Model) roomyBoxes() []boardBox {
 
 	boxes := []boardBox{
 		{panel: boardNeeds, title: needsTitle, w: sz.leftW, h: sz.needs, lines: needs, cursor: b.cursor[boardNeeds]},
-		{panel: boardAgents, title: m.agentsTitle(), w: sz.leftW, h: sz.agents, lines: agents, cursor: m.agentCursorLine()},
-		{panel: boardQueue, title: m.queueTitle(), w: sz.leftW, h: sz.queue, lines: queue, cursor: queueCursor},
+		{panel: boardAgents, title: m.agentsTitle(), w: sz.leftW, h: sz.agents, lines: agents, cursor: m.agentCursorLine(selLine)},
 		{panel: boardPins, title: "Pinned", w: sz.rightW, h: sz.pins, lines: pins, cursor: pinCursor, info: pinInfo},
 	}
 	y := 0
 	for i := range boxes {
 		boxes[i].roomy = true
-		if i < 3 {
+		if i < 2 {
 			boxes[i].y = y
 			y += boxes[i].h
 		}
 	}
 	if sz.wide {
-		boxes[3].x = sz.leftW
+		boxes[2].x = sz.leftW
 	} else {
-		boxes[3].y = y
+		boxes[2].y = y
 	}
 	return boxes
 }

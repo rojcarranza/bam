@@ -250,7 +250,11 @@ func Board(o Out, b app.Board, url func(string) string) error {
 						label = string([]rune(label)[:max(room, 8)-1]) + "…"
 					}
 				}
-				fmt.Fprintln(w, "    "+style.Dim(o.Style, label+" · "+rec))
+				line := label + " · " + rec
+				if o.Width > 4 && utf8.RuneCountInString(line) > o.Width-4 {
+					line = string([]rune(line)[:o.Width-5]) + "…"
+				}
+				fmt.Fprintln(w, "    "+style.Dim(o.Style, line))
 			}
 		}
 		for _, f := range failed {
@@ -271,7 +275,7 @@ func ruleWidth(o Out) int {
 	if o.Width <= 0 {
 		return 78
 	}
-	return max(o.Width-2, 20)
+	return max(o.Width-4, 20)
 }
 
 // pinTree prints the pipelines a pin's build started, as bam build tree does,

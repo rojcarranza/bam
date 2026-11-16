@@ -321,7 +321,7 @@ func (m Model) pinLinesInfo(inner int, roomy bool, capLines int) ([]string, int,
 			}
 			group = p.group
 			g := b.data.Groups[group]
-			put("  "+view.RuledLine(view.GroupTitle(g.Name), view.GroupState(g), max(inner-2, 1), func(s string) string { return titleStyle.Render(s) }, func(s string) string { return dimStyle.Render(s) }, func(s string) string { return dimStyle.Render(s) }), -1, nil)
+			put("  "+view.RuledLine(view.GroupTitle(g.Name), view.GroupState(g), max(inner-4, 1), func(s string) string { return titleStyle.Render(s) }, func(s string) string { return dimStyle.Render(s) }, func(s string) string { return dimStyle.Render(s) }), -1, nil)
 		}
 		if p.rowOrd == cur {
 			cursorLine = len(out)

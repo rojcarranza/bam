@@ -16,7 +16,7 @@ QUEUE
   2  PROJ-OTHER-3  Manual build      –
 
 PINNED
-  Integration ────────────────────────────────────────────────────────────── 2 pipelines · 1 running
+  Integration ──────────────────────────────────────────────────────────── 2 pipelines · 1 running
     PIPELINE        LAST 10  NOW               LAST   USUAL
     Build and test  ✓✗✓      #484 running 62%  9m00s  10m00s
     Build and test · 2 of 3 passed · passing for 1 build

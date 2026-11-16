@@ -1,7 +1,7 @@
  lab · Bamboo 12.1.8                                                                                                                                                                     updated 0s ago
 ┏━Needs you · 3━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓╭─Pinned─────────────────────────────────────────────────────────────────────────────────────────────────────╮
 ┃                                                                                        ┃│                                                                                                            │
-┃  ▸ ! agent linux-2 is offline                                                          ┃│    Integration ────────────────────────────────────────────────────── 2 pipelines · 1 failing · 1 running  │
+┃  ▸ ! agent linux-2 is offline                                                          ┃│    Integration ──────────────────────────────────────────────────── 2 pipelines · 1 failing · 1 running    │
 ┃    ! PROJ-BUILD-500 has waited 7m in the queue                                         ┃│  ▸ Build and test           ✓✗          –                        last 3m · usual 3m                        │
 ┃    ! Build and test: the last build, PROJ-BUILD-44, failed                             ┃│      1 of 2 passed · failing for 1 build · last pass #3                                                    │
 ┃                                                                                        ┃│    Provision a lab cluster  ✓✓          #9 running █████░ 3m/4m  last 4m · usual 4m                        │

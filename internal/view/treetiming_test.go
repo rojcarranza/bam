@@ -98,6 +98,30 @@ func TestTreeTimingLeavesOutASkippedBuild(t *testing.T) {
 	assert.NotContains(t, buf.String(), "OPS-SKIP-3")
 }
 
+func TestTreeTimingLeavesOutTheBuildsASupersededRunStarted(t *testing.T) {
+	tr := timedTree()
+	var superseded *app.TreeNode
+	for _, c := range tr.Root.Children {
+		if c.Superseded {
+			superseded = c
+		}
+	}
+	require.NotNil(t, superseded)
+	early := tnode("OPS-SMOKE-50", provider.StateFailed, time.Minute)
+	early.Build.QueuedAt = tr.Root.Build.QueuedAt.Add(-time.Hour)
+	early.Build.StartedAt = early.Build.QueuedAt
+	early.Build.FinishedAt = early.Build.QueuedAt.Add(time.Minute)
+	superseded.Children = []*app.TreeNode{early, tnode("OPS-LIVE-1", provider.StateRunning, 0)}
+
+	got := treeTiming(tr.Root)
+	want := treeTiming(timedTree().Root)
+	assert.Equal(t, want, got)
+	o, buf := testOut(false)
+	require.NoError(t, TreeTimingText(o, tr, false))
+	assert.NotContains(t, buf.String(), "OPS-SMOKE-50")
+	assert.NotContains(t, buf.String(), "OPS-LIVE-1")
+}
+
 func TestTreeTimingTextWithNoTimesSaysSo(t *testing.T) {
 	root := tnode("PROJ-API-142", provider.StateSuccess, time.Minute)
 	o, buf := testOut(false)

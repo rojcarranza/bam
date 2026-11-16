@@ -36,8 +36,8 @@ type timing struct {
 // left out; a build that has not finished has no end and is only counted.
 func treeTiming(root *app.TreeNode) timing {
 	var t timing
-	root.Walk(func(n *app.TreeNode, depth int) {
-		if n.NotRun || n.Loop || n.Superseded {
+	add := func(n *app.TreeNode, depth int) {
+		if n.NotRun || n.Loop {
 			return
 		}
 		b := n.Build
@@ -61,7 +61,18 @@ func treeTiming(root *app.TreeNode) timing {
 		if r.Finished.After(t.End) {
 			t.End = r.Finished
 		}
-	})
+	}
+	var walk func(n *app.TreeNode, depth int)
+	walk = func(n *app.TreeNode, depth int) {
+		if n.Superseded {
+			return
+		}
+		add(n, depth)
+		for _, c := range n.Children {
+			walk(c, depth+1)
+		}
+	}
+	walk(root, 0)
 	return t
 }
 

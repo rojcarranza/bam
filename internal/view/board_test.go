@@ -173,3 +173,23 @@ func TestBoardPrintsAPinsBranchesUnderIt(t *testing.T) {
 	require.Equal(t, 4, pin.BranchesMore)
 	require.Empty(t, pin.Branches[0].Branches)
 }
+
+// Intent: a pinned group's heading stays within the terminal width on narrow
+// terminals too, where the heading floor would otherwise push it past the edge.
+func TestBoardKeepsTheGroupHeadingWithinNarrowTerminals(t *testing.T) {
+	b := sampleBoard()
+	for width := 3; width <= 40; width++ {
+		o, buf := testOut(true)
+		o.Width = width
+		require.NoError(t, Board(o, b, boardURL), "width %d", width)
+		lines := strings.Split(buf.String(), "\n")
+		heading := -1
+		for i, l := range lines {
+			if style.Strip(l) == "PINNED" {
+				heading = i + 1
+			}
+		}
+		require.Greater(t, heading, 0, "width %d: the PINNED section is printed", width)
+		assert.LessOrEqual(t, style.Width(lines[heading]), width, "width %d: %s", width, lines[heading])
+	}
+}

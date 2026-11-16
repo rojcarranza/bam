@@ -264,12 +264,12 @@ func Board(o Out, b app.Board, url func(string) string) error {
 }
 
 // ruleWidth is the width of a group's heading: the output's, or 80 when it has
-// none.
+// none. The heading is indented by two columns, so it never exceeds Width-2.
 func ruleWidth(o Out) int {
 	if o.Width <= 0 {
 		return 78
 	}
-	return max(o.Width-4, 20)
+	return min(max(o.Width-4, 20), o.Width-2)
 }
 
 // pinTree prints the pipelines a pin's build started, as bam build tree does,

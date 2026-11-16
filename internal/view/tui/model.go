@@ -605,7 +605,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.svc == nil {
-			return m, m.restartSetPoll()
+			cmd := m.restartSetPoll()
+			return m, cmd
 		}
 		m.setGen++
 		return m, loadSetCmd(m.baseCtx(), m.svc, m.setView.info.Name, m.setGen)

@@ -18,21 +18,20 @@ import (
 func TestWayBackFromASetBuildRestartsThePoll(t *testing.T) {
 	m := setScreenModel(t, &app.SetRecord{ID: "release-1", Set: "release", Status: app.SetRunning,
 		Stages: failedRec().Stages}, "pid 77 on desk, since 09:15")
+	beat := m.setPollGen // the poll's beat in flight on the set screen
 	m, _ = send(m, mkKey("j"))
 	m, _ = send(m, mkKey("enter"))
 	require.Equal(t, screenPlan, m.screen)
-	beat := m.setPollGen // the beat in flight when the build opened
 
 	m, _ = send(m, mkKey("esc")) // Stages back to Builds
 	m, cmd := send(m, mkKey("esc"))
 	require.Equal(t, screenSet, m.screen)
 	require.NotNil(t, cmd, "the set's poll starts again")
-	require.NotEqual(t, beat, m.setPollGen)
 
-	_, load := send(m, setPollMsg{Gen: m.setPollGen})
+	_, load := send(m, setPollMsg{Gen: beat})
+	require.Nil(t, load, "the beat of the loop that ended with the build is dropped")
+	_, load = send(m, setPollMsg{Gen: m.setPollGen})
 	require.NotNil(t, load, "the new loop's beat re-reads the set")
-	_, load = send(m, setPollMsg{Gen: beat})
-	require.Nil(t, load, "the beat of the loop that ended with the screen is dropped")
 }
 
 // A tree opened on a set held elsewhere goes back to that set when the
@@ -40,16 +39,17 @@ func TestWayBackFromASetBuildRestartsThePoll(t *testing.T) {
 func TestServerSwitchFromATreeOnTheSetRestartsThePoll(t *testing.T) {
 	m := setScreenModel(t, failedRec(), "pid 77 on desk, since 09:15")
 	svc := m.svc
+	beat := m.setPollGen // the poll's beat in flight on the set screen
 	next, _ := m.openTree("PROJ-X-1")
 	m = next.(Model)
 	require.Equal(t, screenTree, m.screen)
-	beat := m.setPollGen
 
 	m, cmd := send(m, switchServerMsg{Alias: "lab"})
 	require.Equal(t, screenSet, m.screen)
 	require.NotNil(t, cmd)
-	require.NotEqual(t, beat, m.setPollGen)
 
+	_, stale := send(m, setPollMsg{Gen: beat})
+	require.Nil(t, stale, "the beat of the poll that ended with the tree is dropped")
 	setGen := m.setGen
 	m, wait := send(m, setPollMsg{Gen: m.setPollGen})
 	require.NotNil(t, wait, "the poll waits a beat for the new server")
@@ -66,34 +66,48 @@ func TestServerSwitchFromATreeOnTheSetRestartsThePoll(t *testing.T) {
 func TestWayBackFromTheSetVariablesRestartsThePoll(t *testing.T) {
 	m := setScreenModel(t, failedRec(), "")
 	m.setView.elsewhere = "pid 77 on desk, since 09:15"
+	beat := m.setPollGen // the poll's beat in flight on the set screen
 	m.show(screenSetVars)
 	m, cmd := send(m, mkKey("esc"))
 	require.Equal(t, screenSet, m.screen)
-	require.NotNil(t, cmd)
+	require.NotNil(t, cmd, "the set's poll starts again")
+
+	_, stale := send(m, setPollMsg{Gen: beat})
+	require.Nil(t, stale, "the beat of the poll that ended with the prompt is dropped")
+	_, load := send(m, setPollMsg{Gen: m.setPollGen})
+	require.NotNil(t, load, "the new loop's beat re-reads the set")
 }
 
 // Showing a screen starts its loops; leaving it ends them at once, so a beat
 // that lands off its screen is dropped and never a second loop runs.
 func TestShowOwnsEachScreensLoops(t *testing.T) {
 	m := setsModel(t)
+	m.home.lastKey = m.now()
 
-	home := m.home.tickGen
 	require.NotNil(t, m.show(screenHome), "Home starts its refresh")
-	require.NotEqual(t, home, m.home.tickGen)
-	beat := m.home.tickGen
+	home := homeTickMsg{Gen: m.home.tickGen}
+	_, beat := send(m, home)
+	require.NotNil(t, beat, "Home's current beat reloads the plans")
 	m.show(screenPlan)
-	require.NotEqual(t, beat, m.home.tickGen, "leaving Home ends its refresh")
+	_, beat = send(m, home)
+	require.Nil(t, beat, "leaving Home ends its refresh: its beat is dropped")
 
 	require.NotNil(t, m.show(screenBoard), "the board starts its beats")
-	beat = m.board.tickGen
+	board := boardTickMsg{Gen: m.board.tickGen}
+	_, beat = send(m, board)
+	require.NotNil(t, beat, "the board's current beat keeps it reading")
 	m.show(screenLogs)
-	require.NotEqual(t, beat, m.board.tickGen, "leaving the board ends its beats")
+	_, beat = send(m, board)
+	require.Nil(t, beat, "leaving the board ends its beats")
 
 	m.setView.elsewhere = "pid 77 on desk, since 09:15"
 	require.NotNil(t, m.show(screenSet), "a set held elsewhere is polled")
-	poll := m.setPollGen
+	poll := setPollMsg{Gen: m.setPollGen}
+	_, beat = send(m, poll)
+	require.NotNil(t, beat, "the set's current beat re-reads the set")
 	m.show(screenTree)
-	require.NotEqual(t, poll, m.setPollGen, "leaving the set ends its poll")
+	_, beat = send(m, poll)
+	require.Nil(t, beat, "leaving the set ends its poll")
 	require.Nil(t, m.show(screenForm), "a screen with no loop starts none")
 }
 

@@ -277,7 +277,8 @@ func (m Model) startTrain() (tea.Model, tea.Cmd) {
 	}
 	if why := m.refuseSetAction(); why != "" {
 		m.status = why
-		return m, m.show(screenSet)
+		cmd := m.show(screenSet)
+		return m, cmd
 	}
 	m.setVars.gen++
 	m.setVars.busy = true

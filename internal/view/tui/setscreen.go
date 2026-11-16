@@ -111,7 +111,8 @@ func (m Model) handleSetLoaded(msg setLoadedMsg) (tea.Model, tea.Cmd) {
 	}
 	m.setView.rec, m.setView.elsewhere, m.setView.lock = msg.Rec, msg.Elsewhere, msg.Lock
 	m.setView.board = m.boardFor(m.setView.info, msg.Rec)
-	return m, m.restartSetPoll()
+	cmd := m.restartSetPoll()
+	return m, cmd
 }
 
 // setRows is every run of the board, stage after stage.

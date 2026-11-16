@@ -139,7 +139,8 @@ func (m Model) popNav() (tea.Model, tea.Cmd) {
 		// Closing the plan screen stops its watch and drops its loads still
 		// in flight, so none lands on a plan the user has left.
 		m.closePlan()
-		return m, m.show(screenSet)
+		cmd := m.show(screenSet)
+		return m, cmd
 	case screenTree:
 		m.closePlan()
 		if f.tree != nil {
@@ -162,5 +163,6 @@ func (m Model) popNav() (tea.Model, tea.Cmd) {
 		m.restoreCursors(*f.plan)
 		return m, cmd
 	}
-	return m, m.show(f.screen)
+	cmd := m.show(f.screen)
+	return m, cmd
 }

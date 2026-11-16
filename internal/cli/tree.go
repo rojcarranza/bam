@@ -17,7 +17,7 @@ import (
 )
 
 func newBuildTreeCmd(r *runtime) *cobra.Command {
-	var last, watch, failed bool
+	var last, watch, failed, timing bool
 	var rerun, yes, noWatch bool
 	var branch string
 	var depth int
@@ -29,9 +29,11 @@ func newBuildTreeCmd(r *runtime) *cobra.Command {
 bam finds a child build by its reason, "Child of <parent>", in the last 25
 builds of each plan of the configured projects and of the build's project.
 A children: map in the configuration narrows a plan's children and shows a
-configured child that never ran. Interrupting --watch never stops a build.
+configured child that never ran. --timing adds a timeline of the finished
+run: each build's wait for an agent and its run on one time axis.
+Interrupting --watch never stops a build.
 On a terminal, bam shows on stderr what it is reading while the tree loads.`,
-		Example:           "  bam build tree PROJ-BUILD-482\n  bam build tree --last --watch\n  bam build tree provision --failed --depth 2\n  bam build tree PROJ-BUILD-482 --rerun-failed --yes",
+		Example:           "  bam build tree PROJ-BUILD-482\n  bam build tree --last --watch\n  bam build tree provision --failed --depth 2\n  bam build tree PROJ-BUILD-482 --rerun-failed --yes\n  bam build tree PROJ-BUILD-482 --timing",
 		Args:              buildArgs,
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
@@ -42,6 +44,9 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 			}
 			if rerun && !yes && (!r.env.StdinTTY || r.flags.json) {
 				return errs.Usagef("--rerun-failed needs --yes when it cannot ask").WithTry("add --yes")
+			}
+			if timing && (watch || rerun) {
+				return errs.Usagef("--timing draws one finished run, so it cannot go with --watch or --rerun-failed").WithTry("leave out --watch and --rerun-failed")
 			}
 			if cmd.Flags().Changed("depth") && depth < 1 {
 				return errs.Usagef("--depth takes 1 or more, not %d", depth).WithTry("leave out --depth to show every level")
@@ -72,7 +77,11 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 				svc.ExplainTree(ctx, t)
 			}
 			if r.flags.json {
-				if err := view.WriteJSON(r.env.Stdout, view.TreeJSON(t, failed)); err != nil {
+				doc := view.TreeJSON(t, failed)
+				if timing {
+					doc = view.TreeTimingJSON(t, failed)
+				}
+				if err := view.WriteJSON(r.env.Stdout, doc); err != nil {
 					return err
 				}
 			} else {
@@ -83,6 +92,11 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 				if err := view.TreeText(out, t, failed); err != nil {
 					return err
 				}
+				if timing {
+					if err := view.TreeTimingText(out, t, failed); err != nil {
+						return err
+					}
+				}
 			}
 			return r.treeResult(t, key)
 		}),
@@ -91,6 +105,7 @@ On a terminal, bam shows on stderr what it is reading while the tree loads.`,
 	addBuildArgFlags(cmd, &last, &branch)
 	f.BoolVarP(&watch, "watch", "w", false, "follow the tree until every build has finished")
 	f.BoolVar(&failed, "failed", false, "show only the branches that lead to a failure")
+	f.BoolVar(&timing, "timing", false, "after the tree, draw each build's wait and run on one time axis")
 	f.BoolVar(&rerun, "rerun-failed", false, "restart the failed builds whose parents succeeded, then follow the tree")
 	f.BoolVar(&yes, "yes", false, "with --rerun-failed, do not ask first")
 	f.BoolVar(&noWatch, "no-watch", false, "with --rerun-failed, restart and exit without following")

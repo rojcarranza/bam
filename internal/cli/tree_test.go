@@ -208,3 +208,38 @@ func TestInvestigateCoversEveryFailedChildOfTheTree(t *testing.T) {
 		assert.Contains(t, h.stdout.String(), fmt.Sprintf("Likely cause: Error: child %d broke", i))
 	}
 }
+
+func TestBuildTreeTimingDrawsTheRunAfterTheTree(t *testing.T) {
+	h := treeHarness(t, provider.StateSuccess)
+	child := h.fake.History["PROJ-PROV"][0]
+	child.QueuedAt = fixedNow.Add(-10*time.Minute - 30*time.Second)
+	child.FinishedAt = fixedNow.Add(-6 * time.Minute)
+	child.Duration = 4 * time.Minute
+	h.fake.History["PROJ-PROV"] = []provider.Build{child}
+	assert.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--timing"), h.stderr.String())
+	out := h.stdout.String()
+	assert.Contains(t, out, "└─ PROJ-PROV-9", "the tree is still printed")
+	assert.Contains(t, out, "timing:")
+	assert.Regexp(t, `PROJ-PROV-9\s+░+█+\s+wait 30s · run 4m00s`, out)
+	assert.Contains(t, out, "░ waited for an agent  █ ran")
+
+	assert.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--timing", "--json"))
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Contains(t, doc, "timing")
+	assert.Equal(t, "success", doc["state"], "existing fields stay")
+
+	assert.Equal(t, 0, h.run("build", "tree", "PROJ-BUILD-482", "--json"))
+	doc = nil
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.NotContains(t, doc, "timing", "only --timing adds it")
+}
+
+func TestBuildTreeTimingCannotWatchOrRerun(t *testing.T) {
+	for _, flag := range []string{"--watch", "--rerun-failed"} {
+		h := treeHarness(t, provider.StateFailed)
+		assert.Equal(t, 2, h.run("build", "tree", "PROJ-BUILD-482", "--timing", flag, "--yes"), flag)
+		assert.Contains(t, h.stderr.String(), "--timing draws one finished run")
+		assert.Empty(t, h.connectOpts, "no connection is made")
+	}
+}

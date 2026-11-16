@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -243,10 +244,11 @@ func TestFoldedPinKeepsItsBranchRowsAddressable(t *testing.T) {
 func TestPinNowShowsAStageOnlyForItsOwnBuild(t *testing.T) {
 	m := treeBoardModel(120, 45, nil)
 	pin := m.board.data.Groups[0].Pins[0]
-	require.Contains(t, m.pinNow(pin), "3/5 Run integration b…", "a long stage name is cut")
+	room := pinCols{run: true, bar: true, stage: pinStageWidth, times: true}
+	require.Contains(t, m.pinNow(pin, room), "3/5 Run integration b…", "a long stage name is cut")
 	queued := provider.Build{Key: "PROJ-TOP-10", PlanKey: "PROJ-TOP", Number: 10, State: provider.StateQueued}
 	pin.Current = &queued
-	require.NotContains(t, m.pinNow(pin), "3/5", "build 10 is not in the stage build 9 was in")
+	require.NotContains(t, m.pinNow(pin, room), "3/5", "build 10 is not in the stage build 9 was in")
 }
 
 // Intent (review of this change): the rows of a tree come and go on refreshes,
@@ -322,4 +324,49 @@ func TestEnterOnAFailedChildNeedsLineOpensTheChild(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.Equal(t, screenPlan, opened.screen)
 	require.Equal(t, "PROJ-SUB", opened.plan.key)
+}
+
+// Intent (issue 251): a pinned pipeline's name, its results and its running
+// build no longer run into each other. The row's columns sit two spaces apart
+// and the name is the last part to give way. When the row is too wide the stage shortens and
+// goes first, then the bar, then the run time; the last and usual times stay;
+// only then is the name cut, never below 14 columns.
+func TestPinRowKeepsALongNameWholeAndItsColumnsApart(t *testing.T) {
+	const name = "PROJ-Pipeline.Integrate.BuildTestAndPublish"
+	m := treeBoardModel(209, 57, func(b *app.Board) {
+		p := b.Groups[0].Pins[0]
+		p.Name, p.Results = name, nil
+		for i := range 10 {
+			st := provider.StateFailed
+			if i >= 7 {
+				st = provider.StateSuccess
+			}
+			p.Results = append(p.Results, provider.Build{Key: fmt.Sprintf("PROJ-TOP-%d", 8-i), PlanKey: "PROJ-TOP", Number: 8 - i, State: st})
+		}
+		b.Groups[0].Pins = []app.PinView{p}
+	})
+	head := "▸ " + name + "  ✓✓✓✗✗✗✗✗✗✗  "
+	for _, c := range []struct {
+		inner int
+		want  string
+	}{
+		{129, head + "#9 running ███░░░ 5m/10m · 3/5 Run integration b…  last 9m · usual 10m"},
+		{120, head + "#9 running ███░░░ 5m/10m · 3/5 Run inte…  last 9m · usual 10m"},
+		{116, head + "#9 running ███░░░ 5m/10m  last 9m · usual 10m"},
+		{100, head + "#9 running 5m/10m  last 9m · usual 10m"},
+		{90, head + "#9 running  last 9m · usual 10m"},
+		{80, "▸ PROJ-Pipeline.Integrate.BuildTes…  ✓✓✓✗✗✗✗✗✗✗  #9 running  last 9m · usual 10m"},
+		{40, "▸ PROJ-Pipeline…  ✓✓✓✗✗✗✗✗✗✗  #9 running  last 9m · usual 10m"},
+	} {
+		lines, _, _ := m.pinLinesInfo(c.inner, true, 0)
+		row := ansi.Strip(lines[1])
+		require.Equal(t, c.want, row, "%d columns", c.inner)
+		if c.inner >= 80 {
+			require.LessOrEqual(t, ansi.StringWidth(row), c.inner, "%d columns: the row fits", c.inner)
+		}
+	}
+
+	// On a 209 by 57 terminal the row is whole inside Pinned.
+	v := ansi.Strip(m.View())
+	require.Contains(t, v, head+"#9 running ███░░░ 5m/10m  last 9m · usual 10m", v)
 }

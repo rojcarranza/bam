@@ -15,6 +15,6 @@
 ╰──────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────╮
 │  integration                                             │
-│▸ Build and test ✓✗         –                       last 3│
+│▸ Build and test  ✓✗          –           last 3m · usual │
 ╰──────────────────────────────────────────────────────────╯
 lab         enter open  l logs  t tree  i why  P pin  q quit

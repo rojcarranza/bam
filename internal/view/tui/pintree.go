@@ -198,15 +198,14 @@ func (m Model) pinLinesInfo(inner int, roomy bool, capLines int) ([]string, int,
 	if len(b.data.Groups) == 0 {
 		return []string{dimStyle.Render("  No pipelines pinned. Pin one with: bam pin add GROUP PLAN")}, 0, []pinLineInfo{{ord: -1}}
 	}
-	nowW := m.pinNowWidth()
-	labelW := m.pinLabelWidth(inner, nowW)
+	cols := m.pinColumns(inner)
 	focused := b.panel == boardPins
 	cur := b.cursor[boardPins]
 	var parts []*pinPart
 	n := 0
 	for gi, g := range b.data.Groups {
 		for _, p := range g.Pins {
-			rowText, rowSp := m.pinTextSpans(p, "", labelW, nowW)
+			rowText, rowSp := m.pinTextSpans(p, "", cols)
 			part := &pinPart{group: gi, rowOrd: n, row: m.cursorFor(focused, n == cur) + rowText, rowSp: shiftSpans(rowSp, 2)}
 			n++
 			if !b.folded[p.Pin] {
@@ -226,7 +225,7 @@ func (m Model) pinLinesInfo(inner int, roomy bool, capLines int) ([]string, int,
 				part.fold, part.count = true, pinPipelines(p)
 			}
 			for _, br := range p.Branches {
-				brText, brSp := m.pinTextSpans(br, "  ", labelW, nowW)
+				brText, brSp := m.pinTextSpans(br, "  ", cols)
 				part.tail = append(part.tail, m.cursorFor(focused, n == cur)+brText)
 				part.tailSp = append(part.tailSp, shiftSpans(brSp, 2))
 				part.tailOrd = append(part.tailOrd, n)

@@ -17,8 +17,8 @@
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─Pinned───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │  integration                                                                                                         │
-│▸ Build and test          ✓✗         –                       last 3m · usual 3m                                       │
-│  Provision a lab cluster ✓✓         #9 running █████░ 3m/4m last 4m · usual 4m                                       │
+│▸ Build and test           ✓✗          –                        last 3m · usual 3m                                    │
+│  Provision a lab cluster  ✓✓          #9 running █████░ 3m/4m  last 4m · usual 4m                                    │
 │                                                                                                                      │
 │                                                                                                                      │
 │                                                                                                                      │

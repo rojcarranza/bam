@@ -30,31 +30,50 @@ type boardLayout struct {
 }
 
 // boardSizes shares h body rows (the terminal less its header and status bar)
-// and w columns. The agents panel takes the rows its lines need. Needs you
-// shows all its lines until it fills a third of what is left, then scrolls.
-// In one column the queue takes its lines up to a third of that and Pinned
-// the rest, never less than a third; in two columns the left column stacks
-// Needs you, the agents and the queue, which takes the spare rows, and Pinned
-// fills the right column.
+// and w columns. In one column the agents panel takes the rows its lines
+// need, Needs you shows all its lines until it fills a third of what is left,
+// then scrolls, the queue takes its lines up to a third of that and Pinned the
+// rest, never less than a third. In two columns Pinned fills the right
+// column; on the left the queue takes the rows its lines need, up to a third,
+// and Needs you and the agents share the rest (see shareRows).
 func boardSizes(w, h, needsLines, agentLines, queueLines int) boardLayout {
 	l := boardLayout{wide: w >= wideCols, leftW: w, rightW: w}
 	if l.wide {
 		l.leftW = w * 45 / 100
 		l.rightW = w - l.leftW
+		l.queue = max(min(queueLines+roomyFrame, h/3), roomyMinPanel)
+		l.needs, l.agents = shareRows(h-l.queue, needsLines+roomyFrame, agentLines+roomyFrame)
+		l.pins = h
+		return l
 	}
 	l.agents = min(agentLines+roomyFrame, h-3*roomyMinPanel)
 	rest := h - l.agents
 	third := max(rest/3, roomyMinPanel+2)
 	l.needs = min(needsLines+roomyFrame, third)
-	if l.wide {
-		l.queue = rest - l.needs
-		l.pins = h
-		return l
-	}
 	l.queue = min(queueLines+roomyFrame, third)
 	l.queue = max(l.queue, roomyMinPanel)
 	l.pins = rest - l.needs - l.queue
 	return l
+}
+
+// shareRows splits rows between Needs you and the agents panel, which want
+// needs and agents rows to show all their lines. When both fit, each takes
+// what it wants and the rows left over are split evenly, Needs you taking the
+// odd one. When they do not, each gets half, and a panel that wants less than
+// its half gives the rest to the other.
+func shareRows(rows, needs, agents int) (int, int) {
+	if needs+agents <= rows {
+		spare := rows - needs - agents
+		return needs + spare - spare/2, agents + spare/2
+	}
+	half := rows / 2
+	switch {
+	case needs < rows-half:
+		return needs, rows - needs
+	case agents < half:
+		return rows - agents, agents
+	}
+	return rows - half, half
 }
 
 // roomyPanel draws a panel with an empty row above and below its lines and
@@ -78,11 +97,24 @@ func (m Model) roomyBoxes() []boardBox {
 	if wide {
 		leftW = m.width * 45 / 100
 	}
-	needs := m.needsLines(leftW - 2 - 2*roomyPad)
-	const awayMax = 4
-	agents := m.agentLines(leftW-2-2*roomyPad, awayMax)
-	queue, queueCursor := m.queueLines(leftW - 2 - 2*roomyPad)
+	inner := leftW - 2 - 2*roomyPad
+	needs := m.needsLines(inner)
+	// One column lists four agents that are away at most; two columns list
+	// every one, then keep as many as the agents panel's share holds.
+	awayMax := 4
+	if wide {
+		awayMax = awayCount(b)
+	}
+	agents := m.agentLines(inner, awayMax)
+	queue, queueCursor := m.queueLines(inner)
 	sz := boardSizes(m.width, h, len(needs), len(agents), len(queue))
+	if room := sz.agents - roomyFrame; wide && len(agents) > room {
+		if b.data.Mine != nil {
+			agents = fitMine(agents, b.data.Mine, room)
+		} else {
+			agents = m.agentLines(inner, max(room-(len(agents)-awayMax), 1))
+		}
+	}
 
 	needsTitle := "Needs you"
 	if b.have && len(b.data.Needs) > 0 {

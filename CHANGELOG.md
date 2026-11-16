@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- On the live `bam top` board a pinned pipeline's name, its last 10 results, the build running now and its last and usual times no longer run into each other: each column keeps two spaces from the next and starts at the same place on every row, and when the panel is too narrow the stage, the progress bar and the run time give way before the name is cut. From 160 columns, the Queue gives the rows it does not need to Needs you and Agents, and the Agents panel lists every agent that is offline or disabled while they fit instead of four.
 - In the terminal UI, `i` on a failed build picked in the Builds list or on the board shows its failed jobs' error lines, its failed tests and the likely cause, as `bam build investigate` does. Before, it said `Failed tests: none reported` and `Likely cause: unknown` for a build whose Stages panel listed its failed tests.
 - The terminal UI's set screen keeps re-reading a set another bam holds after you open one of its builds and press esc, instead of freezing until `r`.
 - The terminal UI now reads `.bam.yaml`, the machine config and the presets again when a file changes, in every part of bam. A set or preset added while the UI is open can be run, a preset you edit reaches the sets that use it, and a pin on a new preset resolves on the board, instead of failing with `unknown set` or `unknown preset` until restart.

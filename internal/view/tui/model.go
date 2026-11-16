@@ -604,6 +604,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Gen != m.setPollGen || m.screen != screenSet {
 			return m, nil
 		}
+		if m.svc == nil {
+			return m, m.restartSetPoll()
+		}
 		m.setGen++
 		return m, loadSetCmd(m.baseCtx(), m.svc, m.setView.info.Name, m.setGen)
 	case switchServerMsg:

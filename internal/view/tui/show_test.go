@@ -39,6 +39,7 @@ func TestWayBackFromASetBuildRestartsThePoll(t *testing.T) {
 // server switches; the set's poll must run again there.
 func TestServerSwitchFromATreeOnTheSetRestartsThePoll(t *testing.T) {
 	m := setScreenModel(t, failedRec(), "pid 77 on desk, since 09:15")
+	svc := m.svc
 	next, _ := m.openTree("PROJ-X-1")
 	m = next.(Model)
 	require.Equal(t, screenTree, m.screen)
@@ -49,8 +50,15 @@ func TestServerSwitchFromATreeOnTheSetRestartsThePoll(t *testing.T) {
 	require.NotNil(t, cmd)
 	require.NotEqual(t, beat, m.setPollGen)
 
+	setGen := m.setGen
+	m, wait := send(m, setPollMsg{Gen: m.setPollGen})
+	require.NotNil(t, wait, "the poll waits a beat for the new server")
+	require.Equal(t, setGen, m.setGen, "nothing is read before the new server connects")
+	require.Equal(t, "pid 77 on desk, since 09:15", m.setView.elsewhere)
+
+	m.svc = svc
 	_, load := send(m, setPollMsg{Gen: m.setPollGen})
-	require.NotNil(t, load, "the set is re-read on the new server")
+	require.NotNil(t, load, "the set is re-read once the new server connects")
 }
 
 // The variables prompt is a screen of its own over the set; leaving it for

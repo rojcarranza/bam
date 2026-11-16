@@ -1161,6 +1161,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	}
 	m.leaveBuild()
 	wasBoard := m.nav.rootedOnBoard()
+	var loops tea.Cmd
 	if m.screen == screenTree {
 		// The tree is the old server's; a build key means another build here.
 		// The screen it was opened from is where the switch lands.
@@ -1169,7 +1170,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 		if f, ok := m.nav.top(); ok {
 			to = f.screen
 		}
-		m.show(to) // the loops start where the server connects, below
+		loops = m.show(to)
 	}
 	m.nav.resetTo() // the way back is the old server's
 	// The plan, its builds and its cache are the old server's, also when
@@ -1208,7 +1209,7 @@ func (m Model) switchServer(alias string) (tea.Model, tea.Cmd) {
 	m.home.live = nil
 	m.board = boardState{tickGen: m.board.tickGen + 1, loadGen: m.board.loadGen + 1}
 
-	cmds := []tea.Cmd{}
+	cmds := []tea.Cmd{loops}
 	cmds = append(cmds, m.restartHomeTick())
 	if m.deps.Targets != nil {
 		cmds = append(cmds, loadPresetsCmd(m.deps, m.presetsGen))

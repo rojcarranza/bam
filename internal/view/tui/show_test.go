@@ -35,6 +35,24 @@ func TestWayBackFromASetBuildRestartsThePoll(t *testing.T) {
 	require.Nil(t, load, "the beat of the loop that ended with the screen is dropped")
 }
 
+// A tree opened on a set held elsewhere goes back to that set when the
+// server switches; the set's poll must run again there.
+func TestServerSwitchFromATreeOnTheSetRestartsThePoll(t *testing.T) {
+	m := setScreenModel(t, failedRec(), "pid 77 on desk, since 09:15")
+	next, _ := m.openTree("PROJ-X-1")
+	m = next.(Model)
+	require.Equal(t, screenTree, m.screen)
+	beat := m.setPollGen
+
+	m, cmd := send(m, switchServerMsg{Alias: "lab"})
+	require.Equal(t, screenSet, m.screen)
+	require.NotNil(t, cmd)
+	require.NotEqual(t, beat, m.setPollGen)
+
+	_, load := send(m, setPollMsg{Gen: m.setPollGen})
+	require.NotNil(t, load, "the set is re-read on the new server")
+}
+
 // The variables prompt is a screen of its own over the set; leaving it for
 // the set must restart the poll the same way.
 func TestWayBackFromTheSetVariablesRestartsThePoll(t *testing.T) {

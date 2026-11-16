@@ -1045,68 +1045,135 @@ func (m Model) queueLines(inner int) ([]string, int) {
 	return out, b.cursor[boardQueue]
 }
 
-// pinRest is the width of a pin's row besides its name and its current
-// build: the results, and the last and usual times, with the spaces between.
-const pinRest = 37
+// pinGap is the space between the columns of a pin's row: its name, its
+// results, its build now and its last and usual times.
+const pinGap = "  "
 
-// pinNowWidth is the width of the current-build column of Pinned: the widest
-// current build of a pin, so a board where nothing runs gives that room to
-// the names.
-func (m Model) pinNowWidth() int {
-	w := 1
-	for _, g := range m.board.data.Groups {
-		for _, p := range g.Rows() {
-			if p.Err == nil {
-				w = max(w, lipgloss.Width(m.pinNow(p)))
-			}
-		}
-	}
-	return w
+// pinLabelMin is the fewest columns a pin's name is cut to.
+const pinLabelMin = 14
+
+// pinStageWidth is the most a stage "3/5 Name" takes in a pin's current-build
+// cell, so one long stage name does not push the rest of every row out, and
+// pinStageMin the least it is cut to before it is left out.
+const (
+	pinStageWidth = 22
+	pinStageMin   = 10
+)
+
+// pinCols is how one drawing of Pinned lays out the rows of its pins, the
+// same for every row so the columns line up: how wide the name and the
+// current-build columns are, and which parts of the current build and of the
+// times the panel has room for.
+type pinCols struct {
+	label, now int
+	run, bar   bool // a running build's time against its usual one, and the bar drawing it
+	stage      int  // the most columns a stage name takes; 0 leaves it out
+	times      bool // "last … · usual …"
 }
 
-// pinLabelWidth is the width of the name column of Pinned: the longest name
-// of a pin, at least 14, and no wider than what the panel's inner width leaves
-// after the rest of the row.
-func (m Model) pinLabelWidth(inner, nowW int) int {
-	w := 14
+// pinColumns fits the rows of Pinned into inner columns, cursor included. The
+// name, the results, the build's number and state and the last and usual
+// times come first: a name is cut only when they do not fit whole, and never
+// below pinLabelMin. Then, in turn while they fit, a running build's time
+// against its usual one and its bar; the stage takes the room left, from
+// pinStageWidth down to pinStageMin, or is left out. So the parts that give
+// way to a long name are the stage first, then the bar, then the run time.
+func (m Model) pinColumns(inner int) pinCols {
+	var rows []app.PinView
+	label, times := pinLabelMin, 0
 	for _, g := range m.board.data.Groups {
 		for _, p := range g.Pins {
 			if p.Err == nil {
-				w = max(w, lipgloss.Width(p.Label()))
+				rows = append(rows, p)
+				label = max(label, lipgloss.Width(p.Label()))
 			}
 			for _, br := range p.Branches {
-				w = max(w, 2+lipgloss.Width(br.Label()))
+				if br.Err == nil {
+					rows = append(rows, br)
+				}
+				label = max(label, 2+lipgloss.Width(br.Label()))
 			}
 		}
 	}
-	return min(w, max(14, inner-2-pinRest-nowW))
+	for _, p := range rows {
+		times = max(times, lipgloss.Width(pinTimes(p)))
+	}
+	nowW := func(c pinCols) int {
+		w := 1
+		for _, p := range rows {
+			w = max(w, lipgloss.Width(m.pinNow(p, c)))
+		}
+		return w
+	}
+	width := func(c pinCols) int {
+		w := 2 + c.label + len(pinGap) + app.PinResults + len(pinGap) + nowW(c)
+		if c.times {
+			w += len(pinGap) + times
+		}
+		return w
+	}
+	c := pinCols{label: label, times: true}
+	if over := width(c) - inner; over > 0 {
+		c.label = max(label-over, pinLabelMin)
+		c.now = nowW(c)
+		return c
+	}
+	for _, more := range []func(*pinCols){
+		func(c *pinCols) { c.run = true },
+		func(c *pinCols) { c.bar = c.run },
+	} {
+		next := c
+		more(&next)
+		if width(next) <= inner {
+			c = next
+		}
+	}
+	for s := pinStageWidth; s >= pinStageMin; s-- {
+		next := c
+		next.stage = s
+		if width(next) <= inner {
+			c = next
+			break
+		}
+	}
+	c.now = nowW(c)
+	return c
 }
 
-// pinStageWidth is the most a stage "3/5 Name" takes in a pin's current-build
-// cell, so one long stage name does not push the rest of every row out.
-const pinStageWidth = 22
+// pinTimes is the last column of a pin's row: how long its newest finished
+// build took and its plan's usual time.
+func pinTimes(p app.PinView) string {
+	return fmt.Sprintf("last %s · usual %s", brief(p.Last), brief(p.Usual))
+}
 
-// pinNow is a pin's current build: its number and state, with a progress bar
-// while it runs, or a dash.
-func (m Model) pinNow(p app.PinView) string {
-	c := p.Current
-	if c == nil {
+// pinNow is a pin's current build: its number and state, with what c has
+// room for of its time against the usual one and of its stage, or a dash.
+func (m Model) pinNow(p app.PinView, c pinCols) string {
+	stage := func(st string) string {
+		if c.stage <= 0 || st == "" {
+			return ""
+		}
+		return " · " + cut(st, c.stage)
+	}
+	cur := p.Current
+	if cur == nil {
 		if p.HasChildren() {
 			if root := p.Tree.Root.Build; root.State == provider.StateFailed && app.StageProgress(root) != "" {
-				return fmt.Sprintf("#%d failed · %s", root.Number, cut(app.StageProgress(root), pinStageWidth))
+				return fmt.Sprintf("#%d failed", root.Number) + stage(app.StageProgress(root))
 			}
 		}
 		return "–"
 	}
-	now := fmt.Sprintf("#%d %s", c.Number, strings.ToLower(string(c.State)))
-	if c.State == provider.StateRunning && p.Usual > 0 && !c.StartedAt.IsZero() {
-		run := max(m.now().Sub(c.StartedAt), 0)
-		now += fmt.Sprintf(" %s %s/%s", bar(float64(run)/float64(p.Usual), 6), brief(run), brief(p.Usual))
-	}
-	if p.HasChildren() && p.Tree.Root.Build.Key == c.Key {
-		if st := app.StageProgress(p.Tree.Root.Build); st != "" {
-			now += " · " + cut(st, pinStageWidth)
+	now := fmt.Sprintf("#%d %s", cur.Number, strings.ToLower(string(cur.State)))
+	if cur.State == provider.StateRunning && p.Usual > 0 && !cur.StartedAt.IsZero() && c.run {
+		run := max(m.now().Sub(cur.StartedAt), 0)
+		if c.bar {
+			now += " " + bar(float64(run)/float64(p.Usual), 6)
 		}
+		now += fmt.Sprintf(" %s/%s", brief(run), brief(p.Usual))
+	}
+	if p.HasChildren() && p.Tree.Root.Build.Key == cur.Key {
+		now += stage(app.StageProgress(p.Tree.Root.Build))
 	}
 	return now
 }
@@ -1124,10 +1191,11 @@ func pinNumberBuild(p app.PinView) (provider.Build, bool) {
 	return provider.Build{}, false
 }
 
-// pinTextSpans draws a pin's row, with its name and the build number of its
-// current-build cell underlined, and says which columns of the row (counted
-// from its first) open the plan and that build in Bamboo.
-func (m Model) pinTextSpans(p app.PinView, indent string, labelW, nowW int) (string, []linkSpan) {
+// pinTextSpans draws a pin's row in the columns c lays out, pinGap apart,
+// with its name and the build number of its current-build cell underlined,
+// and says which columns of the row (counted from its first) open the plan
+// and that build in Bamboo.
+func (m Model) pinTextSpans(p app.PinView, indent string, c pinCols) (string, []linkSpan) {
 	if p.Err != nil {
 		return fmt.Sprintf("%-22s %s", p.Label(), errorStyle.Render("could not be read: "+p.Err.Error())), nil
 	}
@@ -1135,12 +1203,11 @@ func (m Model) pinTextSpans(p app.PinView, indent string, labelW, nowW int) (str
 	for i := len(p.Results) - 1; i >= 0; i-- {
 		sb.WriteString(stateStyle(p.Results[i].State).Render(stateGlyph(p.Results[i].State)))
 	}
-	now := m.pinNow(p)
+	now := m.pinNow(p, c)
 	nowPlain := now
-	now += strings.Repeat(" ", max(nowW-lipgloss.Width(now), 0))
-	cutLabel := cut(indent+p.Label(), labelW)
+	cutLabel := cut(indent+p.Label(), c.label)
 	labelWidth := lipgloss.Width(cutLabel)
-	pad := strings.Repeat(" ", max(labelW-labelWidth, 0))
+	pad := strings.Repeat(" ", max(c.label-labelWidth, 0))
 	res := results(sb.String(), len(p.Results))
 
 	var spans []linkSpan
@@ -1151,12 +1218,16 @@ func (m Model) pinTextSpans(p app.PinView, indent string, labelW, nowW int) (str
 	}
 	if b, ok := pinNumberBuild(p); ok {
 		if num := fmt.Sprintf("#%d", b.Number); strings.HasPrefix(nowPlain, num) {
-			x := labelW + 1 + lipgloss.Width(res) + 1
+			x := c.label + len(pinGap) + lipgloss.Width(res) + len(pinGap)
 			spans = append(spans, linkSpan{x, x + len(num), b.Key})
 			now = linkText(num) + strings.TrimPrefix(now, num)
 		}
 	}
-	return fmt.Sprintf("%s %s %s last %s · usual %s", label, res, now, brief(p.Last), brief(p.Usual)), spans
+	row := label + pinGap + res + pinGap + now
+	if c.times {
+		row += strings.Repeat(" ", max(c.now-lipgloss.Width(nowPlain), 0)) + pinGap + pinTimes(p)
+	}
+	return row, spans
 }
 
 // bar draws frac (0 to 1, more is full) as w cells.

@@ -902,8 +902,8 @@ func TestBoardPinnedShowsThePlansNameAndCutsItToFit(t *testing.T) {
 	require.Contains(t, wide, "Build and test")
 	require.NotContains(t, wide, "PROJ-BUILD  ", "the name replaces the key in the row")
 
-	narrow := boardModel(80, 24).View()
-	require.Contains(t, narrow, "Provision a lab", "the name is cut at its end to fit")
+	narrow := boardModel(64, 24).View()
+	require.Contains(t, narrow, "Provision a lab…", "the name is cut at its end to fit")
 	require.NotContains(t, narrow, "Provision a lab cluster")
 }
 

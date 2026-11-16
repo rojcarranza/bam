@@ -91,16 +91,18 @@ func cols(v string, a, b int) []string {
 	return out
 }
 
-// Needs you with 25 queue waits shows more than 4 on 58 rows and counts them.
+// Needs you with many queue waits shows more than 4 on 58 rows and counts
+// them: in one column it scrolls once it fills a third of the rows, in two
+// once it fills its share of the left column, so two columns need more.
 func TestBoardNeedsYouShowsMoreThanFourAndCountsThem(t *testing.T) {
-	for _, w := range []int{214, 120} {
-		m := boardWith(w, 58, 25, nil)
+	for _, c := range []struct{ w, needs int }{{214, 60}, {120, 25}} {
+		m := boardWith(c.w, 58, c.needs, nil)
 		total := len(m.board.data.Needs)
-		require.GreaterOrEqual(t, total, 25)
+		require.GreaterOrEqual(t, total, c.needs)
 		v := ansi.Strip(m.View())
 		shown := strings.Count(v, "has waited 9m in the queue")
-		require.Greater(t, shown, 4, "%d columns", w)
-		require.Less(t, shown, total, "it scrolls once it fills a third of the rows")
+		require.Greater(t, shown, 4, "%d columns", c.w)
+		require.Less(t, shown, total, "%d columns: it scrolls once it fills its rows", c.w)
 		require.Contains(t, v, fmt.Sprintf("Needs you · %d of %d", shown, total))
 	}
 }
@@ -238,4 +240,59 @@ func TestBoardPinnedNamesReadApartAt80(t *testing.T) {
 	require.Contains(t, v, "Integrate For Next", v)
 	require.Contains(t, v, "…", "a cut name ends in …:\n%s", v)
 	require.Contains(t, v, "usual 3m", v)
+}
+
+// awayBoard is the board at 209 by 57, a large laptop terminal,
+// with n more offline agents than the sample has.
+func awayBoard(n int) (Model, app.Board) {
+	m := boardModel(209, 57)
+	data := sampleBoard(goldenNow)
+	for i := range n {
+		data.Agents.Away = append(data.Agents.Away, provider.Agent{ID: 10 + i, Name: fmt.Sprintf("team-b-agent-pool-%d", i), Type: "REMOTE", Enabled: true})
+		data.Agents.Offline++
+	}
+	data.Needs = app.NeedsYou(data, goldenNow)
+	m.board.loadGen++
+	m, _ = send(m, boardLoadedMsg{Gen: m.board.loadGen, Full: true, Board: data})
+	return m, data
+}
+
+// Intent (issue 251): bam top gives Needs you and Agents more room. On the
+// two-column board the queue takes only the rows its lines
+// need, and Needs you and Agents share the rest of the left column, so every
+// need and every offline agent shows where the queue's empty rows were.
+func TestWideBoardGivesTheQueuesEmptyRowsToNeedsYouAndAgents(t *testing.T) {
+	m, data := awayBoard(12)
+	v := ansi.Strip(m.View())
+	for _, a := range data.Agents.Away {
+		require.Contains(t, v, a.Name+"  remote  ", v)
+	}
+	require.NotContains(t, v, "more offline or disabled", "no agent is left out")
+	require.Contains(t, v, fmt.Sprintf("Needs you · %d━", len(data.Needs)), "every need shows")
+
+	boxes := m.boardBoxes()
+	queue := boxes[2]
+	require.Equal(t, boardQueue, queue.panel)
+	require.Equal(t, len(queue.lines)+roomyFrame, queue.h, "the queue takes the rows its lines need")
+	require.Equal(t, 57-2-queue.h, boxes[0].h+boxes[1].h, "Needs you and Agents take the rest")
+	spare := func(bx boardBox) int { return bx.h - len(bx.lines) - roomyFrame }
+	require.Contains(t, []int{0, 1}, spare(boxes[0])-spare(boxes[1]), "and share the rows they do not need evenly")
+}
+
+// When more agents are offline than the Agents panel's share holds, it lists
+// as many as fit and counts the rest, so none is cut without notice.
+func TestWideBoardCountsTheOfflineAgentsItHasNoRoomFor(t *testing.T) {
+	m, data := awayBoard(60)
+	boxes := m.boardBoxes()
+	agents := boxes[1]
+	require.Equal(t, boardAgents, agents.panel)
+	require.LessOrEqual(t, len(agents.lines), agents.h-roomyFrame, "the lines fit the panel")
+	shown := 0
+	for _, a := range data.Agents.Away {
+		if strings.Contains(ansi.Strip(strings.Join(agents.lines, "\n")), a.Name+"  ") {
+			shown++
+		}
+	}
+	require.Greater(t, shown, 4, "more than the one-column four")
+	require.Contains(t, ansi.Strip(strings.Join(agents.lines, "\n")), fmt.Sprintf("… and %d more offline or disabled", len(data.Agents.Away)-shown))
 }

@@ -32,7 +32,7 @@ type timing struct {
 }
 
 // treeTiming collects the timeline of the builds under root, parents first.
-// Superseded, repeated and never-run builds are not part of the run and are
+// Superseded, repeated, skipped and never-run builds are not part of the run and are
 // left out; a build that has not finished has no end and is only counted.
 func treeTiming(root *app.TreeNode) timing {
 	var t timing

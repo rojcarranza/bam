@@ -41,7 +41,7 @@ works without a terminal UI. Run `bam --help` or `bam <command> --help` for the 
 
 ```bash
 bam status --json --no-tui                    # builds the user started in the last day
-bam top --json --no-tui                       # what needs attention: agents, queue, pinned pipelines
+bam top --json --no-tui                       # what needs attention: agents and what they build, pinned pipelines
 bam queue --json --no-tui                     # builds waiting for an agent
 bam plan list PROJ --json --no-tui            # plans of a project
 bam plan show PROJ-BUILD --json --no-tui      # one plan, with its last build

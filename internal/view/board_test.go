@@ -131,6 +131,24 @@ func TestBoardCutsALongPinnedNameToTheTerminal(t *testing.T) {
 	assert.Contains(t, buf.String(), long, "a pipe keeps the full name")
 }
 
+// Intent: a pinned pipeline's pass-record line stays within the terminal width
+// at every width, and a short name is printed whole, never padded.
+func TestBoardKeepsAPassRecordLineWithinTheTerminal(t *testing.T) {
+	b := sampleBoard()
+	b.Groups[0].Pins[0].Name = "lab"
+	for width := 10; width <= 120; width++ {
+		o, buf := testOut(true)
+		o.Width = width
+		require.NoError(t, Board(o, b, boardURL), "width %d", width)
+		for _, l := range strings.Split(buf.String(), "\n") {
+			if plain := style.Strip(l); strings.HasPrefix(plain, "    lab") && strings.Contains(plain, " · ") {
+				assert.LessOrEqual(t, style.Width(l), width, "width %d: %s", width, l)
+				assert.NotContains(t, l, "\x00", "width %d: a short name is not padded", width)
+			}
+		}
+	}
+}
+
 // Intent (BAM-42 P4, issue 193): a pin's branches print under it, indented,
 // then a count of those left out, and --json carries them as branches.
 func TestBoardPrintsAPinsBranchesUnderIt(t *testing.T) {

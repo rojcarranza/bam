@@ -12,11 +12,20 @@ import (
 )
 
 // failedPlan is the plan screen on the failed build PROJ-BUILD-44, its stages
-// read in and Stages focused.
+// read in and Stages focused. The server holds the whole build, as Bamboo
+// answers it to a read of that one build, and the failed job's log.
 func failedPlan(t *testing.T) Model {
 	t.Helper()
 	m := planWithStages(t)
 	m.focus = focusStages
+	f := m.svc.P.(*fake.Provider)
+	f.History["PROJ-BUILD"] = []provider.Build{sampleBuild()}
+	// Maven prints its error lines from the start of the line.
+	f.Logs["PROJ-BUILD-INT-44"] = []string{
+		"Running integration suite",
+		"[ERROR] ConnectionRefused: bamboo.lab.example:5432",
+		"[ERROR] 3 tests failed",
+	}
 	return m
 }
 
@@ -51,12 +60,6 @@ func TestStagesKeepsEveryStageRowWhileListingFailedTests(t *testing.T) {
 
 func TestIShowsTheFailedJobsErrorsAndTheLikelyCause(t *testing.T) {
 	m := failedPlan(t)
-	// Maven prints its error lines from the start of the line.
-	m.svc.P.(*fake.Provider).Logs["PROJ-BUILD-INT-44"] = []string{
-		"Running integration suite",
-		"[ERROR] ConnectionRefused: bamboo.lab.example:5432",
-		"[ERROR] 3 tests failed",
-	}
 	m, cmd := send(m, mkKey("i"))
 	require.Equal(t, overlayInfo, m.overlay)
 	require.NotNil(t, cmd)
@@ -67,6 +70,28 @@ func TestIShowsTheFailedJobsErrorsAndTheLikelyCause(t *testing.T) {
 	require.Contains(t, v, "Test / Integration")
 	require.Contains(t, v, "ConnectionRefused: bamboo.lab.example:5432")
 	require.Contains(t, v, "Likely cause")
+}
+
+// Issue #249: the plan screen opens on the Builds list, whose row is what
+// Bamboo's result list answers, with no stages and no failed tests. i must
+// still show what bam build investigate shows for the build.
+func TestIOnTheBuildsListShowsTheFailedTestsAndTheLikelyCause(t *testing.T) {
+	m := failedPlan(t)
+	m.focus = focusBuilds
+	row, ok := m.builds.selected()
+	require.True(t, ok)
+	require.Equal(t, "PROJ-BUILD-44", row.Key)
+	require.Empty(t, row.Stages, "a listing carries no stages")
+	require.Empty(t, row.FailedTests, "a listing carries no failed tests")
+
+	m, cmd := send(m, mkKey("i"))
+	require.NotNil(t, cmd)
+	m, _ = send(m, cmd())
+	require.Equal(t, overlayInfo, m.overlay)
+	v := ansi.Strip(m.View())
+	require.Contains(t, v, "Test / Integration (INT)  first error at line 2")
+	require.Contains(t, v, "Failed tests: a, b, c")
+	require.Contains(t, v, "Likely cause: [ERROR] ConnectionRefused: bamboo.lab.example:5432")
 }
 
 func TestIOnABuildThatDidNotFailSaysSo(t *testing.T) {

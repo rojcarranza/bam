@@ -244,15 +244,7 @@ func Board(o Out, b app.Board, url func(string) string) error {
 				continue
 			}
 			if rec := PassRecord(p.Results, now); rec != "" {
-				label := p.Label()
-				if o.Width > 0 {
-					if room := o.Width - 4 - utf8.RuneCountInString(" · "+rec); utf8.RuneCountInString(label) > room {
-						if runes := []rune(label); max(room, 8)-1 < len(runes) {
-							label = string(runes[:max(room, 8)-1]) + "…"
-						}
-					}
-				}
-				line := label + " · " + rec
+				line := p.Label() + " · " + rec
 				if o.Width > 4 && utf8.RuneCountInString(line) > o.Width-4 {
 					line = string([]rune(line)[:o.Width-5]) + "…"
 				}

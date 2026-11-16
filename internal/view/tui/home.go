@@ -397,13 +397,9 @@ func (m Model) goHome() (tea.Model, tea.Cmd) {
 	if m.screen == screenPlan {
 		m.closePlan()
 	}
-	m.screen = screenHome
+	cmd := m.show(screenHome)
 	m.nav.toHome() // Home leaves a set's, tree's or board's build behind; esc must not return to it
 	m.focus = m.homeFocus()
-	// restartHomeTick has a pointer receiver and mutates m; calling it inline
-	// as a return operand would rely on Go's unspecified evaluation order
-	// between the two operands, so its mutation is applied here first.
-	cmd := m.restartHomeTick()
 	return m, cmd
 }
 

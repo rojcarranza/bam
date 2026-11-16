@@ -116,7 +116,7 @@ func (m Model) openSetVars(a setAction) (tea.Model, tea.Cmd) {
 			return m.startTrain()
 		}
 	}
-	m.screen = screenSetVars
+	m.show(screenSetVars)
 	return m, nil
 }
 
@@ -144,9 +144,9 @@ func (m Model) handleSetVarsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch {
 	case key.Matches(msg, keys.Back):
-		m.screen = screenSet
+		cmd := m.show(screenSet)
 		m.setVars = setVarsState{}
-		return m, nil
+		return m, cmd
 	case key.Matches(msg, keys.Quit):
 		return m.quit()
 	case key.Matches(msg, keys.Down):
@@ -277,8 +277,7 @@ func (m Model) startTrain() (tea.Model, tea.Cmd) {
 	}
 	if why := m.refuseSetAction(); why != "" {
 		m.status = why
-		m.screen = screenSet
-		return m, nil
+		return m, m.show(screenSet)
 	}
 	m.setVars.gen++
 	m.setVars.busy = true
@@ -355,14 +354,15 @@ func (m Model) handleTrainStarted(msg trainStartedMsg) (tea.Model, tea.Cmd) {
 	if m.setView.info.Name == msg.Set {
 		m.setView.board = board
 	}
+	var poll tea.Cmd
 	if current {
 		m.setVars = setVarsState{gen: m.setVars.gen}
 		if m.screen == screenSetVars {
-			m.screen = screenSet
+			poll = m.show(screenSet)
 		}
 	}
 	m.status = m.train.set + " started"
-	return m, setEventCmd(msg.Ch, m.train.gen)
+	return m, tea.Batch(setEventCmd(msg.Ch, m.train.gen), poll)
 }
 
 // handleSetEvent moves the train's board on and reads the next event. The

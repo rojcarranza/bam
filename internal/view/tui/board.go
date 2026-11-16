@@ -138,11 +138,10 @@ func (m Model) showBoard() (tea.Model, tea.Cmd) {
 	if m.screen == screenPlan {
 		m.closePlan()
 	}
-	m.screen = screenBoard
+	beats := m.show(screenBoard)
 	m.nav.resetTo() // the board is a root: nothing is below it
-	m.board.tickGen++
 	load := m.loadBoard(true)
-	return m, tea.Batch(load, boardBeats(m.board.tickGen))
+	return m, tea.Batch(load, beats)
 }
 
 // loadBoard reads the board. full also reads each pin's plan and usual time;

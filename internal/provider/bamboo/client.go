@@ -108,6 +108,36 @@ func (c *Client) CreateBranchURL(planKey string) string {
 	return c.base.String() + "/chain/admin/newPlanBranch.action?planKey=" + url.QueryEscape(planKey)
 }
 
+// planBranchNameChars are the characters Bamboo replaces with "-" when it
+// names a plan branch after a repository branch (ChainBranchUtils
+// .getValidChainBranchName, the same in Bamboo 9.6.27 and 13.0.1; 9.0.0
+// leaves ' and " as they are).
+const planBranchNameChars = `[]{}<>:@/&%\!|#$*;~'"`
+
+// planBranchNameMax is how many characters of the name Bamboo keeps.
+const planBranchNameMax = 250
+
+// PlanBranchName is the name Bamboo gives the plan branch it creates for a
+// repository branch, on the Create plan branch page and by branch detection:
+// it trims spaces, replaces planBranchNameChars with "-" and keeps the first
+// 250 characters, so feature/x becomes feature-x. Bamboo 9.6.27 and 13.0.1
+// refuse a repository branch with symbols other than - / . and _, so there /
+// is the one character that changes. When another plan branch already has
+// that name, Bamboo adds " 1", " 2" and so on, which bam cannot tell from a
+// rename.
+func (c *Client) PlanBranchName(repositoryBranch string) string {
+	name := []rune(strings.Map(func(r rune) rune {
+		if strings.ContainsRune(planBranchNameChars, r) {
+			return '-'
+		}
+		return r
+	}, strings.TrimSpace(repositoryBranch)))
+	if len(name) > planBranchNameMax {
+		name = name[:planBranchNameMax]
+	}
+	return strings.TrimSpace(string(name))
+}
+
 // crossOriginRedirectError reports a redirect to a different scheme://host:port.
 // Go's http.Client keeps the Authorization header on same-host redirects, so
 // following a cross-origin one would leak the bearer token to that host.

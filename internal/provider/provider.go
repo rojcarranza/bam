@@ -40,6 +40,9 @@ type Provider interface {
 	// CreateBranchURL is the page where a person creates a plan branch of the
 	// plan by hand.
 	CreateBranchURL(planKey string) string
+	// PlanBranchName is the name the server gives the plan branch it creates
+	// for a repository branch, such as feature-x for feature/x.
+	PlanBranchName(repositoryBranch string) string
 }
 
 // RestartChecker is an optional Provider extension. CannotRestart reports

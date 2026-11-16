@@ -23,6 +23,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - The link bam prints when a plan has no plan branch of the name you asked for (`--branch`, `@` for the checked-out branch, and presets) opens Bamboo's Create plan branch page. Before, it answered 404 (Page not found) on Bamboo 9.6.27, 12.1.8 and 13.0.1.
 
+- `--branch feature/x`, `@` on a `feature/x` checkout and a preset's `branch: feature/x` find the plan branch Bamboo made for that Git branch, which Bamboo names `feature-x`. Before, bam said the plan had no plan branch for `feature/x` and offered to create one.
+
 ## [0.5.0] - 2026-11-14
 
 ### Added

@@ -18,7 +18,7 @@ var Writes = []string{"Trigger", "StopBuild", "RestartBuild"}
 // Reads names the Provider methods that only read.
 var Reads = []string{"CurrentUser", "ServerInfo", "ListProjects", "ListPlans", "GetPlan", "ListBranches",
 	"ListVariables", "ListBuilds", "GetBuild", "BuildProgress", "BuildVariables", "FetchLog", "Queue",
-	"Agents", "AgentJobs", "URL", "RepositoriesURL", "CreateBranchURL"}
+	"Agents", "AgentJobs", "URL", "RepositoriesURL", "CreateBranchURL", "PlanBranchName"}
 
 // Refusal is the error a refused command returns: a usage error, exit code 2.
 func Refusal(what string) *errs.Error {

@@ -1,0 +1,11 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam pin add release SETLIST-CI SETLIST-DEPLOY SETLIST-SMOKE
+Pinned SETLIST-CI in release
+Pinned SETLIST-DEPLOY in release
+Pinned SETLIST-SMOKE in release
+$ bam pin list
+GROUP    PIN             NAME
+release  SETLIST-CI      CI
+release  SETLIST-DEPLOY  Deploy
+release  SETLIST-SMOKE   Smoke test

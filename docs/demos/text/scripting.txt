@@ -1,0 +1,19 @@
+────────────────────────────────────────────────────────────────────────────────
+>
+$
+$ bam build list SETLIST-CI -n 3 --json | jq -r '.[] | [.key, .state] | @tsv'
+SETLIST-CI-26   success
+SETLIST-CI-25   success
+SETLIST-CI-24   success
+$ bam run ci --read-only
+error: read-only mode: refused to run a plan
+  bam is set read-only, so it will not change anything in Bamboo
+  try: run without --read-only, and unset BAM_READ_ONLY and read_only in the bam config, to allow it
+$ bam build show SETLIST-CI-14 --json | jq '{key, state, duration_ms}'
+{
+  "key": "SETLIST-CI-14",
+  "state": "success",
+  "duration_ms": 1341
+}
+$ bam run ci --watch > /dev/null; echo exit code $?
+exit code 0

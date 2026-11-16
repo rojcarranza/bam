@@ -1,0 +1,15 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam plan list SETLIST > /dev/null
+$ bam build list SETLIST-CI -n 3 > /dev/null
+$ bam usage
+4 commands on 1 day since 2026-11-15 (counting is on)
+COMMAND         COUNT
+bam build list  1
+bam login       1
+bam plan list   1
+bam server add  1
+DAY         COMMANDS
+2026-11-15  4
+$ bam usage off
+bam no longer counts the commands you run. The counts so far stay in /home/jdoe/.local/state/bam/usage.json.

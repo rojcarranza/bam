@@ -1,0 +1,13 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam agent list
+AGENT        TYPE    ONLINE  ENABLED  BUSY
+lab-agent-1  REMOTE  yes     yes      no
+$ bam agent mine add lab-agent
+Listed lab-agent
+$ bam agent mine list
+lab-agent
+$ bam --read-only agent disable lab-agent-1 --yes
+error: read-only mode: refused to disable an agent
+  bam is set read-only, so it will not change anything in Bamboo
+  try: run without --read-only, and unset BAM_READ_ONLY and read_only in the bam config, to allow it

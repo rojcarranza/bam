@@ -1,0 +1,12 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run ci
+Plan     SETLIST-CI
+Vars     none
+✓ Queued   SETLIST-CI-18   https://bamboo.example.com/browse/SETLIST-CI-18
+SETLIST-CI-18 (CI)                    ✓ success  1s
+├─ stage Build                        ✓ success  1s
+├─ SETLIST-IT-21 (Integration tests)  ✓ success  5s
+│  └─ stage Test                      ✓ success  0s
+└─ SETLIST-PACKAGE-18 (Package)       ✓ success  4s
+   └─ stage Package                   ✓ success  4s

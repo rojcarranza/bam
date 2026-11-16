@@ -1,0 +1,23 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam plan list SETLIST
+SETLIST  setlist
+  PLAN             NAME               LAST  STATE      COMPLETED  REASON
+  SETLIST-CI       CI                 #14   ✓ success  3m ago     Manual run by John Doe
+  SETLIST-DEPLOY   Deploy             #7    ✓ success  36m ago    Manual run by Admin
+  SETLIST-IT       Integration tests  #14   ✓ success  3m ago     Child of SETLIST-CI-14
+  SETLIST-LOAD     Load test          #1    ✓ success  26m ago    Manual run by Admin
+  SETLIST-PACKAGE  Package            #14   ✓ success  3m ago     Child of SETLIST-CI-14
+  SETLIST-SMOKE    Smoke test         #4    ✓ success  29m ago    Manual run by John Doe
+$ bam plan show SETLIST-DEPLOY
+SETLIST-DEPLOY  Deploy  https://bamboo.example.com/browse/SETLIST-DEPLOY
+Project     SETLIST
+Branches    none
+Variables   db_password=********  environment=dev  region=eu  replicas=2  version=
+Recent builds
+  BUILD             STATE        STARTED  DURATION  REASON
+  SETLIST-DEPLOY-7  ✓ success    36m ago  2s        Manual run by Admin
+  SETLIST-DEPLOY-6  ✓ success    36m ago  3s        Manual run by Admin
+  SETLIST-DEPLOY-5  ✗ failed     38m ago  8s        Manual run by Admin
+  SETLIST-DEPLOY-4  ✗ failed     40m ago  2s        Manual run by Admin
+  SETLIST-DEPLOY-3  – not built  –        –         Manual run by Admin

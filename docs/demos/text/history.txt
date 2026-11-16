@@ -1,0 +1,32 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam build list SETLIST-CI -n 6
+BUILD          STATE      BRANCH   STARTED  DURATION  REASON
+SETLIST-CI-26  ✓ success  default  45s ago  3m01s     Manual run by John Doe
+SETLIST-CI-25  ✓ success  default  7m ago   1s        Manual run by John Doe
+SETLIST-CI-24  ✓ success  default  9m ago   1s        Manual run by John Doe
+SETLIST-CI-23  ✓ success  default  10m ago  1s        Manual run by John Doe
+SETLIST-CI-22  ✓ success  default  19m ago  1s        Manual run by John Doe
+SETLIST-CI-21  ✓ success  default  21m ago  1s        Manual run by John Doe
+$ bam build show SETLIST-CI-14
+SETLIST-CI-14  ✓ success  https://bamboo.example.com/browse/SETLIST-CI-14
+Plan        SETLIST-CI
+Reason      Manual run by John Doe
+Started     50m ago
+Completed   50m ago
+Duration    1s
+Queued      0s
+Revisions   setlist-service c42d4a0
+Stages
+  ✓ Build     1s
+      ✓ Unit  1s
+$ bam plan stats SETLIST-IT
+SETLIST-IT  last 20 builds (#10–#29, 54m36s)
+Success   85%  (17 ✓  3 ✗)   streak ✓ 5
+Duration  median 5s  p90 6s  max 7s (#26)   of 17 successful
+Waiting   median 4s  p90 5s  79% of job time spent waiting for an agent   earlier: median 2s  p90 3s  75%
+Slowest stages
+  Test  median 0s  earlier 0s
+Slowest jobs
+  Integration  median 0s  earlier 0s
+Failing jobs

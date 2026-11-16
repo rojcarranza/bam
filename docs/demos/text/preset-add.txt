@@ -1,0 +1,20 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam preset add deploy --plan SETLIST-DEPLOY
+added preset deploy to /home/jdoe/bam/presets/setlist.yaml
+review before commit: values copied from Bamboo
+┌─ values to choose from: recent builds of SETLIST-DEPLOY ┐
+│ environment  "staging"  "dev"                           │
+└─────────────────────────────────────────────────────────┘
+$ bam preset show deploy
+deploy
+Plan        SETLIST-DEPLOY
+Branch      –
+Server      work
+Watch       yes
+Defined in  /home/jdoe/bam/presets/setlist.yaml
+Variables
+  environment  dev
+  region       eu
+  replicas     2
+  version

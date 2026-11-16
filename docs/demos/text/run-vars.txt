@@ -1,0 +1,9 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run deploy --var version=1.0.1 --var environment=staging --var replicas=3
+Plan     SETLIST-DEPLOY
+Vars     db_password=******** (env)  environment=staging (flag)  region=eu (preset)  replicas=3 (flag)  versio
+n=1.0.1 (flag)
+✓ Queued   SETLIST-DEPLOY-10   https://bamboo.example.com/browse/SETLIST-DEPLOY-10
+SETLIST-DEPLOY-10 (Deploy)  ✓ success  2s
+└─ stage Deploy             ✓ success  2s

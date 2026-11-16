@@ -24,6 +24,8 @@ make install          # same binary into $(go env GOPATH)/bin, so `bam` works an
 make test             # go test ./...
 make lint             # golangci-lint run (v2 config in .golangci.yml)
 make check-fixtures   # fixture host guard (TestFixtureGuard)
+make check-demos      # README GIFs match their tapes, text outputs and size cap; no local host or name in the recorded text
+make demos-seed / demos / demo NAME=x   # rebuild the lab history and re-record README GIFs (docs/demos/README.md; needs Docker and a lab Bamboo)
 make docs             # regenerate docs/cli/ from cobra; the no-mistakes gate fails if it is stale
 make release VERSION=x.y.z   # tag and publish a GitHub release (owner's go-ahead only; see .claude/skills/release/SKILL.md)
 make record ARGS='-target provision'   # record scrubbed fixtures from a personal Bamboo

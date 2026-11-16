@@ -1,0 +1,26 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam server list
+ALIAS  URL                         DEFINED IN  TOKEN  SELECTED
+work   https://bamboo.example.com  machine     yes    yes
+$ bam whoami
+ALIAS  URL                         USER
+work   https://bamboo.example.com  jdoe (John Doe)
+$ bam project list
+PROJECT  NAME
+SETLIST  setlist
+$ bam version
+bam v0.5.1-0.20261115072253-0ea2b9e3a9e8+dirty
+$ bam doctor
+✓ config             /home/jdoe/.config/bam/config.yaml
+✓ server             work (https://bamboo.example.com)
+✓ token              file
+✓ auth               jdoe (John Doe)
+✓ server version     12.1.8
+✓ plan variables     0 declared on SETLIST-CI
+✓ build variables    read from SETLIST-CI-14
+✓ logs               via entries
+✓ duration estimate  read from SETLIST-CI-14
+– failed tests       no failed build of SETLIST-CI to read
+– stop builds        learned the first time bam build cancel runs
+– rerun builds       learned the first time bam set rerun --failed runs

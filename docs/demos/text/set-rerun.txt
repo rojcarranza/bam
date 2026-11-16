@@ -1,0 +1,16 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam set run verify
+verify  verify-20261115T210133Z
+stage 1/2
+  ✗ it  SETLIST-IT-48  Failed  1s
+stage 2/2
+  · smoke  –  Pending
+set failed: stage 1 (1 of 1 runs failed)
+  try: bam logs SETLIST-IT-48 --failed
+  cause of it: --- FAIL: TestShareSetlist_NotifyTimeout (0.50s) (job INT)
+  try: bam set rerun --failed verify-20261115T210133Z
+$ bam set rerun --failed
+  ✓ it  SETLIST-IT-48  Success (rerun 1)  0s
+  ✓ smoke  SETLIST-SMOKE-9  Success  1s
+set succeeded

@@ -1,0 +1,29 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run ci --branch @
+Plan     SETLIST-CI  (branch capo-transpose, SETLIST-CI0)
+Vars     none
+✓ Queued   SETLIST-CI0-7   https://bamboo.example.com/browse/SETLIST-CI0-7
+SETLIST-CI0-7 (CI · capo-transpose)  ✗ failed  1s  12 tests failed
+└─ stage Build                       ✗ failed  1s  Unit
+failed: SETLIST-CI0-7 https://bamboo.example.com/browse/SETLIST-CI0-7
+  failed tests: github.com/rojcarranza/setlist-service/api.TestTransposeQuery, github.com/rojcarranza/setlist-
+service/setlist.TestTransposedMovesEverySong, github.com/rojcarranza/setlist-service/transpose.TestCapoMatches
+Transpose (+9 more)
+  cause: --- FAIL: TestKey/G (0.00s) (job UNIT)
+next: bam logs SETLIST-CI0-7 --failed
+$ bam logs --last --failed -n 10
+SETLIST-CI0-7 (failed)
+=== RUN   TestShare
+--- PASS: TestSetlistNotifiesInTime (0.00s)
+=== RUN   TestSetlistTimesOut
+--- PASS: TestShare (0.00s)
+FAIL
+FAIL    github.com/rojcarranza/setlist-service/api      0.004s
+--- PASS: TestSetlistTimesOut (0.01s)
+PASS
+ok      github.com/rojcarranza/setlist-service/share    0.013s
+ERROR setlist: unit tests failed
+$ bam open --last
+browser: opening https://bamboo.example.com/browse/SETLIST-CI0-7
+opening https://bamboo.example.com/browse/SETLIST-CI0-7

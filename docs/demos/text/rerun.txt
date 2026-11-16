@@ -1,0 +1,21 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run ci
+Plan     SETLIST-CI
+Vars     none
+✓ Queued   SETLIST-CI-37   https://bamboo.example.com/browse/SETLIST-CI-37
+SETLIST-CI-37 (CI)                    ✓ success  1s
+├─ stage Build                        ✓ success  1s
+├─ SETLIST-IT-40 (Integration tests)  ✗ failed   7s  1 test failed
+│  └─ stage Test                      ✗ failed   1s  Integration
+└─ SETLIST-PACKAGE-37 (Package)       ✓ success  6s
+   └─ stage Package                   ✓ success  6s
+failed: SETLIST-IT-40 https://bamboo.example.com/browse/SETLIST-IT-40
+  failed tests: github.com/rojcarranza/setlist-service/integration.TestShareSetlist_NotifyTimeout
+  cause: --- FAIL: TestShareSetlist_NotifyTimeout (0.50s) (job INT)
+next: bam logs SETLIST-IT-40 --failed
+$ bam build tree --last --failed
+listing plans 0/1 projects
+└─ SETLIST-IT-40 (Integration tests)  ✗ failed   7s  1 test failed
+   └─ stage Test                      ✗ failed   1s  Integration
+$ bam build tree --last --rerun-failed --yes

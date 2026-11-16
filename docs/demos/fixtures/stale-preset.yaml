@@ -1,0 +1,10 @@
+# A preset saved a while ago: it predates the plan's replicas variable and still carries a flag the plan dropped.
+presets:
+  deploy:
+    plan: SETLIST-DEPLOY
+    watch: true
+    variables:
+      environment: dev
+      region: eu
+      version: ""
+      legacy_flag: "on"

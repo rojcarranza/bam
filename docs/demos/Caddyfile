@@ -1,0 +1,11 @@
+# Presents the lab Bamboo as https://bamboo.example.com, so no recording shows the lab's own address.
+{
+	admin off
+	local_certs
+	skip_install_trust
+}
+
+bamboo.example.com {
+	tls internal
+	reverse_proxy 127.0.0.1:8085
+}

@@ -61,7 +61,7 @@ func newMineAddCmd(r *runtime) *cobra.Command {
 // mineNoteOverride says so when an agents: list in a more specific place hides
 // the machine file's, which is what bam agent mine edits.
 func (r *runtime) mineNoteOverride(edited []string) error {
-	cfg, err := r.loadConfig()
+	cfg, err := r.config()
 	if err != nil {
 		return err
 	}

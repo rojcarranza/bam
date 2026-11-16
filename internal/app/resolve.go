@@ -82,16 +82,34 @@ func BuildLabel(key string) string {
 // ResolvePlan turns a target name or plan key into a PlanRef. branch
 // overrides the target's branch.
 func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef, error) {
+	return s.resolvePlanIn(ctx, s.Config(), arg, branch)
+}
+
+// ResolvePlanToRun is ResolvePlan for a run about to be sent: it checks the
+// files now, and refuses when they no longer parse, instead of resolving
+// against the last good copy. Browsing keeps ResolvePlan, which works on the
+// last good copy until the file is fixed.
+func (s *Service) ResolvePlanToRun(ctx context.Context, arg, branch string) (PlanRef, error) {
+	cfg, err := s.configNow()
+	if err != nil {
+		return PlanRef{}, err
+	}
+	return s.resolvePlanIn(ctx, cfg, arg, branch)
+}
+
+// resolvePlanIn is ResolvePlan against one configuration, for a caller that
+// resolves several things and must see one version of the files.
+func (s *Service) resolvePlanIn(ctx context.Context, cfg *config.Config, arg, branch string) (PlanRef, error) {
 	var ref PlanRef
-	arg = PresetName(s.Cfg, arg)
+	arg = PresetName(cfg, arg)
 	switch {
 	case config.ValidTargetName(arg):
-		t, ok, err := s.Cfg.Target(arg)
+		t, ok, err := cfg.Target(arg)
 		if err != nil {
 			return PlanRef{}, err
 		}
 		if !ok {
-			return PlanRef{}, UnknownTarget(s.Cfg, arg)
+			return PlanRef{}, UnknownTarget(cfg, arg)
 		}
 		ref = PlanRef{PlanKey: t.Plan, MasterKey: t.Plan, Target: &t, Repositories: maps.Clone(t.Repositories)}
 		if branch == "" {
@@ -104,7 +122,7 @@ func (s *Service) ResolvePlan(ctx context.Context, arg, branch string) (PlanRef,
 			WithTry("its plan, " + arg[:strings.LastIndex(arg, "-")])
 	case projectRe.MatchString(arg):
 		try := "bam plan list " + arg + " to see its plans"
-		if p := lowerPreset(s.Cfg, arg); p != "" {
+		if p := lowerPreset(cfg, arg); p != "" {
 			try += ", or the preset " + p
 		}
 		return PlanRef{}, errs.Usagef("%q is a project key, not a plan key", arg).WithTry(try)
@@ -288,7 +306,7 @@ type BuildArg struct {
 // ResolveBuild returns a build key: the key itself, the latest build of a
 // plan or target, or the last build bam triggered from this repository.
 func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) {
-	a.Arg = PresetName(s.Cfg, a.Arg)
+	a.Arg = PresetName(s.Config(), a.Arg)
 	bare := s.bareNumberBuild(a.Arg)
 	switch {
 	case a.Last:
@@ -304,7 +322,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		try := "a build key such as PROJ-PLAN-12, a plan key such as PROJ-PLAN, or bam preset list"
 		if n := strings.TrimPrefix(a.Arg, "#"); digitsRe.MatchString(n) {
 			try = "a build number needs its plan, as in PROJ-PLAN-" + n
-			if rec, ok, _ := s.State.Last(s.Cfg.RepoRoot); ok && IsBuildKey(rec.BuildKey) {
+			if rec, ok, _ := s.State.Last(s.Config().RepoRoot); ok && IsBuildKey(rec.BuildKey) {
 				try = "did you mean " + rec.BuildKey[:strings.LastIndex(rec.BuildKey, "-")+1] + n + "?"
 			}
 		}
@@ -334,7 +352,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 // usage error when there is none, and a config error when it ran on another
 // server than this one.
 func (s *Service) LastBuild() (LastRecord, error) {
-	rec, ok, err := s.State.Last(s.Cfg.RepoRoot)
+	rec, ok, err := s.State.Last(s.Config().RepoRoot)
 	if err != nil {
 		return LastRecord{}, err
 	}
@@ -356,7 +374,7 @@ func (s *Service) bareNumberBuild(arg string) string {
 	if !digitsRe.MatchString(n) {
 		return ""
 	}
-	rec, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	rec, ok, _ := s.State.Last(s.Config().RepoRoot)
 	if !ok || !IsBuildKey(rec.BuildKey) || (rec.Origin != "" && rec.Origin != s.Origin) {
 		return ""
 	}

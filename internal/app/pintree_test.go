@@ -58,7 +58,7 @@ func pinTreeFake() *fake.Provider {
 func pinTreeService(t *testing.T, p *fake.Provider) *Service {
 	t.Helper()
 	svc := newService(t, p)
-	svc.Cfg.Project.Projects = []string{"PROJ"}
+	svc.Config().Project.Projects = []string{"PROJ"}
 	svc.Trees = &TreeStore{Dir: t.TempDir()}
 	return svc
 }

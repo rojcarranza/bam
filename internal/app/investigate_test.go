@@ -77,7 +77,7 @@ func TestInvestigateConfiguredChildren(t *testing.T) {
 	inv, err := s.Investigate(bg, failedBuild(), InvestigateOptions{})
 	require.NoError(t, err)
 	assert.Empty(t, inv.Children)
-	s.Cfg.Project.Children = map[string][]string{"PROJ-BUILD12": {"OPS-DEPLOY"}}
+	s.Config().Project.Children = map[string][]string{"PROJ-BUILD12": {"OPS-DEPLOY"}}
 	inv, err = s.Investigate(bg, failedBuild(), InvestigateOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"OPS-DEPLOY"}, inv.Children)

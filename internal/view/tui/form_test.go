@@ -2,8 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -1582,4 +1585,37 @@ func TestARunReplyAfterASwitchOfServerMarksNothingOnTheNewOne(t *testing.T) {
 	m, _ = send(m, cmd())
 	require.Empty(t, m.home.live)
 	require.Equal(t, "started PROJ-PROV12-9 on lab", m.status)
+}
+
+// BAM-53 machine 8: the form of a preset chosen from the table is built from
+// the files as they are now, not from the table's older copy. A save that no
+// longer parses stops the run instead of sending the last good values.
+func TestOpenFormCmdForAPresetReadsTheFilesNow(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(root, ".git"), 0o755))
+	path := filepath.Join(root, ".bam.yaml")
+	write := func(body string, at time.Time) {
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+		require.NoError(t, os.Chtimes(path, at, at))
+	}
+	base := "version: 1\nservers: {lab: {url: " + labOrigin + "}}\ndefault_server: lab\ntargets:\n  smoke: {plan: PROJ-PROV, branch: develop}\n"
+	write(base, time.Now())
+	src, err := config.NewSource(func() config.LoadOptions {
+		return config.LoadOptions{WorkDir: root, Home: root, MachineFile: filepath.Join(root, "m.yaml"), Getenv: func(string) string { return "" }}
+	})
+	require.NoError(t, err)
+	svc := testService()
+	svc.Cfg = src
+	tbl := &app.TargetInfo{Name: "smoke", Plan: "PROJ-PROV", Branch: "develop"} // the table, read before the edits
+
+	write(strings.Replace(base, "branch: develop", "branch: nope", 1), time.Now().Add(time.Minute))
+	msg := openFormCmd(t.Context(), svc, "", tbl, "", 1)()
+	e, ok := msg.(errMsg)
+	require.True(t, ok, "the edited branch does not exist, so the table's old one must not be used: %#v", msg)
+	require.Equal(t, streamRun, e.Stream)
+
+	write("version: 1\ntargets: [unbalanced\n", time.Now().Add(2*time.Minute))
+	msg = openFormCmd(t.Context(), svc, "", tbl, "", 2)()
+	_, ok = msg.(errMsg)
+	require.True(t, ok, "a file that does not parse stops the run: %#v", msg)
 }

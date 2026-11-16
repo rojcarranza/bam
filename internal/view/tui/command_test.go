@@ -101,7 +101,7 @@ func TestProjectCommand(t *testing.T) {
 	// are actually configured; projectChoices falls back to the loaded
 	// plans' projects otherwise, and those are not a validation list.
 	configured := homeModel()
-	configured.svc.Cfg.Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
+	configured.svc.Config().Project = &config.ProjectFile{Version: 1, Projects: []string{"OPS", "PROJ"}}
 	m, _ = runCmdLine(configured, "project LAB")
 	require.EqualError(t, m.err, `project "LAB" is not listed; projects: OPS PROJ`)
 	m, _ = runCmdLine(configured, "project proj")

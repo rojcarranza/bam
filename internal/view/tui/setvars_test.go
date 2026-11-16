@@ -35,7 +35,7 @@ func trainModel(t *testing.T) Model {
 	svc.Clock = instantClock{}
 	svc.Sets = &app.SetStore{Dir: filepath.Join(t.TempDir(), "sets"),
 		Host: func() (string, error) { return "laptop", nil }, PID: func() int { return 4242 }}
-	svc.Cfg.Machine.Sets = map[string]config.Set{"release": {Stages: []config.Stage{{{Target: "build"}}}}}
+	svc.Config().Machine.Sets = map[string]config.Set{"release": {Stages: []config.Stage{{{Target: "build"}}}}}
 	svc.Origin = labOrigin
 	f := svc.P.(*fake.Provider)
 	f.TriggerResults = map[string]provider.Build{"PROJ-BUILD": {Key: "PROJ-BUILD-50", PlanKey: "PROJ-BUILD", State: provider.StateQueued}}
@@ -44,7 +44,7 @@ func trainModel(t *testing.T) Model {
 	m.screen = screenHome
 	m.home.view = homeSets
 	m.focus = focusSets
-	infos, err := app.DescribeSets(svc.Cfg, func(string) string { return "" })
+	infos, err := app.DescribeSets(svc.Config(), func(string) string { return "" })
 	require.NoError(t, err)
 	m.sets.setItems([]setItem{{Info: infos[0]}})
 	next, _ := m.openSet()

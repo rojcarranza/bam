@@ -78,19 +78,19 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 			svc, _, err := r.connectServer(s)
 			return svc, err
 		},
-		// Reread the files on every call: the UI's r on the Presets panel is
-		// documented as picking up a preset added while it is open, and the
-		// cached Config holds the .bam.yaml parsed at start-up. The server
+		// Check the files on every call: the UI's r on the Presets panel is
+		// documented as picking up a preset added while it is open. The same
+		// source feeds the service, so both see one version. The server
 		// connection is untouched by this.
 		Targets: func() ([]app.TargetInfo, error) {
-			fresh, err := r.loadConfig()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}
 			return app.DescribeTargets(fresh, r.env.Getenv)
 		},
 		Sets: func() ([]app.SetInfo, error) {
-			fresh, err := r.loadConfig()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}
@@ -103,7 +103,7 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 			if err != nil {
 				return "", err
 			}
-			fresh, err := r.loadConfig()
+			fresh, err := r.current()
 			if err != nil {
 				return "", err
 			}
@@ -111,7 +111,7 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 		},
 		// EditorCmd opens a preset file in the editor bam run --edit uses.
 		EditorCmd: func(path string) (*exec.Cmd, error) {
-			cfg, err := r.loadConfig()
+			cfg, err := r.current()
 			if err != nil {
 				return nil, err
 			}
@@ -120,16 +120,18 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 		},
 		// RemovePreset reads the files fresh, as preset rm does.
 		RemovePreset: func(name string) ([]string, error) {
-			fresh, err := r.loadConfig()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}
-			return removePreset(fresh, name)
+			removed, err := removePreset(fresh, name)
+			r.configChanged()
+			return removed, err
 		},
 		// The board reads the pins fresh on every refresh and writes only
 		// bam's own settings file.
 		Monitor: func() ([]config.PinGroup, error) {
-			fresh, err := r.loadConfig()
+			fresh, err := r.current()
 			if err != nil {
 				return nil, err
 			}

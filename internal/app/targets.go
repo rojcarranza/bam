@@ -107,9 +107,8 @@ func targetVars(m config.StringMap, getenv func(string) string) []TargetVar {
 //
 // It exists for the terminal UI, which refreshes its preset list from the
 // files on disk and must then resolve one of those presets. Going back
-// through Service.Cfg would resolve against the configuration parsed when the
-// UI started, so a preset added since would be unknown, or would run on its
-// old branch. TargetInfo carries the raw values, including ${ENV} references
+// through the service's configuration could resolve a different preset than
+// the one on screen if the file changed since the panel read it. TargetInfo carries the raw values, including ${ENV} references
 // as written, so nothing is lost in the round trip.
 func (s *Service) RefFromTarget(ctx context.Context, t TargetInfo) (PlanRef, error) {
 	rt := config.ResolvedTarget{Name: t.Name, Target: config.Target{

@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/config"
@@ -38,6 +39,9 @@ type globalFlags struct {
 type runtime struct {
 	env   Env
 	flags globalFlags
+	// src is the configuration source, made on first use; cfg is the first one
+	// it returned, for commands that read it after config() has run.
+	src   *config.Source
 	cfg   *config.Config
 	trees *app.TreeStore
 	// notify is set by --notify on commands that watch a build.
@@ -59,24 +63,59 @@ type resultError struct{ State provider.State }
 
 func (e *resultError) Error() string { return "build finished: " + string(e.State) }
 
-func (r *runtime) config() (*config.Config, error) {
-	if r.cfg != nil {
-		return r.cfg, nil
+// source is the process's one configuration source, made on first use.
+func (r *runtime) source() (*config.Source, error) {
+	if r.src != nil {
+		return r.src, nil
 	}
-	cfg, err := r.loadConfig()
+	src, err := config.NewSource(r.loadOptions)
 	if err != nil {
 		return nil, err
 	}
-	r.cfg = cfg
+	src.MinInterval = time.Second
+	r.src = src
+	return src, nil
+}
+
+// config is the current configuration. It reloads when a file changed since
+// the last call, so the terminal UI's panels and its service see an edit made
+// while it is open, and a preset or pin bam wrote itself.
+func (r *runtime) config() (*config.Config, error) {
+	cfg, err := r.current()
+	if err != nil {
+		return nil, err
+	}
+	// r.cfg is set once: the terminal UI calls config from several goroutines,
+	// and a later write would race with the reads of commands.
+	if r.cfg == nil {
+		r.cfg = cfg
+	}
 	return cfg, nil
 }
 
-// loadConfig reads the configuration files afresh, bypassing the cache. The
-// terminal UI uses it so refreshing its Presets panel shows an edit made to
-// .bam.yaml while the UI is open.
-func (r *runtime) loadConfig() (*config.Config, error) {
-	return config.Load(config.LoadOptions{WorkDir: r.env.WorkDir, Home: r.env.Home, MachineFile: r.env.Paths.MachineConfig,
-		PresetsFile: r.presets().Path, Getenv: r.env.Getenv})
+// current is config that always checks the files and does not remember the
+// result in r.cfg; the service itself checks at most once a second. The terminal
+// UI's callbacks run on several goroutines and use this one, so nothing of
+// the runtime is written from them.
+func (r *runtime) current() (*config.Config, error) {
+	src, err := r.source()
+	if err != nil {
+		return nil, err
+	}
+	return src.Fresh()
+}
+
+// configChanged tells the source that bam itself wrote a configuration file,
+// so the next read reloads even when the file's stamp did not move.
+func (r *runtime) configChanged() {
+	if r.src != nil {
+		r.src.MarkStale()
+	}
+}
+
+func (r *runtime) loadOptions() config.LoadOptions {
+	return config.LoadOptions{WorkDir: r.env.WorkDir, Home: r.env.Home, MachineFile: r.env.Paths.MachineConfig,
+		PresetsFile: r.presets().Path, Getenv: r.env.Getenv}
 }
 
 func (r *runtime) out() (view.Out, error) {
@@ -182,7 +221,11 @@ func (r *runtime) connectServer(server config.ResolvedServer) (*app.Service, Bac
 	if ro {
 		backend = readOnlyBackend{Guard: readonly.Wrap(backend), probe: backend}
 	}
-	svc := &app.Service{P: backend, ReadOnly: ro, Cfg: r.cfg, Server: server, Origin: origin, Clock: r.env.Clock,
+	src, err := r.source()
+	if err != nil {
+		return nil, nil, err
+	}
+	svc := &app.Service{P: backend, ReadOnly: ro, Cfg: src, Server: server, Origin: origin, Clock: r.env.Clock,
 		State: &app.StateStore{Path: r.env.Paths.State}, Sets: r.setStore(), Trees: r.treeStore(), Getenv: r.env.Getenv,
 		Checkout: r.checkedOutBranch, Head: r.checkedOutCommit}
 	if r.env.Paths.AgentJobs != "" {

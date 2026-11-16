@@ -31,7 +31,7 @@ func TestRunTriggersChangedVariablesAndRecordsLast(t *testing.T) {
 	assert.Equal(t, map[string]string{"cluster_name": "alpha", "compute_nodes": "2", "db_password": "hunter2"}, p.Triggered[0].Variables)
 	assert.Equal(t, map[string]bool{"db_password": true}, p.Triggered[0].Secret)
 
-	rec, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	rec, ok, _ := s.State.Last(s.Config().RepoRoot)
 	require.True(t, ok)
 	assert.Equal(t, LastRecord{BuildKey: "PROJ-PROV12-10", Origin: s.Origin, PlanKey: "PROJ-PROV12", Target: "provision-lab",
 		TriggeredAt: time.Date(2026, 9, 12, 12, 0, 0, 0, time.UTC)}, rec)
@@ -44,7 +44,7 @@ func TestRunErrorRecordsNothing(t *testing.T) {
 	ref, _ := s.ResolvePlan(bg, "PROJ-BUILD", "")
 	_, err := s.Run(bg, ref, VarSet{})
 	require.Error(t, err)
-	_, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	_, ok, _ := s.State.Last(s.Config().RepoRoot)
 	assert.False(t, ok)
 }
 
@@ -218,7 +218,7 @@ func TestRunStopsABuildWhoseRevisionWasIgnored(t *testing.T) {
 	assert.Equal(t, "this Bamboo does not support building a chosen revision over REST", e.Why)
 	assert.Equal(t, "run without --revision, or use Run customised in Bamboo", e.Try)
 	assert.Equal(t, []string{"PROJ-BUILD-46"}, p.Stopped)
-	_, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	_, ok, _ := s.State.Last(s.Config().RepoRoot)
 	assert.False(t, ok, "a stopped build is not this repository's last build")
 }
 
@@ -254,7 +254,7 @@ func TestRunGivesUpStoppingAfterThirtySeconds(t *testing.T) {
 	assert.Equal(t, "bam build cancel PROJ-BUILD-46", e.Try)
 	assert.Equal(t, 30*time.Second, s.Clock.Now().Sub(start))
 	assert.Len(t, p.Stopped, 16, "one try at once, then one every 2s for 30s")
-	_, ok, _ := s.State.Last(s.Cfg.RepoRoot)
+	_, ok, _ := s.State.Last(s.Config().RepoRoot)
 	assert.False(t, ok)
 }
 

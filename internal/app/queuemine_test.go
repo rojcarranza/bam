@@ -45,8 +45,8 @@ func queueBamboo(now time.Time, entries ...provider.QueueEntry) *fake.Provider {
 func TestBoardQueueShowsOnlyWhatWaitsForYourAgentsPipelinesAndProjects(t *testing.T) {
 	svc := newService(t, nil)
 	now := svc.Clock.Now()
-	svc.Cfg.Project.Projects = []string{"TEAM"}
-	svc.Cfg.Project.Agents = []string{"team-a-agent"}
+	svc.Config().Project.Projects = []string{"TEAM"}
+	svc.Config().Project.Agents = []string{"team-a-agent"}
 	svc.P = queueBamboo(now,
 		queueEntry("OTHER-PLAN", 1),  // another team's agent runs it
 		queueEntry("MINE-PLAN", 2),   // one of your agents can run it
@@ -72,8 +72,8 @@ func TestBoardQueueShowsOnlyWhatWaitsForYourAgentsPipelinesAndProjects(t *testin
 
 func TestBoardQueueSaysNoneOfYourAgentsCanRunABuildOfAPinnedPlan(t *testing.T) {
 	svc := newService(t, nil)
-	svc.Cfg.Project.Projects = nil
-	svc.Cfg.Project.Agents = []string{"team-a-agent"}
+	svc.Config().Project.Projects = nil
+	svc.Config().Project.Agents = []string{"team-a-agent"}
 	svc.P = queueBamboo(svc.Clock.Now(), queueEntry("PINNED-PLAN", 3))
 	b, err := svc.Board(context.Background(), pins("g", "PINNED-PLAN"))
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestBoardQueueShowsEverythingForTheWholeServerOrWithNothingListed(t *testin
 	entries := []provider.QueueEntry{queueEntry("OTHER-PLAN", 1), queueEntry("MINE-PLAN", 2)}
 
 	svc := newService(t, nil)
-	svc.Cfg.Project.Projects = nil // no agents, pins or projects
+	svc.Config().Project.Projects = nil // no agents, pins or projects
 	svc.P = queueBamboo(svc.Clock.Now(), entries...)
 	b, err := svc.Board(context.Background(), nil)
 	require.NoError(t, err)
@@ -95,8 +95,8 @@ func TestBoardQueueShowsEverythingForTheWholeServerOrWithNothingListed(t *testin
 	assert.Zero(t, b.QueueOthers)
 
 	svc = newService(t, nil)
-	svc.Cfg.Project.Projects = nil
-	svc.Cfg.Project.Agents = []string{"team-a-agent"}
+	svc.Config().Project.Projects = nil
+	svc.Config().Project.Agents = []string{"team-a-agent"}
 	svc.P = queueBamboo(svc.Clock.Now(), entries...)
 	b, err = svc.Board(WholeServer(context.Background()), nil)
 	require.NoError(t, err)
@@ -108,8 +108,8 @@ func TestBoardQueueShowsEverythingForTheWholeServerOrWithNothingListed(t *testin
 // place is shown, not hidden.
 func TestBoardQueueShowsABuildItCannotPlace(t *testing.T) {
 	svc := newService(t, nil)
-	svc.Cfg.Project.Projects = nil
-	svc.Cfg.Project.Agents = []string{"team-a-agent"}
+	svc.Config().Project.Projects = nil
+	svc.Config().Project.Agents = []string{"team-a-agent"}
 	p := queueBamboo(svc.Clock.Now(), queueEntry("OTHER-PLAN", 1))
 	p.AgentJobMap = nil // Bamboo refuses the agents' job lists
 	svc.P = p
@@ -122,8 +122,8 @@ func TestBoardQueueShowsABuildItCannotPlace(t *testing.T) {
 // others, 25 of yours are read and none of the others.
 func TestBoardQueueReadsYourWaitsFirstWhereverTheySit(t *testing.T) {
 	svc := newService(t, nil)
-	svc.Cfg.Project.Projects = nil
-	svc.Cfg.Project.Agents = []string{"team-a-agent"}
+	svc.Config().Project.Projects = nil
+	svc.Config().Project.Agents = []string{"team-a-agent"}
 	var entries []provider.QueueEntry
 	for i := 1; i <= 40; i++ {
 		entries = append(entries, queueEntry("OTHER-PLAN", i))
@@ -196,8 +196,8 @@ func TestLongWaitsReadAsDaysFrom48Hours(t *testing.T) {
 // runs runs nothing until then; it does not show the whole queue as yours.
 func TestBoardQueueStaysYoursWhenANewAgentHasNoJobListYet(t *testing.T) {
 	svc := newService(t, nil)
-	svc.Cfg.Project.Projects = nil
-	svc.Cfg.Project.Agents = []string{"team-a-agent"}
+	svc.Config().Project.Projects = nil
+	svc.Config().Project.Agents = []string{"team-a-agent"}
 	p := queueBamboo(svc.Clock.Now(), queueEntry("OTHER-PLAN", 1), queueEntry("MINE-PLAN", 2))
 	svc.P = p
 	clock := svc.Clock.(*fakeClock)

@@ -137,9 +137,9 @@ func TestResolveVarsFromUnsupported(t *testing.T) {
 func TestOptionsErrorNeverShowsSecret(t *testing.T) {
 	s := newService(t, fakeBamboo())
 	withEnv(s, map[string]string{"LAB_DB_PASSWORD": "hunter2"})
-	tgt := s.Cfg.Project.Targets["provision-lab"]
+	tgt := s.Config().Project.Targets["provision-lab"]
 	tgt.Options = config.StringListMap{"db_password": {"a", "b"}}
-	s.Cfg.Project.Targets["provision-lab"] = tgt
+	s.Config().Project.Targets["provision-lab"] = tgt
 	ref, err := s.ResolvePlan(bg, "provision-lab", "")
 	require.NoError(t, err)
 

@@ -99,7 +99,7 @@ func TestCommitPlanAtUsesTheLastRunsPlanAndTheCheckedOutBranch(t *testing.T) {
 	_, err := s.CommitPlan(bg, "@", "")
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err), "no run in this repository yet")
 
-	require.NoError(t, s.State.SetLast(s.Cfg.RepoRoot, LastRecord{BuildKey: "PROJ-PARENT-9", Origin: s.Origin, PlanKey: "PROJ-PARENT"}))
+	require.NoError(t, s.State.SetLast(s.Config().RepoRoot, LastRecord{BuildKey: "PROJ-PARENT-9", Origin: s.Origin, PlanKey: "PROJ-PARENT"}))
 	plan, err := s.CommitPlan(bg, "@", "")
 	require.NoError(t, err)
 	assert.Equal(t, "PROJ-PARENT1", plan)

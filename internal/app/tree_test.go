@@ -57,7 +57,7 @@ func treeFake() *fake.Provider {
 func treeService(t *testing.T, p *fake.Provider) *Service {
 	t.Helper()
 	svc := newService(t, p)
-	svc.Cfg.Project.Projects = []string{"PROJ", "OPS"}
+	svc.Config().Project.Projects = []string{"PROJ", "OPS"}
 	return svc
 }
 
@@ -117,7 +117,7 @@ func TestBuildTreeShowsEveryRunOfAChildNewestFirst(t *testing.T) {
 
 func TestBuildTreeConfiguredChildren(t *testing.T) {
 	svc := treeService(t, treeFake())
-	svc.Cfg.Project.Children = map[string][]string{"PROJ-API": {"OPS-DEPLOY", "OPS-AUDIT"}}
+	svc.Config().Project.Children = map[string][]string{"PROJ-API": {"OPS-DEPLOY", "OPS-AUDIT"}}
 	svc.P.(*fake.Provider).History["OPS-AUDIT"] = []provider.Build{tb("OPS-AUDIT-3", "Manual run by jdoe", provider.StateSuccess, 1)}
 	tr, err := svc.BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
 	require.NoError(t, err)
@@ -130,7 +130,7 @@ func TestBuildTreeConfiguredChildren(t *testing.T) {
 func TestBuildTreeConfiguredPlanThatCannotBeRead(t *testing.T) {
 	p := treeFake()
 	svc := treeService(t, p)
-	svc.Cfg.Project.Children = map[string][]string{"PROJ-API": {"OPS-GONE"}}
+	svc.Config().Project.Children = map[string][]string{"PROJ-API": {"OPS-GONE"}}
 	svc.P = listErrProvider{Provider: p, failing: "OPS-GONE"}
 	tr, err := svc.BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
 	require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestBuildTreeReadsPastTheWindow(t *testing.T) {
 
 func TestBuildTreeAProjectThatCannotBeListed(t *testing.T) {
 	svc := treeService(t, treeFake())
-	svc.Cfg.Project.Projects = []string{"PROJ", "OPS", "LAB"}
+	svc.Config().Project.Projects = []string{"PROJ", "OPS", "LAB"}
 	tr, err := svc.BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "PROJ-API-142(OPS-DEPLOY-88(OPS-SMOKE-51),PROJ-DOCS-30)", shape(tr.Root))
@@ -251,7 +251,7 @@ func TestBuildTreeAProjectThatCannotBeListed(t *testing.T) {
 
 func TestBuildTreeWithoutAConfiguredScope(t *testing.T) {
 	svc := treeService(t, treeFake())
-	svc.Cfg.Project.Projects = nil
+	svc.Config().Project.Projects = nil
 	tr, err := svc.BuildTree(context.Background(), "PROJ-API-142", TreeOptions{})
 	require.NoError(t, err)
 	require.Equal(t, "PROJ-API-142(PROJ-DOCS-30)", shape(tr.Root), "only the root's project is searched")

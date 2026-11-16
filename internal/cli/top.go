@@ -128,7 +128,7 @@ type pinResult struct{ Key, Name string }
 // as a plan name, which asks the server. The configuration is read afresh,
 // so a pin added while the UI is open counts as taken.
 func (r *runtime) pinAdd(ctx context.Context, group string, pins []string) ([]pinResult, error) {
-	cfg, err := r.loadConfig()
+	cfg, err := r.config()
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,9 @@ func (r *runtime) pinAdd(ctx context.Context, group string, pins []string) ([]pi
 	for i, d := range done {
 		keys[i] = d.Key
 	}
-	if err := config.AddPins(r.env.Paths.MachineConfig, group, keys...); err != nil {
+	err = config.AddPins(r.env.Paths.MachineConfig, group, keys...)
+	r.configChanged()
+	if err != nil {
 		return nil, err
 	}
 	return done, nil
@@ -222,6 +224,7 @@ func (r *runtime) pinNames(ctx context.Context, groups []config.PinGroup) map[st
 // pinRemove removes a pin from the machine file.
 func (r *runtime) pinRemove(pin string) error {
 	ok, err := config.RemovePin(r.env.Paths.MachineConfig, pin)
+	r.configChanged()
 	if err != nil {
 		return err
 	}

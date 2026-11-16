@@ -311,9 +311,8 @@ func drainFollowCmd(events <-chan app.LogEvent, done <-chan error, gen int) tea.
 // the two requests share a generation.
 func resolveTargetBuildsCmd(ctx context.Context, svc *app.Service, target app.TargetInfo, gen int) tea.Cmd {
 	return func() tea.Msg {
-		// From the TargetInfo the panel is showing, not from the service's
-		// configuration: the panel may have been refreshed since the UI
-		// started, and the service's copy would be the older one.
+		// Only browsing: from the TargetInfo the panel is showing, so the
+		// builds listed are the plan the person sees. Nothing is sent from here.
 		ref, err := svc.RefFromTarget(ctx, target)
 		if err != nil {
 			// gen is the builds generation: this command is a builds load,
@@ -343,9 +342,9 @@ type formLoadedMsg struct {
 // openFormCmd resolves what the cursor is on into a plan reference and
 // fetches the variables the form starts from.
 //
-// A preset resolves from the TargetInfo the Presets panel is showing, not
-// from the service's configuration, for the same reason the preset drill
-// does: the panel may have been refreshed since the UI started.
+// A preset resolves by name through the service, which checks the files
+// when a run is built, so a run never goes out with a copy the panel read
+// before an edit, or from a save that no longer parses.
 //
 // from prefills the form from a previous build. It is a convenience, not a
 // requirement: a server that cannot read a build's variables, or a repository
@@ -359,9 +358,12 @@ func openFormCmd(ctx context.Context, svc *app.Service, planKey string, target *
 		)
 		if target != nil {
 			name = target.Name
-			ref, err = svc.RefFromTarget(ctx, *target)
+			// By name through the service, which reads the files as they are
+			// now: the table's copy may be older than an edit, or than a save
+			// that no longer parses, and a run must not send either.
+			ref, err = svc.ResolvePlanToRun(ctx, target.Name, "")
 		} else {
-			ref, err = svc.ResolvePlan(ctx, planKey, "")
+			ref, err = svc.ResolvePlanToRun(ctx, planKey, "")
 		}
 		if err != nil {
 			return errMsg{Err: err, Where: "run", Stream: streamRun, Gen: gen}

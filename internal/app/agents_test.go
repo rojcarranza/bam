@@ -117,7 +117,7 @@ func TestNeedsYouRaisesYourDownAndDisabledAgentsOnly(t *testing.T) {
 		agent("other-agent-0", false, true, false), // another team's, down
 	}
 	svc := newService(t, p)
-	svc.Cfg.Project.Agents = starts
+	svc.Config().Project.Agents = starts
 	b, err := svc.Board(context.Background(), nil)
 	require.NoError(t, err)
 	var texts []string
@@ -142,7 +142,7 @@ func TestBoardRemembersAnAgentAcrossReadsAndForgetsItOnRequest(t *testing.T) {
 	p := fakeBamboo()
 	p.AgentList = []provider.Agent{agent("team-a-agent-0", true, true, false), agent("team-a-agent-1", true, true, false)}
 	svc := newService(t, p)
-	svc.Cfg.Project.Agents = starts
+	svc.Config().Project.Agents = starts
 	_, err := svc.Board(context.Background(), nil)
 	require.NoError(t, err)
 
@@ -184,14 +184,14 @@ func TestBoardAsksAgentDetailsForYourAgentsOnly(t *testing.T) {
 		all = append(all, agent(name, true, true, false))
 	}
 	svc, p := whyService(t, b, all, nil)
-	svc.Cfg.Project.Agents = starts
+	svc.Config().Project.Agents = starts
 	_, err := svc.Board(context.Background(), nil)
 	require.NoError(t, err)
 	require.Equal(t, 1, p.AgentJobsCalls)
 	assert.Len(t, p.AgentJobsAsked[0], 30)
 
 	svc2, p2 := whyService(t, b, all, nil)
-	svc2.Cfg.Project.Agents = starts
+	svc2.Config().Project.Agents = starts
 	_, err = svc2.Board(WholeServer(context.Background()), nil)
 	require.NoError(t, err)
 	assert.Len(t, p2.AgentJobsAsked[0], 201)

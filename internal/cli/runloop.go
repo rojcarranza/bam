@@ -158,7 +158,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlan(ctx, arg, rf.branch)
+			ref, err := svc.ResolvePlanToRun(ctx, arg, rf.branch)
 			if err != nil {
 				return err
 			}

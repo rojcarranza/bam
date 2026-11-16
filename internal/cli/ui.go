@@ -78,9 +78,9 @@ func (r *runtime) openUI(ctx context.Context, board, whole bool) error {
 			svc, _, err := r.connectServer(s)
 			return svc, err
 		},
-		// Reread the files on every call: the UI's r on the Presets panel is
-		// documented as picking up a preset added while it is open, and the
-		// cached Config holds the .bam.yaml parsed at start-up. The server
+		// Check the files on every call: the UI's r on the Presets panel is
+		// documented as picking up a preset added while it is open. The same
+		// source feeds the service, so both see one version. The server
 		// connection is untouched by this.
 		Targets: func() ([]app.TargetInfo, error) {
 			fresh, err := r.current()

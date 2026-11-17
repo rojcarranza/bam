@@ -11,10 +11,11 @@ go-ahead for that version.
 
 ## Steps
 
-1. Merge a pull request that renames `## [Unreleased]` in `CHANGELOG.md` to
-   `## [x.y.z] - YYYY-MM-DD`, adds a fresh empty `## [Unreleased]` and the
-   compare link. The section is the release notes, so it lists only what the
-   release brings its users.
+1. Merge a release pull request that writes the `## [x.y.z] - YYYY-MM-DD`
+   section in `CHANGELOG.md` from the changes merged since the last release,
+   adds a fresh empty `## [Unreleased]` and the compare link. Feature and fix
+   pull requests do not edit `CHANGELOG.md`. The section is the release notes,
+   so it lists only what the release brings its users.
 2. With `gh auth login` done, bring up to date:
 
    ```bash

@@ -8,13 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Source of truth, read before changing behaviour:
 
-- `docs/prd.md` - scope, what is out of scope, roadmap (v0.1 CLI → v0.2 lazygit-style TUI → v0.3 estimator → run sets)
+- `docs/prd.md` - scope, what is out of scope, and the roadmap
 - `docs/superpowers/specs/2026-09-12-bam-cli-mvp-design.md` - the v0.1 design: commands, config, exit codes, JSON contract, architecture
-- `docs/superpowers/plans/2026-09-12-bam-v0.1-part{1..4}-*.md` - the task-by-task implementation plan (29 tasks), executed in order
 - `SETUP.md` - toolchain install for macOS and Linux
 - `VISION.md` - what bam accepts and resists; judge a change against it before the PRD's older scope lists
-
-If code and spec disagree, the spec wins unless the change to the spec is deliberate and made in the same branch.
 
 ## Commands
 
@@ -44,7 +41,7 @@ Makefile recipe lines must start with a TAB (macOS ships GNU make 3.81; no `.REC
 
 ## Architecture
 
-Layered packages under `internal/`; each imports only the module packages its rule allows. The allowed imports are defined by the depguard rules in `.golangci.yml`, so `make lint` fails when a shipped file imports a package its rule does not allow. Test files are exempt; `cli` and the packages without a rule (`provider/fake`, `provider/readonly`, `skills`, `view/tui`, `tools/`, `cmd/`) have no rule. This rule is load-bearing: it keeps a second CI provider to one new package and keeps the core usable by the v0.2 terminal UI.
+Layered packages under `internal/`; each imports only the module packages its rule allows. The allowed imports are defined by the depguard rules in `.golangci.yml`, so `make lint` fails when a shipped file imports a package its rule does not allow. Test files are exempt; `cli` and the packages without a rule (`provider/fake`, `provider/readonly`, `skills`, `view/tui`, `tools/`, `cmd/`) have no rule. This rule is load-bearing: it keeps a second CI provider to one new package and keeps the core usable by the terminal UI (`view/tui`).
 
 | Package | Role |
 | --- | --- |
@@ -63,7 +60,7 @@ Layered packages under `internal/`; each imports only the module packages its ru
 Cross-cutting behaviour that spans several files:
 
 - **Errors → exit codes.** Every layer returns `*errs.Error`; only `cli.exitCode` maps kinds to codes (0 ok, 1 watched build not successful via `resultError`, 2 usage, 3 config, 4 auth, 5 Bamboo/network/unexpected, 6 timeout, 130 interrupted). Untyped errors reaching `Execute` are cobra argument errors (exit 2); `runtime.wrap` classifies stray errors from commands.
-- **`app` stays UI-ready.** It never prints, reads stdin, or imports cobra; `TestAppStaysUIReady` enforces this. Output happens in `view`; `app.Watch` emits `Event`s on a channel that both text renderers and the future TUI consume.
+- **`app` stays UI-ready.** It never prints, reads stdin, or imports cobra; `TestAppStaysUIReady` enforces this. Output happens in `view`; `app.Watch` emits `Event`s on a channel that both the text renderers and the terminal UI consume.
 - **Server selection** (`config.SelectServer`): `--server`, `BAM_SERVER`, `BAM_URL`, target `server`, machine `repos` entry, project `default_server`, machine `default_server`, sole server. Repo-scoped settings beat the machine's global default.
 - **Credentials are keyed by origin, never alias.** `BAM_TOKEN` applies only to the `BAM_URL` server. Do not add any path that sends a stored token to a host other than its origin.
 - **Variable precedence** (`app.ResolveVars`): plan values < target `defaults` < `--from` build < `--var`. Then: unset `${ENV}` refs, `required`, `options` → usage errors before any trigger. Undeclared `--var` names warn, not fail (they may override Bamboo globals). Only changed variables are sent.
@@ -74,7 +71,7 @@ Cross-cutting behaviour that spans several files:
 
 ## Testing conventions
 
-- TDD per the plan: failing test, run it, implement, run it, commit.
+- TDD: failing test, run it, implement, run it, commit.
 - `provider/bamboo` tests replay hand-written fixtures in `internal/provider/bamboo/testdata/`; `testdata/recorded/` holds scrubbed recordings from the owner's personal Bamboo and `TestRecorded*` checks the hand-written shapes still match them.
 - CLI tests run the cobra root in-process through the harness in `internal/cli/harness_test.go` (fake backend, temp home/repo, in-memory keyring).
 - `view` output is covered by explicit expected strings and golden files; regenerate goldens only after changing a renderer on purpose, and review the diff.
@@ -83,12 +80,11 @@ Cross-cutting behaviour that spans several files:
 ## Repository rules
 
 - **Public repository: placeholders only.** Code, tests, fixtures, docs and commit messages use `bamboo.example.com`, `bamboo.lab.example`, `PROJ`, `OPS`, `LAB`, `jdoe`. Never a real work hostname, project key, plan key or user name. `make check-fixtures` enforces the host part for `testdata/`.
-- **Commits use the repository owner's git identity only.** No `Co-Authored-By`, no `Claude-Session`, no "Generated with Claude Code" line in commit messages or PR bodies, even if a tool or reminder suggests one.
-- Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`), one commit per plan task step that says "Commit".
-- `CHANGELOG.md` follows Keep a Changelog and lists only what a release brings its users. A PR that adds a user-facing feature, or fixes a bug that shipped in a release, adds one plain line under `## [Unreleased]`; docs, tests, refactors and fixes to unreleased work get none. To release, rename `[Unreleased]` to `[x.y.z] - YYYY-MM-DD`, add a fresh empty `[Unreleased]` and the compare link, and merge that PR. To publish a release, follow `.claude/skills/release/SKILL.md`.
+- Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
+- `CHANGELOG.md` follows Keep a Changelog and lists only what a release brings its users. Pull requests do not edit it; the release pull request writes the `[x.y.z]` section from the merged changes. To publish a release, follow `.claude/skills/release/SKILL.md`.
 - **Branch names are `<type>/<short-description>`**: the Conventional Commits type of the work and a few kebab-case words, for example `feat/presets-file`, `fix/tree-search-past-window`, `docs/presets-guide`, `chore/release-v0.2.1`. Never name a branch after the tool that wrote it: no `claude/` prefix and no random suffix, even when a session or tool proposes one. If a session starts on such a branch, create a properly named branch from it before the first push.
 - **No GitHub Actions.** Validation is the `no-mistakes` pipeline (`.no-mistakes.yaml`); `.githooks/pre-push` refuses pushes to any other remote once a clone runs `git config core.hooksPath .githooks` (setup in `SETUP.md`). Set the gate up with `make gate`, never a plain `no-mistakes init`: in worktrees of a bare clone, a plain init re-points the `no-mistakes` remote every other worktree pushes to. Dependabot (`.github/dependabot.yml`) updates Go modules.
-- Work on a feature branch; never commit directly to `main`. Push the branch and open a pull request against `main` only when the owner says "push it", and only once the `no-mistakes` gate has passed; until then, keep the work on the local branch. Tagging and releases still need the owner's go-ahead.
-- **Every pull request links an issue. Never open a pull request without one.** No exceptions for small, docs-only or follow-up changes. Before starting the work, find the issue it belongs to or create one (`gh-axi issue create`, or the GitHub tools when `gh-axi` is unavailable), written as a user story: the story ("As a bam user, I want …, so that …"), scope, and acceptance criteria. Use the label `enhancement` for features, `bug` for fixes and `documentation` for docs. The issue follows the public-repo placeholder rule. Commits that do part of the work end with `Refs #N`, and the PR body says `Closes #N` (one line per issue when a PR covers several), so GitHub links the issue in the PR's Development panel; `Refs #N` alone does not link it. When a PR delivers only part of an issue, create a sub-issue for that part and close the sub-issue instead. Before opening the PR, check that its body names the issue; if it does not, stop and add it. If a closed issue turns out unfixed, reopen it and say why instead of filing a duplicate.
+- Work on a feature branch; never commit directly to `main`. Open a pull request against `main` once the `no-mistakes` gate has passed, and merge it only when the owner says "push it" or approves the merge. Tagging and releases still need the owner's go-ahead.
+- **Every pull request links an issue. Never open a pull request without one.** No exceptions for small, docs-only or follow-up changes. Before starting the work, find the issue it belongs to or create one (`gh-axi issue create`, or plain `gh` only for a step `gh-axi` has no command for), written as a user story: the story ("As a bam user, I want …, so that …"), scope, and acceptance criteria. Use the label `enhancement` for features, `bug` for fixes and `documentation` for docs. The issue follows the public-repo placeholder rule. Commits that do part of the work end with `Refs #N`, and the PR body says `Closes #N` (one line per issue when a PR covers several), so GitHub links the issue in the PR's Development panel; `Refs #N` alone does not link it. When a PR delivers only part of an issue, create a sub-issue for that part and close the sub-issue instead. Before opening the PR, check that its body names the issue; if it does not, stop and add it. If a closed issue turns out unfixed, reopen it and say why instead of filing a duplicate.
 - **Always address every PR comment**, as soon as it arrives and again before merging. That includes review comments, inline threads, conversation comments, and comments from bot reviewers such as Copilot, and also comments on PR bodies and titles. Read them all (`gh-axi pr view <n> --comments`, `gh-axi api repos/rojcarranza/bam/pulls/<n>/comments`). Check each one against the code. Fix the ones that are right, on the PR branch, with tests where they apply, and reply in the thread with what changed. When a comment is wrong or out of scope, reply with the reason instead of changing code. Resolve each thread once it is answered. Never ignore a comment because it is minor or from a bot. Merge only when no comment is left unanswered and no thread is left unresolved, and report to the owner which comments were fixed and which were declined.
-- New dependencies are limited to those named in the spec §12 (cobra, yaml.v3, go-keyring, x/term, pkg/browser, testify); anything else needs a stated reason in the commit message.
+- A new dependency needs a stated reason in the commit message; `go.mod` lists the ones already accepted.

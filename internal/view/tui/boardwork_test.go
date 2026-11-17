@@ -170,6 +170,36 @@ func TestBoardEnterOnABuildNotFoundOpensNothing(t *testing.T) {
 	require.Equal(t, screenBoard, m.screen)
 }
 
+// Intent (#257): an agent running a deployment shows it, o opens it in
+// Bamboo, and the build keys do nothing on it.
+func TestBoardDeploymentRowSaysDeployingAndOOpensIt(t *testing.T) {
+	var opened string
+	mine := workPools(1, 2, 1)
+	url := labOrigin + "/deploy/viewDeploymentResult.action?deploymentResultId=1769473"
+	mine.Pools[0].Agents[1].State = app.AgentBuilding
+	mine.Pools[0].Agents[1].Deploy = &app.AgentDeploy{Project: "Lab release", Environment: "Staging", Release: "release-1",
+		URL: url, StartedAt: goldenNow.Add(-5 * time.Minute)}
+	mine.Building, mine.Idle = 2, 0
+	m := workBoard(200, 50, mine)
+	m.deps.Open = func(u string) error { opened = u; return nil }
+	view := ansi.Strip(m.View())
+	require.Contains(t, view, "deploying")
+	require.Contains(t, view, "Lab release · Staging · release-1")
+	require.NotContains(t, view, "build not found")
+
+	m, _ = send(m, mkKey("tab"))
+	m, _ = send(m, mkKey("j"))
+	m, _ = send(m, mkKey("j")) // the deploying agent
+	for _, k := range []string{"enter", "l", "t"} {
+		m, _ = send(m, mkKey(k))
+		require.Equal(t, screenBoard, m.screen, "%s opens no build on a deployment", k)
+	}
+	_, cmd := send(m, mkKey("o"))
+	require.NotNil(t, cmd)
+	cmd()
+	require.Equal(t, url, opened)
+}
+
 // P on an agent row asks for a group and pins the plan the agent builds.
 func TestBoardPOnAnAgentRowPinsThePlanItBuildsAfterAskingForTheGroup(t *testing.T) {
 	var group, plan string

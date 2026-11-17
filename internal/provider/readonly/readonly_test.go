@@ -51,6 +51,8 @@ func TestWriteMethodsAreRefusedAndReadsPass(t *testing.T) {
 	assert.Equal(t, "jdoe", u.Name)
 	_, ok := any(p).(provider.PlanSearcher)
 	assert.True(t, ok, "optional extensions stay visible")
+	_, ok = any(p).(provider.ActivityReader)
+	assert.True(t, ok, "bam top shows what each agent runs when read-only too")
 }
 
 // Against the real Bamboo client and an HTTP server: of the calls a command

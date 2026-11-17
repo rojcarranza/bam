@@ -78,6 +78,10 @@ type MineRow struct {
 // find.
 const MineNotFound = "building · build not found"
 
+// MineDeploying stands in a row's job column for an agent that runs a
+// deployment; the plan column names the deployment.
+const MineDeploying = "deploying"
+
 // MineAgentNumber is the agent's number in its pool, "" for a pool of one name.
 func MineAgentNumber(name string) string {
 	i := len(name)
@@ -110,7 +114,7 @@ func MineGroupName(name string) string {
 }
 
 // MineRows is a row for each building agent of pool p, in number order, with
-// the build it runs at now.
+// the build or the deployment it runs at now.
 func MineRows(p app.MyPool, now time.Time) []MineRow {
 	var out []MineRow
 	for _, a := range p.Agents {
@@ -123,6 +127,8 @@ func MineRows(p app.MyPool, now time.Time) []MineRow {
 			if b.Group != "" {
 				r.Group = MineGroupName(b.Group)
 			}
+		} else if d := a.Deploy; d != nil {
+			r.Job, r.Plan, r.Running = MineDeploying, d.Label(), MineElapsed(d.RunningFor(now))
 		}
 		out = append(out, r)
 	}
@@ -255,6 +261,17 @@ type MineAgentDoc struct {
 	// Build is the job a building agent runs; absent for an agent that does
 	// not build and for one whose build bam did not find.
 	Build *MineBuildDoc `json:"build,omitempty"`
+	// Deploy is the deployment a building agent runs, when bam found one.
+	Deploy *MineDeployDoc `json:"deployment,omitempty"`
+}
+
+// MineDeployDoc is the deployment one of your agents runs.
+type MineDeployDoc struct {
+	Project     string  `json:"project"`
+	Environment string  `json:"environment"`
+	Release     string  `json:"release"`
+	URL         string  `json:"url"`
+	StartedAt   *string `json:"started_at"`
 }
 
 // MineBuildDoc is the build one of your agents runs.
@@ -280,6 +297,10 @@ func mineDoc(m *app.MyAgents) *BoardMineDoc {
 			if b := a.Build; b != nil {
 				ad.Build = &MineBuildDoc{Job: b.Job, BuildKey: b.BuildKey, PlanKey: b.PlanKey, PlanName: b.PlanName,
 					Branch: b.Branch, Group: b.Group, StartedAt: timePtr(b.StartedAt)}
+			}
+			if d := a.Deploy; d != nil {
+				ad.Deploy = &MineDeployDoc{Project: d.Project, Environment: d.Environment, Release: d.Release,
+					URL: d.URL, StartedAt: timePtr(d.StartedAt)}
 			}
 			d.Agents = append(d.Agents, ad)
 		}

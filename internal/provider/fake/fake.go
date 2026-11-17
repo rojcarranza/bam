@@ -6,14 +6,16 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
 )
 
 var (
-	_ provider.Provider     = (*Provider)(nil)
-	_ provider.PlanSearcher = (*Provider)(nil)
+	_ provider.Provider       = (*Provider)(nil)
+	_ provider.PlanSearcher   = (*Provider)(nil)
+	_ provider.ActivityReader = (*Provider)(nil)
 )
 
 // Provider returns whatever its fields hold. Zero value is usable.
@@ -77,6 +79,17 @@ type Provider struct {
 	Running      provider.RunningBuilds
 	RunningErr   error
 	RunningCalls int
+	// Acts is what Activity lists; ActsErr is returned when it is set, and
+	// NoActivity makes Activity answer ErrUnsupported, as a server without the
+	// list does. ActsCalls counts the calls.
+	Acts       []provider.AgentActivity
+	ActsErr    error
+	NoActivity bool
+	ActsCalls  int
+	// DeployStarts is when each deployment began, by result id; DeployCalls
+	// lists the ids DeploymentStarted was asked about.
+	DeployStarts map[string]time.Time
+	DeployCalls  []string
 	// NoPlanSearch makes SearchPlans answer ErrUnsupported, as a server
 	// without a plan search does. Otherwise it finds, across every project,
 	// the plans whose name holds the term, ignoring case.
@@ -453,6 +466,32 @@ func (f *Provider) RecentBuilds(_ context.Context, limit int) ([]provider.Build,
 		return f.Recent[:limit], nil
 	}
 	return f.Recent, nil
+}
+
+// Activity lists Acts.
+func (f *Provider) Activity(_ context.Context) ([]provider.AgentActivity, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ActsCalls++
+	switch {
+	case f.NoActivity:
+		return nil, errs.Bamboof("no activity list").Wrap(errs.ErrUnsupported)
+	case f.ActsErr != nil:
+		return nil, f.ActsErr
+	}
+	return f.Acts, nil
+}
+
+// DeploymentStarted answers from DeployStarts.
+func (f *Provider) DeploymentStarted(_ context.Context, id string) (time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.DeployCalls = append(f.DeployCalls, id)
+	t, ok := f.DeployStarts[id]
+	if !ok {
+		return time.Time{}, errs.ErrNotFound
+	}
+	return t, nil
 }
 
 // RunningBuilds lists Running.

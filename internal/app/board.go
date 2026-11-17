@@ -206,34 +206,41 @@ func (s *Service) RefreshBoard(ctx context.Context, groups []config.PinGroup, pr
 	return b, nil
 }
 
-// boardWork is what the busy ones of your agents build. The full read
-// (prev nil) looks it up; the quick read keeps the answer of the board on
-// screen, so Bamboo is asked once a minute and only while an agent is busy.
+// boardWork is what the busy ones of your agents build. Every read asks
+// Bamboo's Build activity list, one request, while an agent is busy. Where
+// the server does not give that list, the full read (prev nil) looks the
+// slow way and the quick read keeps the answer of the board on screen, so
+// Bamboo is asked once a minute.
 func (s *Service) boardWork(ctx context.Context, as []provider.Agent, groups []PinGroupView, prev *Board) AgentWork {
-	if prev != nil {
-		return prev.Work
-	}
 	var busy []provider.Agent
 	for _, a := range OnlyAgents(as, s.AgentStarts()) {
 		if a.Busy && a.Online && a.Enabled {
 			busy = append(busy, a)
 		}
 	}
+	if prev != nil {
+		if w, ok := s.LiveAgentWork(ctx, busy, groups); ok {
+			return w
+		}
+		return prev.Work
+	}
 	return s.LookAgentWork(ctx, busy, groups)
 }
 
-// markWork sets Build on each of your building agents the lookup found a
-// build for, and clears it on the others.
+// markWork sets Build or Deploy on each of your building agents the lookup
+// found a build or a deployment for, and clears them on the others.
 func (s *Service) markWork(m *MyAgents, w AgentWork) {
 	for i := range m.Pools {
 		for j := range m.Pools[i].Agents {
 			a := &m.Pools[i].Agents[j]
-			a.Build = nil
+			a.Build, a.Deploy = nil, nil
 			if a.State != AgentBuilding {
 				continue
 			}
 			if b, ok := w.BuildOf(a.Name); ok {
 				a.Build = &b
+			} else if d, ok := w.DeployOf(a.Name); ok {
+				a.Deploy = &d
 			}
 		}
 	}

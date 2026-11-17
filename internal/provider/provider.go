@@ -1,6 +1,9 @@
 package provider
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Provider is everything bam needs from a CI server. Optional operations
 // return an error wrapping errs.ErrUnsupported when the server cannot do them.
@@ -101,6 +104,35 @@ type StopChecker interface {
 // progress with their stages and jobs, on main plans and on plan branches.
 type RunningBuilder interface {
 	RunningBuilds(ctx context.Context) (RunningBuilds, error)
+}
+
+// ActivityReader is an optional Provider extension: it lists, in one read,
+// the job or deployment each agent runs now, as the server's Build activity
+// page shows them. Bamboo does not document this list, so a server may refuse
+// it: Activity then answers an error wrapping errs.ErrUnsupported.
+type ActivityReader interface {
+	Activity(ctx context.Context) ([]AgentActivity, error)
+	// DeploymentStarted is when the deployment with result id began to run
+	// on its agent; zero when the server does not say.
+	DeploymentStarted(ctx context.Context, id string) (time.Time, error)
+}
+
+// AgentActivity is the job or the deployment one agent runs now.
+type AgentActivity struct {
+	Agent string // the agent's name, as the agent list gives it
+	// Job, Build and PlanKey are the job's result key, its build's result
+	// key and its plan's or plan branch's key; empty for a deployment.
+	Job, Build, PlanKey string
+	Deploy              *Deployment // set for a deployment
+}
+
+// Deployment is a deployment an agent runs.
+type Deployment struct {
+	ID          string // the deployment result's id
+	Project     string // the deployment project's name
+	Environment string
+	Release     string
+	URL         string // the deployment result's page in Bamboo
 }
 
 // RunningBuilds is the builds in progress. A list the server lacks, or that

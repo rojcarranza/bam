@@ -47,6 +47,9 @@ type Capabilities struct {
 	RunningBranches string `json:"running_branches,omitempty"` // yes | no
 	// PlanSearch is whether the server searches plans by name.
 	PlanSearch string `json:"plan_search,omitempty"` // yes | no
+	// Activity is whether the server gives the list behind its Build
+	// activity page, which names what each agent runs.
+	Activity string `json:"activity,omitempty"` // yes | no
 }
 
 const capsMaxAge = 7 * 24 * time.Hour

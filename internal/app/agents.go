@@ -42,6 +42,8 @@ type MyAgent struct {
 	// Build is the job a building agent runs, when bam found it; nil for an
 	// agent that does not build, and for one whose build was not found.
 	Build *AgentBuild
+	// Deploy is the deployment a building agent runs, when bam found it.
+	Deploy *AgentDeploy
 }
 
 // MyPool is the agents whose names differ only in their final number.

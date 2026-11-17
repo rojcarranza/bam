@@ -110,3 +110,38 @@ func TestBoardJSONGivesABuildingAgentsBuild(t *testing.T) {
 	assert.Nil(t, got.Agents[1].Build)
 	assert.Nil(t, got.Agents[2].Build, "build not found: no build field")
 }
+
+// Intent (#257): an agent that runs a deployment says so, with the deployment
+// project, environment, release and how long it runs, instead of "build not
+// found"; bam top --json gives it as deployment.
+func TestMineRowAndJSONSayWhatADeployingAgentRuns(t *testing.T) {
+	d := &app.AgentDeploy{Project: "Lab release", Environment: "Staging", Release: "release-1",
+		URL: "https://bamboo.example.com/deploy/viewDeploymentResult.action?deploymentResultId=1769473", StartedAt: fixedNow.Add(-5 * time.Minute)}
+	pool := minePool()
+	pool.Agents[2].Deploy = d // the agent whose build was not found runs a deployment
+
+	rows := MineRows(pool, fixedNow)
+	cols := MineColumns(rows, 120)
+	assert.Equal(t, " 3  deploying            Lab release · Staging · release-1                   5m", MineRowText(rows[1], cols, nil))
+
+	out, err := json.Marshal(mineDoc(&app.MyAgents{Starts: []string{"team-a-agent"}, Pools: []app.MyPool{pool}}))
+	require.NoError(t, err)
+	var got struct {
+		Agents []struct {
+			Build  *struct{ Job string }
+			Deploy *struct {
+				Project, Environment, Release, URL string
+				StartedAt                          string `json:"started_at"`
+			} `json:"deployment"`
+		}
+	}
+	require.NoError(t, json.Unmarshal(out, &got))
+	assert.Nil(t, got.Agents[2].Build)
+	require.NotNil(t, got.Agents[2].Deploy)
+	assert.Equal(t, "Lab release", got.Agents[2].Deploy.Project)
+	assert.Equal(t, "Staging", got.Agents[2].Deploy.Environment)
+	assert.Equal(t, "release-1", got.Agents[2].Deploy.Release)
+	assert.Equal(t, d.URL, got.Agents[2].Deploy.URL)
+	assert.Equal(t, d.StartedAt.UTC().Format(time.RFC3339), got.Agents[2].Deploy.StartedAt)
+	assert.Nil(t, got.Agents[0].Deploy, "an agent on a build has no deployment")
+}

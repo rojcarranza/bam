@@ -352,6 +352,16 @@ func (b *boardState) agentBuild() (provider.Build, bool) {
 	return provider.Build{Key: a.Build.BuildKey, PlanKey: a.Build.PlanKey, State: provider.StateRunning}, true
 }
 
+// agentDeploy is the deployment the selected line of Your agents runs, or nil.
+func (b *boardState) agentDeploy() *app.AgentDeploy {
+	sels := b.agentSels()
+	c := b.cursor[boardAgents]
+	if b.panel != boardAgents || b.data.Mine == nil || c >= len(sels) || sels[c].agent < 0 {
+		return nil
+	}
+	return b.data.Mine.Pools[sels[c].pool].Agents[sels[c].agent].Deploy
+}
+
 // selectedBuild is the build under the cursor: an agent's build, a pin's build
 // running now or else its newest result, or the build a Needs you line names.
 func (m Model) boardBuild() (provider.Build, bool) {
@@ -514,6 +524,9 @@ func (m Model) boardSelectionURL() string {
 	}
 	if b, ok := m.boardBuild(); ok {
 		return m.svc.P.URL(b.Key)
+	}
+	if d := m.board.agentDeploy(); d != nil {
+		return d.URL
 	}
 	return ""
 }
@@ -1048,6 +1061,8 @@ func (m Model) boardPoolInfo() (tea.Model, tea.Cmd) {
 					sb.WriteString("  " + view.MineGroupName(b.Group))
 				}
 				sb.WriteString("  " + view.MineElapsed(b.RunningFor(m.now())))
+			} else if d := a.Deploy; d != nil {
+				fmt.Fprintf(&sb, "  %s  %s  %s", view.MineDeploying, d.Label(), view.MineElapsed(d.RunningFor(m.now())))
 			} else {
 				sb.WriteString(" · build not found")
 			}

@@ -5,6 +5,7 @@ package readonly
 
 import (
 	"context"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -89,4 +90,20 @@ func (g *Guard) RecentBuilds(ctx context.Context, limit int) ([]provider.Build, 
 		return r.RecentBuilds(ctx, limit)
 	}
 	return nil, errs.ErrUnsupported
+}
+
+// Activity and DeploymentStarted only read, so they pass through.
+
+func (g *Guard) Activity(ctx context.Context) ([]provider.AgentActivity, error) {
+	if r, ok := g.Provider.(provider.ActivityReader); ok {
+		return r.Activity(ctx)
+	}
+	return nil, errs.ErrUnsupported
+}
+
+func (g *Guard) DeploymentStarted(ctx context.Context, id string) (time.Time, error) {
+	if r, ok := g.Provider.(provider.ActivityReader); ok {
+		return r.DeploymentStarted(ctx, id)
+	}
+	return time.Time{}, errs.ErrUnsupported
 }

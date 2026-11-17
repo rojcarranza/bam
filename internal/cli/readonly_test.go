@@ -3,7 +3,9 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -186,4 +188,43 @@ func TestReadOnlyServiceRefusesAnAgentSwitch(t *testing.T) {
 	_, ok := svc.P.(provider.AgentSwitcher)
 	assert.True(t, ok, "the guard answers the switch, so it reads as a refusal, not as unsupported")
 	assert.Empty(t, h.fake.AgentSwitched)
+}
+
+// Intent (issue 259): --read-only refuses writes and nothing else, so on a
+// Bamboo that gives no Build activity list, where bam lists the running
+// builds and reads each running job's agent from its log, bam top's Your
+// agents and bam agent show find what a building agent runs the same with
+// the switch as without it. linux-1 runs Provision lab, which is not among
+// the newest builds agent show reads.
+func TestReadOnlyFindsWhatAgentsBuildTheOlderWay(t *testing.T) {
+	for name, cmd := range map[string][]string{
+		"top":        {"top", "--once"},
+		"agent show": {"agent", "show", "linux-1", "--builds", "2"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			out := map[bool]string{}
+			for _, ro := range []bool{false, true} {
+				h := showHarness(t)
+				require.Equal(t, 0, h.run("agent", "mine", "add", "linux"))
+				h.fake.NoActivity = true
+				h.fake.Running = provider.RunningBuilds{Builds: []provider.Build{{
+					Key: "PROJ-PROV-9", PlanKey: "PROJ-PROV", PlanName: "Provision lab", Number: 9,
+					State: provider.StateRunning, StartedAt: fixedNow.Add(-6 * time.Minute),
+					Stages: []provider.Stage{{Name: "Apply", State: provider.StateRunning,
+						Jobs: []provider.Job{{Key: "PROJ-PROV-TF-9", Name: "Terraform", State: provider.StateRunning}}}},
+				}}}
+				// Bamboo lists the jobs an agent can run by their plan's job keys.
+				h.fake.AgentJobMap = map[string][]string{"linux-1": {"PROJ-BUILD-U", "PROJ-PROV-TF"}, "linux-2": {"PROJ-BUILD-U"}}
+				h.fake.JobAgentMap["PROJ-PROV-TF-9"] = "linux-1"
+				args := cmd
+				if ro {
+					args = append(slices.Clone(cmd), "--read-only")
+				}
+				require.Equal(t, 0, h.run(args...), h.stderr.String())
+				out[ro] = h.stdout.String()
+			}
+			assert.Contains(t, out[false], "PROJ-PROV-TF-9", "the older lookup finds the job linux-1 runs")
+			assert.Equal(t, out[false], out[true])
+		})
+	}
 }

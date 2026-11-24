@@ -20,12 +20,10 @@ func (r *runtime) completeTargets(cmd *cobra.Command, args []string, toComplete 
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	cfg, err := r.config()
-	if err != nil {
+	names, ok := r.presetNames()
+	if !ok {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	all, _ := cfg.Targets()
-	names := slices.Sorted(maps.Keys(all))
 	if project, _, ok := strings.Cut(toComplete, "-"); ok && app.IsProjectKey(project) {
 		if svc, _, err := r.connect(cmd.Context(), ""); err == nil {
 			plans, _ := svc.P.ListPlans(cmd.Context(), project)
@@ -35,6 +33,45 @@ func (r *runtime) completeTargets(cmd *cobra.Command, args []string, toComplete 
 		}
 	}
 	return names, cobra.ShellCompDirectiveNoFileComp
+}
+
+// presetNames lists each preset that loads, described "PLAN · branch". One
+// broken preset, or a name in two presets files, does not hide the others:
+// Tab is most needed while the config is being fixed.
+func (r *runtime) presetNames() ([]string, bool) {
+	o := r.loadOptions()
+	o.TolerateDuplicates = true
+	cfg, err := config.Load(o)
+	if err != nil {
+		return nil, false
+	}
+	all := cfg.LoadableTargets()
+	var names []string
+	for _, n := range slices.Sorted(maps.Keys(all)) {
+		desc := all[n].Plan
+		if b := all[n].Branch; b != "" {
+			desc += " · " + b
+		}
+		names = append(names, n+"\t"+desc)
+	}
+	return names, true
+}
+
+// completePinArgs completes the PINs of bam pin add: preset names, the ones
+// not already on the line. The first argument, the group, is a new name.
+func (r *runtime) completePinArgs(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+	none := cobra.ShellCompDirectiveNoFileComp
+	if len(args) == 0 {
+		return nil, none
+	}
+	names, ok := r.presetNames()
+	if !ok {
+		return nil, none
+	}
+	return slices.DeleteFunc(names, func(n string) bool {
+		name, _, _ := strings.Cut(n, "\t")
+		return slices.Contains(args[1:], name)
+	}), none
 }
 
 // completeServers offers server aliases that have a url; machineOnly limits

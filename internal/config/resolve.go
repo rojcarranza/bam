@@ -255,6 +255,32 @@ type TargetLayer struct {
 // presets file and directory, then the machine repos entry for this
 // repository. It validates the merged result.
 func (c *Config) Targets() (map[string]ResolvedTarget, error) {
+	out := c.mergedTargets()
+	servers := c.Servers()
+	for _, name := range slices.Sorted(maps.Keys(out)) {
+		if err := validateTarget(out[name], servers); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// LoadableTargets is Targets that leaves out each preset that fails
+// validation instead of failing on the first one, so a completion can still
+// offer every preset that works.
+func (c *Config) LoadableTargets() map[string]ResolvedTarget {
+	out := c.mergedTargets()
+	servers := c.Servers()
+	for name, t := range out {
+		if validateTarget(t, servers) != nil {
+			delete(out, name)
+		}
+	}
+	return out
+}
+
+// mergedTargets merges the targets of every layer, without validating them.
+func (c *Config) mergedTargets() map[string]ResolvedTarget {
 	out := map[string]ResolvedTarget{}
 	layer := func(label, path string, keyPath []string, targets map[string]Target) {
 		for name, t := range targets {
@@ -276,13 +302,7 @@ func (c *Config) Targets() (map[string]ResolvedTarget, error) {
 	if key, repo, ok := c.repoEntry(); ok {
 		layer(c.MachinePath+" (repos)", c.MachinePath, []string{"repos", key, "targets"}, repo.Targets)
 	}
-	servers := c.Servers()
-	for _, name := range slices.Sorted(maps.Keys(out)) {
-		if err := validateTarget(out[name], servers); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
+	return out
 }
 
 // PresetsUsingServer names the presets, in every config file and repos

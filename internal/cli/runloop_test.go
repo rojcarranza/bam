@@ -261,7 +261,7 @@ func TestVarCompletionUsesTargetOptions(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "cluster_type=dcos\n")
 
 	h.run("__complete", "run", "prov")
-	assert.Contains(t, h.stdout.String(), "provision-lab\n")
+	assert.Contains(t, h.stdout.String(), "provision-lab\t")
 }
 
 func TestVarCompletionOffersAPlanKeysVariables(t *testing.T) {
@@ -599,4 +599,50 @@ func TestWatchAtRefusesAnotherBranch(t *testing.T) {
 	h := commitHarness(t, true)
 	assert.Equal(t, 2, h.run("watch", "@", "--branch", "release"))
 	assert.Contains(t, h.stderr.String(), "--branch release does not apply")
+}
+
+// Tab on a preset argument shows each preset with its plan and branch, the
+// reason a person can pick without opening the presets file.
+func TestPresetCompletionDescribesEachPreset(t *testing.T) {
+	h := newHarness(t)
+	h.run("__complete", "run", "")
+	assert.Contains(t, h.stdout.String(), "build\tPROJ-BUILD\n")
+	assert.Contains(t, h.stdout.String(), "provision-lab\tPROJ-PROV · develop\n")
+}
+
+// One broken preset, or a name in two presets files, must not empty the
+// list: Tab is most needed while the config is being fixed.
+func TestPresetCompletionSurvivesABrokenOrDuplicatedPreset(t *testing.T) {
+	h := newHarness(t)
+	dir := filepath.Join(h.home, "bam")
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "presets"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "presets.yaml"),
+		[]byte("presets:\n  broken:\n    plan: not-a-plan\n  twice:\n    plan: PROJ-ONE\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "presets", "more.yaml"),
+		[]byte("presets:\n  twice:\n    plan: PROJ-TWO\n  fine:\n    plan: PROJ-FINE\n    branch: main\n"), 0o644))
+	require.NotEqual(t, 0, h.run("preset", "list"), "the config really is refused")
+
+	h.stdout.Reset()
+	h.run("__complete", "run", "")
+	out := h.stdout.String()
+	assert.Contains(t, out, "build\tPROJ-BUILD\n")
+	assert.Contains(t, out, "fine\tPROJ-FINE · main\n")
+	assert.Contains(t, out, "twice\t")
+	assert.NotContains(t, out, "broken")
+}
+
+func TestPinAddCompletesPresetNames(t *testing.T) {
+	h := newHarness(t)
+	h.run("__complete", "pin", "add", "")
+	assert.NotContains(t, h.stdout.String(), "build", "the first argument is a new group name")
+
+	h.stdout.Reset()
+	h.run("__complete", "pin", "add", "integration", "")
+	assert.Contains(t, h.stdout.String(), "build\tPROJ-BUILD\n")
+	assert.Contains(t, h.stdout.String(), "provision-lab\tPROJ-PROV · develop\n")
+
+	h.stdout.Reset()
+	h.run("__complete", "pin", "add", "integration", "build", "")
+	assert.NotContains(t, h.stdout.String(), "build\t", "a preset already on the line is not offered again")
+	assert.Contains(t, h.stdout.String(), "provision-lab")
 }

@@ -99,7 +99,8 @@ func newPinAddCmd(r *runtime) *cobra.Command {
 			"keeps its comments.",
 		Example: "  bam pin add integration PROJ-BUILD\n  bam pin add release PROJ-DEPLOY@release/1.2\n" +
 			"  bam pin add integration \"Integrate For Next Release\" \"Run Feature Tests\"",
-		Args: cobra.MinimumNArgs(2),
+		Args:              cobra.MinimumNArgs(2),
+		ValidArgsFunction: r.completePinArgs,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			done, err := r.pinAdd(cmd.Context(), args[0], args[1:])
 			if err != nil {

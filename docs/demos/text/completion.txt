@@ -3,7 +3,8 @@ $
 $ source <(bam completion bash)
 $ bam ru
 $ bam run
-$ bam run d
+ci      (SETLIST-CI)      it      (SETLIST-IT)      smoke   (SETLIST-SMOKE)
+deploy  (SETLIST-DEPLOY)  load    (SETLIST-LOAD)
 $ bam run deploy
 $ bam run deploy --var
 db_password=  environment=  region=       replicas=     version=

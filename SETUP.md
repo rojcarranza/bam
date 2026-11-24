@@ -15,7 +15,7 @@ Windows is not covered here.
 | curl | downloads in this guide | yes |
 | gopls | Go language server for your editor | recommended |
 | goreleaser v2 | release builds (`make release`, `goreleaser build --snapshot`) | only for release work |
-| GitHub CLI (`gh`) | pull requests | optional |
+| GitHub CLI (`gh`) and `gh-axi` | pull requests and issues (`gh-axi` for all GitHub work; `gh` only signs in) | optional |
 | no-mistakes | the push gate (see Before you push) | yes |
 
 The project uses no Docker, no database and no cgo.

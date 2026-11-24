@@ -742,7 +742,10 @@ A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, tr
 - `bam whoami` shows who each server knows you as; `bam logout work` deletes the stored token.
 - `bam version` prints the installed version.
 - bam keeps a private tally of the commands you run, so you can see how much you use it. `bam usage` shows it and `bam usage off` turns counting off (`bam usage on` turns it back on). The tally is one file, `$XDG_STATE_HOME/bam/usage.json` (by default `~/.local/state/bam/usage.json`), and never leaves your computer. It holds the command's name and a count for each day, such as `bam watch` 12 on 2026-11-14: never arguments, plans, jobs, agents, branches or servers.
-- `bam completion bash` prints tab completion for bash (`bam completion zsh`, `fish` and `powershell` too); to load it in every new session, add `source <(bam completion bash)` to `~/.bashrc`.
+- `bam completion bash` prints tab completion for bash (`bam completion zsh`, `fish` and `powershell` too). Tab then completes commands, flags and your presets, each shown with its plan and branch (`deploy-qa  PROJ-DEPLOY · main`), also in `bam pin add`; a preset that fails to load is left out and the others still show. Set it up once per shell:
+  - bash: install the `bash-completion` package (without it Tab lists files and prints `_get_comp_words_by_ref: command not found`), then add `source <(bam completion bash)` to `~/.bashrc`.
+  - zsh: run `autoload -U compinit && compinit` first, then add `source <(bam completion zsh)` to `~/.zshrc`.
+  - fish: `bam completion fish > ~/.config/fish/completions/bam.fish`.
 - `bam preset migrate` moves presets from the old machine config into your presets files.
 - Every command has `--help`, and `--debug` logs the HTTP requests bam makes.
 

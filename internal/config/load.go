@@ -60,6 +60,10 @@ type LoadOptions struct {
 	MachineFile string
 	PresetsFile string // see LocatePresets; empty means none
 	Getenv      func(string) string
+	// TolerateDuplicates loads a preset name defined in two presets files
+	// instead of refusing it, for tab completion, which should still offer
+	// every preset. The names merge as they do across the other layers.
+	TolerateDuplicates bool
 }
 
 // Discover finds .bam.yaml by walking up from workDir. The walk stops at the
@@ -134,7 +138,7 @@ func Load(o LoadOptions) (*Config, error) {
 	if cfg.Machine, err = readMachineFile(o.MachineFile); err != nil {
 		return nil, err
 	}
-	if err := loadPresetLayer(cfg, o.PresetsFile); err != nil {
+	if err := loadPresetLayer(cfg, o.PresetsFile, o.TolerateDuplicates); err != nil {
 		return nil, err
 	}
 	if err := validateFiles(cfg); err != nil {
@@ -204,7 +208,7 @@ func readMachineFile(path string) (*MachineFile, error) {
 }
 
 // loadPresetLayer fills cfg's presets file and presets directory files.
-func loadPresetLayer(cfg *Config, path string) error {
+func loadPresetLayer(cfg *Config, path string, tolerateDuplicates bool) error {
 	cfg.Presets = &PresetsFile{}
 	if path == "" {
 		return nil
@@ -216,6 +220,9 @@ func loadPresetLayer(cfg *Config, path string) error {
 	cfg.Presets = pf
 	if cfg.PresetsDirFiles, err = loadPresetsDir(PresetsDir(path)); err != nil {
 		return err
+	}
+	if tolerateDuplicates {
+		return nil
 	}
 	return checkDuplicatePresets(cfg)
 }

@@ -456,7 +456,7 @@ func TestTargetArgumentCompletesPlanKeysAfterAProjectKey(t *testing.T) {
 	h.run("__complete", "logs", "PROJ-")
 	assert.Contains(t, h.stdout.String(), "PROJ-BUILD\tBuild and test\nPROJ-PROV\tProvision lab\n:4\n")
 	h.run("__complete", "logs", "")
-	assert.NotContains(t, h.stdout.String(), "PROJ-BUILD", "a bare Tab makes no request")
+	assert.NotContains(t, h.stdout.String(), "Build and test", "a bare Tab makes no request: no plan names")
 	h.run("__complete", "logs", "provision-")
-	assert.NotContains(t, h.stdout.String(), "PROJ-", "a preset name is not a project key")
+	assert.NotContains(t, h.stdout.String(), "Provision lab", "a preset name is not a project key: no plan names")
 }

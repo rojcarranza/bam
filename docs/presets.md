@@ -22,6 +22,16 @@ A preset is a named entry in a **presets file** in your presets directory, `~/ba
 
 The server is chosen the usual way (`--server`, or your only configured server; see [Configuration](configuration.md#which-server-is-used)).
 
+### Complete preset names with Tab
+
+Press Tab after `bam run`, `bam watch`, `bam pin add GROUP` and the other commands that take a plan or preset, and bam lists your presets with their plan and branch: `deploy-qa  PROJ-DEPLOY · main`. A preset that does not load (a bad plan key, say) is left out, and a name defined in two presets files still shows, so Tab keeps working while you fix the file; `bam preset list` and `bam run` name the problem.
+
+Completion needs a one-time setup per shell, with `bam completion SHELL`:
+
+- bash: install the `bash-completion` package, then add `source <(bam completion bash)` to `~/.bashrc`. Without the package Tab lists files.
+- zsh: enable `compinit` first (`autoload -U compinit && compinit`), then add `source <(bam completion zsh)` to `~/.zshrc`.
+- fish: `bam completion fish > ~/.config/fish/completions/bam.fish`.
+
 ### What bam writes
 
 The preset lists every variable the plan declares, with the plan default filled in, so you only edit the ones you want to change. It carries no per-line comments:

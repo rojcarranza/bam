@@ -5,6 +5,10 @@ Source tapes/_common.tape
 Source tapes/_start.tape
 Type "bam preset add deploy --plan SETLIST-DEPLOY"
 Enter
+Sleep 4s
+Right
+Sleep 2s
+Ctrl+S
 Wait@30s
 Sleep 2s
 

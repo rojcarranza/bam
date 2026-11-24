@@ -1,0 +1,8 @@
+new preset deploy-qa · PROJ-DEPLOY · branch main → ~/bam/presets/proj.yaml
+  region        eu  plan default
+> target_env    staging  changed
+  version       ____  no plan default
+  deploy_token  plan's stored value  secret · written as a commented line
+  ←→ "staging" · "qa"
+  1 of 4 differ from the plan: target_env
+  ↑↓ move · enter edit · ←→ choices · ctrl-s save · esc cancel

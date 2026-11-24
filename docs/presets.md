@@ -13,6 +13,26 @@ A preset is a named entry in a **presets file** in your presets directory, `~/ba
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --branch main
 
+On a terminal, bam then opens a small form under the prompt, with one row per variable the preset will write, so you set the values before anything is saved and never open the file afterwards:
+
+    new preset deploy-qa · PROJ-DEPLOY · branch main → ~/bam/presets/proj.yaml
+    > region        eu  plan default
+      target_env    staging  changed
+      version       ____  no plan default
+      deploy_token  plan's stored value  secret · written as a commented line
+      1 of 4 differ from the plan: target_env
+      ↑↓ move · enter edit · ←→ choices · ctrl-s save · esc cancel
+
+- `↑` `↓` (or `tab`) move between rows. `enter` types a value; `enter` again accepts it and moves on, `esc` keeps the old one.
+- `←` `→` step through the row's choices: the value the row starts on (the plan default, or the `--from` build's value), the plan default, then up to three values the last 10 builds ran with, newest first. The recent values load while the form is open.
+- A secret row never shows or takes a value. `←` `→` switch between the plan's stored value (a commented line) and `${ENV_NAME}`; `enter` edits only the variable name.
+- `ctrl-s` writes the file with your values. `esc` or `ctrl-c` writes nothing and exits 130. Every variable the plan declares is written either way.
+- A name that is already taken fails before the form opens.
+
+Leave out the name or the plan and bam asks for it first on a terminal: `bam preset add` alone shows a list of the plans in the `projects:` of `.bam.yaml` (without one it says so, as `bam plan list` does), then the plan's branches, then asks for the name (it starts as the plan's own), then opens the form. `bam preset add --plan PROJ-DEPLOY` asks only for the name.
+
+The form and these questions never open with a pipe, `TERM` empty or `dumb`, `--no-tui`, `BAM_NO_TUI`, `--json` or `--print`, or for a plan with no variables. bam then writes the plan's values at once, as before, and a missing name is a usage error.
+
 - `deploy-qa` is a name you choose. It is what you type later in `bam run deploy-qa`, and what the terminal UI lists under presets. It is not a Bamboo name: lowercase letters, digits, `-` and `_`, starting with a letter.
 - `--plan` is the Bamboo plan key. `--branch` is optional and sets the plan branch the preset runs.
 - By default bam writes the plan's project file, `~/bam/presets/proj.yaml` for `PROJ-DEPLOY`, and creates the directory and file the first time. Its presets work from any directory. `bam preset list` shows which file each preset is in.
@@ -61,7 +81,7 @@ The preset lists every variable the plan declares, with the plan default filled 
 
 bam writes only keys it has a value for: `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables and `watch: true`. `branch` is written when the plan is a plan branch or you pass `--branch`, and `repositories` then lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build); when bam cannot read a repository's branch, the repositories are written commented. bam never writes `required` or `options`; add them yourself (see below). `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing. Two comments can appear: `# not declared by the plan` on a variable the plan does not declare (only with `--from` and `--include-globals`), and a note when bam cannot read the plan's variables.
 
-When it finishes, `preset add` also prints a box, in the terminal only, of values to choose from: for each variable that ran with more than one value in the last 10 builds of the plan (or plan branch), up to three values, newest first. Secrets are never listed. Nothing is printed when no variable varied or the server cannot read build variables.
+Without the form (see above), when it finishes, `preset add` also prints a box, in the terminal only, of values to choose from: for each variable that ran with more than one value in the last 10 builds of the plan (or plan branch), up to three values, newest first. Secrets are never listed. Nothing is printed when no variable varied or the server cannot read build variables.
 
 - A variable with no plan default gets an empty value, which bam sends as empty. Add `required` yourself to refuse a run until it has a value.
 - `watch: true` makes `bam run deploy-qa` follow the build. Run `bam run deploy-qa --watch=false` to skip it for one run.

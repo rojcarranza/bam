@@ -134,7 +134,7 @@ flowchart LR
         s1["1 · Connect<br/>bam server add<br/>bam login<br/>bam doctor"]
     end
     subgraph perplan ["Once per plan"]
-        s2["2 · Find the plan<br/>bam plan list<br/>bam plan vars"] --> s3["3 · Save a preset<br/>bam preset add"] --> s4["4 · Fill in the values<br/>~/bam/presets/forge.yaml"]
+        s2["2 · Find the plan<br/>bam plan list<br/>bam plan vars"] --> s3["3 · Save a preset<br/>bam preset add"] --> s4["4 · Fill in the values<br/>the form in bam preset add"]
     end
     subgraph everyrun ["Every run"]
         s5["5 · Check it<br/>bam run lab1 --dry-run"] --> s6["6 · Run and follow<br/>bam run ci"]
@@ -226,7 +226,7 @@ A preset is a plan plus the variable values you run it with, under a name you ch
     $ bam preset add ci --plan BAMCI-BUILD
     added preset ci to ~/bam/presets/bamci.yaml
 
-bam writes `plan:`, the server you added it on, every variable the plan declares with its plan default filled in, and `watch: true`, with no per-line comments. When a variable ran with different values in the plan's last 10 builds, `preset add` also prints a box in the terminal listing up to three of them, newest first, so you can pick one. Open the file, set the values, and add the keys you want, such as `options` and `required`. Filled in, the two files look like this; only `plan` is required.
+On a terminal, `bam preset add` first opens a form under the prompt with one row per variable. Type a value, or press `←` `→` to step through the plan default and up to three values the last 10 builds ran with, then press `ctrl-s` to save (`esc` writes nothing). Leave out the name or `--plan` and it asks for them first, from a list of plans. bam writes `plan:`, the server you added it on, every variable the plan declares with your value (the plan default if you changed nothing), and `watch: true`, with no per-line comments. With a pipe, `--no-tui` or `--print` there is no form, and `preset add` prints a box listing those recent values instead. You can still open the file to add the keys you want, such as `options` and `required`. Filled in, the two files look like this; only `plan` is required.
 
 `~/bam/presets/forge.yaml`:
 

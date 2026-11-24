@@ -40,6 +40,22 @@ func WriteTarget(path string, keyPath []string, d TargetDraft, force bool) error
 	return saveDoc(path, doc)
 }
 
+// HasTarget reports whether the YAML file at path defines preset name under
+// keyPath. A missing file defines nothing. It writes nothing.
+func HasTarget(path string, keyPath []string, name string) (bool, error) {
+	doc, err := loadDocVersion(path, false)
+	if err != nil {
+		return false, err
+	}
+	parent := doc.Content[0]
+	for _, k := range keyPath {
+		if parent = mappingValue(parent, k); parent == nil {
+			return false, nil
+		}
+	}
+	return mappingValue(parent, name) != nil, nil
+}
+
 // RemoveTarget deletes the preset name under keyPath in the YAML file at
 // path, keeping the rest of the file and its comments.
 func RemoveTarget(path string, keyPath []string, name string) error {

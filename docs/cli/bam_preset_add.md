@@ -15,8 +15,11 @@ the plan stores is a commented line. It also writes the server you connected to,
 and watch: true, with no per-line comments except one on a variable the plan does not declare.
 --from writes only the plan's declared variables; --include-globals adds the other variables
 the build ran with, which Bamboo fills with every global.
-When it finishes it prints a box, in the terminal only, with up to three values the last 10
-builds ran with, for each variable that varied.
+On a terminal, add first opens a form with one row per variable: type a value, step through
+the plan default and up to three values the last 10 builds ran with with the left and right
+arrows, ctrl-s writes the file, esc writes nothing. With no name, or no --plan, it asks for
+them first. With a pipe, --no-tui, --json or --print there is no form: add writes the plan's
+values and prints a box, in the terminal only, with those recent values for each variable that varied.
 
 ```
 bam preset add <name> --plan KEY [flags]

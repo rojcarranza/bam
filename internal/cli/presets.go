@@ -205,15 +205,13 @@ func (f *presetAddFlags) check(r *runtime, name string) error {
 // save writes the preset to .bam.yaml with --shared, else to the presets
 // directory, and returns the file it wrote.
 func (f *presetAddFlags) save(r *runtime, d config.TargetDraft) (string, error) {
-	if !f.shared {
-		return r.writePreset(r.cfg, d, f.file, f.force)
+	path, keyPath, err := f.target(r, d)
+	if err != nil {
+		return "", err
 	}
-	path := r.cfg.ProjectPath
-	if path == "" {
-		return "", errs.Usagef("no .bam.yaml in this repository").
-			WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
-	}
-	return path, config.WriteTarget(path, []string{"targets"}, d, f.force)
+	err = config.WriteTarget(path, keyPath, d, f.force)
+	r.configChanged()
+	return path, err
 }
 
 // presetServer is the alias a new preset names under server: the one bam
@@ -246,6 +244,13 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 	if err != nil {
 		return err
 	}
+	var svc *app.Service
+	asking := f.interactive(r)
+	if asking && (name == "" || (f.plan == "" && !app.IsBuildKey(f.from))) {
+		if svc, name, err = f.guide(r, cmd, name); err != nil {
+			return err
+		}
+	}
 	if err := f.check(r, name); err != nil {
 		return err
 	}
@@ -253,14 +258,15 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 	if err := app.CheckGenerate(o); err != nil {
 		return err
 	}
-	var svc *app.Service
-	if link != "" {
-		svc, err = r.connectPage(link, linkKey)
-	} else {
-		svc, _, err = r.connect(cmd.Context(), "")
-	}
-	if err != nil {
-		return err
+	if svc == nil {
+		if link != "" {
+			svc, err = r.connectPage(link, linkKey)
+		} else {
+			svc, _, err = r.connect(cmd.Context(), "")
+		}
+		if err != nil {
+			return err
+		}
 	}
 	d, err := svc.GenerateTarget(cmd.Context(), o)
 	if err != nil {
@@ -277,6 +283,13 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 		printRecentBox(r.env.Stderr, d.BuildPlan, svc.RecentValues(cmd.Context(), d))
 		return nil
 	}
+	filled := false
+	if asking && len(d.Vars) > 0 {
+		if d, err = f.fillForm(r, cmd, svc, d); err != nil {
+			return err
+		}
+		filled = true
+	}
 	path, err := f.save(r, d)
 	if err != nil {
 		return err
@@ -288,7 +301,9 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 	if len(d.Vars) > 0 {
 		fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
 	}
-	printRecentBox(r.env.Stdout, d.BuildPlan, svc.RecentValues(cmd.Context(), d))
+	if !filled {
+		printRecentBox(r.env.Stdout, d.BuildPlan, svc.RecentValues(cmd.Context(), d))
+	}
 	return nil
 }
 
@@ -339,8 +354,11 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"and watch: true, with no per-line comments except one on a variable the plan does not declare.\n" +
 			"--from writes only the plan's declared variables; --include-globals adds the other variables\n" +
 			"the build ran with, which Bamboo fills with every global.\n" +
-			"When it finishes it prints a box, in the terminal only, with up to three values the last 10\n" +
-			"builds ran with, for each variable that varied.",
+			"On a terminal, add first opens a form with one row per variable: type a value, step through\n" +
+			"the plan default and up to three values the last 10 builds ran with with the left and right\n" +
+			"arrows, ctrl-s writes the file, esc writes nothing. With no name, or no --plan, it asks for\n" +
+			"them first. With a pipe, --no-tui, --json or --print there is no form: add writes the plan's\n" +
+			"values and prints a box, in the terminal only, with those recent values for each variable that varied.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
 			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
@@ -348,6 +366,10 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
 			"  bam run deploy-qa --dry-run",
 		Args: func(cmd *cobra.Command, args []string) error {
+			// On a terminal, a missing name is asked for.
+			if len(args) == 0 && fl.interactive(r) {
+				return nil
+			}
 			// "bam preset add web PROJ-PLAN": the plan stands in for --plan.
 			if len(args) == 2 && fl.plan == "" && app.IsPlanKey(args[1]) {
 				fl.plan = args[1]
@@ -356,7 +378,11 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			return cobra.ExactArgs(1)(cmd, args)
 		},
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			return fl.run(r, cmd, args[0])
+			name := ""
+			if len(args) > 0 {
+				name = args[0]
+			}
+			return fl.run(r, cmd, name)
 		}),
 	}
 	f := cmd.Flags()
@@ -437,8 +463,20 @@ func removePreset(cfg *config.Config, name string) ([]string, error) {
 }
 
 // writePreset adds d to file in the presets directory, by default the plan's
-// project file, and returns the path it wrote. preset add and the UI share it.
+// project file, and returns the path it wrote. The UI uses it.
 func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file string, force bool) (string, error) {
+	path, err := r.presetsTarget(cfg, d, file)
+	if err != nil {
+		return "", err
+	}
+	err = config.WriteTarget(path, []string{"presets"}, d, force)
+	r.configChanged()
+	return path, err
+}
+
+// presetsTarget is the presets directory file d goes to, by default the
+// plan's project file, refusing a name another presets file already holds.
+func (r *runtime) presetsTarget(cfg *config.Config, d config.TargetDraft, file string) (string, error) {
 	if file == "" {
 		file = config.ProjectPresetsName(d.Plan)
 	}
@@ -446,12 +484,7 @@ func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file str
 	if err != nil {
 		return "", err
 	}
-	if err := checkPresetElsewhere(cfg, d.Name, path); err != nil {
-		return "", err
-	}
-	err = config.WriteTarget(path, []string{"presets"}, d, force)
-	r.configChanged()
-	return path, err
+	return path, checkPresetElsewhere(cfg, d.Name, path)
 }
 
 // checkPresetElsewhere refuses to add name to path when another presets file

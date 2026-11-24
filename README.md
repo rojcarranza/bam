@@ -24,6 +24,7 @@ Every GIF in this README is a real recording of bam against a small Bamboo that 
 | Give a whole team its presets with one command, committed next to the code | [init](docs/demos/gifs/init.gif) |
 | Start a build and follow it, with the plans it triggers, from the terminal you are already in | [run-watch](docs/demos/gifs/run-watch.gif) |
 | Deploy to staging with four variables in one line, the password masked everywhere | [run-vars](docs/demos/gifs/run-vars.gif) |
+| Pick a preset from a list instead of remembering its name | [run-pick](docs/demos/gifs/run-pick.gif) |
 | Run the branch you are on and read the failure before you leave the terminal | [feature-branch](docs/demos/gifs/feature-branch.gif) |
 | Push, then follow the build of that commit with one command | [watch-at](docs/demos/gifs/watch-at.gif) |
 | See the build and everything it triggered as one tree, and only the failed branch when you ask | [tree](docs/demos/gifs/tree.gif) |
@@ -305,6 +306,12 @@ More: [Presets](docs/presets.md), [Configuration](docs/configuration.md); `bam i
 ![bam run passes variables, and the secret prints as ********](docs/demos/gifs/run-vars.gif)
 
 *Instead of:* Projects › SETLIST › Deploy › Run customised › 4 fields › Run, then watch the build page.
+
+**Pick a preset from a list instead of remembering its name.**
+
+![bam run with no name opens a picker of presets, filters as you type, and runs the one you choose](docs/demos/gifs/run-pick.gif)
+
+*Instead of:* opening the presets file to check what you called it.
 
 `bam run` starts a preset, or a plan by its key, and prints the link to the build. In Bamboo this is the plan's Run, then Run customised, page. `ci` sets `watch: true`, so bam follows the build and every build it triggers:
 

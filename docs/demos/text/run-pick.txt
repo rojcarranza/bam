@@ -1,0 +1,22 @@
+────────────────────────────────────────────────────────────────────────────────
+$
+$ bam run --dry-run
+run which preset? ▌
+> ci      SETLIST-CI      .bam.yaml
+  deploy  SETLIST-DEPLOY  .bam.yaml
+  it      SETLIST-IT      .bam.yaml
+  load    SETLIST-LOAD    .bam.yaml
+  smoke   SETLIST-SMOKE   .bam.yaml
+  sets: nothing
+  5 of 5 · enter runs · esc cancels
+run which preset? dep▌
+> deploy  SETLIST-DEPLOY  .bam.yaml
+  sets: db_password=${DB_PASSWORD} (set)  environment=dev  region=eu  replicas=2  version (required)
+  1 of 5 · enter runs · esc cancels
+run which preset? smoke▌
+> smoke  SETLIST-SMOKE  .bam.yaml
+  sets: environment=dev  version=1.0.1
+bam run smoke
+Plan     SETLIST-SMOKE
+Vars     environment=dev (preset)  version=1.0.1 (preset)
+dry run: nothing triggered

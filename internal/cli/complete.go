@@ -48,11 +48,7 @@ func (r *runtime) presetNames() ([]string, bool) {
 	all := cfg.LoadableTargets()
 	var names []string
 	for _, n := range slices.Sorted(maps.Keys(all)) {
-		desc := all[n].Plan
-		if b := all[n].Branch; b != "" {
-			desc += " · " + b
-		}
-		names = append(names, n+"\t"+desc)
+		names = append(names, n+"\t"+app.PresetSummary(all[n].Plan, all[n].Branch))
 	}
 	return names, true
 }

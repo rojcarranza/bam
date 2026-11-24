@@ -222,7 +222,7 @@ func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
 		"plan list --project PROJ":              "error: unknown flag: --project\n  try: the project is an argument: bam plan list [PROJ...]\n",
 		"build list --plan PROJ-PLAN":           "error: unknown flag: --plan\n  try: the plan is an argument: bam build list [<plan|preset>]\n",
 		"logs --build PROJ-PLAN-1":              "error: unknown flag: --build\n  try: the build is an argument: bam logs [<build>|<plan>|<preset>]\n",
-		"run --preset deploy":                   "error: unknown flag: --preset\n  try: the preset is an argument: bam run <plan|preset>\n",
+		"run --preset deploy":                   "error: unknown flag: --preset\n  try: the preset is an argument: bam run [plan|preset]\n",
 		"whoami --plan PROJ-PLAN":               "error: unknown flag: --plan\n  try: bam whoami --help\n",
 		"plan --plan PROJ-PLAN":                 "error: unknown flag: --plan\n  try: bam plan --help\n",
 		"build show PROJ-PLAN-1 --compare":      "error: unknown flag: --compare\n  try: --compare is a flag of bam build investigate\n",
@@ -235,7 +235,6 @@ func TestUnknownFlagSuggestsTheClosest(t *testing.T) {
 
 func TestWrongArgCountPointsAtHelp(t *testing.T) {
 	for args, want := range map[string]string{
-		"run":                    "error: missing <plan|preset>\n  try: bam run <plan|preset>; bam run --help shows more\n",
 		"build list":             "error: missing <plan|preset>\n  try: bam build list <plan|preset>; bam build list --help shows more\n",
 		"preset add":             "error: missing <name>\n  try: bam preset add <name> --plan KEY; bam preset add --help shows more\n",
 		"build show a b":         "error: unexpected argument \"b\"\n  try: bam build show [<build>|<plan>|<preset>]; bam build show --help shows more\n",

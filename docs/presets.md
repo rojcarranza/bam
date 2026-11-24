@@ -32,6 +32,15 @@ Completion needs a one-time setup per shell, with `bam completion SHELL`:
 - zsh: enable `compinit` first (`autoload -U compinit && compinit`), then add `source <(bam completion zsh)` to `~/.zshrc`.
 - fish: `bam completion fish > ~/.config/fish/completions/bam.fish`.
 
+### Pick a preset from a list
+
+Type `bam run` with no name, on a terminal, and bam opens a small picker under the prompt instead of a full screen. Each row shows the preset name, its plan and branch, and the file that defines it. Type to filter: any part of a row matches, ignoring case, so `develop` finds every preset on that branch and `lab.yaml` every preset in that file. The line under the list shows what the highlighted preset sets, with secrets as `********`.
+
+- Up and Down (or ctrl-P and ctrl-N) move, Enter runs the highlighted preset, and Esc or ctrl-C runs nothing and exits 130.
+- bam prints `bam run NAME` first, so you can type it next time, and then runs the preset with the flags you gave: `bam run --watch` picks, then runs and follows.
+- The picker does not edit variables; add `--var` or `--edit` to the command.
+- With a pipe, `--json` or `--no-tui`, bam never opens it: it exits 2 and points to `bam preset list`.
+
 ### What bam writes
 
 The preset lists every variable the plan declares, with the plan default filled in, so you only edit the ones you want to change. It carries no per-line comments:

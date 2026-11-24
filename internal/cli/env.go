@@ -76,7 +76,10 @@ type Env struct {
 	// RunTUI opens the terminal UI. It is a field so tests can assert on the
 	// Deps the CLI builds without starting a terminal program.
 	RunTUI func(context.Context, tui.Deps) error
-	GOOS   string
+	// PickPreset is the picker of bare bam run; a field so tests can script
+	// the choice without a terminal.
+	PickPreset func(ctx context.Context, in io.Reader, out io.Writer, items []app.TargetInfo) (string, error)
+	GOOS       string
 	// Glob is filepath.Glob; nil matches nothing. It finds the Windows
 	// presets file from WSL.
 	Glob func(pattern string) ([]string, error)
@@ -154,8 +157,9 @@ func SystemEnv() Env {
 			b, err := term.ReadPassword(int(os.Stdin.Fd()))
 			return string(b), err
 		},
-		RunTUI: tui.Run,
-		GOOS:   goruntime.GOOS,
+		RunTUI:     tui.Run,
+		PickPreset: tui.PickPreset,
+		GOOS:       goruntime.GOOS,
 	}
 }
 

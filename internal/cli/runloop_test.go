@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -645,4 +646,89 @@ func TestPinAddCompletesPresetNames(t *testing.T) {
 	h.run("__complete", "pin", "add", "integration", "build", "")
 	assert.NotContains(t, h.stdout.String(), "build\t", "a preset already on the line is not offered again")
 	assert.Contains(t, h.stdout.String(), "provision-lab")
+}
+
+// pickScript is the picker of bare bam run, scripted: it records the rows it
+// was offered and answers name, or err when the person pressed Esc.
+func pickScript(h *harness, name string, err error) *[]app.TargetInfo {
+	var offered []app.TargetInfo
+	h.env.PickPreset = func(_ context.Context, _ io.Reader, _ io.Writer, items []app.TargetInfo) (string, error) {
+		offered = items
+		return name, err
+	}
+	return &offered
+}
+
+// Bare bam run on a terminal picks a preset, says which command it runs, and
+// then runs it exactly as bam run NAME does, with the flags given.
+func TestRunWithoutANamePicksAPreset(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	h.fake.TriggerResult = queuedBuild("PROJ-PROV12-9")
+	offered := pickScript(h, "provision-lab", nil)
+	assert.Equal(t, 0, h.run("run", "--var", "cluster_name=a"), h.stderr.String())
+	assert.NotEmpty(t, *offered)
+	assert.Contains(t, h.stderr.String(), "bam run provision-lab\n")
+	require.Len(t, h.fake.Triggered, 1)
+	assert.Equal(t, "PROJ-PROV12", h.fake.Triggered[0].PlanKey)
+	assert.Equal(t, "a", h.fake.Triggered[0].Variables["cluster_name"])
+}
+
+// Esc triggers nothing and exits 130.
+func TestRunPickerCancelTriggersNothing(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	pickScript(h, "", context.Canceled)
+	assert.Equal(t, 130, h.run("run"))
+	assert.Empty(t, h.fake.Triggered)
+}
+
+// A pipe, --json and --no-tui never open the picker: exit 2 and a hint.
+func TestRunWithoutANameNeedsATerminal(t *testing.T) {
+	for name, args := range map[string][]string{"pipe": {"run"}, "json": {"run", "--json"}, "no-tui": {"run", "--no-tui"}} {
+		h := newHarness(t)
+		h.tty = name != "pipe"
+		offered := pickScript(h, "provision-lab", nil)
+		assert.Equal(t, 2, h.run(args...), name)
+		assert.Contains(t, h.stderr.String(), "bam run needs a plan or preset name", name)
+		assert.Contains(t, h.stderr.String(), "try: bam preset list", name)
+		assert.Empty(t, *offered, name)
+		assert.Empty(t, h.fake.Triggered, name)
+	}
+}
+
+// With nothing to pick, bare bam run says why as bam preset list does, naming
+// presets that only apply in another repository, and offers no picker.
+func TestRunPickerWithNoPresetsSaysWhy(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	offered := pickScript(h, "x", nil)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+
+	assert.Equal(t, 2, h.run("run"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "bam run needs a plan or preset name")
+	assert.Contains(t, h.stderr.String(), "no presets apply here; 1 are defined for other repositories: /somewhere/else (prov-mine)")
+	assert.Contains(t, h.stderr.String(), "try: run bam from that repository")
+	assert.Empty(t, *offered)
+}
+
+// A bad flag fails before the picker opens, not after a preset is picked.
+func TestRunFlagChecksComeBeforeThePicker(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	offered := pickScript(h, "provision-lab", nil)
+	assert.Equal(t, 2, h.run("run", "--revision", "from"))
+	assert.Contains(t, h.stderr.String(), "--revision from needs --from")
+	assert.Contains(t, h.stderr.String(), "bam run NAME --from last --revision from")
+	assert.Empty(t, *offered)
+	assert.Empty(t, h.fake.Triggered)
 }

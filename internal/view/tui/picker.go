@@ -73,17 +73,15 @@ func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.done = true
 			return m, tea.Quit
 		case tea.KeyEnter:
-			if len(m.list.visible) > 0 {
-				m.chosen = m.list.items[m.list.visible[m.list.cursor]].Name
+			if t, ok := m.list.selected(); ok {
+				m.chosen = t.Name
 				m.done = true
 				return m, tea.Quit
 			}
 		case tea.KeyUp, tea.KeyCtrlP:
-			m.list.cursor--
-			m.list.clamp()
+			m.list.move(-1)
 		case tea.KeyDown, tea.KeyCtrlN, tea.KeyTab:
-			m.list.cursor++
-			m.list.clamp()
+			m.list.move(1)
 		case tea.KeyBackspace:
 			if q := []rune(m.list.query); len(q) > 0 {
 				m.list.setQuery(string(q[:len(q)-1]))
@@ -119,11 +117,8 @@ func (m pickerModel) View() string {
 		nameW = max(nameW, len(l.items[i].Name))
 		sumW = max(sumW, len([]rune(l.items[i].Summary())))
 	}
-	start := 0
-	if l.cursor >= pickerRows {
-		start = l.cursor - pickerRows + 1
-	}
-	for row := start; row < min(len(l.visible), start+pickerRows); row++ {
+	start, end := l.window(pickerRows)
+	for row := start; row < end; row++ {
 		t := l.items[l.visible[row]]
 		mark := "  "
 		if row == l.cursor {
@@ -131,8 +126,8 @@ func (m pickerModel) View() string {
 		}
 		lines = append(lines, cut(strings.TrimRight(fmt.Sprintf("%s%-*s  %-*s  %s", mark, nameW, t.Name, sumW, t.Summary(), pickerFile(t)), " ")))
 	}
-	if len(l.visible) > 0 {
-		lines = append(lines, cut(dimStyle.Render("  sets: "+pickerVars(l.items[l.visible[l.cursor]]))))
+	if t, ok := l.selected(); ok {
+		lines = append(lines, cut(dimStyle.Render("  sets: "+pickerVars(t))))
 	}
 	lines = append(lines, cut(dimStyle.Render(fmt.Sprintf("  %d of %d · enter runs · esc cancels", len(l.visible), len(l.items)))))
 	return strings.Join(lines, "\n")

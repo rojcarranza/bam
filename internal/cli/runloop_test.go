@@ -696,3 +696,39 @@ func TestRunWithoutANameNeedsATerminal(t *testing.T) {
 		assert.Empty(t, h.fake.Triggered, name)
 	}
 }
+
+// With nothing to pick, bare bam run says why as bam preset list does, naming
+// presets that only apply in another repository, and offers no picker.
+func TestRunPickerWithNoPresetsSaysWhy(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	offered := pickScript(h, "x", nil)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte(`version: 1
+repos:
+  /somewhere/else:
+    targets:
+      prov-mine:
+        plan: PROJ-PROV
+`), 0o644))
+	h.env.WorkDir = t.TempDir()
+	h.vars["BAM_URL"] = workOrigin
+
+	assert.Equal(t, 2, h.run("run"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "bam run needs a plan or preset name")
+	assert.Contains(t, h.stderr.String(), "no presets apply here; 1 are defined for other repositories: /somewhere/else (prov-mine)")
+	assert.Contains(t, h.stderr.String(), "try: run bam from that repository")
+	assert.Empty(t, *offered)
+}
+
+// A bad flag fails before the picker opens, not after a preset is picked.
+func TestRunFlagChecksComeBeforeThePicker(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	offered := pickScript(h, "provision-lab", nil)
+	assert.Equal(t, 2, h.run("run", "--revision", "from"))
+	assert.Contains(t, h.stderr.String(), "--revision from needs --from")
+	assert.Contains(t, h.stderr.String(), "bam run NAME --from last --revision from")
+	assert.Empty(t, *offered)
+	assert.Empty(t, h.fake.Triggered)
+}

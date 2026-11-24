@@ -153,18 +153,23 @@ func newRunCmd(r *runtime) *cobra.Command {
 					return err
 				}
 			}
+			// The flag-only checks come first, so a bad flag fails before a preset is picked.
+			named := "NAME"
+			if len(args) > 0 {
+				named = args[0]
+			}
+			if err := rf.check(r, cmd, named); err != nil {
+				return err
+			}
+			if _, err := app.RepositoryWants(rf.repositories, nil); err != nil {
+				return err
+			}
 			if len(args) == 0 {
 				name, err := r.pickPreset(cmd)
 				if err != nil {
 					return err
 				}
 				args = []string{name}
-			}
-			if err := rf.check(r, cmd, args[0]); err != nil {
-				return err
-			}
-			if _, err := app.RepositoryWants(rf.repositories, nil); err != nil {
-				return err
 			}
 			ctx := cmd.Context()
 			svc, arg, err := r.resolvePlanArg(ctx, args[0])
@@ -882,9 +887,8 @@ func (r *runtime) pickPreset(cmd *cobra.Command) (string, error) {
 		return "", err
 	}
 	if len(items) == 0 {
-		return "", errs.Usagef("bam run needs a plan or preset name").
-			WithWhy("there are no presets to pick from").
-			WithTry("bam preset add")
+		why, try := noPresetsMessage(cfg)
+		return "", errs.Usagef("bam run needs a plan or preset name").WithWhy(why).WithTry(try)
 	}
 	name, err := r.env.PickPreset(cmd.Context(), r.env.Stdin, r.env.Stdout, items)
 	if err != nil {

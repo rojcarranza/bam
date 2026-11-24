@@ -131,21 +131,34 @@ func (f *runFlags) follow(cmd *cobra.Command, t *config.ResolvedTarget) (bool, t
 func newRunCmd(r *runtime) *cobra.Command {
 	var rf runFlags
 	cmd := &cobra.Command{
-		Use:        "run <plan|preset>",
+		Use:        "run [plan|preset]",
 		Short:      "Trigger a plan or preset with variables",
 		SuggestFor: []string{"trigger", "start"},
 		Example: "  bam run deploy-qa --watch\n" +
 			"  bam run PROJ-BUILD --branch develop --var cluster_type=k8s\n" +
 			"  bam run deploy-qa --from last --dry-run\n" +
 			"  bam run PROJ-BUILD --from 482 --revision from\n" +
-			"  bam run deploy-qa --repository repo-a=feature/PROJ-101",
-		Args:              cobra.ExactArgs(1),
+			"  bam run deploy-qa --repository repo-a=feature/PROJ-101\n" +
+			"  bam run                  # on a terminal: pick a preset from a list",
+		Long: "Trigger a plan or preset with variables.\n\n" +
+			"With no name, on a terminal, bam run opens a small picker of your presets: type to\n" +
+			"filter on a name, plan, branch or file, Enter runs the highlighted one with the flags\n" +
+			"you gave, Esc cancels. The picker does not edit variables; use --var or --edit.\n" +
+			"Without a terminal, or with --json, a name is required.",
+		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			if !rf.dryRun {
 				if err := r.refuseWrite("run a plan"); err != nil {
 					return err
 				}
+			}
+			if len(args) == 0 {
+				name, err := r.pickPreset(cmd)
+				if err != nil {
+					return err
+				}
+				args = []string{name}
 			}
 			if err := rf.check(r, cmd, args[0]); err != nil {
 				return err
@@ -850,4 +863,33 @@ func newURLCmd(r *runtime) *cobra.Command {
 	addLastFlag(cmd, &last)
 	cmd.Flags().StringVar(&job, "job", "", "a job of the plan or build, by short key (JOB1)")
 	return cmd
+}
+
+// pickPreset is bare bam run: on a terminal, the picker; anywhere else a
+// usage error, because a script or --json caller must never wait on a key.
+func (r *runtime) pickPreset(cmd *cobra.Command) (string, error) {
+	if r.flags.json || !r.tuiAllowed() {
+		return "", errs.Usagef("bam run needs a plan or preset name").
+			WithWhy("the picker needs a terminal, and this is a pipe, --json or --no-tui").
+			WithTry("bam preset list to see the presets, then bam run NAME")
+	}
+	cfg, err := r.current()
+	if err != nil {
+		return "", err
+	}
+	items, err := app.DescribeTargets(cfg, r.env.Getenv)
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		return "", errs.Usagef("bam run needs a plan or preset name").
+			WithWhy("there are no presets to pick from").
+			WithTry("bam preset add")
+	}
+	name, err := r.env.PickPreset(cmd.Context(), r.env.Stdin, r.env.Stdout, items)
+	if err != nil {
+		return "", err
+	}
+	r.note("bam run "+name, "")
+	return name, nil
 }

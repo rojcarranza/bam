@@ -50,6 +50,19 @@ type TargetInfo struct {
 	Repositories map[string]string
 }
 
+// PresetSummary is the one line that tells presets apart: "PLAN · branch", or
+// just the plan when the preset names no branch. Tab completion and the
+// picker of bare bam run show it beside each name.
+func PresetSummary(plan, branch string) string {
+	if branch == "" {
+		return plan
+	}
+	return plan + " · " + branch
+}
+
+// Summary is PresetSummary of the target.
+func (t TargetInfo) Summary() string { return PresetSummary(t.Plan, t.Branch) }
+
 // DescribeTargets returns every merged target, sorted by name.
 func DescribeTargets(cfg *config.Config, getenv func(string) string) ([]TargetInfo, error) {
 	all, err := cfg.Targets()

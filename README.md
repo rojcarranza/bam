@@ -328,6 +328,7 @@ On a terminal the tree redraws while the builds run. bam exits 0 when every buil
 
 | You want to | Type |
 | --- | --- |
+| pick a preset from a list on a terminal | `bam run` |
 | run a plan by its key and follow it | `bam run BAMCI-BUILD --watch` |
 | get a desktop notification when it finishes | `bam run BAMCI-BUILD --watch --notify` |
 | set a variable | `bam run FORGE-PROV --var cluster_name=lab2` |

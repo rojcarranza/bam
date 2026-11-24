@@ -2,8 +2,17 @@
 
 Trigger a plan or preset with variables
 
+### Synopsis
+
+Trigger a plan or preset with variables.
+
+With no name, on a terminal, bam run opens a small picker of your presets: type to
+filter on a name, plan, branch or file, Enter runs the highlighted one with the flags
+you gave, Esc cancels. The picker does not edit variables; use --var or --edit.
+Without a terminal, or with --json, a name is required.
+
 ```
-bam build run <plan|preset> [flags]
+bam build run [plan|preset] [flags]
 ```
 
 ### Examples
@@ -14,6 +23,7 @@ bam build run <plan|preset> [flags]
   bam run deploy-qa --from last --dry-run
   bam run PROJ-BUILD --from 482 --revision from
   bam run deploy-qa --repository repo-a=feature/PROJ-101
+  bam run                  # on a terminal: pick a preset from a list
 ```
 
 ### Options

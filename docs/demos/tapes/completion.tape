@@ -20,6 +20,7 @@ Type "bam ru"
 Tab
 Sleep 800ms
 Tab
+Tab
 Sleep 2s
 Type "deploy"
 Tab

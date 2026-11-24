@@ -19,7 +19,9 @@ Sleep 1s
 Type "bam ru"
 Tab
 Sleep 800ms
-Type "d"
+Tab
+Sleep 2s
+Type "deploy"
 Tab
 Sleep 800ms
 Type "--var "

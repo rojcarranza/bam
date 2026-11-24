@@ -24,7 +24,7 @@ The server is chosen the usual way (`--server`, or your only configured server; 
 
 ### Complete preset names with Tab
 
-Press Tab after `bam run`, `bam watch`, `bam pin add GROUP` and the other commands that take a plan or preset, and bam lists your presets with their plan and branch: `deploy-qa  PROJ-DEPLOY · main`. A preset that does not load (a bad plan key, say) is left out, and a name defined in two presets files still shows, so Tab keeps working while you fix the file; `bam preset list` and `bam run` name the problem.
+Press Tab after `bam run`, `bam watch`, `bam pin add GROUP` and the other commands that take a plan or preset, and bam lists your presets with their plan and branch: `deploy-qa  PROJ-DEPLOY · main`. A preset that fails validation (a bad plan key, say) is left out and the others still show, and a name defined in two presets files still shows, so Tab keeps working while you fix the preset; `bam preset list` and `bam run` name the problem. A presets file that cannot be read at all (an unknown key, broken YAML) empties the list until you fix it.
 
 Completion needs a one-time setup per shell, with `bam completion SHELL`:
 

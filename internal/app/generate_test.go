@@ -60,13 +60,21 @@ func TestGenerateTargetFillsValuesFromNamedBuild(t *testing.T) {
 	s := newService(t, fakeBamboo())
 	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8"})
 	require.NoError(t, err)
+	// global_flag is in the build's variables but not declared by the plan:
+	// Bamboo lists every global a build inherited, so it is left out.
 	assert.Equal(t, []config.DraftVar{
 		{Name: "cluster_type", Value: "dcos"},
 		{Name: "compute_nodes", Value: "3"},
 		{Name: "cluster_name", Value: "beta"},
 		{Name: "db_password", Value: "${DB_PASSWORD}", Commented: true},
-		{Name: "global_flag", Value: "x", Comment: "not declared by the plan"},
 	}, d.Vars)
+}
+
+func TestGenerateTargetIncludeUndeclaredAddsBuildGlobals(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-PROV", Branch: "develop", From: "8", IncludeUndeclared: true})
+	require.NoError(t, err)
+	assert.Equal(t, config.DraftVar{Name: "global_flag", Value: "x", Comment: "not declared by the plan"}, d.Vars[len(d.Vars)-1])
 }
 
 func TestGenerateTargetFromBuildKeepsPlanDefault(t *testing.T) {
@@ -129,7 +137,7 @@ func TestGenerateTargetKeepsEveryDeclaredVariable(t *testing.T) {
 	assert.Contains(t, names, "cluster_type", "equal to the plan default, still written")
 	assert.Contains(t, names, "compute_nodes")
 	assert.Contains(t, names, "db_password")
-	assert.Contains(t, names, "global_flag", "undeclared variables are kept")
+	assert.NotContains(t, names, "global_flag", "a variable the plan does not declare is left out")
 }
 
 // Reported: bam preset add left the plan's declared variables out of the

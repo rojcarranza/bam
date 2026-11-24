@@ -696,3 +696,22 @@ func TestPresetAddPrintsBoxOfRecentValues(t *testing.T) {
 	require.Equal(t, 0, h.run("preset", "add", "y", "--plan", "PROJ-PROV", "--branch", "develop"), h.stderr.String())
 	assert.NotContains(t, h.stdout.String(), "values to choose from")
 }
+
+// Reported: preset add --from wrote every global the build inherited, since
+// Bamboo lists them all among a build's variables. They are written only
+// with --include-globals.
+func TestPresetAddFromLeavesBuildGlobalsOutUnlessAsked(t *testing.T) {
+	h := newHarness(t)
+	h.fake.History["PROJ-PROV12"][0].MasterKey = "PROJ-PROV"
+	h.fake.BuildVars["PROJ-PROV12-8"]["global_flag"] = "x"
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", "PROJ-PROV12-8", "--print"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `cluster_type: "dcos"`)
+	assert.NotContains(t, h.stdout.String(), "global_flag")
+	assert.NotContains(t, h.stdout.String(), "not declared by the plan")
+
+	h = newHarness(t)
+	h.fake.History["PROJ-PROV12"][0].MasterKey = "PROJ-PROV"
+	h.fake.BuildVars["PROJ-PROV12-8"]["global_flag"] = "x"
+	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", "PROJ-PROV12-8", "--include-globals", "--print"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `global_flag: "x"  # not declared by the plan`)
+}

@@ -144,6 +144,7 @@ func newTargetShowCmd(r *runtime) *cobra.Command {
 // presetAddFlags holds bam preset add's flags.
 type presetAddFlags struct {
 	plan, from, branch, file       string
+	includeGlobals                 bool
 	shared, printOnly, force, full bool
 }
 
@@ -244,7 +245,7 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 	if err := f.check(r, name); err != nil {
 		return err
 	}
-	o := app.GenerateOptions{Name: name, PlanKey: f.plan, From: f.from, Branch: f.branch, Server: r.presetServer(link)}
+	o := app.GenerateOptions{Name: name, PlanKey: f.plan, From: f.from, IncludeUndeclared: f.includeGlobals, Branch: f.branch, Server: r.presetServer(link)}
 	if err := app.CheckGenerate(o); err != nil {
 		return err
 	}
@@ -332,6 +333,8 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"branch. The preset lists every variable the plan declares, with its plan default filled in; a secret\n" +
 			"the plan stores is a commented line. It also writes the server you connected to, the plan branch,\n" +
 			"and watch: true, with no per-line comments except one on a variable the plan does not declare.\n" +
+			"--from writes only the plan's declared variables; --include-globals adds the other variables\n" +
+			"the build ran with, which Bamboo fills with every global.\n" +
 			"When it finishes it prints a box, in the terminal only, with up to three values the last 10\n" +
 			"builds ran with, for each variable that varied.",
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
@@ -355,6 +358,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVar(&fl.plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
 	f.StringVar(&fl.from, "from", "", "build whose variable values fill the preset: number, key or last")
+	f.BoolVar(&fl.includeGlobals, "include-globals", false, "with --from, also write the build's variables the plan does not declare (Bamboo globals)")
 	f.StringVarP(&fl.branch, "branch", "b", "", "default branch for the preset; defaults to the --from build's branch")
 	f.BoolVar(&fl.shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")
 	f.StringVar(&fl.file, "file", "", "write NAME.yaml in your presets directory instead of the plan's project file")

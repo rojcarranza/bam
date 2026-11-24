@@ -53,7 +53,7 @@ To start from the values a build already ran with, name it with `--from` (a numb
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --from 41
 
-Each variable then takes build #41's value. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. A secret the plan stores stays a commented line, since bam cannot read the value a build used; one with no stored value becomes a `${ENV_NAME}` reference.
+Each variable then takes build #41's value. Only the plan's declared variables are written: Bamboo lists every global a build inherited, so bam cannot tell an override from a plain global. Add `--include-globals` to also write the build's other variables, commented `# not declared by the plan`; delete the ones you do not need. A secret the plan stores stays a commented line, since bam cannot read the value a build used; one with no stored value becomes a `${ENV_NAME}` reference.
 
 A full build key names the plan too, so `--plan` can go; a branch build also sets the preset's `branch:` unless `--branch` says otherwise:
 

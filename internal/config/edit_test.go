@@ -143,3 +143,21 @@ targets:
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	require.NoError(t, WriteInitFile(path, f, nil, true))
 }
+
+// HasTarget reads the file and changes nothing; a missing file has none.
+func TestHasTarget(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "proj.yaml")
+	has, err := HasTarget(path, []string{"presets"}, "deploy")
+	require.NoError(t, err)
+	assert.False(t, has)
+	assert.NoFileExists(t, path)
+
+	writeFile(t, path, "presets:\n  deploy:\n    plan: PROJ-DEPLOY\n")
+	has, err = HasTarget(path, []string{"presets"}, "deploy")
+	require.NoError(t, err)
+	assert.True(t, has)
+	has, _ = HasTarget(path, []string{"presets"}, "other")
+	assert.False(t, has)
+	has, _ = HasTarget(path, []string{"targets"}, "deploy")
+	assert.False(t, has, "another key path is another table")
+}

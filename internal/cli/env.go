@@ -79,6 +79,11 @@ type Env struct {
 	// PickPreset is the picker of bare bam run; a field so tests can script
 	// the choice without a terminal.
 	PickPreset func(ctx context.Context, in io.Reader, out io.Writer, items []app.TargetInfo) (string, error)
+	// Choose, Ask and EditPreset are the inline prompts of bam preset add on
+	// a terminal; fields so tests can script the answers without one.
+	Choose     func(ctx context.Context, in io.Reader, out io.Writer, prompt string, items []tui.Choice) (int, error)
+	Ask        func(ctx context.Context, in io.Reader, out io.Writer, prompt, initial string) (string, error)
+	EditPreset func(ctx context.Context, in io.Reader, out io.Writer, form app.PresetForm, load func(context.Context) []app.RecentVar) (app.PresetForm, error)
 	GOOS       string
 	// Glob is filepath.Glob; nil matches nothing. It finds the Windows
 	// presets file from WSL.
@@ -159,6 +164,9 @@ func SystemEnv() Env {
 		},
 		RunTUI:     tui.Run,
 		PickPreset: tui.PickPreset,
+		Choose:     tui.Choose,
+		Ask:        tui.Ask,
+		EditPreset: tui.EditPresetForm,
 		GOOS:       goruntime.GOOS,
 	}
 }

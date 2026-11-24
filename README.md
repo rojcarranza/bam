@@ -728,7 +728,7 @@ A failure never cancels a build, and Ctrl-C stops watching only. Matrix runs, tr
 
 **Complete commands, presets and variable names with Tab.**
 
-![bash completion of the command, the preset and the variable name](docs/demos/gifs/completion.gif)
+![bash completion of the command, each preset with its plan, and the variable name](docs/demos/gifs/completion.gif)
 
 *Instead of:* No equivalent: Bamboo has no command line.
 

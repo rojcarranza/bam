@@ -6,7 +6,13 @@ Source tapes/_start.tape
 Type "bam preset add deploy --plan SETLIST-DEPLOY"
 Enter
 Sleep 4s
+Down
 Right
+Sleep 2s
+Down 3
+Enter
+Type "1.2.0"
+Enter
 Sleep 2s
 Ctrl+S
 Wait@30s

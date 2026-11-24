@@ -205,15 +205,13 @@ func (f *presetAddFlags) check(r *runtime, name string) error {
 // save writes the preset to .bam.yaml with --shared, else to the presets
 // directory, and returns the file it wrote.
 func (f *presetAddFlags) save(r *runtime, d config.TargetDraft) (string, error) {
-	if !f.shared {
-		return r.writePreset(r.cfg, d, f.file, f.force)
+	path, keyPath, err := f.target(r, d)
+	if err != nil {
+		return "", err
 	}
-	path := r.cfg.ProjectPath
-	if path == "" {
-		return "", errs.Usagef("no .bam.yaml in this repository").
-			WithTry("bam init --server ALIAS --project KEY, or drop --shared to write your presets file")
-	}
-	return path, config.WriteTarget(path, []string{"targets"}, d, f.force)
+	err = config.WriteTarget(path, keyPath, d, f.force)
+	r.configChanged()
+	return path, err
 }
 
 // presetServer is the alias a new preset names under server: the one bam
@@ -465,8 +463,20 @@ func removePreset(cfg *config.Config, name string) ([]string, error) {
 }
 
 // writePreset adds d to file in the presets directory, by default the plan's
-// project file, and returns the path it wrote. preset add and the UI share it.
+// project file, and returns the path it wrote. The UI uses it.
 func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file string, force bool) (string, error) {
+	path, err := r.presetsTarget(cfg, d, file)
+	if err != nil {
+		return "", err
+	}
+	err = config.WriteTarget(path, []string{"presets"}, d, force)
+	r.configChanged()
+	return path, err
+}
+
+// presetsTarget is the presets directory file d goes to, by default the
+// plan's project file, refusing a name another presets file already holds.
+func (r *runtime) presetsTarget(cfg *config.Config, d config.TargetDraft, file string) (string, error) {
 	if file == "" {
 		file = config.ProjectPresetsName(d.Plan)
 	}
@@ -474,12 +484,7 @@ func (r *runtime) writePreset(cfg *config.Config, d config.TargetDraft, file str
 	if err != nil {
 		return "", err
 	}
-	if err := checkPresetElsewhere(cfg, d.Name, path); err != nil {
-		return "", err
-	}
-	err = config.WriteTarget(path, []string{"presets"}, d, force)
-	r.configChanged()
-	return path, err
+	return path, checkPresetElsewhere(cfg, d.Name, path)
 }
 
 // checkPresetElsewhere refuses to add name to path when another presets file

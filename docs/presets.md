@@ -29,7 +29,7 @@ On a terminal, bam then opens a small form under the prompt, with one row per va
 - `ctrl-s` writes the file with your values. `esc` or `ctrl-c` writes nothing and exits 130. Every variable the plan declares is written either way.
 - A name that is already taken fails before the form opens.
 
-Leave out the name or the plan and bam asks for it first on a terminal: `bam preset add` alone shows a list of plans, then the plan's branches, then asks for the name (it starts as the plan's own), then opens the form. `bam preset add --plan PROJ-DEPLOY` asks only for the name.
+Leave out the name or the plan and bam asks for it first on a terminal: `bam preset add` alone shows a list of the plans in the `projects:` of `.bam.yaml` (without one it says so, as `bam plan list` does), then the plan's branches, then asks for the name (it starts as the plan's own), then opens the form. `bam preset add --plan PROJ-DEPLOY` asks only for the name.
 
 The form and these questions never open with a pipe, `TERM` empty or `dumb`, `--no-tui`, `BAM_NO_TUI`, `--json` or `--print`, or for a plan with no variables. bam then writes the plan's values at once, as before, and a missing name is a usage error.
 

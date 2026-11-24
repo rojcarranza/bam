@@ -75,13 +75,8 @@ func (f *presetAddFlags) askPlan(r *runtime, ctx context.Context, backend Backen
 	}
 	projects := cfg.ProjectKeys(server)
 	if len(projects) == 0 {
-		all, err := backend.ListProjects(ctx)
-		if err != nil {
-			return "", err
-		}
-		for _, p := range all {
-			projects = append(projects, p.Key)
-		}
+		all, perr := backend.ListProjects(ctx)
+		return "", noProjectsError(server.Alias, all, perr)
 	}
 	var keys []string
 	var items []tui.Choice
@@ -133,9 +128,9 @@ func (f *presetAddFlags) askBranch(r *runtime, ctx context.Context, backend Back
 	return names[i], nil
 }
 
-// target is the file and key path d would be written to, refusing a taken
-// name the way writing would. The form calls it first, so a filled form is
-// never refused.
+// target is the file and key path d is written to, refusing a name another
+// presets file holds. The form calls it first, so a filled form is never
+// refused.
 func (f *presetAddFlags) target(r *runtime, d config.TargetDraft) (string, []string, error) {
 	if f.shared {
 		if r.cfg.ProjectPath == "" {
@@ -144,15 +139,8 @@ func (f *presetAddFlags) target(r *runtime, d config.TargetDraft) (string, []str
 		}
 		return r.cfg.ProjectPath, []string{"targets"}, nil
 	}
-	file := f.file
-	if file == "" {
-		file = config.ProjectPresetsName(d.Plan)
-	}
-	path, err := config.PresetsDirFile(r.presetsWritePath(), file)
+	path, err := r.presetsTarget(r.cfg, d, f.file)
 	if err != nil {
-		return "", nil, err
-	}
-	if err := checkPresetElsewhere(r.cfg, d.Name, path); err != nil {
 		return "", nil, err
 	}
 	return path, []string{"presets"}, nil

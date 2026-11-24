@@ -193,6 +193,22 @@ func TestPresetAddGuidesPlanBranchAndName(t *testing.T) {
 	assert.Contains(t, string(data), `branch: "develop"`)
 }
 
+// Without projects: configured the plan list refuses, as bam plan list does,
+// instead of listing every plan on the server.
+func TestPresetAddGuideWithoutProjectsIsUsageError(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	require.NoError(t, os.WriteFile(filepath.Join(h.root, ".bam.yaml"), []byte("version: 1\nservers:\n  work:\n    url: https://bamboo.example.com\n"), 0o644))
+	h.env.Choose = func(context.Context, io.Reader, io.Writer, string, []tui.Choice) (int, error) {
+		t.Fatal("a plan list opened")
+		return 0, nil
+	}
+	assert.Equal(t, 2, h.run("preset", "add"))
+	assert.Contains(t, h.stderr.String(), "no projects configured")
+	assert.Contains(t, h.stderr.String(), "projects on work: PROJ")
+	assert.Equal(t, 0, h.run("preset", "add", "mine", "--plan", "PROJ-PROV", "--no-tui"), h.stderr.String())
+}
+
 // Only what is missing is asked: a name and --plan skip the plan list, and
 // a plan with the name missing asks for the name alone.
 func TestPresetAddAsksOnlyForWhatIsMissing(t *testing.T) {

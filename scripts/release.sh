@@ -20,6 +20,7 @@ trap 'rm -f "$notes"' EXIT
 awk -v v="$v" 'index($0, "## [" v "]") == 1 {on=1; next} on && /^## \[/ {exit} on && /^\[/ {exit} on {print}' CHANGELOG.md > "$notes"
 grep -q '[^[:space:]]' "$notes" || die "CHANGELOG.md has no section for $v; rename [Unreleased] first"
 
+# Plain gh is allowed only here: gh-axi has no auth commands, so the token read stays gh.
 token=$(gh auth token) || die "gh is not logged in; run gh auth login"
 command -v goreleaser >/dev/null || die "goreleaser v2 is not installed"
 go test ./...

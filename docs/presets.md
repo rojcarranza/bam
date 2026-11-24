@@ -40,7 +40,7 @@ The preset lists every variable the plan declares, with the plan default filled 
           # deploy_token: "${DEPLOY_TOKEN}"
         watch: true
 
-bam writes only keys it has a value for: `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables and `watch: true`. `branch` is written when the plan is a plan branch or you pass `--branch`, and `repositories` then lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build); when bam cannot read a repository's branch, the repositories are written commented. bam never writes `required` or `options`; add them yourself (see below). `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing. Two comments can appear: `# not declared by the plan` on a variable the plan does not declare, and a note when bam cannot read the plan's variables.
+bam writes only keys it has a value for: `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables and `watch: true`. `branch` is written when the plan is a plan branch or you pass `--branch`, and `repositories` then lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build); when bam cannot read a repository's branch, the repositories are written commented. bam never writes `required` or `options`; add them yourself (see below). `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing. Two comments can appear: `# not declared by the plan` on a variable the plan does not declare (only with `--from` and `--include-globals`), and a note when bam cannot read the plan's variables.
 
 When it finishes, `preset add` also prints a box, in the terminal only, of values to choose from: for each variable that ran with more than one value in the last 10 builds of the plan (or plan branch), up to three values, newest first. Secrets are never listed. Nothing is printed when no variable varied or the server cannot read build variables.
 
@@ -53,7 +53,7 @@ To start from the values a build already ran with, name it with `--from` (a numb
 
     bam preset add deploy-qa --plan PROJ-DEPLOY --from 41
 
-Each variable then takes build #41's value. Variables the build set that the plan does not declare (overrides of Bamboo globals) are added too, commented `# not declared by the plan`; delete the ones you do not need. A secret the plan stores stays a commented line, since bam cannot read the value a build used; one with no stored value becomes a `${ENV_NAME}` reference.
+Each variable then takes build #41's value. Only the plan's declared variables are written: Bamboo lists every global a build inherited, so bam cannot tell an override from a plain global. Add `--include-globals` to also write the build's other variables, commented `# not declared by the plan`; delete the ones you do not need. A secret the plan stores stays a commented line, since bam cannot read the value a build used; one with no stored value becomes a `${ENV_NAME}` reference.
 
 A full build key names the plan too, so `--plan` can go; a branch build also sets the preset's `branch:` unless `--branch` says otherwise:
 

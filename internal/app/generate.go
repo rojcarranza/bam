@@ -20,6 +20,10 @@ type GenerateOptions struct {
 	PlanKey string // optional when From is a full build key
 	From    string // build whose values fill the preset; default last, used only in comments
 	Branch  string // defaults to the branch of a From build key
+	// IncludeUndeclared, with From, also writes the build's variables the plan
+	// does not declare. Bamboo lists every global a build inherited, so they are
+	// left out unless asked for.
+	IncludeUndeclared bool
 	// Server is the alias the preset's server line names.
 	Server string
 }
@@ -195,7 +199,7 @@ func (s *Service) usedVars(ctx context.Context, ref PlanRef, from string) (map[s
 }
 
 // declaredDrafts adds the plan's declared variables to d, then, with --from,
-// the build's variables the plan does not declare.
+// the build's variables the plan does not declare when o.IncludeUndeclared.
 func declaredDrafts(d *config.TargetDraft, declared []provider.Variable, used map[string]string, usedKey string, o GenerateOptions) {
 	names := map[string]bool{}
 	for _, v := range declared {
@@ -211,7 +215,7 @@ func declaredDrafts(d *config.TargetDraft, declared []provider.Variable, used ma
 		dv.Commented = isSecretDraft(dv) && value == v.Value && value != ""
 		d.Vars = append(d.Vars, dv)
 	}
-	if o.From == "" {
+	if o.From == "" || !o.IncludeUndeclared {
 		return
 	}
 	for _, name := range slices.Sorted(maps.Keys(used)) {

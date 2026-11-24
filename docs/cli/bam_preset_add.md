@@ -13,6 +13,8 @@ then run it with bam run <name>. --from with a full build key implies --plan and
 branch. The preset lists every variable the plan declares, with its plan default filled in; a secret
 the plan stores is a commented line. It also writes the server you connected to, the plan branch,
 and watch: true, with no per-line comments except one on a variable the plan does not declare.
+--from writes only the plan's declared variables; --include-globals adds the other variables
+the build ran with, which Bamboo fills with every global.
 When it finishes it prints a box, in the terminal only, with up to three values the last 10
 builds ran with, for each variable that varied.
 
@@ -34,14 +36,15 @@ bam preset add <name> --plan KEY [flags]
 ### Options
 
 ```
-  -b, --branch string         default branch for the preset; defaults to the --from build's branch
-      --file string           write NAME.yaml in your presets directory instead of the plan's project file
-      --force[=true|false]    replace an existing preset
-      --from string           build whose variable values fill the preset: number, key or last
-  -h, --help[=true|false]     help for add
-      --plan string           plan key or plan page link to generate from; optional when --from is a build key
-      --print[=true|false]    print the YAML and write nothing
-      --shared[=true|false]   write to the repository's .bam.yaml instead of your presets directory
+  -b, --branch string                  default branch for the preset; defaults to the --from build's branch
+      --file string                    write NAME.yaml in your presets directory instead of the plan's project file
+      --force[=true|false]             replace an existing preset
+      --from string                    build whose variable values fill the preset: number, key or last
+  -h, --help[=true|false]              help for add
+      --include-globals[=true|false]   with --from, also write the build's variables the plan does not declare (Bamboo globals)
+      --plan string                    plan key or plan page link to generate from; optional when --from is a build key
+      --print[=true|false]             print the YAML and write nothing
+      --shared[=true|false]            write to the repository's .bam.yaml instead of your presets directory
 ```
 
 ### Options inherited from parent commands

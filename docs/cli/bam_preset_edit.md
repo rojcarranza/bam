@@ -4,8 +4,8 @@ Change a saved preset: values, branch, repositories, required, options, timeout 
 
 ### Synopsis
 
-Change a saved preset without opening its YAML. bam rewrites only the lines that change, in the
-file whose copy of the preset bam uses, and keeps comments, key order and the other presets.
+Change a saved preset without opening its YAML. bam edits the file whose copy of the preset
+bam uses and keeps its comments, key order and the other presets; the spacing before a comment can change.
 On a terminal, bam preset edit [NAME] opens a form filled with the saved preset: its variables,
 the plan variables it leaves out (written only once you change them), then name, branch,
 repositories, required and timeout. enter edits a row, ←→ step through the choices, x removes a

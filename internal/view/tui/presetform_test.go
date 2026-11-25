@@ -262,6 +262,17 @@ func TestPresetEditFormRemovesAndAddsRepositories(t *testing.T) {
 	assert.Contains(t, m.View(), "added")
 }
 
+// The footer counts each repository removed, added or changed, as the save
+// lists them, not all of them as one change.
+func TestPresetEditFormCountsEachRepositoryChange(t *testing.T) {
+	m := newPresetForm(context.Background(), repoEditForm(nil), nil)
+	assert.Contains(t, m.View(), "nothing changed yet")
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), rk("x"))
+	assert.Contains(t, m.View(), "1 change(s) to save")
+	m = formKey(m, rk("a"), rk("c"), rk("s"), rk("="), rk("m"), kt(tea.KeyEnter))
+	assert.Contains(t, m.View(), "2 change(s) to save")
+}
+
 // A new branch reads the repositories Bamboo lists for it and puts them in
 // place of the old ones; an answer for a branch typed over meanwhile is ignored.
 func TestPresetEditFormReadsRepositoriesWhenTheBranchChanges(t *testing.T) {

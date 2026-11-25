@@ -42,8 +42,8 @@ func newPresetEditCmd(r *runtime) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "edit [name]",
 		Short: "Change a saved preset: values, branch, repositories, required, options, timeout or name",
-		Long: "Change a saved preset without opening its YAML. bam rewrites only the lines that change, in the\n" +
-			"file whose copy of the preset bam uses, and keeps comments, key order and the other presets.\n" +
+		Long: "Change a saved preset without opening its YAML. bam edits the file whose copy of the preset\n" +
+			"bam uses and keeps its comments, key order and the other presets; the spacing before a comment can change.\n" +
 			"On a terminal, bam preset edit [NAME] opens a form filled with the saved preset: its variables,\n" +
 			"the plan variables it leaves out (written only once you change them), then name, branch,\n" +
 			"repositories, required and timeout. enter edits a row, ←→ step through the choices, x removes a\n" +

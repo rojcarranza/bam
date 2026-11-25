@@ -214,6 +214,25 @@ func (f PresetForm) Edit() config.PresetEdit {
 	return e
 }
 
+// RepositoryChanges counts the repositories the form adds, removes or gives
+// another branch, the way the save lists them: one change each.
+func (f *PresetForm) RepositoryChanges() int {
+	n := 0
+	for _, fl := range f.Fields {
+		if !strings.HasPrefix(fl.Key, "repositories.") {
+			continue
+		}
+		if fl.Removed {
+			if fl.Orig != "" {
+				n++
+			}
+		} else if strings.TrimSpace(fl.Value) != strings.TrimSpace(fl.Orig) {
+			n++
+		}
+	}
+	return n
+}
+
 // SplitList splits a comma separated list, dropping blanks and repeats.
 func SplitList(s string) []string {
 	var out []string

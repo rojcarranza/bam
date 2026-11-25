@@ -482,8 +482,8 @@ func quoted(vs []string) []string {
 func (m presetFormModel) summary() string {
 	if m.form.Editing {
 		e := m.form.Edit()
-		n := len(e.Set) + len(e.Unset) + len(e.Options)
-		for _, p := range []bool{e.Branch != nil, e.Repositories != nil, e.Required != nil, e.Timeout != nil, e.Rename != ""} {
+		n := len(e.Set) + len(e.Unset) + len(e.Options) + m.form.RepositoryChanges()
+		for _, p := range []bool{e.Branch != nil, e.Required != nil, e.Timeout != nil, e.Rename != ""} {
 			if p {
 				n++
 			}

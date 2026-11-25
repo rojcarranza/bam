@@ -38,6 +38,13 @@ func EditPresetForm(ctx context.Context, in io.Reader, out io.Writer, form app.P
 
 type recentMsg []app.RecentVar
 
+// reposMsg is the repositories Bamboo lists for branch, or why it could not.
+type reposMsg struct {
+	branch string
+	repos  []app.RepoBranch
+	err    error
+}
+
 type presetFormModel struct {
 	ctx     context.Context
 	form    app.PresetForm
@@ -45,7 +52,9 @@ type presetFormModel struct {
 	loading bool
 	cursor  int
 	editing bool
-	options bool // the input holds the options of the variable under the cursor
+	options bool   // the input holds the options of the variable under the cursor
+	adding  bool   // the input holds a new repository, NAME=BRANCH
+	reading string // the branch whose repositories are being read
 	input   textinput.Model
 	err     string
 	width   int
@@ -90,6 +99,8 @@ func (m presetFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case recentMsg:
 		m.loading = false
 		m.form.AddRecent(msg)
+	case reposMsg:
+		return m.repos(msg)
 	case tea.KeyMsg:
 		if m.editing {
 			return m.editKey(msg)
@@ -129,19 +140,49 @@ func (m presetFormModel) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		m.beginEdit(m.editValue())
 	case tea.KeyRunes:
-		if r := m.row(); r != nil && m.form.Editing && len(msg.Runes) == 1 {
-			switch msg.Runes[0] {
-			case 'x':
-				r.Removed = !r.Removed
-			case 'o':
-				if !r.Secret {
-					m.options = true
-					m.beginEdit(strings.Join(r.Options, ", "))
-				}
-			}
+		if !m.form.Editing || len(msg.Runes) != 1 {
+			return m, nil
+		}
+		switch r, fl := m.row(), m.field(); {
+		case msg.Runes[0] == 'a':
+			m.adding = true
+			m.beginEdit("")
+		case msg.Runes[0] == 'x' && r != nil:
+			r.Removed = !r.Removed
+		case msg.Runes[0] == 'x' && fl != nil && strings.HasPrefix(fl.Key, "repositories."):
+			fl.Removed = !fl.Removed
+		case msg.Runes[0] == 'o' && r != nil && !r.Secret:
+			m.options = true
+			m.beginEdit(strings.Join(r.Options, ", "))
 		}
 	}
 	return m, nil
+}
+
+// repos applies the repositories Bamboo listed for the branch just typed. It
+// is ignored when the branch has changed again since.
+func (m presetFormModel) repos(msg reposMsg) (tea.Model, tea.Cmd) {
+	if m.reading != msg.branch {
+		return m, nil
+	}
+	m.reading = ""
+	if msg.err != nil {
+		m.err = "could not read the repositories of " + msg.branch + ": " + msg.err.Error()
+		return m, nil
+	}
+	m.form.UseRepositories(msg.repos)
+	m.cursor = min(m.cursor, m.lines()-1)
+	return m, nil
+}
+
+// branchValue is the text of the branch setting.
+func (m presetFormModel) branchValue() string {
+	for _, fl := range m.form.Fields {
+		if fl.Key == "branch" {
+			return strings.TrimSpace(fl.Value)
+		}
+	}
+	return ""
 }
 
 func (m presetFormModel) editKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -154,7 +195,15 @@ func (m presetFormModel) editKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case tea.KeyEnter:
 		text := m.input.Value()
+		before := m.branchValue()
 		switch r, fl := m.row(), m.field(); {
+		case m.adding:
+			name, branch, ok := strings.Cut(text, "=")
+			if name, branch = strings.TrimSpace(name), strings.TrimSpace(branch); !ok || name == "" || branch == "" {
+				m.err = "type the repository and its branch as NAME=BRANCH"
+				return m, nil
+			}
+			m.form.SetRepository(name, branch)
 		case m.options:
 			r.Options = app.SplitList(text)
 			r.Choices = optionChoices(*r)
@@ -171,6 +220,14 @@ func (m presetFormModel) editKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.endEdit()
 		m.err = ""
 		m.cursor = min(m.cursor+1, m.lines()-1)
+		if after := m.branchValue(); after != before && after != "" && m.form.ReadRepos != nil {
+			m.reading = after
+			read, ctx := m.form.ReadRepos, m.ctx
+			return m, func() tea.Msg {
+				repos, err := read(ctx, after)
+				return reposMsg{branch: after, repos: repos, err: err}
+			}
+		}
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -187,7 +244,7 @@ func (m *presetFormModel) beginEdit(text string) {
 }
 
 func (m *presetFormModel) endEdit() {
-	m.editing, m.options = false, false
+	m.editing, m.options, m.adding = false, false, false
 	m.input.Blur()
 }
 
@@ -293,12 +350,12 @@ func (m presetFormModel) View() string {
 		if i < len(f.Rows) {
 			r := f.Rows[i]
 			label, val, note = r.Name, rowValue(r), rowNote(r, f.Editing, f.Held)
-			if i == m.cursor && m.editing && !m.options {
+			if i == m.cursor && m.editing && !m.adding && !m.options {
 				val = input
 				if r.Secret {
 					val = "${" + input + "}"
 				}
-			} else if i == m.cursor && m.editing {
+			} else if i == m.cursor && m.editing && !m.adding {
 				val, note = rowValue(r), "options, separated by commas: "+input
 			}
 		} else {
@@ -307,10 +364,16 @@ func (m presetFormModel) View() string {
 			if val == "" {
 				val = "____"
 			}
-			if i == m.cursor && m.editing {
+			if i == m.cursor && m.editing && !m.adding {
 				val = input
 			}
 			switch {
+			case fl.Removed && f.Held.Also[fl.Key] != "":
+				note = "removed here: the value in " + f.Held.Also[fl.Key] + " applies"
+			case fl.Removed:
+				note = "removed"
+			case fl.Orig == "" && strings.HasPrefix(fl.Key, "repositories."):
+				note = "added"
 			case strings.TrimSpace(fl.Value) == "" && strings.TrimSpace(fl.Orig) != "" && f.Held.Also[fl.Key] != "":
 				note = "cleared here: the value in " + f.Held.Also[fl.Key] + " applies"
 			case fl.Value != fl.Orig:
@@ -322,19 +385,25 @@ func (m presetFormModel) View() string {
 	if r := m.row(); r != nil && len(r.Choices) > 1 && !m.editing {
 		lines = append(lines, cut(dimStyle.Render("  ←→ "+strings.Join(quoted(r.Choices), " · "))))
 	}
+	if m.adding {
+		lines = append(lines, cut("  new repository, NAME=BRANCH: "+m.input.View()))
+	}
 	lines = append(lines, cut(dimStyle.Render("  "+m.summary())))
 	if m.err != "" {
 		lines = append(lines, cut("  "+m.err))
 	}
 	keys := "↑↓ move · enter edit · ←→ choices · ctrl-s save · esc cancel"
 	if f.Editing {
-		keys = "↑↓ move · enter edit · ←→ choices · x remove · o options · ctrl-s save · esc cancel"
+		keys = "↑↓ move · enter edit · ←→ choices · x remove · o options · a add repository · ctrl-s save · esc cancel"
 	}
 	if m.editing {
 		keys = "enter accept · esc keep the old value"
 	}
 	if m.loading {
 		lines = append(lines, cut(dimStyle.Render("  reading recent builds…")))
+	}
+	if m.reading != "" {
+		lines = append(lines, cut(dimStyle.Render("  reading the repositories of "+m.reading+"…")))
 	}
 	lines = append(lines, cut(dimStyle.Render("  "+keys)))
 	return strings.Join(lines, "\n")

@@ -109,7 +109,7 @@ func (f PresetForm) Validate() error {
 			if d, err := time.ParseDuration(v); err != nil || d < 0 {
 				return fmt.Errorf("%q is not a duration like 45m or 1h30m", v)
 			}
-		case strings.HasPrefix(fl.Key, "repositories.") && v == "":
+		case strings.HasPrefix(fl.Key, "repositories.") && !fl.Removed && v == "":
 			return fmt.Errorf("%s needs a branch", fl.Label)
 		}
 	}
@@ -120,7 +120,7 @@ func (f PresetForm) Validate() error {
 		}
 	}
 	for _, fl := range f.Fields {
-		if branch == "" && strings.HasPrefix(fl.Key, "repositories.") {
+		if branch == "" && strings.HasPrefix(fl.Key, "repositories.") && !fl.Removed {
 			return fmt.Errorf("repositories need a branch")
 		}
 	}
@@ -150,6 +150,9 @@ func (f PresetForm) validateHeld() error {
 		}
 	}
 	for _, fl := range f.Fields {
+		if _, only := f.Held.Only[fl.Key]; only && fl.Removed {
+			return no(fl.Label, fl.Key)
+		}
 		if strings.TrimSpace(fl.Value) != "" {
 			continue
 		}
@@ -198,6 +201,8 @@ func (f PresetForm) Edit() config.PresetEdit {
 		case fl.Key == "required" && changed:
 			req := SplitList(v)
 			e.Required = &req
+		case strings.HasPrefix(fl.Key, "repositories.") && fl.Removed:
+			reposChanged = reposChanged || fl.Orig != ""
 		case strings.HasPrefix(fl.Key, "repositories."):
 			repos = append(repos, config.RepoBranch{Name: strings.TrimPrefix(fl.Key, "repositories."), Branch: v})
 			reposChanged = reposChanged || changed
@@ -224,4 +229,69 @@ func SplitList(s string) []string {
 // the edit form. A server that cannot list them gives none.
 func (s *Service) PlanVariables(ctx context.Context, plan string) map[string]string {
 	return s.PlanDefaults(ctx, config.TargetDraft{Plan: plan})
+}
+
+// SetRepository sets the branch of repository name, adding the setting when
+// the form does not have it yet, and brings back one that was removed.
+func (f *PresetForm) SetRepository(name, branch string) {
+	key := "repositories." + name
+	for i := range f.Fields {
+		if f.Fields[i].Key == key {
+			f.Fields[i].Value, f.Fields[i].Removed = branch, false
+			return
+		}
+	}
+	at := len(f.Fields)
+	for i, fl := range f.Fields {
+		if fl.Key == "branch" || strings.HasPrefix(fl.Key, "repositories.") {
+			at = i + 1
+		}
+	}
+	fl := FormField{Key: key, Label: "repository " + name, Value: branch}
+	f.Fields = slices.Insert(f.Fields, at, fl)
+}
+
+// UseRepositories makes the repositories the form holds those Bamboo lists
+// for the new branch: each listed one gets its branch, one the preset had that
+// Bamboo does not list is removed, and one added in this form that Bamboo does
+// not list is dropped.
+func (f *PresetForm) UseRepositories(repos []RepoBranch) {
+	listed := map[string]bool{}
+	for _, r := range repos {
+		listed[r.Name] = true
+		f.SetRepository(r.Name, r.Branch)
+	}
+	f.Fields = slices.DeleteFunc(f.Fields, func(fl FormField) bool {
+		return strings.HasPrefix(fl.Key, "repositories.") && !listed[strings.TrimPrefix(fl.Key, "repositories.")] && fl.Orig == ""
+	})
+	for i := range f.Fields {
+		fl := &f.Fields[i]
+		if strings.HasPrefix(fl.Key, "repositories.") && !listed[strings.TrimPrefix(fl.Key, "repositories.")] {
+			fl.Removed = true
+		}
+	}
+}
+
+// PlanBranchRepositories reads the repositories the newest finished build of
+// plan on branch used, with the branch each built. A repository the build does
+// not record a branch for is left out. An empty branch has none.
+func (s *Service) PlanBranchRepositories(ctx context.Context, plan, branch string) ([]RepoBranch, error) {
+	if branch == "" {
+		return nil, nil
+	}
+	branch, err := s.ExpandBranch(branch)
+	if err != nil {
+		return nil, err
+	}
+	key, err := s.ResolveBranch(ctx, plan, branch)
+	if err != nil {
+		return nil, err
+	}
+	var out []RepoBranch
+	for _, r := range s.draftRepos(ctx, PlanRef{PlanKey: key, MasterKey: plan, Branch: branch}, "") {
+		if r.Branch != "" {
+			out = append(out, RepoBranch{Name: r.Name, Branch: r.Branch})
+		}
+	}
+	return out, nil
 }

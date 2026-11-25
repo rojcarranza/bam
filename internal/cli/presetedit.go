@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -20,6 +21,9 @@ type presetEditFlags struct {
 	vars, unset    []string
 	branch, rename string
 	timeout        string
+	repositories   []string
+	required       string
+	options        []string
 	dryRun         bool
 }
 
@@ -43,16 +47,22 @@ func newPresetEditCmd(r *runtime) *cobra.Command {
 			"On a terminal, bam preset edit [NAME] opens a form filled with the saved preset: its variables,\n" +
 			"the plan variables it leaves out (written only once you change them), then name, branch,\n" +
 			"repositories, required and timeout. enter edits a row, ←→ step through the choices, x removes a\n" +
-			"variable so the plan's own value applies, o edits a variable's options, ctrl-s saves and esc\n" +
-			"writes nothing.\n" +
-			"With --var, --unset, --branch, --timeout or --rename there is no form: bam applies them and\n" +
-			"never asks, so scripts and agents can use it. --dry-run shows the changes and writes nothing.\n" +
+			"variable or repository (a variable then takes the plan's own value), o edits a variable's options,\n" +
+			"a adds a repository, ctrl-s saves and esc writes nothing. When you change the branch, the form\n" +
+			"reads the repositories Bamboo lists for it and offers them in place of the old ones.\n" +
+			"With --var, --unset, --branch, --repository, --required, --option, --timeout or --rename there is\n" +
+			"no form: bam applies them and never asks, so scripts and agents can use it, and it reads nothing\n" +
+			"from Bamboo. --dry-run shows the changes and writes nothing.\n" +
+			"A rename also renames the preset in the stages of the sets and the bam top pins in your project\n" +
+			"and machine files; a train file you pass to bam set run --file is yours to change.\n" +
 			"A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run\n" +
-			"time. A preset that uses YAML anchors is refused, and so is a rename of a preset a set uses.",
+			"time. A preset that uses YAML anchors is refused.",
 		Example: "  bam preset edit\n" +
 			"  bam preset edit deploy-qa\n" +
 			"  bam preset edit deploy-qa --var ENV=prod --unset REGION\n" +
 			"  bam preset edit deploy-qa --branch release-2 --timeout 1h --dry-run\n" +
+			"  bam preset edit deploy-qa --repository app=release-2 --repository docs= --required ENV,REGION\n" +
+			"  bam preset edit deploy-qa --option ENV=qa,prod\n" +
 			"  bam preset edit deploy-qa --rename deploy-prod --json",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
@@ -69,18 +79,23 @@ func newPresetEditCmd(r *runtime) *cobra.Command {
 	f.StringArrayVar(&fl.unset, "unset", nil, "remove a variable so the plan's own value applies (repeatable)")
 	f.StringVarP(&fl.branch, "branch", "b", "", "set the plan branch; \"\" removes it")
 	f.StringVar(&fl.timeout, "timeout", "", "set the timeout, such as 45m; \"\" removes it")
-	f.StringVar(&fl.rename, "rename", "", "give the preset another name")
+	f.StringArrayVar(&fl.repositories, "repository", nil, "set a repository's branch, name=branch; name= removes it (repeatable)")
+	f.StringVar(&fl.required, "required", "", "variables a run must have, separated by commas; \"\" removes them")
+	f.StringArrayVar(&fl.options, "option", nil, "set a variable's allowed values, name=a,b; name= removes them (repeatable)")
+	f.StringVar(&fl.rename, "rename", "", "give the preset another name, and in the sets and pins that name it")
 	f.BoolVar(&fl.dryRun, "dry-run", false, "show the changes and write nothing")
 	return cmd
 }
 
 // given reports whether the command line names a change, which skips the form.
 func (f *presetEditFlags) given(cmd *cobra.Command) bool {
-	return len(f.vars) > 0 || len(f.unset) > 0 || cmd.Flags().Changed("branch") || cmd.Flags().Changed("timeout") || f.rename != ""
+	return len(f.vars) > 0 || len(f.unset) > 0 || len(f.repositories) > 0 || len(f.options) > 0 || f.rename != "" ||
+		cmd.Flags().Changed("branch") || cmd.Flags().Changed("timeout") || cmd.Flags().Changed("required")
 }
 
-// flagEdit turns the flags into the edit.
-func (f *presetEditFlags) flagEdit(cmd *cobra.Command) (config.PresetEdit, error) {
+// flagEdit turns the flags into the edit. repos are the repositories the
+// preset has now, whichever file holds them.
+func (f *presetEditFlags) flagEdit(cmd *cobra.Command, repos map[string]string) (config.PresetEdit, error) {
 	e := config.PresetEdit{Unset: f.unset, Rename: f.rename}
 	for _, v := range f.vars {
 		name, value, ok := strings.Cut(v, "=")
@@ -95,6 +110,42 @@ func (f *presetEditFlags) flagEdit(cmd *cobra.Command) (config.PresetEdit, error
 				return e, errs.Usagef("%s is in both --var and --unset", n)
 			}
 		}
+	}
+	if len(f.repositories) > 0 {
+		want := maps.Clone(repos)
+		if want == nil {
+			want = map[string]string{}
+		}
+		for _, v := range f.repositories {
+			name, branch, ok := strings.Cut(v, "=")
+			if name = strings.TrimSpace(name); !ok || name == "" {
+				return e, errs.Usagef("--repository %q is not name=branch", v).WithTry("--repository app=release-2, or --repository app= to remove it")
+			}
+			if branch = strings.TrimSpace(branch); branch == "" {
+				delete(want, name)
+			} else {
+				want[name] = branch
+			}
+		}
+		list := []config.RepoBranch{}
+		for _, n := range slices.Sorted(maps.Keys(want)) {
+			list = append(list, config.RepoBranch{Name: n, Branch: want[n]})
+		}
+		e.Repositories = &list
+	}
+	if cmd.Flags().Changed("required") {
+		req := app.SplitList(f.required)
+		e.Required = &req
+	}
+	for _, v := range f.options {
+		name, list, ok := strings.Cut(v, "=")
+		if name = strings.TrimSpace(name); !ok || name == "" {
+			return e, errs.Usagef("--option %q is not name=a,b", v).WithTry("--option ENV=qa,prod, or --option ENV= to remove them")
+		}
+		if e.Options == nil {
+			e.Options = map[string][]string{}
+		}
+		e.Options[name] = app.SplitList(list)
 	}
 	if cmd.Flags().Changed("branch") {
 		e.Branch = &f.branch
@@ -136,39 +187,37 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		return errs.Usagef("bam preset edit %s has nothing to change", name).
 			WithWhy("without a terminal there is no form, and no flag names a change").
 			WithTry(fmt.Sprintf("bam preset edit %s --var NAME=value, or --unset, --branch, --timeout, --rename", name))
-	} else if e, err = f.flagEdit(cmd); err != nil {
+	} else if e, err = f.flagEdit(cmd, t.Repositories); err != nil {
 		return err
 	}
 	if e.Rename != "" && e.Rename != name {
 		if slices.Contains(takenNames(cfg), e.Rename) {
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
 		}
-		if err := renameBlocked(cfg, t); err != nil {
+		if err := renameBlocked(t); err != nil {
 			return err
 		}
 	}
-	changes, err := f.apply(t, e)
+	changes, err := f.apply(cfg, t, e)
 	if err != nil {
 		return err
 	}
 	if len(changes) > 0 && !f.dryRun {
 		r.configChanged()
 	}
-	if e.Rename != "" && len(changes) > 0 && !f.dryRun {
-		r.notePinned(cfg, name)
-	}
 	return f.print(r, t, layer.Path, e.Rename, changes, config.HeldBelow(layer.Target, t.Layers[:len(t.Layers)-1]))
 }
 
 // apply edits the file whose copy bam uses, checked as merged with the files
-// below it. A rename also renames the preset in those files. Every file is
-// checked before any is written, so a refusal leaves all of them as they were.
-func (f *presetEditFlags) apply(t config.ResolvedTarget, e config.PresetEdit) ([]config.FieldChange, error) {
+// below it. A rename also renames the preset in those files, and in the sets
+// and pins that name it. Every file is checked before any is written, so a
+// refusal leaves all of them as they were.
+func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, e config.PresetEdit) ([]config.FieldChange, error) {
 	top := t.Layers[len(t.Layers)-1]
 	below := t.Layers[:len(t.Layers)-1]
 	changes, err := config.EditTargetOver(top.Path, top.KeyPath, t.Name, below, e, false)
-	if err != nil || f.dryRun || len(changes) == 0 {
-		return changes, err
+	if err != nil {
+		return nil, err
 	}
 	renamed := e.Rename != "" && e.Rename != t.Name
 	if renamed {
@@ -177,6 +226,14 @@ func (f *presetEditFlags) apply(t config.ResolvedTarget, e config.PresetEdit) ([
 				return nil, err
 			}
 		}
+		refs, err := cfg.RenameRefs(t.Name, e.Rename, false)
+		if err != nil {
+			return nil, err
+		}
+		changes = append(changes, refs...)
+	}
+	if f.dryRun || len(changes) == 0 {
+		return changes, nil
 	}
 	if _, err := config.EditTargetOver(top.Path, top.KeyPath, t.Name, below, e, true); err != nil {
 		return nil, err
@@ -186,6 +243,9 @@ func (f *presetEditFlags) apply(t config.ResolvedTarget, e config.PresetEdit) ([
 			if err := config.RenameTarget(l.Path, l.KeyPath, t.Name, e.Rename, true); err != nil {
 				return changes, err
 			}
+		}
+		if _, err := cfg.RenameRefs(t.Name, e.Rename, true); err != nil {
+			return changes, err
 		}
 	}
 	return changes, nil
@@ -281,12 +341,9 @@ func editablePreset(cfg *config.Config, name string) (config.ResolvedTarget, err
 }
 
 // renameBlocked says why preset t cannot be renamed, or nil when it can: a
-// set that runs it would fail, and a copy in a file that uses YAML anchors
-// cannot be renamed in place.
-func renameBlocked(cfg *config.Config, t config.ResolvedTarget) error {
-	if err := presetUsedBySet(cfg, t.Name, "change the set first, or leave the name as it is"); err != nil {
-		return err
-	}
+// copy in a file that uses YAML anchors cannot be renamed in place. Sets and
+// pins that name it are renamed with it.
+func renameBlocked(t config.ResolvedTarget) error {
 	for _, l := range t.Layers {
 		if err := config.CheckEditable(l.Path, l.KeyPath, t.Name); err != nil {
 			return err
@@ -319,7 +376,9 @@ func takenNames(cfg *config.Config) []string {
 func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.Config, t config.ResolvedTarget, path string) (config.PresetEdit, error) {
 	ctx := cmd.Context()
 	planVars := map[string]string{}
-	if svc, _, err := r.connect(ctx, t.Server); err == nil {
+	var svc *app.Service
+	if s, _, err := r.connect(ctx, t.Server); err == nil {
+		svc = s
 		planVars = svc.PlanVariables(ctx, t.Plan)
 	} else {
 		r.note("could not read the plan's variables; the form shows only the preset's own", err.Error())
@@ -327,7 +386,12 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
 	form.TakenNames = takenNames(cfg)
-	form.RenameBlocked = formText(renameBlocked(cfg, t))
+	form.RenameBlocked = formText(renameBlocked(t))
+	if svc != nil {
+		form.ReadRepos = func(ctx context.Context, branch string) ([]app.RepoBranch, error) {
+			return svc.PlanBranchRepositories(ctx, t.Plan, branch)
+		}
+	}
 	form.Held = config.HeldBelow(t.Layers[len(t.Layers)-1].Target, t.Layers[:len(t.Layers)-1])
 	edited, err := r.env.EditPreset(ctx, r.env.Stdin, r.env.Stdout, form, nil)
 	if err != nil {

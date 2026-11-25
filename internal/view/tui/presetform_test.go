@@ -224,3 +224,94 @@ func TestPresetEditFormSaysWhichOtherFileValueAppliesAfterClearing(t *testing.T)
 	assert.Contains(t, timeoutRow, "cleared here: the value in low.yaml applies")
 	assert.Contains(t, envRow, "options cleared here: the value in low.yaml applies")
 }
+
+func repoEditForm(read func(context.Context, string) ([]app.RepoBranch, error)) app.PresetForm {
+	f := testEditForm()
+	f.Branch = "release-1"
+	f.Fields = []app.FormField{
+		{Key: "name", Label: "name", Value: "deploy-qa", Orig: "deploy-qa"},
+		{Key: "branch", Label: "branch", Value: "release-1", Orig: "release-1"},
+		{Key: "repositories.api", Label: "repository api", Value: "main", Orig: "main"},
+		{Key: "timeout", Label: "timeout", Value: "", Orig: ""},
+	}
+	f.ReadRepos = read
+	return f
+}
+
+// x on a repository removes it and again brings it back; a adds one typed as
+// NAME=BRANCH and refuses text that is not.
+func TestPresetEditFormRemovesAndAddsRepositories(t *testing.T) {
+	m := newPresetForm(context.Background(), repoEditForm(nil), nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), rk("x"))
+	assert.True(t, m.form.Fields[2].Removed)
+	assert.Contains(t, m.View(), "repository api")
+	assert.Contains(t, m.View(), "removed")
+	m = formKey(m, rk("x"))
+	assert.False(t, m.form.Fields[2].Removed)
+
+	m = formKey(m, rk("a"))
+	assert.True(t, m.adding)
+	assert.Contains(t, m.View(), "new repository, NAME=BRANCH")
+	m = formKey(m, rk("d"), rk("o"), kt(tea.KeyEnter))
+	assert.Contains(t, m.err, "NAME=BRANCH", "text without a branch is refused")
+	assert.True(t, m.adding)
+	m = formKey(m, rk("c"), rk("s"), rk("="), rk("m"), kt(tea.KeyEnter))
+	assert.False(t, m.adding)
+	assert.Equal(t, "repositories.docs", m.form.Fields[3].Key)
+	assert.Equal(t, "m", m.form.Fields[3].Value)
+	assert.Contains(t, m.View(), "added")
+}
+
+// A new branch reads the repositories Bamboo lists for it and puts them in
+// place of the old ones; an answer for a branch typed over meanwhile is ignored.
+func TestPresetEditFormReadsRepositoriesWhenTheBranchChanges(t *testing.T) {
+	var asked []string
+	read := func(_ context.Context, branch string) ([]app.RepoBranch, error) {
+		asked = append(asked, branch)
+		return []app.RepoBranch{{Name: "scripts", Branch: "develop"}}, nil
+	}
+	m := newPresetForm(context.Background(), repoEditForm(read), nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("r"), rk("2"))
+	n, cmd := m.Update(kt(tea.KeyEnter))
+	m = n.(presetFormModel)
+	require.NotNil(t, cmd, "a changed branch reads the repositories")
+	assert.Contains(t, m.View(), "reading the repositories of r2")
+	msg := cmd()
+	assert.Equal(t, []string{"r2"}, asked)
+
+	stale, _ := m.Update(reposMsg{branch: "other", repos: []app.RepoBranch{{Name: "x", Branch: "y"}}})
+	assert.Len(t, stale.(presetFormModel).form.Fields, 4, "an answer for another branch changes nothing")
+
+	n, _ = m.Update(msg)
+	m = n.(presetFormModel)
+	assert.NotContains(t, m.View(), "reading the repositories")
+	assert.True(t, m.form.Fields[2].Removed, "api is not listed for r2")
+	assert.Equal(t, "repositories.scripts", m.form.Fields[3].Key)
+	assert.Equal(t, "develop", m.form.Fields[3].Value)
+
+	// Typing the same branch again, or none, reads nothing.
+	m2 := newPresetForm(context.Background(), repoEditForm(read), nil)
+	m2 = formKey(m2, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter))
+	_, cmd = m2.Update(kt(tea.KeyEnter))
+	assert.Nil(t, cmd)
+}
+
+func TestPresetEditFormShowsWhyRepositoriesCouldNotBeRead(t *testing.T) {
+	read := func(context.Context, string) ([]app.RepoBranch, error) { return nil, assert.AnError }
+	m := newPresetForm(context.Background(), repoEditForm(read), nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("r"))
+	n, cmd := m.Update(kt(tea.KeyEnter))
+	n, _ = n.(presetFormModel).Update(cmd())
+	m = n.(presetFormModel)
+	assert.Contains(t, m.View(), "could not read the repositories of r")
+	assert.False(t, m.form.Fields[2].Removed, "a failed read keeps the repositories as they were")
+}
+
+// A repository both files hold says whose value applies once it is removed here.
+func TestPresetEditFormSaysWhoseRepositoryAppliesAfterARemoval(t *testing.T) {
+	f := repoEditForm(nil)
+	f.Held = app.Held{Only: map[string]string{}, Also: map[string]string{"repositories.api": "low.yaml"}}
+	m := newPresetForm(context.Background(), f, nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), rk("x"))
+	assert.Contains(t, m.View(), "removed here: the value in low.yaml applies")
+}

@@ -13,7 +13,8 @@ import (
 // VarValue is one variable bam preset edit sets.
 type VarValue struct{ Name, Value string }
 
-// RepoBranch is one repository of a preset and the branch it builds.
+// RepoBranch is one repository of a preset and the branch it builds. In a
+// PresetEdit an empty Branch removes the repository.
 type RepoBranch struct{ Name, Branch string }
 
 // PresetEdit is what bam preset edit changes in one file's entry of a preset.
@@ -241,7 +242,7 @@ func refuseHeldBelow(held Held, e PresetEdit, name, path string) error {
 	if e.Repositories != nil {
 		want := map[string]bool{}
 		for _, r := range *e.Repositories {
-			want[r.Name] = true
+			want[r.Name] = r.Branch != ""
 		}
 		for key := range held.Only {
 			if r, ok := strings.CutPrefix(key, "repositories."); ok && !want[r] {
@@ -372,9 +373,13 @@ func editRepositories(target *yaml.Node, held map[string]string, e PresetEdit, c
 		}
 		repos = ensureMapping(target, "repositories")
 	}
+	// An entry with no branch is a removal: it stays out of want, so the loop
+	// below never meets setScalar's delete of an empty value.
 	want := map[string]string{}
 	for _, r := range *e.Repositories {
-		want[r.Name] = r.Branch
+		if r.Branch != "" {
+			want[r.Name] = r.Branch
+		}
 	}
 	for i := 0; i+1 < len(repos.Content); {
 		n := repos.Content[i].Value
@@ -388,7 +393,7 @@ func editRepositories(target *yaml.Node, held map[string]string, e PresetEdit, c
 		i += 2
 	}
 	for _, r := range *e.Repositories {
-		if mappingValue(repos, r.Name) == nil && held[r.Name] != r.Branch {
+		if r.Branch != "" && mappingValue(repos, r.Name) == nil && held[r.Name] != r.Branch {
 			setScalar(repos, r.Name, r.Branch)
 			ch = append(ch, FieldChange{Field: "repositories." + r.Name, New: r.Branch})
 		}

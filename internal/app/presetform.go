@@ -48,7 +48,13 @@ type FormField struct {
 	Key, Label string
 	Value      string
 	Orig       string
+	// Removed drops a repository from the preset. Only repository settings
+	// can be removed; the others are cleared by emptying their text.
+	Removed bool
 }
+
+// RepoBranch is one repository of a plan branch and the branch it builds.
+type RepoBranch struct{ Name, Branch string }
 
 // PresetForm is what bam preset add shows before it writes the file: the
 // draft's variables as rows, in the draft's order.
@@ -67,6 +73,10 @@ type PresetForm struct {
 	// Validate refuses a removal the edited file cannot make and the form says
 	// whose value then applies.
 	Held Held
+	// ReadRepos reads the repositories Bamboo lists for a branch of the plan,
+	// so the form can offer them when the branch changes. Nil when Bamboo
+	// cannot be read.
+	ReadRepos func(ctx context.Context, branch string) ([]RepoBranch, error)
 }
 
 // Held is config.Held, named here because the terminal view may not import config.

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -122,15 +123,69 @@ func TestPresetEditRenameKeepsTheBody(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "show", "provision-lab"))
 }
 
-// A set that runs the preset would fail once its name is gone.
-func TestPresetEditRefusesToRenameAPresetASetUses(t *testing.T) {
+// A rename also renames the preset in the stages of the sets and in the bam
+// top pins of the project and machine files, so no set or pin is left naming
+// a preset that is gone.
+func TestPresetEditRenameUpdatesSetsAndPins(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"monitor:\n  main: [provision-lab, PROJ-PLAN]\n"), 0o644))
+	machine := h.env.Paths.MachineConfig
+	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nsets:\n  mine:\n    stages:\n      - [provision-lab]\nmonitor:\n  extra: [provision-lab]\n"), 0o644))
+
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	for _, want := range []string{"name: \"provision-lab\" -> \"lab-two\"", "sets.release: \"provision-lab\" -> \"lab-two\"", "monitor.main:", "sets.mine:", "monitor.extra:"} {
+		assert.Contains(t, h.stdout.String(), want)
+	}
+	project := readFile(t, path)
+	assert.Contains(t, project, "target: lab-two")
+	assert.Contains(t, project, "main: [lab-two, PROJ-PLAN]")
+	assert.NotContains(t, project, "provision-lab")
+	assert.NotContains(t, readFile(t, machine), "provision-lab")
+	assert.NotContains(t, h.stderr.String(), "still pinned", "the pins moved with the name")
+
+	h.stdout.Reset()
+	assert.Equal(t, 0, h.run("set", "run", "release", "--dry-run"), h.stderr.String())
+}
+
+// A stage that reaches the preset through an alias bam cannot see is refused,
+// so no set is left naming a preset that is gone.
+func TestPresetEditRenameRefusesAStageReachedThroughAnAlias(t *testing.T) {
 	h := newHarness(t)
 	path := sharedFile(h)
-	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"sets:\n  train:\n    stages:\n      - [provision-lab]\n"), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"  holder:\n    plan: PROJ-BUILD\n    required: &r [provision-lab]\nsets:\n  train:\n    stages:\n      - *r\n"), 0o644))
 	before := readFile(t, path)
 	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
-	assert.Contains(t, h.stderr.String(), `used by set "train"`)
-	assert.Contains(t, h.stderr.String(), "try: change the set first, or leave the name as it is")
+	assert.Contains(t, h.stderr.String(), `set "train"`)
+	assert.Contains(t, h.stderr.String(), "alias")
+	assert.Equal(t, before, readFile(t, path))
+}
+
+// --dry-run lists the set and pin renames and writes nothing.
+func TestPresetEditRenameDryRunListsSetsAndPins(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	path := sharedFile(h)
+	before := readFile(t, path)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run", "--json"), h.stderr.String())
+	var doc struct {
+		Changes []struct{ Field, Old, New string } `json:"changes"`
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Contains(t, doc.Changes, struct{ Field, Old, New string }{"sets.release", "provision-lab", "lab-two"})
+	assert.Equal(t, before, readFile(t, path))
+}
+
+// A pin that carries a YAML anchor stops the whole rename, before any file is
+// written.
+func TestPresetEditRenameRefusesAPinAnAliasSharesAndWritesNothing(t *testing.T) {
+	h := newHarness(t)
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"monitor:\n  g: [&n provision-lab]\n"), 0o644))
+	before := readFile(t, path)
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "YAML anchor")
+	assert.Contains(t, h.stderr.String(), "try: spell it out in "+path)
 	assert.Equal(t, before, readFile(t, path))
 }
 
@@ -250,6 +305,8 @@ func TestPresetEditAnchoredPresetIsRefusedBeforeTheForm(t *testing.T) {
 	assert.Empty(t, *offered, "the form never opened")
 }
 
+// A set that uses the preset no longer blocks its rename; a copy in a file
+// that cannot be renamed in place does, with what to try.
 func TestPresetEditFormCarriesTheRenameRules(t *testing.T) {
 	h := newHarness(t)
 	h.tty = true
@@ -259,8 +316,14 @@ func TestPresetEditFormCarriesTheRenameRules(t *testing.T) {
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
 	f := (*offered)[0]
 	assert.Contains(t, f.TakenNames, "build")
-	assert.Contains(t, f.RenameBlocked, `used by set "train"`)
-	assert.Contains(t, f.RenameBlocked, "change the set first", "the form says what to try")
+	assert.Empty(t, f.RenameBlocked, "the set is renamed with the preset")
+
+	_, top := twoFilePreset(t, h)
+	require.NoError(t, os.WriteFile(top, []byte("presets:\n  provision-lab: &p\n    variables:\n      cluster_name: beta\n"), 0o600))
+	h.stdout.Reset()
+	h.stderr.Reset()
+	require.NotEqual(t, 0, h.run("preset", "edit", "provision-lab"))
+	assert.Contains(t, h.stderr.String(), "anchors")
 }
 
 // What another file holds reaches the form, so a removal it cannot make is
@@ -342,4 +405,72 @@ func TestPresetEditRemovalSaysWhichOtherFileValueApplies(t *testing.T) {
 	h.stdout.Reset()
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--unset", "cluster_type", "--dry-run", "--json"), h.stderr.String())
 	assert.NotContains(t, h.stdout.String(), "applies")
+}
+
+// --repository sets a repository's branch, an empty one removes it, and the
+// next repository in the file stays.
+func TestPresetEditRepositoryFlags(t *testing.T) {
+	h := newHarness(t)
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"  with-repos:\n    plan: PROJ-PROV\n    branch: develop\n    repositories:\n      api: main\n      web: main\n      docs: main\n"), 0o644))
+	require.Equal(t, 0, h.run("preset", "edit", "with-repos", "--repository", "api=", "--repository", "web=dev", "--repository", "new=x"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `repositories.api: removed (was "main")`)
+	after := readFile(t, path)
+	assert.NotContains(t, after, "api:")
+	assert.Contains(t, after, `web: "dev"`)
+	assert.Contains(t, after, "docs: main", "the entry after a removed one is kept")
+	assert.Contains(t, after, `new: "x"`)
+
+	h.stdout.Reset()
+	assert.Equal(t, 2, h.run("preset", "edit", "with-repos", "--repository", "nobranch"))
+	assert.Contains(t, h.stderr.String(), "is not name=branch")
+}
+
+func TestPresetEditRequiredAndOptionFlags(t *testing.T) {
+	h := newHarness(t)
+	path := sharedFile(h)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--required", "cluster_name,cluster_type", "--option", "cluster_type=k8s,dcos,nomad"), h.stderr.String())
+	after := readFile(t, path)
+	assert.Contains(t, after, `required: ["cluster_name", "cluster_type"]`)
+	assert.Contains(t, after, `cluster_type: ["k8s", "dcos", "nomad"]`)
+
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--required", "", "--option", "cluster_type="), h.stderr.String())
+	after = readFile(t, path)
+	assert.NotContains(t, after, "required:")
+	assert.NotContains(t, after, "options:")
+
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--option", "cluster_type"))
+	assert.Contains(t, h.stderr.String(), "is not name=a,b")
+}
+
+// A repository only a lower file holds is not removed by a flag either.
+func TestPresetEditRepositoryFlagRefusesWhatAnotherFileHolds(t *testing.T) {
+	h := newHarness(t)
+	lower, top := twoFilePreset(t, h)
+	require.NoError(t, os.WriteFile(lower, []byte(readFile(t, lower)+"  low:\n    plan: PROJ-PROV\n    branch: develop\n    repositories:\n      api: main\n"), 0o644))
+	require.NoError(t, os.WriteFile(top, []byte("presets:\n  low:\n    variables:\n      x: \"1\"\n"), 0o600))
+	before := readFile(t, top)
+	assert.Equal(t, 2, h.run("preset", "edit", "low", "--repository", "api="))
+	assert.Contains(t, h.stderr.String(), lower)
+	assert.Equal(t, before, readFile(t, top))
+}
+
+// The form is given a way to read the repositories of the branch typed in it.
+func TestPresetEditFormCanReadRepositoriesOfANewBranch(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	built := provider.Build{Key: "PROJ-PROV12-9", PlanKey: "PROJ-PROV12", Number: 9, State: provider.StateSuccess,
+		Stages: []provider.Stage{{Name: "Apply", Jobs: []provider.Job{{Key: "PROJ-PROV12-TF-9", Branches: map[string]string{"infra": "develop"}}}}}}
+	h.fake.History["PROJ-PROV12"] = []provider.Build{built}
+	var got []app.RepoBranch
+	var readErr error
+	editScript(h, func(f *app.PresetForm) {
+		require.NotNil(t, f.ReadRepos)
+		got, readErr = f.ReadRepos(context.Background(), "develop")
+		f.UseRepositories(got)
+	}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	require.NoError(t, readErr)
+	assert.Equal(t, []app.RepoBranch{{Name: "infra", Branch: "develop"}}, got)
+	assert.Contains(t, readFile(t, sharedFile(h)), `infra: "develop"`)
 }

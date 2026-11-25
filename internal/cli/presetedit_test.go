@@ -658,3 +658,50 @@ func TestPresetEditRenameSaysWhatWasWrittenWhenAWriteFails(t *testing.T) {
 	assert.Contains(t, h.stderr.String(), "not written: "+sharedFile(h))
 	assert.Contains(t, readFile(t, train), "lab-two")
 }
+
+// Each train file is its own write: when the second cannot be written, the
+// error already says the first was.
+func TestPresetEditRenameNamesEachTrainFileItWroteBeforeAFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only folder")
+	}
+	h := newHarness(t)
+	first := filepath.Join(h.home, "a", "train.yaml")
+	second := filepath.Join(h.home, "b", "train.yaml")
+	for _, p := range []string{first, second} {
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte("stages:\n  - [provision-lab]\n"), 0o644))
+	}
+	saveRun(t, h, h.root, first, 2)
+	saveRun(t, h, h.root, second, 1)
+	locked := filepath.Dir(second)
+	require.NoError(t, os.Chmod(locked, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+
+	assert.NotEqual(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"))
+	assert.Contains(t, h.stderr.String(), "only partly renamed")
+	assert.Contains(t, h.stderr.String(), "written: "+first)
+	assert.Contains(t, h.stderr.String(), "not written: "+second)
+	assert.Contains(t, readFile(t, first), "lab-two")
+	assert.Contains(t, readFile(t, sharedFile(h)), "provision-lab", "bam's own files are untouched")
+}
+
+// A machine file that fails after the project file was written is the only
+// one reported as not written.
+func TestPresetEditRenameNamesTheProjectFileWhenTheMachineFileFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only folder")
+	}
+	h := setHarness(t, provider.StateSuccess)
+	machine := h.env.Paths.MachineConfig
+	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nmonitor:\n  extra: [provision-lab]\n"), 0o644))
+	dir := filepath.Dir(machine)
+	require.NoError(t, os.Chmod(dir, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	assert.NotEqual(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"))
+	assert.Contains(t, h.stderr.String(), "written: "+sharedFile(h))
+	assert.Contains(t, h.stderr.String(), "not written: "+machine)
+	assert.NotContains(t, h.stderr.String(), "not written: "+sharedFile(h))
+}

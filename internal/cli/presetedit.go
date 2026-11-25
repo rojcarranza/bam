@@ -250,10 +250,12 @@ func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, sco
 	}
 	var steps []step
 	if renamed {
-		steps = append(steps, step{changeFiles(changes, "train file"), func() error {
-			_, err := config.RenameInTrainFiles(scope.trains, t.Name, e.Rename, true)
-			return err
-		}})
+		for _, p := range changeFiles(changes, "train file") {
+			steps = append(steps, step{[]string{p}, func() error {
+				_, err := config.RenameInTrainFiles([]string{p}, t.Name, e.Rename, true)
+				return err
+			}})
+		}
 	}
 	steps = append(steps, step{[]string{top.Path}, func() error {
 		_, err := config.EditTargetOver(top.Path, top.KeyPath, t.Name, below, e, true)
@@ -265,10 +267,12 @@ func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, sco
 				return config.RenameTarget(l.Path, l.KeyPath, t.Name, e.Rename, true)
 			}})
 		}
-		steps = append(steps, step{changeFiles(changes, "sets.", "monitor."), func() error {
-			_, err := cfg.RenameRefs(t.Name, e.Rename, scope.shared, true)
-			return err
-		}})
+		for _, p := range changeFiles(changes, "sets.", "monitor.") {
+			steps = append(steps, step{[]string{p}, func() error {
+				_, err := cfg.RenameRefsFiles([]string{p}, t.Name, e.Rename, scope.shared, true)
+				return err
+			}})
+		}
 	}
 	var done []string
 	for i, st := range steps {
@@ -278,13 +282,21 @@ func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, sco
 			}
 			var left []string
 			for _, rest := range steps[i:] {
-				left = append(left, rest.files...)
+				for _, f := range rest.files {
+					if !slices.Contains(done, f) && !slices.Contains(left, f) {
+						left = append(left, f)
+					}
+				}
 			}
 			return changes, errs.Configf("preset %s was only partly renamed", t.Name).
 				WithWhy(fmt.Sprintf("%v; written: %s; not written: %s", err, strings.Join(done, ", "), strings.Join(left, ", "))).
 				WithTry(fmt.Sprintf("change %s to %s by hand in the files not written, then run bam preset list", t.Name, e.Rename))
 		}
-		done = append(done, st.files...)
+		for _, f := range st.files {
+			if !slices.Contains(done, f) {
+				done = append(done, f)
+			}
+		}
 	}
 	return changes, nil
 }

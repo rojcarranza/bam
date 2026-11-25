@@ -17,7 +17,6 @@ import (
 // repository shares, so are those under any other entry that defines no preset
 // of that name. Train files are renamed apart, by RenameInTrainFiles.
 func (c *Config) RenameRefs(from, to string, everyRepo, write bool) ([]FieldChange, error) {
-	repoKey, _, _ := c.repoEntry()
 	var paths []string
 	for _, p := range []string{c.ProjectPath, c.MachinePath} {
 		if p == "" {
@@ -27,6 +26,13 @@ func (c *Config) RenameRefs(from, to string, everyRepo, write bool) ([]FieldChan
 			paths = append(paths, p)
 		}
 	}
+	return c.RenameRefsFiles(paths, from, to, everyRepo, write)
+}
+
+// RenameRefsFiles is RenameRefs for the given files only, so a caller can
+// write them one at a time and say which it has written.
+func (c *Config) RenameRefsFiles(paths []string, from, to string, everyRepo, write bool) ([]FieldChange, error) {
+	repoKey, _, _ := c.repoEntry()
 	type edited struct {
 		path string
 		doc  *yaml.Node

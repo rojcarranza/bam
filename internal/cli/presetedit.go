@@ -157,7 +157,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 	if e.Rename != "" && len(changes) > 0 && !f.dryRun {
 		r.notePinned(cfg, name)
 	}
-	return f.print(r, t, layer.Path, e.Rename, changes)
+	return f.print(r, t, layer.Path, e.Rename, changes, config.HeldBelow(layer.Target, t.Layers[:len(t.Layers)-1]))
 }
 
 // apply edits the file whose copy bam uses, checked as merged with the files
@@ -191,7 +191,7 @@ func (f *presetEditFlags) apply(t config.ResolvedTarget, e config.PresetEdit) ([
 	return changes, nil
 }
 
-func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, rename string, changes []config.FieldChange) error {
+func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, rename string, changes []config.FieldChange, held config.Held) error {
 	masked := maskSecrets(changes)
 	if r.flags.json {
 		if masked == nil {
@@ -214,7 +214,7 @@ func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, renam
 		case c.Old == "" && c.New != "":
 			fmt.Fprintf(w, "  %s: set to %q\n", c.Field, c.New)
 		case c.New == "":
-			fmt.Fprintf(w, "  %s: removed (was %q)\n", c.Field, c.Old)
+			fmt.Fprintf(w, "  %s: removed (was %q)%s\n", c.Field, c.Old, otherFileNote(held, c.Field))
 		default:
 			fmt.Fprintf(w, "  %s: %q -> %q\n", c.Field, c.Old, c.New)
 		}
@@ -223,6 +223,15 @@ func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, renam
 		fmt.Fprintln(w, "dry run: nothing written")
 	}
 	return nil
+}
+
+// otherFileNote says whose value still applies after a removal, when another
+// file holds one too.
+func otherFileNote(held config.Held, field string) string {
+	if file := held.Also[field]; file != "" {
+		return "; the value in " + file + " applies"
+	}
+	return ""
 }
 
 // maskSecrets hides the old value of a secret variable: a preset written by

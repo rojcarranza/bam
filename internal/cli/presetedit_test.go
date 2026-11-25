@@ -327,3 +327,19 @@ func TestPresetEditNeverPrintsALiteralSecret(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), `"********" -> "${API_SECRET}"`)
 	assert.NotContains(t, readFile(t, path), "hunter2")
 }
+
+// When both files hold a value, removing it from the presets file lets the
+// other file's value apply, and the text output says so; JSON keeps its fields.
+func TestPresetEditRemovalSaysWhichOtherFileValueApplies(t *testing.T) {
+	h := newHarness(t)
+	lower, top := twoFilePreset(t, h)
+	require.NoError(t, os.WriteFile(top, []byte("presets:\n  provision-lab:\n    branch: main\n    variables:\n      cluster_type: dcos\n"), 0o600))
+
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--unset", "cluster_type", "--branch", "", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `variables.cluster_type: removed (was "dcos"); the value in `+lower+` applies`)
+	assert.Contains(t, h.stdout.String(), `branch: removed (was "main"); the value in `+lower+` applies`)
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--unset", "cluster_type", "--dry-run", "--json"), h.stderr.String())
+	assert.NotContains(t, h.stdout.String(), "applies")
+}

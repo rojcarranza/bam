@@ -69,8 +69,8 @@ type PresetForm struct {
 	Held Held
 }
 
-// Held is config.Held: what other files hold of the preset.
-type Held config.Held
+// Held is config.Held, named here because the terminal view may not import config.
+type Held = config.Held
 
 // NewPresetForm builds the form of draft d. planDefaults maps each declared
 // variable to the plan's own value.

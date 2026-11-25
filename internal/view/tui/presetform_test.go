@@ -199,3 +199,20 @@ func TestPresetEditFormSaysWhoseValueAppliesAfterARemoval(t *testing.T) {
 	assert.Contains(t, m.View(), "removed here: the value in low.yaml applies")
 	assert.NotContains(t, m.View(), "the plan's own value applies")
 }
+
+// Clearing a setting both files hold leaves the other file's value in force,
+// and the row says so, as it does for a removed variable.
+func TestPresetEditFormSaysWhichOtherFileValueAppliesAfterClearing(t *testing.T) {
+	f := testEditForm()
+	f.Fields[1].Value, f.Fields[1].Orig = "45m", "45m"
+	f.Rows[0].OrigOptions = []string{"qa", "prod"}
+	f.Held = app.Held{Only: map[string]string{}, Also: map[string]string{"timeout": "low.yaml", "options.ENV": "low.yaml"}}
+	m := newPresetForm(context.Background(), f, nil)
+	assert.NotContains(t, m.View(), "applies")
+
+	m.form.Fields[1].Value = ""
+	m.form.Rows[0].Options = nil
+	v := m.View()
+	assert.Contains(t, v, "cleared here: the value in low.yaml applies")
+	assert.Contains(t, v, "options cleared here: the value in low.yaml applies")
+}

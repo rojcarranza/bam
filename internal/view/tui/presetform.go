@@ -310,7 +310,10 @@ func (m presetFormModel) View() string {
 			if i == m.cursor && m.editing {
 				val = input
 			}
-			if fl.Value != fl.Orig {
+			switch {
+			case strings.TrimSpace(fl.Value) == "" && strings.TrimSpace(fl.Orig) != "" && f.Held.Also[fl.Key] != "":
+				note = "cleared here: the value in " + f.Held.Also[fl.Key] + " applies"
+			case fl.Value != fl.Orig:
 				note = "changed"
 			}
 		}
@@ -391,6 +394,8 @@ func editNote(r app.FormRow, held app.Held) string {
 	}
 	if len(r.Options) > 0 {
 		parts = append(parts, "options: "+strings.Join(r.Options, ", "))
+	} else if len(r.OrigOptions) > 0 && held.Also["options."+r.Name] != "" {
+		parts = append(parts, "options cleared here: the value in "+held.Also["options."+r.Name]+" applies")
 	}
 	return strings.Join(parts, " · ")
 }

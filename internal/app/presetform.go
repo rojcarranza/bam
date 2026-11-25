@@ -63,7 +63,14 @@ type PresetForm struct {
 	// so a refusal shows while the form is open.
 	TakenNames    []string
 	RenameBlocked string
+	// Held names what other files hold, as config.HeldBelow keys them, so
+	// Validate refuses a removal the edited file cannot make and the form says
+	// whose value then applies.
+	Held Held
 }
+
+// Held is config.Held: what other files hold of the preset.
+type Held config.Held
 
 // NewPresetForm builds the form of draft d. planDefaults maps each declared
 // variable to the plan's own value.

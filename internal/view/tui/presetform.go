@@ -211,7 +211,7 @@ func optionChoices(r app.FormRow) []string {
 // editText is what enter puts in the input: the value, or for a secret only
 // the environment variable name, never a value.
 func editText(r app.FormRow) string {
-	if r.Literal {
+	if r.Literal && r.Value == r.Orig {
 		return ""
 	}
 	if r.Secret {
@@ -292,7 +292,7 @@ func (m presetFormModel) View() string {
 		var label, val, note string
 		if i < len(f.Rows) {
 			r := f.Rows[i]
-			label, val, note = r.Name, rowValue(r), rowNote(r, f.Editing)
+			label, val, note = r.Name, rowValue(r), rowNote(r, f.Editing, f.Held)
 			if i == m.cursor && m.editing && !m.options {
 				val = input
 				if r.Secret {
@@ -341,7 +341,7 @@ func rowValue(r app.FormRow) string {
 	switch {
 	case r.Secret && r.Commented:
 		return "plan's stored value"
-	case r.Secret && r.Literal:
+	case r.Secret && r.Literal && r.Value == r.Orig:
 		return "********"
 	case r.Secret:
 		return r.Value
@@ -351,9 +351,9 @@ func rowValue(r app.FormRow) string {
 	return r.Value
 }
 
-func rowNote(r app.FormRow, editing bool) string {
+func rowNote(r app.FormRow, editing bool, held app.Held) string {
 	if editing {
-		return editNote(r)
+		return editNote(r, held)
 	}
 	switch {
 	case r.Secret && r.Commented:
@@ -369,9 +369,11 @@ func rowNote(r app.FormRow, editing bool) string {
 }
 
 // editNote says where a row of the edit form stands against the saved preset.
-func editNote(r app.FormRow) string {
+func editNote(r app.FormRow, held app.Held) string {
 	var parts []string
 	switch {
+	case r.Removed && r.InPreset && held.Also["variables."+r.Name] != "":
+		parts = append(parts, "removed here: the value in "+held.Also["variables."+r.Name]+" applies")
 	case r.Removed && r.InPreset:
 		parts = append(parts, "removed: the plan's own value applies")
 	case r.Removed:

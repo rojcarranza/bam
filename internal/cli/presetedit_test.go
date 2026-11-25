@@ -130,6 +130,7 @@ func TestPresetEditRefusesToRenameAPresetASetUses(t *testing.T) {
 	before := readFile(t, path)
 	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
 	assert.Contains(t, h.stderr.String(), `used by set "train"`)
+	assert.Contains(t, h.stderr.String(), "try: change the set first, or leave the name as it is")
 	assert.Equal(t, before, readFile(t, path))
 }
 
@@ -252,11 +253,36 @@ func TestPresetEditAnchoredPresetIsRefusedBeforeTheForm(t *testing.T) {
 func TestPresetEditFormCarriesTheRenameRules(t *testing.T) {
 	h := newHarness(t)
 	h.tty = true
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"sets:\n  train:\n    stages:\n      - [provision-lab]\n"), 0o644))
 	offered := editScript(h, func(*app.PresetForm) {}, nil)
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
 	f := (*offered)[0]
 	assert.Contains(t, f.TakenNames, "build")
-	assert.Empty(t, f.RenameBlocked)
+	assert.Contains(t, f.RenameBlocked, `used by set "train"`)
+	assert.Contains(t, f.RenameBlocked, "change the set first", "the form says what to try")
+}
+
+// What another file holds reaches the form, so a removal it cannot make is
+// refused while the form is open.
+func TestPresetEditFormCarriesWhatAnotherFileHolds(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	lower, top := twoFilePreset(t, h)
+	_ = top
+	offered := editScript(h, func(*app.PresetForm) {}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	f := (*offered)[0]
+	assert.Equal(t, lower, f.Held.Only["variables.cluster_type"])
+	assert.Equal(t, lower, f.Held.Only["branch"])
+	assert.NotContains(t, f.Held.Only, "variables.cluster_name", "the presets file holds that one itself")
+	assert.NoError(t, f.Validate())
+	for i := range f.Rows {
+		if f.Rows[i].Name == "cluster_type" {
+			f.Rows[i].Removed = true
+		}
+	}
+	assert.ErrorContains(t, f.Validate(), lower)
 }
 
 func TestPresetEditFormShowsALiteralSecretMasked(t *testing.T) {

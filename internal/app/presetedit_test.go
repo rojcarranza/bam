@@ -150,3 +150,22 @@ func TestPresetEditFormRefusesNamesBamKnowsAreWrong(t *testing.T) {
 	f.Fields[0].Value = "deploy-qa"
 	assert.NoError(t, f.Validate(), "not renamed, so not blocked")
 }
+
+func TestPresetEditFormRefusesWhatAnotherFileHolds(t *testing.T) {
+	f := NewPresetEditForm(savedPreset(), planVars)
+	f.Path = "top.yaml"
+	f.Held = Held{Only: map[string]string{"variables.ENV": "low.yaml", "branch": "low.yaml"}, Also: map[string]string{}}
+	require.NoError(t, f.Validate())
+	f.Rows[0].Removed = true
+	assert.ErrorContains(t, f.Validate(), "low.yaml")
+	f.Rows[0].Removed = false
+	f.Fields[1].Value = ""
+	assert.ErrorContains(t, f.Validate(), "low.yaml")
+}
+
+func TestPresetEditFormRemovingWhatBothHoldIsAllowed(t *testing.T) {
+	f := NewPresetEditForm(savedPreset(), planVars)
+	f.Held = Held{Only: map[string]string{}, Also: map[string]string{"variables.ENV": "low.yaml"}}
+	f.Rows[0].Removed = true
+	assert.NoError(t, f.Validate())
+}

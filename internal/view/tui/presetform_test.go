@@ -185,4 +185,17 @@ func TestPresetEditFormHidesALiteralSecret(t *testing.T) {
 	assert.NotContains(t, m.View(), "hunter2")
 	m = formKey(m, rk("A"), rk("P"), rk("I"), kt(tea.KeyEnter))
 	assert.Equal(t, "${API}", m.form.Rows[2].Value)
+	assert.Contains(t, m.View(), "${API}", "the name just set is shown")
+	assert.NotContains(t, m.View(), "hunter2")
+}
+
+// Removing a variable both files hold leaves the other file's value in force,
+// and the row says so.
+func TestPresetEditFormSaysWhoseValueAppliesAfterARemoval(t *testing.T) {
+	f := testEditForm()
+	f.Held = app.Held{Only: map[string]string{}, Also: map[string]string{"variables.ENV": "low.yaml"}}
+	m := newPresetForm(context.Background(), f, nil)
+	m = formKey(m, rk("x"))
+	assert.Contains(t, m.View(), "removed here: the value in low.yaml applies")
+	assert.NotContains(t, m.View(), "the plan's own value applies")
 }

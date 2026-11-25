@@ -93,6 +93,9 @@ func (r FormRow) Changed() bool {
 // Validate checks what the person typed in an edit form, so a mistake is
 // shown while the form is open and not after it closed.
 func (f PresetForm) Validate() error {
+	if err := f.validateHeld(); err != nil {
+		return err
+	}
 	for _, fl := range f.Fields {
 		v := strings.TrimSpace(fl.Value)
 		switch {
@@ -127,6 +130,31 @@ func (f PresetForm) Validate() error {
 		}
 		if !slices.Contains(r.Options, r.Value) {
 			return fmt.Errorf("%s=%q is not one of %s", r.Name, r.Value, strings.Join(r.Options, ", "))
+		}
+	}
+	return nil
+}
+
+// validateHeld refuses what the edited file cannot remove because another
+// file holds it, naming that file.
+func (f PresetForm) validateHeld() error {
+	no := func(what, key string) error {
+		return fmt.Errorf("%s is set in %s, not in %s: change it there, or give it a value here", what, f.Held.Only[key], f.Path)
+	}
+	for _, r := range f.Rows {
+		if _, only := f.Held.Only["variables."+r.Name]; only && r.Removed {
+			return no(r.Name, "variables."+r.Name)
+		}
+		if _, only := f.Held.Only["options."+r.Name]; only && len(r.Options) == 0 && len(r.OrigOptions) > 0 {
+			return no("the options of "+r.Name, "options."+r.Name)
+		}
+	}
+	for _, fl := range f.Fields {
+		if strings.TrimSpace(fl.Value) != "" {
+			continue
+		}
+		if _, only := f.Held.Only[fl.Key]; only && (fl.Key == "branch" || fl.Key == "timeout" || fl.Key == "required") {
+			return no(fl.Label, fl.Key)
 		}
 	}
 	return nil

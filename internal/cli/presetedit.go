@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -121,8 +122,8 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		return err
 	}
 	layer := t.Layers[len(t.Layers)-1]
-	// Everything bam can know before the form opens is refused now, so a
-	// person never types a form that cannot be saved.
+	// Anchors are refused before the form opens. A removal another file
+	// blocks, and a rename that is refused, are refused inside the form.
 	if err := config.CheckEditable(layer.Path, layer.KeyPath, name); err != nil {
 		return err
 	}
@@ -142,8 +143,8 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		if slices.Contains(takenNames(cfg), e.Rename) {
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
 		}
-		if why := renameBlocked(cfg, t); why != "" {
-			return errs.Usagef("%s", why)
+		if err := renameBlocked(cfg, t); err != nil {
+			return err
 		}
 	}
 	changes, err := f.apply(t, e)
@@ -270,19 +271,31 @@ func editablePreset(cfg *config.Config, name string) (config.ResolvedTarget, err
 	return t, err
 }
 
-// renameBlocked says why preset t cannot be renamed, or "" when it can: a
+// renameBlocked says why preset t cannot be renamed, or nil when it can: a
 // set that runs it would fail, and a copy in a file that uses YAML anchors
 // cannot be renamed in place.
-func renameBlocked(cfg *config.Config, t config.ResolvedTarget) string {
+func renameBlocked(cfg *config.Config, t config.ResolvedTarget) error {
 	if err := presetUsedBySet(cfg, t.Name, "change the set first, or leave the name as it is"); err != nil {
-		return err.Error()
+		return err
 	}
 	for _, l := range t.Layers {
 		if err := config.CheckEditable(l.Path, l.KeyPath, t.Name); err != nil {
-			return err.Error()
+			return err
 		}
 	}
-	return ""
+	return nil
+}
+
+// formText is an error as the form shows it, with its try line.
+func formText(err error) string {
+	var e *errs.Error
+	if err == nil {
+		return ""
+	}
+	if errors.As(err, &e) && e.Try != "" {
+		return err.Error() + " (" + e.Try + ")"
+	}
+	return err.Error()
 }
 
 // takenNames are the names a preset cannot be renamed to.
@@ -305,7 +318,8 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
 	form.TakenNames = takenNames(cfg)
-	form.RenameBlocked = renameBlocked(cfg, t)
+	form.RenameBlocked = formText(renameBlocked(cfg, t))
+	form.Held = app.Held(config.HeldBelow(t.Layers[len(t.Layers)-1].Target, t.Layers[:len(t.Layers)-1]))
 	edited, err := r.env.EditPreset(ctx, r.env.Stdin, r.env.Stdout, form, nil)
 	if err != nil {
 		return config.PresetEdit{}, askedCanceled(r, err)

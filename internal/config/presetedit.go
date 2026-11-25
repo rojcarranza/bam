@@ -72,7 +72,7 @@ func EditTargetOver(path string, keyPath []string, name string, below []TargetLa
 				WithTry(fmt.Sprintf("--var %s='${%s}'", v.Name, EnvNameFor(v.Name)))
 		}
 	}
-	if err := refuseHeldBelow(decodeTarget(target), below, e, name, path); err != nil {
+	if err := refuseHeldBelow(HeldBelow(decodeTarget(target), below), e, name, path); err != nil {
 		return nil, err
 	}
 	key, vars, err := targetVars(target, keyPath)
@@ -158,50 +158,84 @@ func decodeTarget(n *yaml.Node) Target {
 	return t
 }
 
+// Held says which parts of a preset other files hold, by the key
+// FieldChange uses ("variables.NAME", "branch", "timeout", "required",
+// "options.NAME", "repositories.NAME"), and the file that holds each.
+// Only maps parts the edited file lacks, so removing a line there changes
+// nothing; Also maps parts both hold, where the lower file's value applies
+// once the edited file's line is gone.
+type Held struct{ Only, Also map[string]string }
+
+// HeldBelow reports what the lower files hold of a preset, against top, the
+// entry of the file an edit writes.
+func HeldBelow(top Target, below []TargetLayer) Held {
+	h := Held{Only: map[string]string{}, Also: map[string]string{}}
+	put := func(key, file string, inTop bool) {
+		if inTop {
+			h.Also[key] = file
+		} else {
+			h.Only[key] = file
+		}
+	}
+	for _, l := range below { // later layers win, so the last holder is named
+		t := l.Target
+		for n := range t.Defaults {
+			_, here := top.Defaults[n]
+			put("variables."+n, l.Path, here)
+		}
+		for n := range t.Options {
+			_, here := top.Options[n]
+			put("options."+n, l.Path, here)
+		}
+		for n := range t.Repositories {
+			_, here := top.Repositories[n]
+			put("repositories."+n, l.Path, here)
+		}
+		if t.Branch != "" {
+			put("branch", l.Path, top.Branch != "")
+		}
+		if t.Timeout != 0 {
+			put("timeout", l.Path, top.Timeout != 0)
+		}
+		if t.Required != nil {
+			put("required", l.Path, top.Required != nil)
+		}
+	}
+	return h
+}
+
 // refuseHeldBelow fails on a removal this file cannot make: the value is not
 // in this file but in a lower one, so removing it here would do nothing.
-func refuseHeldBelow(top Target, below []TargetLayer, e PresetEdit, name, path string) error {
-	holder := func(has func(Target) bool) string {
-		for i := len(below) - 1; i >= 0; i-- {
-			if has(below[i].Target) {
-				return below[i].Path
-			}
-		}
-		return ""
-	}
-	refuse := func(what, file string) error {
+func refuseHeldBelow(held Held, e PresetEdit, name, path string) error {
+	refuse := func(what, key string) error {
+		file := held.Only[key]
 		return errs.Usagef("%s of preset %q is set in %s, not in %s", what, name, file, path).
 			WithWhy("bam edits the file whose copy of the preset it uses, and removing a line there leaves the other file's value in place").
 			WithTry("change it in " + file + ", or set a value here")
 	}
 	for _, n := range e.Unset {
-		if _, here := top.Defaults[n]; here {
-			continue
-		}
-		if f := holder(func(t Target) bool { _, ok := t.Defaults[n]; return ok }); f != "" {
-			return refuse("variable "+n, f)
+		if _, ok := held.Only["variables."+n]; ok {
+			return refuse("variable "+n, "variables."+n)
 		}
 	}
-	if e.Branch != nil && *e.Branch == "" && top.Branch == "" {
-		if f := holder(func(t Target) bool { return t.Branch != "" }); f != "" {
-			return refuse("the branch", f)
+	if e.Branch != nil && *e.Branch == "" {
+		if _, ok := held.Only["branch"]; ok {
+			return refuse("the branch", "branch")
 		}
 	}
-	if e.Timeout != nil && *e.Timeout == "" && top.Timeout == 0 {
-		if f := holder(func(t Target) bool { return t.Timeout != 0 }); f != "" {
-			return refuse("the timeout", f)
+	if e.Timeout != nil && *e.Timeout == "" {
+		if _, ok := held.Only["timeout"]; ok {
+			return refuse("the timeout", "timeout")
 		}
 	}
-	if e.Required != nil && len(*e.Required) == 0 && top.Required == nil {
-		if f := holder(func(t Target) bool { return t.Required != nil }); f != "" {
-			return refuse("required", f)
+	if e.Required != nil && len(*e.Required) == 0 {
+		if _, ok := held.Only["required"]; ok {
+			return refuse("required", "required")
 		}
 	}
 	for n, vals := range e.Options {
-		if _, here := top.Options[n]; len(vals) == 0 && !here {
-			if f := holder(func(t Target) bool { _, ok := t.Options[n]; return ok }); f != "" {
-				return refuse("the options of "+n, f)
-			}
+		if _, ok := held.Only["options."+n]; ok && len(vals) == 0 {
+			return refuse("the options of "+n, "options."+n)
 		}
 	}
 	if e.Repositories != nil {
@@ -209,11 +243,9 @@ func refuseHeldBelow(top Target, below []TargetLayer, e PresetEdit, name, path s
 		for _, r := range *e.Repositories {
 			want[r.Name] = true
 		}
-		for _, l := range below {
-			for r := range l.Target.Repositories {
-				if _, here := top.Repositories[r]; !want[r] && !here {
-					return refuse("repository "+r, l.Path)
-				}
+		for key := range held.Only {
+			if r, ok := strings.CutPrefix(key, "repositories."); ok && !want[r] {
+				return refuse("repository "+r, key)
 			}
 		}
 	}

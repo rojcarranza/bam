@@ -237,3 +237,18 @@ func TestCheckEditable(t *testing.T) {
 	assert.NoError(t, CheckEditable(editFile(t, editYAML), []string{"presets"}, "deploy-qa"))
 	assert.ErrorContains(t, CheckEditable(editFile(t, "presets:\n  a: &x\n    plan: PROJ-A\n"), []string{"presets"}, "a"), "anchors")
 }
+
+func TestHeldBelowSeparatesWhatOnlyALowerFileHolds(t *testing.T) {
+	below := layersFor(t, lowerYAML)
+	top := Target{Defaults: StringMap{"ENV": "qa"}, Branch: "main"}
+	h := HeldBelow(top, below)
+	file := below[0].Path
+	assert.Equal(t, file, h.Also["variables.ENV"])
+	assert.Equal(t, file, h.Also["branch"])
+	assert.Equal(t, file, h.Only["variables.OLD"])
+	assert.Equal(t, file, h.Only["timeout"])
+	assert.Equal(t, file, h.Only["required"])
+	assert.Equal(t, file, h.Only["options.ENV"])
+	assert.Equal(t, file, h.Only["repositories.api"])
+	assert.NotContains(t, h.Only, "variables.ENV")
+}

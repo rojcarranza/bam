@@ -353,7 +353,7 @@ func (r *runtime) renameScope(cfg *config.Config, t config.ResolvedTarget) renam
 	repo := cfg.RepoRoot
 	var skip func(string) bool
 	if s.shared {
-		// A rename leaves such a repository's entry on the old name, so its runs keep the name, as its sets do.
+		// A rename leaves such a repository's own definition on the old name, so its runs keep the name, as its sets do.
 		repo, skip = "", cfg.OtherRepoDefines(t.Name)
 	}
 	var err error
@@ -475,9 +475,11 @@ func editablePreset(cfg *config.Config, name string) (config.ResolvedTarget, err
 }
 
 // renameBlocked says why preset t cannot be renamed, or nil when it can: a
-// copy in a file that uses YAML anchors, or a set stage or pin that reaches
-// the name through an anchor or alias, cannot be renamed in place. Sets and
-// pins that name it are renamed with it.
+// copy in a file that uses YAML anchors, a set stage or pin that reaches the
+// name through an anchor or alias, or, for a preset only this repository
+// defines, a set or pin in the machine file's top level, which applies in
+// every repository, cannot be renamed. Other sets and pins that name it are
+// renamed with it.
 func renameBlocked(cfg *config.Config, t config.ResolvedTarget, scope renameScope) error {
 	for _, l := range t.Layers {
 		if err := config.CheckEditable(l.Path, l.KeyPath, t.Name); err != nil {

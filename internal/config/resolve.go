@@ -97,13 +97,16 @@ func (c *Config) OtherRepoTargets() map[string][]string {
 
 // OtherRepoDefines reports, for the folder of another repository, whether it
 // defines a preset called name in its own machine entry or its own .bam.yaml.
-// That definition is the top layer of the preset by that name there, and a
-// rename leaves it on the old name, so that repository's runs and sets keep
-// the name.
+// A rename of a shared preset leaves that definition on the old name, so that
+// repository's runs and sets keep the name.
 func (c *Config) OtherRepoDefines(name string) func(repo string) bool {
 	here, _, _ := c.repoEntry()
 	entries := map[string]bool{}
-	for key, r := range c.Machine.Repos {
+	var repos map[string]Repo
+	if c.Machine != nil {
+		repos = c.Machine.Repos
+	}
+	for key, r := range repos {
 		if _, ok := r.Targets[name]; ok && key != here {
 			entries[c.expand(key)] = true
 		}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -219,6 +220,7 @@ func TestRenameRefsEveryRepoFollowsASharedPreset(t *testing.T) {
 	machine := strings.Replace(refsMachine, "  /work/elsewhere:\n    sets:\n      there: [[lab]]\n",
 		"  /work/elsewhere:\n    sets:\n      there: [[lab]]\n  /work/own:\n    targets:\n      lab:\n        plan: OTHER-LAB\n    sets:\n      kept: [[lab]]\n", 1)
 	c := refsConfig(t, refsProject, machine)
+	c.Machine.Repos["/work/own"] = Repo{Targets: map[string]Target{"lab": {Plan: "OTHER-LAB"}}}
 	ch, err := c.RenameRefs("lab", "lab-two", true, true)
 	require.NoError(t, err)
 	assert.Contains(t, ch, FieldChange{Field: "sets.there", Old: "lab", New: "lab-two", File: c.MachinePath})
@@ -236,4 +238,32 @@ func TestSharedIsAPresetWithACopyOutsideTheRepositoryFiles(t *testing.T) {
 	assert.False(t, c.Shared(ResolvedTarget{Layers: []TargetLayer{own, entry}}))
 	assert.True(t, c.Shared(ResolvedTarget{Layers: []TargetLayer{own, top}}))
 	assert.True(t, c.Shared(ResolvedTarget{Layers: []TargetLayer{presets}}))
+}
+
+// A top-level machine pin alone refuses the rename of a preset only this
+// repository defines, names the group, and points at bam's pin commands.
+func TestRenameRefsRefusesATopLevelPinOfARepositoryOnlyPreset(t *testing.T) {
+	machine := "version: 1\nmonitor:\n  extra: [lab]\n"
+	c := refsConfig(t, "version: 1\ntargets:\n  lab:\n    plan: PROJ-LAB\n", machine)
+	_, err := c.RenameRefs("lab", "lab-two", false, true)
+	require.ErrorContains(t, err, "monitor.extra")
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, "run bam pin rm lab, rename the preset, then run bam pin add extra lab-two", e.Try)
+	assert.Equal(t, machine, read(t, c.MachinePath))
+}
+
+// A repository whose own .bam.yaml defines the name keeps its machine entry's
+// sets on the old name, as its train files stay, when a shared preset is renamed.
+func TestRenameRefsSkipsTheEntryOfARepositoryWhoseProjectFileDefinesTheName(t *testing.T) {
+	other := t.TempDir()
+	writeFile(t, filepath.Join(other, ProjectFileName), "version: 1\ntargets:\n  lab:\n    plan: PROJ-OTHER\n")
+	machine := "version: 1\nrepos:\n  " + other + ":\n    sets:\n      there: [[lab]]\n  /work/third:\n    sets:\n      third: [[lab]]\n"
+	c := refsConfig(t, "version: 1\n", machine)
+	c.Machine.Repos = map[string]Repo{other: {}, "/work/third": {}}
+	_, err := c.RenameRefs("lab", "lab-two", true, true)
+	require.NoError(t, err)
+	got := read(t, c.MachinePath)
+	assert.Contains(t, got, "there: [[lab]]")
+	assert.Contains(t, got, "third: [[lab-two]]")
 }

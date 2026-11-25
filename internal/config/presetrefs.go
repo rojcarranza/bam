@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"slices"
+	"strings"
 
 	"github.com/rojcarranza/bam/internal/errs"
 	"gopkg.in/yaml.v3"
@@ -14,8 +15,11 @@ import (
 // stay. Both files are checked before either is written, so a refusal leaves
 // them as they were; write false only reports. Sets under this repository's
 // entry of the machine file are renamed; with everyRepo, a preset every
-// repository shares, so are those under any other entry that defines no preset
-// of that name. Train files are renamed apart, by RenameInTrainFiles.
+// repository shares, so are those under any other entry whose repository
+// defines a preset of that name in neither its entry nor its .bam.yaml.
+// Without everyRepo, a set or pin in the machine file's top level, which
+// applies in every repository, stops the rename. Train files are renamed
+// apart, by RenameInTrainFiles.
 func (c *Config) RenameRefs(from, to string, everyRepo, write bool) ([]FieldChange, error) {
 	var paths []string
 	for _, p := range []string{c.ProjectPath, c.MachinePath} {
@@ -33,6 +37,8 @@ func (c *Config) RenameRefs(from, to string, everyRepo, write bool) ([]FieldChan
 // write them one at a time and say which it has written.
 func (c *Config) RenameRefsFiles(paths []string, from, to string, everyRepo, write bool) ([]FieldChange, error) {
 	repoKey, _, _ := c.repoEntry()
+	defines := c.OtherRepoDefines(from)
+	skip := func(key string) bool { return defines(c.expand(key)) }
 	type edited struct {
 		path string
 		doc  *yaml.Node
@@ -44,7 +50,7 @@ func (c *Config) RenameRefsFiles(paths []string, from, to string, everyRepo, wri
 		if err != nil {
 			return nil, err
 		}
-		ch, err := renameRefsIn(doc, p, p == c.MachinePath, repoKey, everyRepo, from, to)
+		ch, err := renameRefsIn(doc, p, p == c.MachinePath, repoKey, skip, everyRepo, from, to)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +71,7 @@ func (c *Config) RenameRefsFiles(paths []string, from, to string, everyRepo, wri
 
 // renameRefsIn renames the references in one document and lists them, one
 // change per set and per pin group.
-func renameRefsIn(doc *yaml.Node, path string, machine bool, repoKey string, everyRepo bool, from, to string) ([]FieldChange, error) {
+func renameRefsIn(doc *yaml.Node, path string, machine bool, repoKey string, skip func(key string) bool, everyRepo bool, from, to string) ([]FieldChange, error) {
 	root := doc.Content[0]
 	var ch []FieldChange
 	hit := func(n *yaml.Node, field string, seen map[string]bool) error {
@@ -86,9 +92,13 @@ func renameRefsIn(doc *yaml.Node, path string, machine bool, repoKey string, eve
 	rootLocal := machine && !everyRepo
 	rootHit := func(n *yaml.Node, field string, seen map[string]bool) error {
 		if rootLocal {
+			try := "change " + field + " in " + path + " first, then run bam preset edit again"
+			if group, ok := strings.CutPrefix(field, "monitor."); ok {
+				try = "run bam pin rm " + from + ", rename the preset, then run bam pin add " + group + " " + to
+			}
 			return errs.Usagef("%s names preset %q in %s, which applies in every repository", field, from, path).
 				WithWhy("this preset is defined only here, so renaming it would leave another repository's sets and pins pointing at a name it does not have").
-				WithTry("change " + field + " in " + path + " first, then run bam preset edit again")
+				WithTry(try)
 		}
 		return hit(n, field, seen)
 	}
@@ -97,9 +107,9 @@ func renameRefsIn(doc *yaml.Node, path string, machine bool, repoKey string, eve
 	if repos := mappingValue(root, "repos"); repos != nil && repos.Kind == yaml.MappingNode {
 		for i := 0; i+1 < len(repos.Content); i += 2 {
 			key, entry := repos.Content[i].Value, repos.Content[i+1]
-			// A repository whose own entry defines a preset of this name has
-			// another preset by it, so its sets keep theirs.
-			if key == repoKey || (everyRepo && mappingValue(mappingValue(entry, "targets"), from) == nil) {
+			// A rename leaves a repository's own definition of this name on the
+			// old name, so that repository's sets keep it.
+			if key == repoKey || (everyRepo && !skip(key)) {
 				setsNodes = append(setsNodes, mappingValue(entry, "sets"))
 			}
 		}

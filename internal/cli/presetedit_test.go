@@ -127,8 +127,8 @@ func TestPresetEditRenameKeepsTheBody(t *testing.T) {
 }
 
 // A rename also renames the preset in the stages of the sets and in the bam
-// top pins of the project and machine files, so no set or pin is left naming
-// a preset that is gone.
+// top pins of the project file, and in the sets under this repository's entry
+// of the machine file, so none is left naming a preset that is gone.
 func TestPresetEditRenameUpdatesSetsAndPins(t *testing.T) {
 	h := setHarness(t, provider.StateSuccess)
 	path := sharedFile(h)

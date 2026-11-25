@@ -350,7 +350,7 @@ func (r *runtime) renameScope(cfg *config.Config, t config.ResolvedTarget) renam
 	repo := cfg.RepoRoot
 	var skip []string
 	if s.shared {
-		// A repository with its own preset of this name means that one by it.
+		// A rename leaves such a repository's entry on the old name, so its runs keep the name, as its sets do.
 		repo, skip = "", cfg.OtherReposDefining(t.Name)
 	}
 	var err error

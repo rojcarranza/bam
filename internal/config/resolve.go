@@ -94,8 +94,9 @@ func (c *Config) OtherRepoTargets() map[string][]string {
 }
 
 // OtherReposDefining lists the folders of the other repositories whose own
-// machine entry defines a preset called name: by that name they mean their
-// own preset, not a shared one.
+// machine entry defines a preset called name. Their entry is the top layer of
+// the preset by that name, and a rename leaves it on the old name, so their
+// runs and sets keep the name.
 func (c *Config) OtherReposDefining(name string) []string {
 	here, _, _ := c.repoEntry()
 	var out []string

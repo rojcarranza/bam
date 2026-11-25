@@ -614,8 +614,8 @@ func TestPresetEditRenameFollowsASharedPresetIntoOtherFoldersTrainFiles(t *testi
 	assert.Contains(t, readFile(t, elsewhere), "lab-two")
 }
 
-// A repository whose own machine entry defines a preset of the same name
-// means that one by it, so its train files keep the name.
+// A repository whose own machine entry defines a preset of the same name keeps
+// that entry on the old name, so its train files keep the name, as its sets do.
 func TestPresetEditSharedRenameLeavesTrainFilesOfARepositoryWithItsOwnPreset(t *testing.T) {
 	h := newHarness(t)
 	twoFilePreset(t, h)

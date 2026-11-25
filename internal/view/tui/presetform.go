@@ -52,9 +52,10 @@ type presetFormModel struct {
 	loading bool
 	cursor  int
 	editing bool
-	options bool   // the input holds the options of the variable under the cursor
-	adding  bool   // the input holds a new repository, NAME=BRANCH
-	reading string // the branch whose repositories are being read
+	options bool      // the input holds the options of the variable under the cursor
+	adding  bool      // the input holds a new repository, NAME=BRANCH
+	reading string    // the branch whose repositories are being read
+	held    *reposMsg // an answer that came in while a setting was being typed
 	input   textinput.Model
 	err     string
 	width   int
@@ -170,14 +171,50 @@ func (m presetFormModel) repos(msg reposMsg) (tea.Model, tea.Cmd) {
 	if m.reading != msg.branch {
 		return m, nil
 	}
-	m.reading = ""
+	if m.editing {
+		// Applying it now would shift the settings under the text being typed.
+		m.held = &msg
+		return m, nil
+	}
+	return m.applyRepos(msg)
+}
+
+// applyRepos shows the repositories read, keeping the cursor on the setting
+// it was on, since the answer adds and removes settings after the branch.
+func (m presetFormModel) applyRepos(msg reposMsg) (tea.Model, tea.Cmd) {
+	m.reading, m.held = "", nil
 	if msg.err != nil {
 		m.err = "could not read the repositories of " + msg.branch + ": " + msg.err.Error()
 		return m, nil
 	}
+	at := m.lineID()
 	m.form.UseRepositories(msg.repos)
-	m.cursor = min(m.cursor, m.lines()-1)
+	m.cursor = m.lineIndex(at)
 	return m, nil
+}
+
+// lineID names the line under the cursor in a way that survives lines being
+// added or removed.
+func (m presetFormModel) lineID() string {
+	if r := m.row(); r != nil {
+		return "row:" + r.Name
+	}
+	if fl := m.field(); fl != nil {
+		return "field:" + fl.Key
+	}
+	return ""
+}
+
+// lineIndex is where the line named id is now, or the last line when it is gone.
+func (m presetFormModel) lineIndex(id string) int {
+	for i := range m.lines() {
+		c := m
+		c.cursor = i
+		if c.lineID() == id {
+			return i
+		}
+	}
+	return max(m.lines()-1, 0)
 }
 
 // branchValue is the text of the branch setting.
@@ -194,6 +231,9 @@ func (m presetFormModel) editKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.endEdit()
+		if h := m.held; h != nil {
+			return m.applyRepos(*h)
+		}
 		return m, nil
 	case tea.KeyCtrlC:
 		m.done = true
@@ -225,13 +265,20 @@ func (m presetFormModel) editKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.endEdit()
 		m.err = ""
 		m.cursor = min(m.cursor+1, m.lines()-1)
-		if after := m.branchValue(); after != before && after != "" && m.form.ReadRepos != nil {
-			m.reading = after
+		after := m.branchValue()
+		if after != before && after == "" {
+			m.reading, m.held = "", nil
+		}
+		if after != before && after != "" && m.form.ReadRepos != nil {
+			m.reading, m.held = after, nil
 			read, ctx := m.form.ReadRepos, m.ctx
 			return m, func() tea.Msg {
 				repos, err := read(ctx, after)
 				return reposMsg{branch: after, repos: repos, err: err}
 			}
+		}
+		if h := m.held; h != nil {
+			return m.applyRepos(*h)
 		}
 		return m, nil
 	}

@@ -356,3 +356,55 @@ func TestPresetEditFormDoesNotSaveWhileReadingRepositories(t *testing.T) {
 	_, quit = m.Update(kt(tea.KeyCtrlS))
 	assert.NotNil(t, quit, "saves once the answer is in")
 }
+
+// The answer for a branch can arrive while another setting is being typed:
+// it waits until the edit ends, so the text lands in the setting it was typed
+// for, and the cursor stays on that setting afterwards.
+func TestPresetEditFormHoldsTheRepositoriesAnswerWhileTyping(t *testing.T) {
+	read := func(context.Context, string) ([]app.RepoBranch, error) {
+		return []app.RepoBranch{{Name: "scripts", Branch: "develop"}}, nil
+	}
+	m := newPresetForm(context.Background(), repoEditForm(read), nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("r"), rk("2"))
+	n, cmd := m.Update(kt(tea.KeyEnter))
+	m = n.(presetFormModel)
+	require.NotNil(t, cmd)
+	msg := cmd()
+	typed := m.lineID()
+	m = formKey(m, kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("Z"), rk("Z"))
+	before := len(m.form.Fields)
+	n, _ = m.Update(msg)
+	m = n.(presetFormModel)
+	assert.Equal(t, before, len(m.form.Fields), "the answer waits while a setting is typed")
+	assert.Equal(t, typed, m.lineID())
+	m = formKey(m, kt(tea.KeyEnter))
+	assert.Equal(t, "", m.reading, "the answer applies once the edit ends")
+	assert.Greater(t, len(m.form.Fields), before, "the repositories were listed")
+	found := false
+	for _, fl := range m.form.Fields {
+		if "field:"+fl.Key == typed {
+			found = true
+			assert.Equal(t, "ZZ", fl.Value, "the text stays in the setting it was typed for")
+		}
+	}
+	assert.True(t, found)
+}
+
+// Clearing the branch before the answer arrives drops the answer.
+func TestPresetEditFormDropsTheAnswerForAClearedBranch(t *testing.T) {
+	read := func(context.Context, string) ([]app.RepoBranch, error) {
+		return []app.RepoBranch{{Name: "scripts", Branch: "develop"}}, nil
+	}
+	m := newPresetForm(context.Background(), repoEditForm(read), nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("r"), rk("2"))
+	n, cmd := m.Update(kt(tea.KeyEnter))
+	m = n.(presetFormModel)
+	msg := cmd()
+	m = formKey(m, kt(tea.KeyUp), kt(tea.KeyEnter), kt(tea.KeyCtrlU), kt(tea.KeyEnter))
+	require.Equal(t, "", m.branchValue())
+	before := len(m.form.Fields)
+	n, _ = m.Update(msg)
+	m = n.(presetFormModel)
+	assert.Equal(t, before, len(m.form.Fields), "the old branch's repositories are not applied")
+	assert.Equal(t, "", m.reading)
+}

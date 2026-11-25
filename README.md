@@ -289,7 +289,7 @@ More: [Presets](docs/presets.md), [Configuration](docs/configuration.md); `bam i
 | list your presets and their files | `bam preset list` |
 | see one preset | `bam preset show lab1` |
 | add variables the plan gained since | `bam preset sync lab1 --dry-run` |
-| remove a preset | `bam preset rm lab1` |
+| remove a preset, picking it from a list and confirming | `bam preset rm` |
 | generate a repository's `.bam.yaml` | `bam init --server work --project BAMCI --plan BAMCI-BUILD=ci` |
 
 

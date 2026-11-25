@@ -157,7 +157,7 @@ func TestPresetEditFormRowNoteAgreesWithTheFooterOnRetypedSettings(t *testing.T)
 	m.form.Fields[2].Value = "ENV,REGION"
 	v := m.View()
 	assert.Contains(t, v, "nothing changed yet")
-	assert.NotContains(t, v, "changed  ", "no row reads changed")
+	assert.NotRegexp(t, `(?m)changed$`, v, "no row ends in changed")
 	assert.NotRegexp(t, `45m0s\s+changed|ENV,REGION\s+changed`, v)
 	m.form.Fields[2].Value = "ENV"
 	assert.Regexp(t, `ENV\s+changed`, m.View())

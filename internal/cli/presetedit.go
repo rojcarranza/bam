@@ -56,7 +56,9 @@ func newPresetEditCmd(r *runtime) *cobra.Command {
 			"A rename also renames the preset in the stages of the sets and the bam top pins in your project\n" +
 			"and machine files, and in each train file a past bam set run --file used (a set in another\n" +
 			"repository's own .bam.yaml keeps the old name, and so do the runs and sets of a repository whose\n" +
-			"own .bam.yaml or machine entry defines a preset of that name). A rename is refused while a set or\n" +
+			"own .bam.yaml or machine entry defines a preset of that name). Every file a rename writes, train\n" +
+			"files included, is written the same way, so the spacing before a comment can change there too.\n" +
+			"A rename is refused while a set or\n" +
 			"pin in your machine file's top level, which applies in every repository, names a preset only\n" +
 			"this repository defines.\n" +
 			"A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run\n" +

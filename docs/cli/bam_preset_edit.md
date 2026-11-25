@@ -18,7 +18,9 @@ from Bamboo. --dry-run shows the changes and writes nothing.
 A rename also renames the preset in the stages of the sets and the bam top pins in your project
 and machine files, and in each train file a past bam set run --file used (a set in another
 repository's own .bam.yaml keeps the old name, and so do the runs and sets of a repository whose
-own .bam.yaml or machine entry defines a preset of that name). A rename is refused while a set or
+own .bam.yaml or machine entry defines a preset of that name). Every file a rename writes, train
+files included, is written the same way, so the spacing before a comment can change there too.
+A rename is refused while a set or
 pin in your machine file's top level, which applies in every repository, names a preset only
 this repository defines.
 A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run

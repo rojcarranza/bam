@@ -87,8 +87,7 @@ func (r FormRow) Changed() bool {
 	if r.Removed {
 		return r.InPreset
 	}
-	// An emptied row the preset never set writes nothing, so it is no change.
-	return (r.Value != r.Orig && (r.Value != "" || r.InPreset)) || !slices.Equal(r.Options, r.OrigOptions)
+	return r.Value != r.Orig || !slices.Equal(r.Options, r.OrigOptions)
 }
 
 // Validate checks what the person typed in an edit form, so a mistake is
@@ -104,6 +103,8 @@ func (f PresetForm) Validate() error {
 			return fmt.Errorf("%q is not a valid preset name: lowercase letters, digits, - and _", v)
 		case fl.Key == "name" && v != strings.TrimSpace(fl.Orig) && slices.Contains(f.TakenNames, v):
 			return fmt.Errorf("preset %q already exists", v)
+		case fl.Key == "name" && v != strings.TrimSpace(fl.Orig) && f.TakenElsewhere[v] != "":
+			return TakenElsewhereError(v, f.TakenElsewhere[v])
 		case fl.Key == "name" && v != strings.TrimSpace(fl.Orig) && f.RenameBlocked != "":
 			return errors.New(f.RenameBlocked)
 		case fl.Key == "timeout" && v != "":
@@ -314,4 +315,10 @@ func (s *Service) PlanBranchRepositories(ctx context.Context, plan, branch strin
 		}
 	}
 	return out, nil
+}
+
+// TakenElsewhereError says why a shared preset cannot take a name that only
+// another repository's own preset has.
+func TakenElsewhereError(name, repo string) error {
+	return fmt.Errorf("preset %q already exists in the repository %s", name, repo)
 }

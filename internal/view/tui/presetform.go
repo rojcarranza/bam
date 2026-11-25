@@ -461,7 +461,10 @@ func editNote(r app.FormRow, held app.Held) string {
 	default:
 		parts = append(parts, "saved")
 	}
-	if len(r.Options) > 0 {
+	if len(r.Options) > 0 && r.Secret {
+		// A secret's options are values like its own, so they stay hidden.
+		parts = append(parts, "options: ********")
+	} else if len(r.Options) > 0 {
 		parts = append(parts, "options: "+strings.Join(r.Options, ", "))
 	} else if len(r.OrigOptions) > 0 && held.Also["options."+r.Name] != "" {
 		parts = append(parts, "options cleared here: the value in "+held.Also["options."+r.Name]+" applies")

@@ -193,8 +193,14 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		return err
 	}
 	if e.Rename != "" && e.Rename != name {
-		if slices.Contains(takenNames(cfg, scope.shared), e.Rename) {
+		taken, elsewhere := takenNames(cfg, scope.shared)
+		if slices.Contains(taken, e.Rename) {
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
+		}
+		if repo := elsewhere[e.Rename]; repo != "" {
+			return errs.Usagef("preset %q already exists in the repository %s", e.Rename, repo).
+				WithWhy("this preset is shared, so renaming it also renames it in that repository's sets and train files, where the name means its own preset").
+				WithTry("pick another name")
 		}
 		if err := renameBlocked(cfg, t, scope); err != nil {
 			return err
@@ -414,7 +420,7 @@ func maskSecrets(in []config.FieldChange) []config.FieldChange {
 	var out []config.FieldChange
 	for _, c := range in {
 		if n, ok := strings.CutPrefix(c.Field, "options."); ok && config.IsMaskedName(n) {
-			// Options written by hand before this check existed are values too.
+			// A file may hold options for a secret written by hand; they are values too.
 			if c.Old != "" {
 				c.Old = "********"
 			}
@@ -496,20 +502,21 @@ func formText(err error) string {
 	return err.Error()
 }
 
-// takenNames are the names a preset cannot be renamed to. A preset the other
-// repositories share is renamed in their sets too, so a name another
-// repository's own preset has would send those sets to a different preset.
-func takenNames(cfg *config.Config, shared bool) []string {
+// takenNames are the names a preset cannot be renamed to, and, for a preset
+// the other repositories share, the names only another repository's own preset
+// has, by that repository: those repositories' sets are renamed too, so such a
+// name would send them to a different preset.
+func takenNames(cfg *config.Config, shared bool) ([]string, map[string]string) {
 	all, _ := cfg.Targets()
-	names := slices.Sorted(maps.Keys(all))
+	elsewhere := map[string]string{}
 	if shared {
-		for _, ns := range cfg.OtherRepoTargets() {
-			names = append(names, ns...)
+		for repo, ns := range cfg.OtherRepoTargets() {
+			for _, n := range ns {
+				elsewhere[n] = repo
+			}
 		}
-		slices.Sort(names)
-		names = slices.Compact(names)
 	}
-	return names
+	return slices.Sorted(maps.Keys(all)), elsewhere
 }
 
 // fillForm opens the edit form of t and returns the changes it holds.
@@ -527,7 +534,7 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	}
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
-	form.TakenNames = takenNames(cfg, scope.shared)
+	form.TakenNames, form.TakenElsewhere = takenNames(cfg, scope.shared)
 	form.RenameBlocked = formText(renameBlocked(cfg, t, scope))
 	if svc != nil {
 		form.ReadRepos = func(ctx context.Context, branch string) ([]app.RepoBranch, error) {

@@ -761,6 +761,11 @@ func TestPresetEditSharedRenameRefusesANameAnotherRepositoryDefines(t *testing.T
 	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte("version: 1\nrepos:\n  /somewhere/else:\n    targets:\n      lab-two:\n        plan: PROJ-PROV\n"), 0o644))
 	before := readFile(t, sharedFile(h))
 	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
-	assert.Contains(t, h.stderr.String(), `preset "lab-two" already exists`)
+	assert.Contains(t, h.stderr.String(), `preset "lab-two" already exists in the repository /somewhere/else`)
 	assert.Equal(t, before, readFile(t, sharedFile(h)))
+
+	h.tty = true
+	offered := editScript(h, func(*app.PresetForm) {}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	assert.Equal(t, "/somewhere/else", (*offered)[0].TakenElsewhere["lab-two"], "the form refuses it while open")
 }

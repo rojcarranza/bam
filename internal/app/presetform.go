@@ -67,8 +67,11 @@ type PresetForm struct {
 	// TakenNames are the names no preset can be renamed to, and RenameBlocked
 	// is why this one cannot be renamed at all, or empty. Validate uses them
 	// so a refusal shows while the form is open.
-	TakenNames    []string
-	RenameBlocked string
+	TakenNames []string
+	// TakenElsewhere maps a name only another repository's own preset has to
+	// that repository, for a shared preset whose rename reaches its sets.
+	TakenElsewhere map[string]string
+	RenameBlocked  string
 	// Held names what other files hold, as config.HeldBelow keys them, so
 	// Validate refuses a removal the edited file cannot make and the form says
 	// whose value then applies.

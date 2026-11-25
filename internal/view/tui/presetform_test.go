@@ -326,3 +326,14 @@ func TestPresetEditFormSaysWhoseRepositoryAppliesAfterARemoval(t *testing.T) {
 	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), rk("x"))
 	assert.Contains(t, m.View(), "removed here: the value in low.yaml applies")
 }
+
+// A secret variable's options are values like its own: never drawn.
+func TestPresetEditFormHidesTheOptionsOfASecret(t *testing.T) {
+	f := testEditForm()
+	f.Rows = append(f.Rows, app.FormRow{Name: "api_secret", Value: "${API}", Orig: "${API}", InPreset: true, Secret: true,
+		Options: []string{"hunter2", "s3cret"}, OrigOptions: []string{"hunter2", "s3cret"}})
+	m := newPresetForm(context.Background(), f, nil)
+	assert.NotContains(t, m.View(), "hunter2")
+	assert.NotContains(t, m.View(), "s3cret")
+	assert.Contains(t, m.View(), "options: ***", "the row is cut at the screen edge, so only the start shows")
+}

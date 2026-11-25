@@ -354,7 +354,7 @@ func editText(r app.FormRow) string {
 func step(r *app.FormRow, dir int) {
 	if r.Secret {
 		if r.CanStore {
-			r.Commented = !r.Commented
+			r.Commented, r.Removed = !r.Commented, false
 		}
 		return
 	}
@@ -376,7 +376,7 @@ func step(r *app.FormRow, dir int) {
 	default:
 		at = (at + dir + n) % n
 	}
-	r.Value = r.Choices[at]
+	r.Value, r.Removed = r.Choices[at], false
 }
 
 // View draws the header, one row per variable, the choices of the row under

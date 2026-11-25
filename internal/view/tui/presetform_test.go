@@ -133,6 +133,19 @@ func testEditForm() app.PresetForm {
 		}}
 }
 
+// An arrow on a removed variable brings it back with the value it steps to,
+// so the save writes that value instead of dropping it.
+func TestPresetEditFormArrowRestoresARemovedVariable(t *testing.T) {
+	m := newPresetForm(context.Background(), testEditForm(), nil)
+	m = formKey(m, rk("x"), kt(tea.KeyRight))
+	assert.False(t, m.form.Rows[0].Removed)
+	assert.Equal(t, "prod", m.form.Rows[0].Value)
+	e := m.form.Edit()
+	assert.Empty(t, e.Unset)
+	require.Len(t, e.Set, 1)
+	assert.Equal(t, "prod", e.Set[0].Value)
+}
+
 // x removes a saved variable and again restores it; o edits its options;
 // enter on a setting types its text; a bad timeout keeps the form open.
 func TestPresetEditFormKeys(t *testing.T) {

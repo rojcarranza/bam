@@ -1,6 +1,7 @@
 package app
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -114,6 +115,16 @@ func TestPresetEditFormRetypingTheSameTimeoutIsNoChange(t *testing.T) {
 	assert.Nil(t, f.Edit().Timeout, "the same duration written another way")
 	f.Fields[4].Value = "50m"
 	assert.Equal(t, "50m", *f.Edit().Timeout)
+}
+
+func TestPresetEditFormRetypingTheSameRequiredListIsNoChange(t *testing.T) {
+	f := NewPresetEditForm(savedPreset(), planVars)
+	at := slices.IndexFunc(f.Fields, func(fl FormField) bool { return fl.Key == "required" })
+	require.GreaterOrEqual(t, at, 0)
+	f.Fields[at].Value = " ENV , ENV,"
+	assert.Nil(t, f.Edit().Required, "the same list written another way")
+	f.Fields[at].Value = "ENV, REGION"
+	assert.Equal(t, []string{"ENV", "REGION"}, *f.Edit().Required)
 }
 
 // A hand-written literal secret is never drawn: the row says so and the

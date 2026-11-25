@@ -183,8 +183,11 @@ func (f PresetForm) Edit() config.PresetEdit {
 	for _, fl := range f.Fields {
 		v := strings.TrimSpace(fl.Value)
 		changed := v != strings.TrimSpace(fl.Orig)
-		if fl.Key == "timeout" {
+		switch fl.Key {
+		case "timeout":
 			changed = !sameTimeout(v, fl.Orig)
+		case "required":
+			changed = !slices.Equal(SplitList(v), SplitList(fl.Orig))
 		}
 		switch {
 		case fl.Key == "name" && changed:

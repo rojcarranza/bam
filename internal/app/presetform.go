@@ -36,6 +36,9 @@ type FormRow struct {
 	// Options are the values the preset allows; none means any value.
 	Options     []string
 	OrigOptions []string
+	// Literal marks a secret whose saved value is a hand-written literal: the
+	// form never shows it, and typing an environment variable name replaces it.
+	Literal bool
 }
 
 // FormField is one setting of a preset other than its variables, shown by
@@ -55,6 +58,11 @@ type PresetForm struct {
 	// Editing marks the form of bam preset edit, whose Fields follow the rows.
 	Editing bool
 	Fields  []FormField
+	// TakenNames are the names no preset can be renamed to, and RenameBlocked
+	// is why this one cannot be renamed at all, or empty. Validate uses them
+	// so a refusal shows while the form is open.
+	TakenNames    []string
+	RenameBlocked string
 }
 
 // NewPresetForm builds the form of draft d. planDefaults maps each declared

@@ -69,7 +69,7 @@ Type `bam run` with no name, on a terminal, and bam opens a small picker under t
 - A variable the preset leaves out is written only when you change it. A secret row takes an environment variable name, never a value.
 - bam rewrites only the lines that change, in the file whose copy of the preset bam uses, and keeps comments, key order, `watch` and the other presets. When the plan cannot be read, the form still opens with the preset's own variables.
 
-For scripts and agents, `--var NAME=VALUE`, `--unset NAME`, `--branch`, `--timeout` and `--rename` apply the change without a form and never ask. `--dry-run` shows the changes and writes nothing, and `--json` prints `{preset, renamed_to, file, dry_run, changed, changes: [{field, old, new}]}`. A literal value for a secret variable is refused (`--var 'db_password=${DB_PASSWORD}'` is the way), and so is a preset that uses YAML anchors or merge keys, a value outside the preset's `options`, a rename to a name another preset has, and a rename of a preset a set uses. Renaming a preset a `bam top` group pins leaves the pin, and bam names the group.
+For scripts and agents, `--var NAME=VALUE`, `--unset NAME`, `--branch`, `--timeout` and `--rename` apply the change without a form and never ask. `--dry-run` shows the changes and writes nothing, and `--json` prints `{preset, renamed_to, file, dry_run, changed, changes: [{field, old, new}]}`. When a preset is defined in more than one file, bam writes the file it uses and checks the result as merged with the others: an edit that would break the merge is refused, and so is removing a variable, branch, timeout, `required` or option that another file holds, naming that file. A literal value for a secret variable is refused (`--var 'db_password=${DB_PASSWORD}'` is the way), and so is a preset that uses YAML anchors or merge keys, a value outside the preset's `options`, a rename to a name another preset has, and a rename of a preset a set uses. Renaming a preset a `bam top` group pins leaves the pin, and bam names the group. A secret saved as a literal value shows as `********` in the form, and typing an environment variable name replaces it.
 
 ### Remove a preset
 
@@ -95,11 +95,11 @@ The preset lists every variable the plan declares, with the plan default filled 
           # deploy_token: "${DEPLOY_TOKEN}"
         watch: true
 
-bam writes only keys it has a value for: `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables and `watch: true`. `branch` is written when the plan is a plan branch or you pass `--branch`, and `repositories` then lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build); when bam cannot read a repository's branch, the repositories are written commented. bam never writes `required` or `options`; add them yourself (see below). `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing. Two comments can appear: `# not declared by the plan` on a variable the plan does not declare (only with `--from` and `--include-globals`), and a note when bam cannot read the plan's variables.
+bam writes only keys it has a value for: `plan`, `server` (the server you added it on, left out for a `BAM_URL` server), the variables and `watch: true`. `branch` is written when the plan is a plan branch or you pass `--branch`, and `repositories` then lists every repository of the plan branch with the branch its newest finished job built (read from `--branch`'s plan branch, or from the `--from` build); when bam cannot read a repository's branch, the repositories are written commented. bam never writes `required` or `options`; add them with `bam preset edit` (see below). `bam init --plan` and `p` in `bam ui` write the same preset. `--full` is still accepted but does nothing. Two comments can appear: `# not declared by the plan` on a variable the plan does not declare (only with `--from` and `--include-globals`), and a note when bam cannot read the plan's variables.
 
 Without the form (see above), when it finishes, `preset add` also prints a box, in the terminal only, of values to choose from: for each variable that ran with more than one value in the last 10 builds of the plan (or plan branch), up to three values, newest first. Secrets are never listed. Nothing is printed when no variable varied or the server cannot read build variables.
 
-- A variable with no plan default gets an empty value, which bam sends as empty. Add `required` yourself to refuse a run until it has a value.
+- A variable with no plan default gets an empty value, which bam sends as empty. Add `required` with `bam preset edit` to refuse a run until it has a value.
 - `watch: true` makes `bam run deploy-qa` follow the build. Run `bam run deploy-qa --watch=false` to skip it for one run.
 - A secret the plan already stores is a commented line: Bamboo keeps sending the stored value. Uncomment it to override the value, and export the `${ENV_NAME}` environment variable; the value never lives in a file. A secret with no stored value is an active `${ENV_NAME}` reference.
 - `bam preset show deploy-qa` lists the variables written in the preset file. A run also sends the plan's own values for variables the preset does not set.
@@ -118,7 +118,7 @@ In `bam ui`, press `p` on a build in the plan screen to do the same: it asks for
 
 ### Set the values
 
-Edit the file and fill in `variables`. Delete variables you never change, so they keep the plan's value. Add `required` and `options` if you want bam to check values before it triggers:
+Run `bam preset edit deploy-qa` (or `bam preset edit` to pick) and fill in the variables; `x` removes a variable you never change, so it keeps the plan's value, and the `required` row and `o` on a variable add `required` and `options`, so bam checks values before it triggers. The file holds:
 
     variables:
       target_env: "qa"

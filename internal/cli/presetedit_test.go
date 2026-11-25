@@ -194,3 +194,86 @@ func TestPresetEditWithoutANamePicks(t *testing.T) {
 	assert.NotEmpty(t, *offered)
 	assert.Contains(t, readFile(t, sharedFile(h)), `required: ["cluster_name", "cluster_type"]`)
 }
+
+// A preset can live in .bam.yaml and in your presets directory; bam merges
+// them and the edit writes the presets file, checked as merged.
+func twoFilePreset(t *testing.T, h *harness) (lower, top string) {
+	t.Helper()
+	lower, top = sharedFile(h), filepath.Join(h.home, "bam", "presets", "lab.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(top), 0o755))
+	require.NoError(t, os.WriteFile(top, []byte("presets:\n  provision-lab:\n    variables:\n      cluster_name: beta\n"), 0o600))
+	return lower, top
+}
+
+func TestPresetEditAMergedPresetIsCheckedAsMerged(t *testing.T) {
+	h := newHarness(t)
+	lower, top := twoFilePreset(t, h)
+	beforeLower, beforeTop := readFile(t, lower), readFile(t, top)
+
+	// The options live in .bam.yaml: writing nomad to the presets file would break every command.
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--var", "cluster_type=nomad"), h.stderr.String())
+	assert.Equal(t, beforeTop, readFile(t, top))
+
+	// The variable is in .bam.yaml: removing it from the presets file does nothing, so bam says so.
+	h.stderr.Reset()
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--unset", "cluster_type"))
+	assert.Contains(t, h.stderr.String(), lower)
+	assert.NotContains(t, h.stdout.String(), "already has these values")
+	assert.Equal(t, beforeTop, readFile(t, top))
+
+	h.stderr.Reset()
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--var", "cluster_type=dcos"), h.stderr.String())
+	assert.Contains(t, readFile(t, top), `cluster_type: "dcos"`)
+	assert.Equal(t, beforeLower, readFile(t, lower), "the lower file is not touched by a value edit")
+	require.Equal(t, 0, h.run("preset", "show", "provision-lab"), h.stderr.String())
+}
+
+func TestPresetEditRenameRenamesEveryFileThatDefinesIt(t *testing.T) {
+	h := newHarness(t)
+	lower, top := twoFilePreset(t, h)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, readFile(t, lower), "  lab-two:\n    plan: PROJ-PROV")
+	assert.Contains(t, readFile(t, top), "  lab-two:\n")
+	require.Equal(t, 0, h.run("preset", "show", "lab-two"), h.stderr.String())
+}
+
+// A refusal bam knows before the form opens is given before it opens.
+func TestPresetEditAnchoredPresetIsRefusedBeforeTheForm(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"  anchored: &a\n    plan: PROJ-PROV\n    branch: develop\n"), 0o644))
+	offered := editScript(h, func(*app.PresetForm) {}, nil)
+	assert.Equal(t, 2, h.run("preset", "edit", "anchored"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "anchors")
+	assert.Empty(t, *offered, "the form never opened")
+}
+
+func TestPresetEditFormCarriesTheRenameRules(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	offered := editScript(h, func(*app.PresetForm) {}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	f := (*offered)[0]
+	assert.Contains(t, f.TakenNames, "build")
+	assert.Empty(t, f.RenameBlocked)
+}
+
+func TestPresetEditFormShowsALiteralSecretMasked(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	path := filepath.Join(h.home, "bam", "presets", "lit.yaml") // only presets files may hold a literal secret
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("presets:\n  with-secret:\n    plan: PROJ-PROV\n    variables:\n      api_secret: hunter2\n"), 0o600))
+	offered := editScript(h, func(*app.PresetForm) {}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "with-secret"), h.stderr.String())
+	var row *app.FormRow
+	for i := range (*offered)[0].Rows {
+		if (*offered)[0].Rows[i].Name == "api_secret" {
+			row = &(*offered)[0].Rows[i]
+		}
+	}
+	require.NotNil(t, row)
+	assert.True(t, row.Literal)
+	assert.NotContains(t, h.stdout.String()+h.stderr.String(), "hunter2")
+}

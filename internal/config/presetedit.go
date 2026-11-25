@@ -42,12 +42,23 @@ type FieldChange struct {
 // preset stay. It refuses a preset that uses YAML anchors or aliases and a
 // literal value for a secret variable. The file is written only when write is
 // true and something changed; the returned changes list only real edits.
+// It is EditTargetOver for a preset no other file defines.
 func EditTarget(path string, keyPath []string, name string, e PresetEdit, write bool) ([]FieldChange, error) {
+	return EditTargetOver(path, keyPath, name, nil, e, write)
+}
+
+// EditTargetOver is EditTarget for a preset that other files define too:
+// below are their entries, lowest precedence first, which this file's entry
+// overrides. The edited preset is checked as bam will load it, merged with
+// below, so a write that would break every preset command is refused. A
+// removal this file cannot make because a lower file holds the value is
+// refused, naming that file.
+func EditTargetOver(path string, keyPath []string, name string, below []TargetLayer, e PresetEdit, write bool) ([]FieldChange, error) {
 	doc, err := loadDoc(path)
 	if err != nil {
 		return nil, err
 	}
-	parent, target, err := findTargetIn(doc, path, keyPath, name)
+	parent, target, err := findTarget(doc, path, keyPath, name)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +72,9 @@ func EditTarget(path string, keyPath []string, name string, e PresetEdit, write 
 				WithTry(fmt.Sprintf("--var %s='${%s}'", v.Name, EnvNameFor(v.Name)))
 		}
 	}
+	if err := refuseHeldBelow(decodeTarget(target), below, e, name, path); err != nil {
+		return nil, err
+	}
 	key, vars, err := targetVars(target, keyPath)
 	if err != nil {
 		return nil, errs.Configf("preset %q in %s: %v", name, path, err)
@@ -71,13 +85,13 @@ func EditTarget(path string, keyPath []string, name string, e PresetEdit, write 
 		return nil, err
 	}
 	ch = editBranch(target, e, ch)
-	ch = editRepositories(target, e, ch)
+	ch = editRepositories(target, effectiveRepos(below), e, ch)
 	ch = editRequired(target, e, ch)
 	ch = editOptions(target, e, ch)
 	if ch, err = editTimeout(target, e, ch); err != nil {
 		return nil, err
 	}
-	if err := checkEdited(target, name, path); err != nil {
+	if err := checkEdited(target, below, name, path); err != nil {
 		return nil, err
 	}
 	if e.Rename != "" && e.Rename != name {
@@ -91,21 +105,119 @@ func EditTarget(path string, keyPath []string, name string, e PresetEdit, write 
 	return ch, saveDoc(path, doc)
 }
 
-func findTargetIn(doc *yaml.Node, path string, keyPath []string, name string) (parent, target *yaml.Node, err error) {
-	parent = doc.Content[0]
-	for _, k := range keyPath {
-		if parent = mappingValue(parent, k); parent == nil || parent.Kind != yaml.MappingNode {
-			return nil, nil, errs.Configf("no %s in %s", strings.Join(keyPath, "."), path)
+// CheckEditable fails when preset name in the file at path cannot be edited
+// in place, for the reasons EditTarget refuses it. It reads and writes nothing else.
+func CheckEditable(path string, keyPath []string, name string) error {
+	doc, err := loadDoc(path)
+	if err != nil {
+		return err
+	}
+	_, target, err := findTarget(doc, path, keyPath, name)
+	if err != nil {
+		return err
+	}
+	return refuseAnchors(target, name, path)
+}
+
+// RenameTarget renames preset name to to in the file at path and checks
+// nothing else: another file's copy of a preset may be only a fragment.
+func RenameTarget(path string, keyPath []string, name, to string, write bool) error {
+	doc, err := loadDoc(path)
+	if err != nil {
+		return err
+	}
+	parent, target, err := findTarget(doc, path, keyPath, name)
+	if err != nil {
+		return err
+	}
+	if err := refuseAnchors(target, name, path); err != nil {
+		return err
+	}
+	if _, err := renameKey(parent, name, to, path, nil); err != nil {
+		return err
+	}
+	if !write {
+		return nil
+	}
+	return saveDoc(path, doc)
+}
+
+// decodeTarget reads the preset node as bam loads it, with "variables" folded
+// into Defaults. A node that does not decode gives the zero Target; checkEdited
+// reports that after the edit.
+func decodeTarget(n *yaml.Node) Target {
+	var t Target
+	_ = n.Decode(&t)
+	for k, v := range t.Variables {
+		if t.Defaults == nil {
+			t.Defaults = StringMap{}
+		}
+		t.Defaults[k] = v
+	}
+	t.Variables = nil
+	return t
+}
+
+// refuseHeldBelow fails on a removal this file cannot make: the value is not
+// in this file but in a lower one, so removing it here would do nothing.
+func refuseHeldBelow(top Target, below []TargetLayer, e PresetEdit, name, path string) error {
+	holder := func(has func(Target) bool) string {
+		for i := len(below) - 1; i >= 0; i-- {
+			if has(below[i].Target) {
+				return below[i].Path
+			}
+		}
+		return ""
+	}
+	refuse := func(what, file string) error {
+		return errs.Usagef("%s of preset %q is set in %s, not in %s", what, name, file, path).
+			WithWhy("bam edits the file whose copy of the preset it uses, and removing a line there leaves the other file's value in place").
+			WithTry("change it in " + file + ", or set a value here")
+	}
+	for _, n := range e.Unset {
+		if _, here := top.Defaults[n]; here {
+			continue
+		}
+		if f := holder(func(t Target) bool { _, ok := t.Defaults[n]; return ok }); f != "" {
+			return refuse("variable "+n, f)
 		}
 	}
-	target = mappingValue(parent, name)
-	if target != nil && target.Kind == yaml.AliasNode {
-		return nil, nil, anchorError(name, path)
+	if e.Branch != nil && *e.Branch == "" && top.Branch == "" {
+		if f := holder(func(t Target) bool { return t.Branch != "" }); f != "" {
+			return refuse("the branch", f)
+		}
 	}
-	if target == nil || target.Kind != yaml.MappingNode {
-		return nil, nil, errs.Configf("no preset %q under %s in %s", name, strings.Join(keyPath, "."), path)
+	if e.Timeout != nil && *e.Timeout == "" && top.Timeout == 0 {
+		if f := holder(func(t Target) bool { return t.Timeout != 0 }); f != "" {
+			return refuse("the timeout", f)
+		}
 	}
-	return parent, target, nil
+	if e.Required != nil && len(*e.Required) == 0 && top.Required == nil {
+		if f := holder(func(t Target) bool { return t.Required != nil }); f != "" {
+			return refuse("required", f)
+		}
+	}
+	for n, vals := range e.Options {
+		if _, here := top.Options[n]; len(vals) == 0 && !here {
+			if f := holder(func(t Target) bool { _, ok := t.Options[n]; return ok }); f != "" {
+				return refuse("the options of "+n, f)
+			}
+		}
+	}
+	if e.Repositories != nil {
+		want := map[string]bool{}
+		for _, r := range *e.Repositories {
+			want[r.Name] = true
+		}
+		for _, l := range below {
+			for r := range l.Target.Repositories {
+				if _, here := top.Repositories[r]; !want[r] && !here {
+					return refuse("repository "+r, l.Path)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func anchorError(name, path string) error {
@@ -206,7 +318,18 @@ func editTimeout(target *yaml.Node, e PresetEdit, ch []FieldChange) ([]FieldChan
 	return ch, nil
 }
 
-func editRepositories(target *yaml.Node, e PresetEdit, ch []FieldChange) []FieldChange {
+// effectiveRepos are the repositories the lower files already give the preset.
+func effectiveRepos(below []TargetLayer) map[string]string {
+	out := map[string]string{}
+	for _, l := range below {
+		for n, b := range l.Target.Repositories {
+			out[n] = b
+		}
+	}
+	return out
+}
+
+func editRepositories(target *yaml.Node, held map[string]string, e PresetEdit, ch []FieldChange) []FieldChange {
 	if e.Repositories == nil {
 		return ch
 	}
@@ -233,7 +356,7 @@ func editRepositories(target *yaml.Node, e PresetEdit, ch []FieldChange) []Field
 		i += 2
 	}
 	for _, r := range *e.Repositories {
-		if mappingValue(repos, r.Name) == nil {
+		if mappingValue(repos, r.Name) == nil && held[r.Name] != r.Branch {
 			setScalar(repos, r.Name, r.Branch)
 			ch = append(ch, FieldChange{Field: "repositories." + r.Name, New: r.Branch})
 		}
@@ -322,22 +445,22 @@ func sortedKeys(m map[string][]string) []string {
 	return keys
 }
 
-// checkEdited decodes the edited preset and applies the file rules to it, so
-// a bad edit never reaches the disk: repositories need a branch, and a
-// variable with options must hold one of them.
-func checkEdited(target *yaml.Node, name, path string) error {
-	var t Target
-	if err := target.Decode(&t); err != nil {
+// checkEdited decodes the edited preset, merges it over the lower files'
+// entries and applies the file rules to the result, so a bad edit never
+// reaches the disk: repositories need a branch, and a variable with options
+// must hold one of them, whichever file holds each.
+func checkEdited(target *yaml.Node, below []TargetLayer, name, path string) error {
+	var raw Target
+	if err := target.Decode(&raw); err != nil {
 		return errs.Configf("preset %q in %s would not load after the edit", name, path).WithWhy(err.Error())
 	}
-	for k, v := range t.Variables {
-		if t.Defaults == nil {
-			t.Defaults = StringMap{}
-		}
-		t.Defaults[k] = v
+	var t Target
+	for _, l := range below {
+		t = mergeTarget(t, l.Target)
 	}
+	t = mergeTarget(t, decodeTarget(target))
 	if t.Plan == "" {
-		t.Plan = "X-X" // the plan may come from another layer
+		t.Plan = "X-X" // a lone fragment: the plan may come from another file
 	}
 	t.Server = ""
 	if err := validateTarget(ResolvedTarget{Name: name, Target: t, DefinedIn: []string{path}}, nil); err != nil {

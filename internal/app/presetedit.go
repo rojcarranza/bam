@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -23,6 +24,7 @@ func NewPresetEditForm(t config.ResolvedTarget, planDefaults map[string]string) 
 		r.OrigOptions = slices.Clone(r.Options)
 		if _, isRef := config.EnvRef(value); isRef || config.IsMaskedName(name) {
 			r.Secret = true
+			r.Literal = !isRef && value != ""
 			return r
 		}
 		r.Plan = planDefaults[name]
@@ -55,11 +57,29 @@ func NewPresetEditForm(t config.ResolvedTarget, planDefaults map[string]string) 
 	return f
 }
 
+// durationText is a timeout as people write it: 45m, not 45m0s.
 func durationText(d config.Duration) string {
 	if d == 0 {
 		return ""
 	}
-	return time.Duration(d).String()
+	s := time.Duration(d).String()
+	if strings.HasSuffix(s, "m0s") {
+		s = strings.TrimSuffix(s, "0s")
+	}
+	if strings.HasSuffix(s, "h0m") {
+		s = strings.TrimSuffix(s, "0m")
+	}
+	return s
+}
+
+// sameTimeout reports whether two timeout texts are the same duration.
+func sameTimeout(a, b string) bool {
+	da, ea := time.ParseDuration(strings.TrimSpace(a))
+	db, eb := time.ParseDuration(strings.TrimSpace(b))
+	if ea != nil || eb != nil {
+		return strings.TrimSpace(a) == strings.TrimSpace(b)
+	}
+	return da == db
 }
 
 // Changed reports whether the row would write anything.
@@ -78,6 +98,10 @@ func (f PresetForm) Validate() error {
 		switch {
 		case fl.Key == "name" && !config.ValidTargetName(v):
 			return fmt.Errorf("%q is not a valid preset name: lowercase letters, digits, - and _", v)
+		case fl.Key == "name" && v != strings.TrimSpace(fl.Orig) && slices.Contains(f.TakenNames, v):
+			return fmt.Errorf("preset %q already exists", v)
+		case fl.Key == "name" && v != strings.TrimSpace(fl.Orig) && f.RenameBlocked != "":
+			return errors.New(f.RenameBlocked)
 		case fl.Key == "timeout" && v != "":
 			if d, err := time.ParseDuration(v); err != nil || d < 0 {
 				return fmt.Errorf("%q is not a duration like 45m or 1h30m", v)
@@ -133,6 +157,9 @@ func (f PresetForm) Edit() config.PresetEdit {
 	for _, fl := range f.Fields {
 		v := strings.TrimSpace(fl.Value)
 		changed := v != strings.TrimSpace(fl.Orig)
+		if fl.Key == "timeout" {
+			changed = !sameTimeout(v, fl.Orig)
+		}
 		switch {
 		case fl.Key == "name" && changed:
 			e.Rename = v

@@ -171,3 +171,18 @@ func TestPresetAddFormIgnoresEditKeys(t *testing.T) {
 	assert.False(t, m.editing)
 	assert.False(t, m.form.Rows[0].Removed)
 }
+
+// A saved literal secret is never drawn, and enter opens an empty input, so
+// the value cannot leak to the screen or be saved back by accident.
+func TestPresetEditFormHidesALiteralSecret(t *testing.T) {
+	f := testEditForm()
+	f.Rows = append(f.Rows, app.FormRow{Name: "api_secret", Value: "hunter2", Orig: "hunter2", InPreset: true, Secret: true, Literal: true})
+	m := newPresetForm(context.Background(), f, nil)
+	assert.NotContains(t, m.View(), "hunter2")
+	assert.Contains(t, m.View(), "********")
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter))
+	assert.Empty(t, m.input.Value())
+	assert.NotContains(t, m.View(), "hunter2")
+	m = formKey(m, rk("A"), rk("P"), rk("I"), kt(tea.KeyEnter))
+	assert.Equal(t, "${API}", m.form.Rows[2].Value)
+}

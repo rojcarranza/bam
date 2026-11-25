@@ -39,7 +39,7 @@ func TestPresetEditFormListsSavedThenOmittedVariables(t *testing.T) {
 	for _, fl := range f.Fields {
 		keys = append(keys, fl.Key+"="+fl.Value)
 	}
-	assert.Equal(t, []string{"name=deploy-qa", "branch=release-1", "repositories.api=main", "required=ENV", "timeout=45m0s"}, keys)
+	assert.Equal(t, []string{"name=deploy-qa", "branch=release-1", "repositories.api=main", "required=ENV", "timeout=45m"}, keys)
 }
 
 func TestPresetEditFormUntouchedChangesNothing(t *testing.T) {
@@ -98,4 +98,55 @@ func TestPresetEditFormValidate(t *testing.T) {
 		mutate(&f)
 		assert.Error(t, f.Validate(), name)
 	}
+}
+
+func TestDurationTextIsHowPeopleWriteIt(t *testing.T) {
+	for d, want := range map[time.Duration]string{45 * time.Minute: "45m", time.Hour: "1h", 90 * time.Minute: "1h30m", 30 * time.Second: "30s", 0: ""} {
+		assert.Equal(t, want, durationText(config.Duration(d)), d.String())
+	}
+}
+
+func TestPresetEditFormRetypingTheSameTimeoutIsNoChange(t *testing.T) {
+	f := NewPresetEditForm(savedPreset(), planVars)
+	f.Fields[4].Value = "45m0s"
+	assert.Nil(t, f.Edit().Timeout)
+	f.Fields[4].Value = "0.75h"
+	assert.Nil(t, f.Edit().Timeout, "the same duration written another way")
+	f.Fields[4].Value = "50m"
+	assert.Equal(t, "50m", *f.Edit().Timeout)
+}
+
+// A hand-written literal secret is never drawn: the row says so and the
+// form leaves its value alone unless a variable name replaces it.
+func TestPresetEditFormMarksLiteralSecrets(t *testing.T) {
+	p := savedPreset()
+	p.Defaults["api_secret"] = "hunter2"
+	f := NewPresetEditForm(p, nil)
+	var lit, ref *FormRow
+	for i := range f.Rows {
+		switch f.Rows[i].Name {
+		case "api_secret":
+			lit = &f.Rows[i]
+		case "db_password":
+			ref = &f.Rows[i]
+		}
+	}
+	require.NotNil(t, lit)
+	assert.True(t, lit.Secret)
+	assert.True(t, lit.Literal)
+	assert.False(t, ref.Literal)
+	assert.Empty(t, f.Edit().Set)
+}
+
+func TestPresetEditFormRefusesNamesBamKnowsAreWrong(t *testing.T) {
+	f := NewPresetEditForm(savedPreset(), planVars)
+	f.TakenNames = []string{"deploy-qa", "other"}
+	f.Fields[0].Value = "other"
+	assert.ErrorContains(t, f.Validate(), "already exists")
+	f.Fields[0].Value = "deploy-eu"
+	assert.NoError(t, f.Validate())
+	f.RenameBlocked = `preset "deploy-qa" is used by set "train"`
+	assert.ErrorContains(t, f.Validate(), "used by set")
+	f.Fields[0].Value = "deploy-qa"
+	assert.NoError(t, f.Validate(), "not renamed, so not blocked")
 }

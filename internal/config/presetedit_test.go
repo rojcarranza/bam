@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 const editYAML = `# team presets
@@ -151,3 +152,88 @@ func TestEditTargetSecretReferenceAllowed(t *testing.T) {
 }
 
 func ptr(s string) *string { return &s }
+
+// Presets defined in two files merge; the edit writes the top file and is
+// checked as bam loads the merge.
+func layersFor(t *testing.T, lower string) []TargetLayer {
+	t.Helper()
+	path := editFile(t, lower)
+	var f struct {
+		Presets map[string]Target `yaml:"presets"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(lower), &f))
+	tg := f.Presets["deploy-qa"]
+	tg.Defaults, tg.Variables = tg.Variables, nil // Load folds variables into defaults
+	return []TargetLayer{{Path: path, KeyPath: []string{"presets"}, Target: tg}}
+}
+
+const lowerYAML = `presets:
+  deploy-qa:
+    plan: PROJ-DEPLOY
+    branch: "release-1"
+    repositories:
+      api: "main"
+    variables:
+      ENV: "qa"
+      OLD: "x"
+    options:
+      ENV: [qa, prod]
+    required: [ENV]
+    timeout: 45m
+`
+
+const topYAML = "presets:\n  deploy-qa:\n    variables:\n      REGION: \"eu\"\n"
+
+func TestEditTargetOverChecksTheMerge(t *testing.T) {
+	below := layersFor(t, lowerYAML)
+	path := editFile(t, topYAML)
+	// The options live below: a value they do not allow breaks the merge.
+	_, err := EditTargetOver(path, []string{"presets"}, "deploy-qa", below, PresetEdit{Set: []VarValue{{Name: "ENV", Value: "dev"}}}, true)
+	require.ErrorContains(t, err, "not one of")
+	assert.Equal(t, topYAML, read(t, path))
+	// Repositories in the top file are valid because the branch is below.
+	repos := []RepoBranch{{Name: "api", Branch: "main"}, {Name: "web", Branch: "main"}}
+	ch, err := EditTargetOver(path, []string{"presets"}, "deploy-qa", below, PresetEdit{Repositories: &repos}, true)
+	require.NoError(t, err)
+	assert.Equal(t, []FieldChange{{Field: "repositories.web", New: "main"}}, ch, "api is already main in the lower file")
+}
+
+func TestEditTargetOverRefusesRemovalsTheTopFileCannotMake(t *testing.T) {
+	below := layersFor(t, lowerYAML)
+	empty := ""
+	none := []string{}
+	cases := map[string]PresetEdit{
+		"unset":    {Unset: []string{"OLD"}},
+		"branch":   {Branch: &empty},
+		"timeout":  {Timeout: &empty},
+		"required": {Required: &none},
+		"options":  {Options: map[string][]string{"ENV": nil}},
+		"repo":     {Repositories: &[]RepoBranch{}},
+	}
+	for name, e := range cases {
+		t.Run(name, func(t *testing.T) {
+			path := editFile(t, topYAML)
+			_, err := EditTargetOver(path, []string{"presets"}, "deploy-qa", below, e, true)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), below[0].Path, "names the file that holds it")
+			assert.Equal(t, topYAML, read(t, path))
+		})
+	}
+}
+
+func TestRenameTargetChangesOnlyTheName(t *testing.T) {
+	path := editFile(t, editYAML)
+	require.NoError(t, RenameTarget(path, []string{"presets"}, "other", "third", true))
+	got := read(t, path)
+	assert.Contains(t, got, "third:\n    plan: PROJ-OTHER")
+	assert.Contains(t, got, "deploy-qa:")
+	anchored := "presets:\n  a: &x\n    plan: PROJ-A\n"
+	path = editFile(t, anchored)
+	require.ErrorContains(t, RenameTarget(path, []string{"presets"}, "a", "b", true), "anchors")
+	assert.Equal(t, anchored, read(t, path))
+}
+
+func TestCheckEditable(t *testing.T) {
+	assert.NoError(t, CheckEditable(editFile(t, editYAML), []string{"presets"}, "deploy-qa"))
+	assert.ErrorContains(t, CheckEditable(editFile(t, "presets:\n  a: &x\n    plan: PROJ-A\n"), []string{"presets"}, "a"), "anchors")
+}

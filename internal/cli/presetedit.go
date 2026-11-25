@@ -121,6 +121,11 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		return err
 	}
 	layer := t.Layers[len(t.Layers)-1]
+	// Everything bam can know before the form opens is refused now, so a
+	// person never types a form that cannot be saved.
+	if err := config.CheckEditable(layer.Path, layer.KeyPath, name); err != nil {
+		return err
+	}
 	var e config.PresetEdit
 	if asking {
 		if e, err = f.fillForm(r, cmd, cfg, t, layer.Path); err != nil {
@@ -134,11 +139,14 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		return err
 	}
 	if e.Rename != "" && e.Rename != name {
-		if err := checkRename(cfg, t, e.Rename); err != nil {
-			return err
+		if slices.Contains(takenNames(cfg), e.Rename) {
+			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
+		}
+		if why := renameBlocked(cfg, t); why != "" {
+			return errs.Usagef("%s", why)
 		}
 	}
-	changes, err := f.apply(t, layer, e)
+	changes, err := f.apply(t, e)
 	if err != nil {
 		return err
 	}
@@ -151,32 +159,32 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 	return f.print(r, t, layer.Path, e.Rename, changes)
 }
 
-// apply edits the file whose copy bam uses; a rename also renames the preset
-// in the other files that define it. Every file is checked before any is
-// written, so a refusal leaves all of them as they were.
-func (f *presetEditFlags) apply(t config.ResolvedTarget, top config.TargetLayer, e config.PresetEdit) ([]config.FieldChange, error) {
-	var others []config.TargetLayer
-	for _, l := range t.Layers {
-		if l.Path != top.Path || !slices.Equal(l.KeyPath, top.KeyPath) {
-			others = append(others, l)
-		}
-	}
-	rename := config.PresetEdit{Rename: e.Rename}
-	for _, l := range others {
-		if _, err := config.EditTarget(l.Path, l.KeyPath, t.Name, rename, false); err != nil {
-			return nil, err
-		}
-	}
-	changes, err := config.EditTarget(top.Path, top.KeyPath, t.Name, e, false)
+// apply edits the file whose copy bam uses, checked as merged with the files
+// below it. A rename also renames the preset in those files. Every file is
+// checked before any is written, so a refusal leaves all of them as they were.
+func (f *presetEditFlags) apply(t config.ResolvedTarget, e config.PresetEdit) ([]config.FieldChange, error) {
+	top := t.Layers[len(t.Layers)-1]
+	below := t.Layers[:len(t.Layers)-1]
+	changes, err := config.EditTargetOver(top.Path, top.KeyPath, t.Name, below, e, false)
 	if err != nil || f.dryRun || len(changes) == 0 {
 		return changes, err
 	}
-	if _, err := config.EditTarget(top.Path, top.KeyPath, t.Name, e, true); err != nil {
+	renamed := e.Rename != "" && e.Rename != t.Name
+	if renamed {
+		for _, l := range below {
+			if err := config.RenameTarget(l.Path, l.KeyPath, t.Name, e.Rename, false); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if _, err := config.EditTargetOver(top.Path, top.KeyPath, t.Name, below, e, true); err != nil {
 		return nil, err
 	}
-	for _, l := range others {
-		if _, err := config.EditTarget(l.Path, l.KeyPath, t.Name, rename, true); err != nil {
-			return changes, err
+	if renamed {
+		for _, l := range below {
+			if err := config.RenameTarget(l.Path, l.KeyPath, t.Name, e.Rename, true); err != nil {
+				return changes, err
+			}
 		}
 	}
 	return changes, nil
@@ -255,51 +263,32 @@ func (r *runtime) pickPresetToEdit(cmd *cobra.Command, cfg *config.Config, canAs
 
 // editablePreset finds preset name, or says why bam cannot edit it.
 func editablePreset(cfg *config.Config, name string) (config.ResolvedTarget, error) {
-	t, ok, err := cfg.Target(name)
-	if err != nil {
-		return t, err
+	t, err := findPreset(cfg, name, "")
+	if err == nil && len(t.Layers) == 0 {
+		err = errs.Configf("preset %q has no file bam can edit", name)
 	}
-	if !ok {
-		return t, app.UnknownTarget(cfg, name)
-	}
-	if len(t.Layers) == 0 {
-		return t, errs.Configf("preset %q has no file bam can edit", name)
-	}
-	return t, nil
+	return t, err
 }
 
-// checkRename refuses a name another preset has, or a preset a set uses,
-// which would fail every set command once the name is gone.
-func checkRename(cfg *config.Config, t config.ResolvedTarget, to string) error {
-	all, err := cfg.Targets()
-	if err != nil {
-		return err
+// renameBlocked says why preset t cannot be renamed, or "" when it can: a
+// set that runs it would fail, and a copy in a file that uses YAML anchors
+// cannot be renamed in place.
+func renameBlocked(cfg *config.Config, t config.ResolvedTarget) string {
+	if err := presetUsedBySet(cfg, t.Name, "change the set first, or leave the name as it is"); err != nil {
+		return err.Error()
 	}
-	if _, taken := all[to]; taken {
-		return errs.Usagef("preset %q already exists", to).WithWhy("preset names are shared by every presets file")
-	}
-	_, used := setUsing(cfg, t.Name)
-	return used
-}
-
-// setUsing returns the error that names the first set using preset name.
-func setUsing(cfg *config.Config, preset string) (string, error) {
-	sets, err := cfg.Sets()
-	if err != nil {
-		return "", err
-	}
-	for _, setName := range slices.Sorted(maps.Keys(sets)) {
-		for _, st := range sets[setName].Stages {
-			for _, run := range st {
-				if run.Target == preset {
-					return setName, errs.Usagef("preset %q is used by set %q", preset, setName).
-						WithWhy("defined in " + sets[setName].DefinedIn[len(sets[setName].DefinedIn)-1]).
-						WithTry("change the set first, or leave the name as it is")
-				}
-			}
+	for _, l := range t.Layers {
+		if err := config.CheckEditable(l.Path, l.KeyPath, t.Name); err != nil {
+			return err.Error()
 		}
 	}
-	return "", nil
+	return ""
+}
+
+// takenNames are the names a preset cannot be renamed to.
+func takenNames(cfg *config.Config) []string {
+	all, _ := cfg.Targets()
+	return slices.Sorted(maps.Keys(all))
 }
 
 // fillForm opens the edit form of t and returns the changes it holds.
@@ -315,6 +304,8 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	}
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
+	form.TakenNames = takenNames(cfg)
+	form.RenameBlocked = renameBlocked(cfg, t)
 	edited, err := r.env.EditPreset(ctx, r.env.Stdin, r.env.Stdout, form, nil)
 	if err != nil {
 		return config.PresetEdit{}, askedCanceled(r, err)

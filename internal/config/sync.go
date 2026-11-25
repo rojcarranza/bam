@@ -45,7 +45,7 @@ func SyncTarget(path string, keyPath []string, name string, e TargetEdit, write 
 	if err != nil {
 		return ch, err
 	}
-	target, err := findTarget(doc, path, keyPath, name)
+	_, target, err := findTarget(doc, path, keyPath, name)
 	if err != nil {
 		return ch, err
 	}
@@ -64,19 +64,24 @@ func SyncTarget(path string, keyPath []string, name string, e TargetEdit, write 
 	return ch, saveDoc(path, doc)
 }
 
-// findTarget returns the mapping of target name under keyPath in doc.
-func findTarget(doc *yaml.Node, path string, keyPath []string, name string) (*yaml.Node, error) {
-	parent := doc.Content[0]
+// findTarget returns the mapping of target name under keyPath in doc and the
+// mapping that holds it. A name that is an alias is refused: editing it would
+// edit every preset that shares the anchor.
+func findTarget(doc *yaml.Node, path string, keyPath []string, name string) (parent, target *yaml.Node, err error) {
+	parent = doc.Content[0]
 	for _, k := range keyPath {
 		if parent = mappingValue(parent, k); parent == nil || parent.Kind != yaml.MappingNode {
-			return nil, errs.Configf("no %s in %s", strings.Join(keyPath, "."), path)
+			return nil, nil, errs.Configf("no %s in %s", strings.Join(keyPath, "."), path)
 		}
 	}
-	target := mappingValue(parent, name)
-	if target == nil || target.Kind != yaml.MappingNode {
-		return nil, errs.Configf("no preset %q under %s in %s", name, strings.Join(keyPath, "."), path)
+	target = mappingValue(parent, name)
+	if target != nil && target.Kind == yaml.AliasNode {
+		return nil, nil, anchorError(name, path)
 	}
-	return target, nil
+	if target == nil || target.Kind != yaml.MappingNode {
+		return nil, nil, errs.Configf("no preset %q under %s in %s", name, strings.Join(keyPath, "."), path)
+	}
+	return parent, target, nil
 }
 
 // targetVars returns the key target keeps its variables under, preferring

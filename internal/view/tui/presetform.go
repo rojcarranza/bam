@@ -12,10 +12,10 @@ import (
 	"github.com/rojcarranza/bam/internal/app"
 )
 
-// presetFormRows is how many variables the form shows at once.
+// presetFormRows is how many rows, variables and settings, the form shows at once.
 const presetFormRows = 10
 
-// EditPresetForm is the inline form of bam preset add: one row per variable,
+// EditPresetForm is the inline form of bam preset add and bam preset edit: one row per variable,
 // drawn below the prompt like the run picker. ctrl-s returns the form with the
 // chosen values; Esc and ctrl-C return context.Canceled, so nothing is written.
 // load reads the values recent builds ran with while the form is open; nil
@@ -200,7 +200,7 @@ func (m presetFormModel) editValue() string {
 }
 
 // optionChoices is the values the arrow keys step through: the allowed values
-// when the preset lists them, else the current value, the plan's and recent ones.
+// when the preset lists them, else the current value and the plan's.
 func optionChoices(r app.FormRow) []string {
 	if len(r.Options) > 0 {
 		return append([]string(nil), r.Options...)
@@ -211,6 +211,9 @@ func optionChoices(r app.FormRow) []string {
 // editText is what enter puts in the input: the value, or for a secret only
 // the environment variable name, never a value.
 func editText(r app.FormRow) string {
+	if r.Literal {
+		return ""
+	}
 	if r.Secret {
 		return strings.TrimSuffix(strings.TrimPrefix(r.Value, "${"), "}")
 	}
@@ -338,6 +341,8 @@ func rowValue(r app.FormRow) string {
 	switch {
 	case r.Secret && r.Commented:
 		return "plan's stored value"
+	case r.Secret && r.Literal:
+		return "********"
 	case r.Secret:
 		return r.Value
 	case r.Value == "":
@@ -375,6 +380,8 @@ func editNote(r app.FormRow) string {
 		parts = append(parts, "not in the preset")
 	case r.Value != r.Orig:
 		parts = append(parts, "changed")
+	case r.Literal:
+		parts = append(parts, "secret · a literal value is saved; enter a variable name to replace it")
 	case r.Secret:
 		parts = append(parts, "secret · read from your shell at run time")
 	default:

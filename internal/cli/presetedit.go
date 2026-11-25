@@ -54,7 +54,7 @@ func newPresetEditCmd(r *runtime) *cobra.Command {
 			"no form: bam applies them and never asks, so scripts and agents can use it, and it reads nothing\n" +
 			"from Bamboo. --dry-run shows the changes and writes nothing.\n" +
 			"A rename also renames the preset in the stages of the sets and the bam top pins in your project\n" +
-			"and machine files; a train file you pass to bam set run --file is yours to change.\n" +
+			"and machine files, and in each train file a past bam set run --file used.\n" +
 			"A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run\n" +
 			"time. A preset that uses YAML anchors is refused.",
 		Example: "  bam preset edit\n" +
@@ -178,9 +178,11 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 	if err := config.CheckEditable(layer.Path, layer.KeyPath, name); err != nil {
 		return err
 	}
+	// A train file is known only from a past set run, so a missing store is no train file.
+	trains, _ := r.setStore().TrainFiles(cfg.RepoRoot)
 	var e config.PresetEdit
 	if asking {
-		if e, err = f.fillForm(r, cmd, cfg, t, layer.Path); err != nil {
+		if e, err = f.fillForm(r, cmd, cfg, t, trains, layer.Path); err != nil {
 			return err
 		}
 	} else if !f.given(cmd) {
@@ -194,11 +196,11 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		if slices.Contains(takenNames(cfg), e.Rename) {
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
 		}
-		if err := renameBlocked(cfg, t); err != nil {
+		if err := renameBlocked(cfg, t, trains); err != nil {
 			return err
 		}
 	}
-	changes, err := f.apply(cfg, t, e)
+	changes, err := f.apply(cfg, t, trains, e)
 	if err != nil {
 		return err
 	}
@@ -212,7 +214,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 // below it. A rename also renames the preset in those files, and in the sets
 // and pins that name it. Every file is checked before any is written, so a
 // refusal leaves all of them as they were.
-func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, e config.PresetEdit) ([]config.FieldChange, error) {
+func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, trains []string, e config.PresetEdit) ([]config.FieldChange, error) {
 	top := t.Layers[len(t.Layers)-1]
 	below := t.Layers[:len(t.Layers)-1]
 	changes, err := config.EditTargetOver(top.Path, top.KeyPath, t.Name, below, e, false)
@@ -231,6 +233,11 @@ func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, e c
 			return nil, err
 		}
 		changes = append(changes, refs...)
+		files, err := config.RenameInTrainFiles(trains, t.Name, e.Rename, false)
+		if err != nil {
+			return nil, err
+		}
+		changes = append(changes, files...)
 	}
 	if f.dryRun || len(changes) == 0 {
 		return changes, nil
@@ -245,6 +252,9 @@ func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, e c
 			}
 		}
 		if _, err := cfg.RenameRefs(t.Name, e.Rename, true); err != nil {
+			return changes, err
+		}
+		if _, err := config.RenameInTrainFiles(trains, t.Name, e.Rename, true); err != nil {
 			return changes, err
 		}
 	}
@@ -281,6 +291,13 @@ func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, renam
 			fmt.Fprintf(w, "  %s: removed (was %q)%s\n", c.Field, c.Old, otherFileNote(held, c.Field))
 		default:
 			fmt.Fprintf(w, "  %s: %q -> %q%s\n", c.Field, c.Old, c.New, in)
+		}
+	}
+	// The JSON lists the preset's own change once; the text also says which
+	// lower files the rename writes, so a dry run shows every file it touches.
+	if rename != "" && rename != t.Name {
+		for _, l := range t.Layers[:len(t.Layers)-1] {
+			fmt.Fprintf(w, "  name: %q -> %q (in %s)\n", t.Name, rename, l.Path)
 		}
 	}
 	if f.dryRun {
@@ -348,14 +365,17 @@ func editablePreset(cfg *config.Config, name string) (config.ResolvedTarget, err
 // copy in a file that uses YAML anchors, or a set stage or pin that reaches
 // the name through an anchor or alias, cannot be renamed in place. Sets and
 // pins that name it are renamed with it.
-func renameBlocked(cfg *config.Config, t config.ResolvedTarget) error {
+func renameBlocked(cfg *config.Config, t config.ResolvedTarget, trains []string) error {
 	for _, l := range t.Layers {
 		if err := config.CheckEditable(l.Path, l.KeyPath, t.Name); err != nil {
 			return err
 		}
 	}
 	// Any other name will do: the dry run fails on the old name's references only.
-	_, err := cfg.RenameRefs(t.Name, t.Name+"-renamed", false)
+	if _, err := cfg.RenameRefs(t.Name, t.Name+"-renamed", false); err != nil {
+		return err
+	}
+	_, err := config.RenameInTrainFiles(trains, t.Name, t.Name+"-renamed", false)
 	return err
 }
 
@@ -380,7 +400,7 @@ func takenNames(cfg *config.Config) []string {
 // fillForm opens the edit form of t and returns the changes it holds.
 // Bamboo is read only for the plan's variables; when it cannot be reached the
 // form still opens with the variables the preset sets.
-func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.Config, t config.ResolvedTarget, path string) (config.PresetEdit, error) {
+func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.Config, t config.ResolvedTarget, trains []string, path string) (config.PresetEdit, error) {
 	ctx := cmd.Context()
 	planVars := map[string]string{}
 	var svc *app.Service
@@ -393,7 +413,7 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
 	form.TakenNames = takenNames(cfg)
-	form.RenameBlocked = formText(renameBlocked(cfg, t))
+	form.RenameBlocked = formText(renameBlocked(cfg, t, trains))
 	if svc != nil {
 		form.ReadRepos = func(ctx context.Context, branch string) ([]app.RepoBranch, error) {
 			return svc.PlanBranchRepositories(ctx, t.Plan, branch)

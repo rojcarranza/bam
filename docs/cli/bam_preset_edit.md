@@ -16,7 +16,7 @@ With --var, --unset, --branch, --repository, --required, --option, --timeout or 
 no form: bam applies them and never asks, so scripts and agents can use it, and it reads nothing
 from Bamboo. --dry-run shows the changes and writes nothing.
 A rename also renames the preset in the stages of the sets and the bam top pins in your project
-and machine files; a train file you pass to bam set run --file is yours to change.
+and machine files, and in each train file a past bam set run --file used.
 A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run
 time. A preset that uses YAML anchors is refused.
 

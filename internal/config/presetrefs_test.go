@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -134,4 +135,61 @@ func TestRenameRefsRefusesAPinGroupThatIsAnAlias(t *testing.T) {
 	_, err := c.RenameRefs("lab", "lab-two", true)
 	require.ErrorContains(t, err, `monitor group "main"`)
 	assert.Equal(t, aliased, read(t, c.ProjectPath))
+}
+
+func writeTrain(t *testing.T, name, body string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	require.NoError(t, os.WriteFile(p, []byte(body), 0o644))
+	return p
+}
+
+// A train file is a bare list of stages or a mapping with stages; both are
+// renamed in place, and a file that is gone or holds no stages is skipped.
+func TestRenameInTrainFilesRenamesBothShapesInPlace(t *testing.T) {
+	mapped := writeTrain(t, "a.yaml", "# my train\nstages:\n  - [lab, other]   # first\n  - - target: lab\n    - other\n")
+	bare := writeTrain(t, "b.yaml", "- [other]\n- [lab]\n")
+	unrelated := writeTrain(t, "c.yaml", "name: lab\n")
+	missing := filepath.Join(t.TempDir(), "gone.yaml")
+
+	ch, err := RenameInTrainFiles([]string{mapped, bare, unrelated, missing}, "lab", "lab-two", true)
+	require.NoError(t, err)
+	assert.Equal(t, []FieldChange{
+		{Field: "train file", Old: "lab", New: "lab-two", File: mapped},
+		{Field: "train file", Old: "lab", New: "lab-two", File: bare},
+	}, ch)
+	got := read(t, mapped)
+	assert.Contains(t, got, "# my train")
+	assert.Contains(t, got, "# first")
+	assert.Contains(t, got, "target: lab-two")
+	assert.Contains(t, got, "[lab-two, other]")
+	assert.Contains(t, read(t, bare), "- [lab-two]")
+	assert.Equal(t, "name: lab\n", read(t, unrelated))
+}
+
+func TestRenameInTrainFilesDryRunWritesNothing(t *testing.T) {
+	p := writeTrain(t, "a.yaml", "- [lab]\n")
+	ch, err := RenameInTrainFiles([]string{p}, "lab", "lab-two", false)
+	require.NoError(t, err)
+	assert.Len(t, ch, 1)
+	assert.Equal(t, "- [lab]\n", read(t, p))
+}
+
+// An anchored name stops the rename before any train file is written.
+func TestRenameInTrainFilesRefusesAnAnchorAndWritesNothing(t *testing.T) {
+	plain := writeTrain(t, "a.yaml", "- [lab]\n")
+	anchored := writeTrain(t, "b.yaml", "- [&n lab]\n")
+
+	_, err := RenameInTrainFiles([]string{plain, anchored}, "lab", "lab-two", true)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "YAML anchor")
+	assert.Equal(t, "- [lab]\n", read(t, plain))
+}
+
+func TestRenameInTrainFilesRenamesAStageAnAliasShares(t *testing.T) {
+	p := writeTrain(t, "a.yaml", "- &s [lab]\n- *s\n")
+	_, err := RenameInTrainFiles([]string{p}, "lab", "lab-two", true)
+	require.NoError(t, err)
+	assert.NotContains(t, read(t, p), "[lab]")
+	assert.Contains(t, read(t, p), "lab-two")
 }

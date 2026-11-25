@@ -180,6 +180,25 @@ func (s *SetStore) History(repo, set string) ([]SetRecord, error) {
 	return slices.DeleteFunc(all, func(r SetRecord) bool { return r.Repo != repo || (set != "" && r.Set != set) }), nil
 }
 
+// TrainFiles lists the train files that runs of repo were started from and
+// that still exist, newest run first, each once.
+func (s *SetStore) TrainFiles(repo string) ([]string, error) {
+	recs, err := s.History(repo, "")
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, r := range recs {
+		if r.File == "" || slices.Contains(out, r.File) {
+			continue
+		}
+		if _, err := os.Stat(r.File); err == nil {
+			out = append(out, r.File)
+		}
+	}
+	return out, nil
+}
+
 // Latest is the newest record of repo, of set when set is not empty, that
 // match accepts (nil accepts every record).
 func (s *SetStore) Latest(repo, set string, match func(SetRecord) bool) (SetRecord, bool, error) {

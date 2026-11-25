@@ -12,8 +12,8 @@ import (
 // machine file name it: the stages of the sets that apply here, and the pins
 // of bam top. Each reference is changed in place, so comments and key order
 // stay. Both files are checked before either is written, so a refusal leaves
-// them as they were; write false only reports. A train file given to bam set
-// run --file is not a configured file and is left alone.
+// them as they were; write false only reports. Train files are renamed apart,
+// by RenameInTrainFiles.
 func (c *Config) RenameRefs(from, to string, write bool) ([]FieldChange, error) {
 	repoKey, _, _ := c.repoEntry()
 	var paths []string
@@ -93,18 +93,9 @@ func renameRefsIn(doc *yaml.Node, path, repoKey, from, to string) ([]FieldChange
 			if stages == nil || stages.Kind != yaml.SequenceNode {
 				continue
 			}
-			for _, stage := range stages.Content {
-				for _, run := range stage.Content {
-					node := run
-					if run.Kind == yaml.MappingNode {
-						node = mappingValue(run, "target")
-					}
-					if node != nil && node.Kind == yaml.ScalarNode && node.Value == from {
-						if err := hit(node, "sets."+name, seen); err != nil {
-							return nil, err
-						}
-					}
-				}
+			err := renameStageRuns(stages, from, func(n *yaml.Node) error { return hit(n, "sets."+name, seen) })
+			if err != nil {
+				return nil, err
 			}
 		}
 		// An alias hides a stage from the walk above; decoding the edited
@@ -147,4 +138,80 @@ func renameRefsIn(doc *yaml.Node, path, repoKey, from, to string) ([]FieldChange
 		}
 	}
 	return ch, nil
+}
+
+// renameStageRuns calls hit on each scalar of the stages that names preset
+// from: a bare name in a stage, or the target of a run.
+func renameStageRuns(stages *yaml.Node, from string, hit func(*yaml.Node) error) error {
+	for _, stage := range stages.Content {
+		for _, run := range stage.Content {
+			node := run
+			if run.Kind == yaml.MappingNode {
+				node = mappingValue(run, "target")
+			}
+			if node != nil && node.Kind == yaml.ScalarNode && node.Value == from {
+				if err := hit(node); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// RenameInTrainFiles renames the preset from to to in the stages of each
+// train file in paths, in place, so comments and key order stay. A file that
+// is missing or is not a train file is skipped. Every file is checked before
+// any is written; write false only reports. A name that carries an anchor
+// stops the rename. A stage an alias shares is renamed once, for every use of
+// it, since a train file holds one set and nothing else reads it.
+func RenameInTrainFiles(paths []string, from, to string, write bool) ([]FieldChange, error) {
+	type edited struct {
+		path string
+		doc  *yaml.Node
+	}
+	var all []FieldChange
+	var docs []edited
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		var doc yaml.Node
+		if yaml.Unmarshal(data, &doc) != nil || len(doc.Content) == 0 {
+			continue
+		}
+		stages := doc.Content[0]
+		if stages.Kind == yaml.MappingNode {
+			stages = mappingValue(stages, "stages")
+		}
+		if stages == nil || stages.Kind != yaml.SequenceNode {
+			continue
+		}
+		renamed := false
+		err = renameStageRuns(stages, from, func(n *yaml.Node) error {
+			if n.Anchor != "" {
+				return errs.Usagef("train file %s names preset %q in a YAML anchor", p, from).
+					WithWhy("changing the anchor could change every place that reuses it").
+					WithTry("spell it out in " + p + ", then run bam preset edit again")
+			}
+			n.Value, renamed = to, true
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		if renamed {
+			docs = append(docs, edited{p, &doc})
+			all = append(all, FieldChange{Field: "train file", Old: from, New: to, File: p})
+		}
+	}
+	if write {
+		for _, d := range docs {
+			if err := saveDoc(d.path, d.doc); err != nil {
+				return all, err
+			}
+		}
+	}
+	return all, nil
 }

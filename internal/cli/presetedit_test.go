@@ -507,3 +507,76 @@ func TestPresetEditFormCanReadRepositoriesOfANewBranch(t *testing.T) {
 	assert.Equal(t, []app.RepoBranch{{Name: "infra", Branch: "develop"}}, got)
 	assert.Contains(t, readFile(t, sharedFile(h)), `infra: "develop"`)
 }
+
+// A rename also renames the preset in each train file a past set run used,
+// and --dry-run lists the file without writing it.
+func TestPresetEditRenameUpdatesTrainFilesPastRunsUsed(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	train := trainPath(t, h)
+	require.NoError(t, os.WriteFile(train, []byte("# hotfix train\nstages:\n  - [provision-lab]\n"), 0o644))
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: app.NewSetID("hotfix", fixedNow), Set: "hotfix", File: train,
+		Origin: workOrigin, Repo: h.root, StartedAt: fixedNow, Status: app.SetInterrupted, VarNames: []string{}}))
+
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "train file")
+	assert.Contains(t, h.stdout.String(), "(in "+train+")")
+	assert.Contains(t, readFile(t, train), "provision-lab")
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	got := readFile(t, train)
+	assert.Contains(t, got, "# hotfix train")
+	assert.Contains(t, got, "lab-two")
+	assert.NotContains(t, got, "provision-lab")
+}
+
+// A train file that hides the name behind an anchor stops the rename before
+// the project file is written.
+func TestPresetEditRenameRefusesAnAnchoredTrainFileAndWritesNothing(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	train := trainPath(t, h)
+	require.NoError(t, os.WriteFile(train, []byte("stages:\n  - [&n provision-lab]\n"), 0o644))
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: app.NewSetID("hotfix", fixedNow), Set: "hotfix", File: train,
+		Origin: workOrigin, Repo: h.root, StartedAt: fixedNow, Status: app.SetInterrupted, VarNames: []string{}}))
+	before := readFile(t, sharedFile(h))
+
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "YAML anchor")
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+	assert.Contains(t, readFile(t, train), "provision-lab")
+}
+
+// A preset defined in two files is renamed in both; the text output names the
+// lower file too, so a dry run shows every file the rename writes, and the
+// JSON keeps one name change.
+func TestPresetEditRenameOutputNamesTheLowerFile(t *testing.T) {
+	h := newHarness(t)
+	lower, top := twoFilePreset(t, h)
+	beforeLower := readFile(t, lower)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `name: "provision-lab" -> "lab-two" (in `+lower+")")
+	assert.Equal(t, beforeLower, readFile(t, lower), "a dry run writes nothing")
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run", "--json"))
+	assert.Equal(t, 1, strings.Count(h.stdout.String(), `"field": "name"`), top)
+}
+
+// A train file that hides the name behind an anchor is refused inside the
+// form, so a rename typed there is not lost to a refusal after ctrl-s.
+func TestPresetEditFormCarriesATrainFileRefusal(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	train := filepath.Join(h.home, "train.yaml")
+	require.NoError(t, os.WriteFile(train, []byte("stages:\n  - [&n provision-lab]\n"), 0o644))
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: app.NewSetID("hotfix", fixedNow), Set: "hotfix", File: train,
+		Origin: workOrigin, Repo: h.root, StartedAt: fixedNow, Status: app.SetInterrupted, VarNames: []string{}}))
+	offered := editScript(h, func(*app.PresetForm) {}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	require.Len(t, *offered, 1)
+	assert.Contains(t, (*offered)[0].RenameBlocked, "train file "+train)
+	assert.Contains(t, (*offered)[0].RenameBlocked, "spell it out in "+train)
+}

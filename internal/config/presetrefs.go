@@ -94,7 +94,7 @@ func renameRefsIn(doc *yaml.Node, path string, machine bool, repoKey string, ski
 		if rootLocal {
 			try := "change " + field + " in " + path + " first, then run bam preset edit again"
 			if group, ok := strings.CutPrefix(field, "monitor."); ok {
-				try = "run bam pin rm " + from + ", rename the preset, then run bam pin add " + group + " " + to
+				try = "run bam pin rm " + from + ", rename the preset, then run bam pin add " + group + " with the new name"
 			}
 			return errs.Usagef("%s names preset %q in %s, which applies in every repository", field, from, path).
 				WithWhy("this preset is defined only here, so renaming it would leave another repository's sets and pins pointing at a name it does not have").

@@ -249,7 +249,7 @@ func TestRenameRefsRefusesATopLevelPinOfARepositoryOnlyPreset(t *testing.T) {
 	require.ErrorContains(t, err, "monitor.extra")
 	var e *errs.Error
 	require.ErrorAs(t, err, &e)
-	assert.Equal(t, "run bam pin rm lab, rename the preset, then run bam pin add extra lab-two", e.Try)
+	assert.Equal(t, "run bam pin rm lab, rename the preset, then run bam pin add extra with the new name", e.Try)
 	assert.Equal(t, machine, read(t, c.MachinePath))
 }
 

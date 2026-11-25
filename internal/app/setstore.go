@@ -204,6 +204,21 @@ func (s *SetStore) TrainFiles(repo string, skip func(repo string) bool) ([]strin
 	return out, nil
 }
 
+// Repos lists the folders recorded set runs started in, each once.
+func (s *SetStore) Repos() ([]string, error) {
+	recs, err := s.all()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, r := range recs {
+		if r.Repo != "" && !slices.Contains(out, r.Repo) {
+			out = append(out, r.Repo)
+		}
+	}
+	return out, nil
+}
+
 // Latest is the newest record of repo, of set when set is not empty, that
 // match accepts (nil accepts every record).
 func (s *SetStore) Latest(repo, set string, match func(SetRecord) bool) (SetRecord, bool, error) {

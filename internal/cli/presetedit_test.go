@@ -169,6 +169,38 @@ func TestPresetEditRenameRefusesMachineWideSetsOfARepositoryOnlyPreset(t *testin
 	assert.Equal(t, body, readFile(t, machine))
 }
 
+// A top-level pin alone refuses the rename of a preset only this repository
+// defines; the hint names bam's pin commands and no stand-in name.
+func TestPresetEditRenameRefusesATopLevelPinOfARepositoryOnlyPreset(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	machine := h.env.Paths.MachineConfig
+	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
+	body := "version: 1\nmonitor:\n  extra: [provision-lab]\n"
+	require.NoError(t, os.WriteFile(machine, []byte(body), 0o644))
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"))
+	assert.Contains(t, h.stderr.String(), "run bam pin rm provision-lab, rename the preset, then run bam pin add extra with the new name")
+	assert.NotContains(t, h.stderr.String(), "-renamed")
+	assert.Equal(t, body, readFile(t, machine))
+}
+
+// A shared preset cannot take a name another repository's own .bam.yaml
+// defines, whether bam knows that repository from a recorded run or not.
+func TestPresetEditSharedRenameRefusesANameAnotherRepositorysProjectFileDefines(t *testing.T) {
+	h := newHarness(t)
+	twoFilePreset(t, h)
+	repoB := filepath.Join(h.home, "repo-b")
+	require.NoError(t, os.MkdirAll(repoB, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoB, ".bam.yaml"), []byte("version: 1\ntargets:\n  lab-three:\n    plan: PROJ-B\n"), 0o644))
+	train := filepath.Join(h.home, "b.yaml")
+	require.NoError(t, os.WriteFile(train, []byte("stages:\n  - [provision-lab]\n"), 0o644))
+	saveRun(t, h, repoB, train, 1)
+	before := readFile(t, sharedFile(h))
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-three"))
+	assert.Contains(t, h.stderr.String(), "already exists in the repository "+repoB)
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+	assert.Equal(t, "stages:\n  - [provision-lab]\n", readFile(t, train))
+}
+
 // A stage that reaches the preset through an alias bam cannot see is refused,
 // so no set is left naming a preset that is gone.
 func TestPresetEditRenameRefusesAStageReachedThroughAnAlias(t *testing.T) {

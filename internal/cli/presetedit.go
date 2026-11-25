@@ -196,7 +196,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		return err
 	}
 	if e.Rename != "" && e.Rename != name {
-		taken, elsewhere := takenNames(cfg, scope.shared)
+		taken, elsewhere := takenNames(cfg, scope)
 		if slices.Contains(taken, e.Rename) {
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
 		}
@@ -342,6 +342,8 @@ func changeFiles(changes []config.FieldChange, prefixes ...string) []string {
 // repository, which carries the rename into their sets and runs.
 type renameScope struct {
 	trains []string
+	// repos are the folders recorded set runs started in.
+	repos  []string
 	shared bool
 	// err is why the train files could not be found: a rename would leave
 	// them on the old name without a word, so it is refused.
@@ -357,6 +359,9 @@ func (r *runtime) renameScope(cfg *config.Config, t config.ResolvedTarget) renam
 		repo, skip = "", cfg.OtherRepoDefines(t.Name)
 	}
 	var err error
+	if s.shared {
+		s.repos, _ = r.setStore().Repos()
+	}
 	if s.trains, err = r.setStore().TrainFiles(repo, skip); err != nil {
 		s.err = errs.Configf("cannot rename %s: the record of past set runs cannot be read", t.Name).
 			WithWhy(err.Error()).
@@ -511,13 +516,13 @@ func formText(err error) string {
 
 // takenNames are the names a preset cannot be renamed to, and, for a preset
 // the other repositories share, the names only another repository's own preset
-// has, by that repository: those repositories' sets are renamed too, so such a
+// has in its machine entry or its .bam.yaml, by that repository: those repositories' sets are renamed too, so such a
 // name would send them to a different preset.
-func takenNames(cfg *config.Config, shared bool) ([]string, map[string]string) {
+func takenNames(cfg *config.Config, scope renameScope) ([]string, map[string]string) {
 	all, _ := cfg.Targets()
 	elsewhere := map[string]string{}
-	if shared {
-		for repo, ns := range cfg.OtherRepoTargets() {
+	if scope.shared {
+		for repo, ns := range cfg.OtherRepoPresetNames(scope.repos) {
 			for _, n := range ns {
 				elsewhere[n] = repo
 			}
@@ -541,7 +546,7 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	}
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
-	form.TakenNames, form.TakenElsewhere = takenNames(cfg, scope.shared)
+	form.TakenNames, form.TakenElsewhere = takenNames(cfg, scope)
 	form.RenameBlocked = formText(renameBlocked(cfg, t, scope))
 	if svc != nil {
 		form.ReadRepos = func(ctx context.Context, branch string) ([]app.RepoBranch, error) {

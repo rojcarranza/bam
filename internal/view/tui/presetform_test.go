@@ -402,6 +402,21 @@ func TestPresetEditFormRefusesRepositoryEditsWhileReading(t *testing.T) {
 		assert.False(t, m.form.Fields[2].Removed)
 		assert.Contains(t, m.err, "still reading the repositories of r2")
 	}
+
+	// a adds a repository from any line, so it is refused on one that is not a repository too.
+	m = formKey(m, kt(tea.KeyDown))
+	require.Equal(t, "field:timeout", m.lineID())
+	m = formKey(m, rk("a"))
+	assert.False(t, m.adding, "a is refused on the timeout while reading")
+	assert.False(t, m.editing)
+	assert.Contains(t, m.err, "still reading the repositories of r2")
+
+	// x on a variable row is not a repository edit, so it still works.
+	m = formKey(m, kt(tea.KeyUp), kt(tea.KeyUp), kt(tea.KeyUp), kt(tea.KeyUp), kt(tea.KeyUp), kt(tea.KeyUp), kt(tea.KeyUp))
+	require.NotNil(t, m.row())
+	was := m.row().Removed
+	m = formKey(m, rk("x"))
+	assert.NotEqual(t, was, m.row().Removed, "x on a variable row works while reading")
 }
 
 // Clearing the branch before the answer arrives drops the answer.

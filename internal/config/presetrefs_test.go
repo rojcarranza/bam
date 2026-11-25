@@ -43,6 +43,10 @@ repos:
       there: [[lab]]
 `
 
+// refsMachineHere is refsMachine without the sets and pins that apply in every
+// repository: what a preset only one repository defines may be renamed under.
+var refsMachineHere = strings.Replace(refsMachine, "sets:\n  mine:\n    stages:\n      - [lab]\nmonitor:\n  extra: [lab]\n", "", 1)
+
 func refsConfig(t *testing.T, project, machine string) *Config {
 	t.Helper()
 	dir := t.TempDir()
@@ -57,15 +61,13 @@ func refsConfig(t *testing.T, project, machine string) *Config {
 // project file and the machine file; another repository's sets and every
 // comment stay as they were.
 func TestRenameRefsRenamesStagesAndPinsInPlace(t *testing.T) {
-	c := refsConfig(t, refsProject, refsMachine)
+	c := refsConfig(t, refsProject, refsMachineHere)
 	ch, err := c.RenameRefs("lab", "lab-two", false, true)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []FieldChange{
 		{Field: "sets.train", Old: "lab", New: "lab-two", File: c.ProjectPath},
 		{Field: "sets.short", Old: "lab", New: "lab-two", File: c.ProjectPath},
 		{Field: "monitor.main", Old: "lab", New: "lab-two", File: c.ProjectPath},
-		{Field: "sets.mine", Old: "lab", New: "lab-two", File: c.MachinePath},
-		{Field: "monitor.extra", Old: "lab", New: "lab-two", File: c.MachinePath},
 		{Field: "sets.here", Old: "lab", New: "lab-two", File: c.MachinePath},
 	}, ch)
 
@@ -81,12 +83,27 @@ func TestRenameRefsRenamesStagesAndPinsInPlace(t *testing.T) {
 }
 
 func TestRenameRefsDryRunWritesNothing(t *testing.T) {
-	c := refsConfig(t, refsProject, refsMachine)
+	c := refsConfig(t, refsProject, refsMachineHere)
 	ch, err := c.RenameRefs("lab", "lab-two", false, false)
 	require.NoError(t, err)
-	assert.Len(t, ch, 6)
+	assert.Len(t, ch, 4)
 	assert.Equal(t, refsProject, read(t, c.ProjectPath))
+	assert.Equal(t, refsMachineHere, read(t, c.MachinePath))
+}
+
+// The machine file's own sets and pins apply in every repository, so a preset
+// only this repository defines cannot be renamed under them; a shared one can.
+func TestRenameRefsMachineWideSetsAndPins(t *testing.T) {
+	c := refsConfig(t, refsProject, refsMachine)
+	_, err := c.RenameRefs("lab", "lab-two", false, true)
+	require.ErrorContains(t, err, "applies in every repository")
+	assert.Equal(t, refsProject, read(t, c.ProjectPath), "a refusal writes nothing")
 	assert.Equal(t, refsMachine, read(t, c.MachinePath))
+
+	ch, err := c.RenameRefs("lab", "lab-two", true, true)
+	require.NoError(t, err)
+	assert.Contains(t, ch, FieldChange{Field: "sets.mine", Old: "lab", New: "lab-two", File: c.MachinePath})
+	assert.Contains(t, ch, FieldChange{Field: "monitor.extra", Old: "lab", New: "lab-two", File: c.MachinePath})
 }
 
 func TestRenameRefsNothingToRename(t *testing.T) {

@@ -44,7 +44,7 @@ func (c *Config) RenameRefsFiles(paths []string, from, to string, everyRepo, wri
 		if err != nil {
 			return nil, err
 		}
-		ch, err := renameRefsIn(doc, p, repoKey, everyRepo, from, to)
+		ch, err := renameRefsIn(doc, p, p == c.MachinePath, repoKey, everyRepo, from, to)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +65,7 @@ func (c *Config) RenameRefsFiles(paths []string, from, to string, everyRepo, wri
 
 // renameRefsIn renames the references in one document and lists them, one
 // change per set and per pin group.
-func renameRefsIn(doc *yaml.Node, path, repoKey string, everyRepo bool, from, to string) ([]FieldChange, error) {
+func renameRefsIn(doc *yaml.Node, path string, machine bool, repoKey string, everyRepo bool, from, to string) ([]FieldChange, error) {
 	root := doc.Content[0]
 	var ch []FieldChange
 	hit := func(n *yaml.Node, field string, seen map[string]bool) error {
@@ -81,6 +81,17 @@ func renameRefsIn(doc *yaml.Node, path, repoKey string, everyRepo bool, from, to
 		}
 		return nil
 	}
+	// The machine file's own sets and pins apply in every repository, where
+	// a preset only this repository defines may mean another one or none.
+	rootLocal := machine && !everyRepo
+	rootHit := func(n *yaml.Node, field string, seen map[string]bool) error {
+		if rootLocal {
+			return errs.Usagef("%s names preset %q in %s, which applies in every repository", field, from, path).
+				WithWhy("this preset is defined only here, so renaming it would leave another repository's sets and pins pointing at a name it does not have").
+				WithTry("change " + field + " in " + path + " first, then run bam preset edit again")
+		}
+		return hit(n, field, seen)
+	}
 	seen := map[string]bool{}
 	setsNodes := []*yaml.Node{mappingValue(root, "sets")}
 	if repos := mappingValue(root, "repos"); repos != nil && repos.Kind == yaml.MappingNode {
@@ -93,7 +104,7 @@ func renameRefsIn(doc *yaml.Node, path, repoKey string, everyRepo bool, from, to
 			}
 		}
 	}
-	for _, sets := range setsNodes {
+	for si, sets := range setsNodes {
 		if sets == nil || sets.Kind != yaml.MappingNode {
 			continue
 		}
@@ -106,7 +117,11 @@ func renameRefsIn(doc *yaml.Node, path, repoKey string, everyRepo bool, from, to
 			if stages == nil || stages.Kind != yaml.SequenceNode {
 				continue
 			}
-			err := renameStageRuns(stages, from, func(n *yaml.Node) error { return hit(n, "sets."+name, seen) })
+			apply := hit
+			if si == 0 {
+				apply = rootHit
+			}
+			err := renameStageRuns(stages, from, func(n *yaml.Node) error { return apply(n, "sets."+name, seen) })
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +147,7 @@ func renameRefsIn(doc *yaml.Node, path, repoKey string, everyRepo bool, from, to
 			pins := groups.Content[i+1]
 			for _, pin := range pins.Content {
 				if pin.Kind == yaml.ScalarNode && pin.Value == from {
-					if err := hit(pin, "monitor."+groups.Content[i].Value, seen); err != nil {
+					if err := rootHit(pin, "monitor."+groups.Content[i].Value, seen); err != nil {
 						return nil, err
 					}
 				}

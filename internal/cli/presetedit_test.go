@@ -135,10 +135,10 @@ func TestPresetEditRenameUpdatesSetsAndPins(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"monitor:\n  main: [provision-lab, PROJ-PLAN]\n"), 0o644))
 	machine := h.env.Paths.MachineConfig
 	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
-	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nsets:\n  mine:\n    stages:\n      - [provision-lab]\nmonitor:\n  extra: [provision-lab]\n"), 0o644))
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nrepos:\n  "+h.root+":\n    sets:\n      mine:\n        stages:\n          - [provision-lab]\n"), 0o644))
 
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
-	for _, want := range []string{"name: \"provision-lab\" -> \"lab-two\"", "sets.release: \"provision-lab\" -> \"lab-two\"", "monitor.main:", "sets.mine:", "monitor.extra:"} {
+	for _, want := range []string{"name: \"provision-lab\" -> \"lab-two\"", "sets.release: \"provision-lab\" -> \"lab-two\"", "monitor.main:", "sets.mine:"} {
 		assert.Contains(t, h.stdout.String(), want)
 	}
 	project := readFile(t, path)
@@ -150,6 +150,23 @@ func TestPresetEditRenameUpdatesSetsAndPins(t *testing.T) {
 
 	h.stdout.Reset()
 	assert.Equal(t, 0, h.run("set", "run", "release", "--dry-run"), h.stderr.String())
+}
+
+// The machine file's own sets and pins apply in every repository, so a preset
+// only this repository defines is not renamed under them: the rename is
+// refused, naming the set to change first, and nothing is written.
+func TestPresetEditRenameRefusesMachineWideSetsOfARepositoryOnlyPreset(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	machine := h.env.Paths.MachineConfig
+	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
+	body := "version: 1\nsets:\n  mine:\n    stages:\n      - [provision-lab]\n"
+	require.NoError(t, os.WriteFile(machine, []byte(body), 0o644))
+	before := readFile(t, sharedFile(h))
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"))
+	assert.Contains(t, h.stderr.String(), "sets.mine")
+	assert.Contains(t, h.stderr.String(), "applies in every repository")
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+	assert.Equal(t, body, readFile(t, machine))
 }
 
 // A stage that reaches the preset through an alias bam cannot see is refused,
@@ -352,10 +369,10 @@ func TestPresetEditRenameOutputNamesEachFile(t *testing.T) {
 	h := setHarness(t, provider.StateSuccess)
 	machine := h.env.Paths.MachineConfig
 	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
-	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nmonitor:\n  extra: [provision-lab]\n"), 0o644))
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nrepos:\n  "+h.root+":\n    sets:\n      extra: [[provision-lab]]\n"), 0o644))
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run"), h.stderr.String())
 	assert.Contains(t, h.stdout.String(), `sets.release: "provision-lab" -> "lab-two" (in `+sharedFile(h)+")")
-	assert.Contains(t, h.stdout.String(), `monitor.extra: "provision-lab" -> "lab-two" (in `+machine+")")
+	assert.Contains(t, h.stdout.String(), `sets.extra: "provision-lab" -> "lab-two" (in `+machine+")")
 	assert.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run", "--json"))
 	assert.Contains(t, h.stdout.String(), `"file": "`+machine+`"`, "each set or pin change names the file it lands in")
 }
@@ -630,6 +647,25 @@ func TestPresetEditSharedRenameLeavesTrainFilesOfARepositoryWithItsOwnPreset(t *
 	saveRun(t, h, filepath.Join(h.home, "trains"), other, 2)
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
 	assert.Contains(t, readFile(t, own), "provision-lab", "that repository's own preset keeps its name")
+	assert.Contains(t, readFile(t, other), "lab-two")
+}
+
+// A repository whose own .bam.yaml layers a preset of that name keeps it on the
+// old name too, so its train files are left as its sets are.
+func TestPresetEditSharedRenameLeavesTrainFilesOfARepositoryWhoseProjectFileDefinesIt(t *testing.T) {
+	h := newHarness(t)
+	twoFilePreset(t, h)
+	repoB := filepath.Join(h.home, "repo-b")
+	require.NoError(t, os.MkdirAll(repoB, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoB, ".bam.yaml"), []byte("version: 1\ntargets:\n  provision-lab:\n    variables:\n      cluster_name: gamma\n"), 0o644))
+	own, other := filepath.Join(h.home, "b.yaml"), filepath.Join(h.home, "c.yaml")
+	for _, p := range []string{own, other} {
+		require.NoError(t, os.WriteFile(p, []byte("stages:\n  - [provision-lab]\n"), 0o644))
+	}
+	saveRun(t, h, repoB, own, 1)
+	saveRun(t, h, filepath.Join(h.home, "trains"), other, 2)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, readFile(t, own), "provision-lab")
 	assert.Contains(t, readFile(t, other), "lab-two")
 }
 

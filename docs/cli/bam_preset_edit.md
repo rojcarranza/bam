@@ -17,7 +17,10 @@ no form: bam applies them and never asks, so scripts and agents can use it, and 
 from Bamboo. --dry-run shows the changes and writes nothing.
 A rename also renames the preset in the stages of the sets and the bam top pins in your project
 and machine files, and in each train file a past bam set run --file used (a set in another
-repository's own .bam.yaml keeps the old name).
+repository's own .bam.yaml keeps the old name, and so do the runs and sets of a repository whose
+own .bam.yaml or machine entry defines a preset of that name). A rename is refused while a set or
+pin in your machine file's top level, which applies in every repository, names a preset only
+this repository defines.
 A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run
 time. A preset that uses YAML anchors is refused.
 

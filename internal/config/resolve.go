@@ -3,11 +3,13 @@ package config
 import (
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/rojcarranza/bam/internal/errs"
+	"gopkg.in/yaml.v3"
 )
 
 // EnvServerAlias names the ad-hoc server defined by BAM_URL.
@@ -93,19 +95,39 @@ func (c *Config) OtherRepoTargets() map[string][]string {
 	return out
 }
 
-// OtherReposDefining lists the folders of the other repositories whose own
-// machine entry defines a preset called name. Their entry is the top layer of
-// the preset by that name, and a rename leaves it on the old name, so their
-// runs and sets keep the name.
-func (c *Config) OtherReposDefining(name string) []string {
+// OtherRepoDefines reports, for the folder of another repository, whether it
+// defines a preset called name in its own machine entry or its own .bam.yaml.
+// That definition is the top layer of the preset by that name there, and a
+// rename leaves it on the old name, so that repository's runs and sets keep
+// the name.
+func (c *Config) OtherRepoDefines(name string) func(repo string) bool {
 	here, _, _ := c.repoEntry()
-	var out []string
-	for _, key := range slices.Sorted(maps.Keys(c.Machine.Repos)) {
-		if _, ok := c.Machine.Repos[key].Targets[name]; ok && key != here {
-			out = append(out, c.expand(key))
+	entries := map[string]bool{}
+	for key, r := range c.Machine.Repos {
+		if _, ok := r.Targets[name]; ok && key != here {
+			entries[c.expand(key)] = true
 		}
 	}
-	return out
+	return func(repo string) bool {
+		if entries[repo] {
+			return true
+		}
+		if repo == "" || filepath.Clean(repo) == filepath.Clean(c.RepoRoot) {
+			return false
+		}
+		b, err := os.ReadFile(filepath.Join(repo, ProjectFileName))
+		if err != nil {
+			return false
+		}
+		var pf struct {
+			Targets map[string]yaml.Node `yaml:"targets"`
+		}
+		if yaml.Unmarshal(b, &pf) != nil {
+			return false
+		}
+		_, ok := pf.Targets[name]
+		return ok
+	}
 }
 
 // repoEntry also returns the repos key as written, e.g. "~/src/repo".

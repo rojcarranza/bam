@@ -269,7 +269,7 @@ func refuseHeldBelow(held Held, e PresetEdit, name, path string) error {
 func anchorError(name, path string) error {
 	return errs.Usagef("preset %q in %s uses YAML anchors or aliases", name, path).
 		WithWhy("changing one line could change every preset that shares the anchor").
-		WithTry("spell the preset out in " + path + ", then run bam preset edit again")
+		WithTry("spell the preset out in " + path + ", then run the command again")
 }
 
 // refuseAnchors fails when any node of the preset is an anchor, an alias or a

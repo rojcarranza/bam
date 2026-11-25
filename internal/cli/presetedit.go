@@ -55,7 +55,10 @@ func newPresetEditCmd(r *runtime) *cobra.Command {
 			"from Bamboo. --dry-run shows the changes and writes nothing.\n" +
 			"A rename also renames the preset in the stages of the sets and the bam top pins in your project\n" +
 			"and machine files, and in each train file a past bam set run --file used (a set in another\n" +
-			"repository's own .bam.yaml keeps the old name).\n" +
+			"repository's own .bam.yaml keeps the old name, and so do the runs and sets of a repository whose\n" +
+			"own .bam.yaml or machine entry defines a preset of that name). A rename is refused while a set or\n" +
+			"pin in your machine file's top level, which applies in every repository, names a preset only\n" +
+			"this repository defines.\n" +
 			"A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run\n" +
 			"time. A preset that uses YAML anchors is refused.",
 		Example: "  bam preset edit\n" +
@@ -348,13 +351,13 @@ type renameScope struct {
 func (r *runtime) renameScope(cfg *config.Config, t config.ResolvedTarget) renameScope {
 	s := renameScope{shared: cfg.Shared(t)}
 	repo := cfg.RepoRoot
-	var skip []string
+	var skip func(string) bool
 	if s.shared {
 		// A rename leaves such a repository's entry on the old name, so its runs keep the name, as its sets do.
-		repo, skip = "", cfg.OtherReposDefining(t.Name)
+		repo, skip = "", cfg.OtherRepoDefines(t.Name)
 	}
 	var err error
-	if s.trains, err = r.setStore().TrainFiles(repo, skip...); err != nil {
+	if s.trains, err = r.setStore().TrainFiles(repo, skip); err != nil {
 		s.err = errs.Configf("cannot rename %s: the record of past set runs cannot be read", t.Name).
 			WithWhy(err.Error()).
 			WithTry("fix or remove that folder to let bam find the train files, or rename the preset by hand")

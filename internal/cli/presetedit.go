@@ -193,7 +193,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		return err
 	}
 	if e.Rename != "" && e.Rename != name {
-		if slices.Contains(takenNames(cfg), e.Rename) {
+		if slices.Contains(takenNames(cfg, scope.shared), e.Rename) {
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
 		}
 		if err := renameBlocked(cfg, t, scope); err != nil {
@@ -413,6 +413,15 @@ func otherFileNote(held config.Held, field string) string {
 func maskSecrets(in []config.FieldChange) []config.FieldChange {
 	var out []config.FieldChange
 	for _, c := range in {
+		if n, ok := strings.CutPrefix(c.Field, "options."); ok && config.IsMaskedName(n) {
+			// Options written by hand before this check existed are values too.
+			if c.Old != "" {
+				c.Old = "********"
+			}
+			if c.New != "" {
+				c.New = "********"
+			}
+		}
 		if n, ok := strings.CutPrefix(c.Field, "variables."); ok && config.IsMaskedName(n) {
 			if _, isRef := config.EnvRef(c.Old); !isRef && c.Old != "" {
 				c.Old = "********"
@@ -487,10 +496,20 @@ func formText(err error) string {
 	return err.Error()
 }
 
-// takenNames are the names a preset cannot be renamed to.
-func takenNames(cfg *config.Config) []string {
+// takenNames are the names a preset cannot be renamed to. A preset the other
+// repositories share is renamed in their sets too, so a name another
+// repository's own preset has would send those sets to a different preset.
+func takenNames(cfg *config.Config, shared bool) []string {
 	all, _ := cfg.Targets()
-	return slices.Sorted(maps.Keys(all))
+	names := slices.Sorted(maps.Keys(all))
+	if shared {
+		for _, ns := range cfg.OtherRepoTargets() {
+			names = append(names, ns...)
+		}
+		slices.Sort(names)
+		names = slices.Compact(names)
+	}
+	return names
 }
 
 // fillForm opens the edit form of t and returns the changes it holds.
@@ -508,7 +527,7 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	}
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
-	form.TakenNames = takenNames(cfg)
+	form.TakenNames = takenNames(cfg, scope.shared)
 	form.RenameBlocked = formText(renameBlocked(cfg, t, scope))
 	if svc != nil {
 		form.ReadRepos = func(ctx context.Context, branch string) ([]app.RepoBranch, error) {

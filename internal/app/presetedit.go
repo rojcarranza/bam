@@ -87,7 +87,8 @@ func (r FormRow) Changed() bool {
 	if r.Removed {
 		return r.InPreset
 	}
-	return r.Value != r.Orig || !slices.Equal(r.Options, r.OrigOptions)
+	// An emptied row the preset never set writes nothing, so it is no change.
+	return (r.Value != r.Orig && (r.Value != "" || r.InPreset)) || !slices.Equal(r.Options, r.OrigOptions)
 }
 
 // Validate checks what the person typed in an edit form, so a mistake is

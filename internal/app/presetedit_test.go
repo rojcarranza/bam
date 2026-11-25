@@ -169,3 +169,11 @@ func TestPresetEditFormRemovingWhatBothHoldIsAllowed(t *testing.T) {
 	f.Rows[0].Removed = true
 	assert.NoError(t, f.Validate())
 }
+
+// A plan variable the preset leaves out and the person empties writes nothing,
+// so the row is no change.
+func TestFormRowEmptiedWithoutBeingInThePresetIsNoChange(t *testing.T) {
+	assert.False(t, FormRow{Name: "REGION", Value: "", Orig: "eu"}.Changed())
+	assert.True(t, FormRow{Name: "REGION", Value: "", Orig: "eu", InPreset: true}.Changed())
+	assert.True(t, FormRow{Name: "REGION", Value: "us", Orig: "eu"}.Changed())
+}

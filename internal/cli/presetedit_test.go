@@ -733,3 +733,34 @@ func TestPresetEditRenameReportsAFileWithTwoStepsAsPartlyWritten(t *testing.T) {
 	assert.Contains(t, out, "; written: ; not written: "+path+", "+machine)
 	assert.Contains(t, out, "; partly written: "+machine)
 }
+
+// Options are printed and saved in clear, so a secret variable takes none; one
+// written by hand earlier is still printed masked when it is removed.
+func TestPresetEditRefusesOptionsOfASecretAndMasksOldOnes(t *testing.T) {
+	h := newHarness(t)
+	before := readFile(t, sharedFile(h))
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--option", "db_password=hunter2,s3cret"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "db_password is a secret")
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+
+	path := filepath.Join(h.home, "bam", "presets", "lit.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("presets:\n  with-secret:\n    plan: PROJ-PROV\n    options:\n      api_secret: [hunter2, s3cret]\n"), 0o600))
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "edit", "with-secret", "--option", "api_secret="), h.stderr.String())
+	assert.NotContains(t, h.stdout.String()+h.stderr.String(), "hunter2")
+	assert.Contains(t, h.stdout.String(), `removed (was "********")`)
+}
+
+// A preset the other repositories share is renamed in their sets too, so a
+// name another repository's own preset has is refused.
+func TestPresetEditSharedRenameRefusesANameAnotherRepositoryDefines(t *testing.T) {
+	h := newHarness(t)
+	twoFilePreset(t, h)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte("version: 1\nrepos:\n  /somewhere/else:\n    targets:\n      lab-two:\n        plan: PROJ-PROV\n"), 0o644))
+	before := readFile(t, sharedFile(h))
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), `preset "lab-two" already exists`)
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+}

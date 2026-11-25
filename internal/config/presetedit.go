@@ -76,6 +76,13 @@ func EditTargetOver(path string, keyPath []string, name string, below []TargetLa
 				WithTry(fmt.Sprintf("--var %s='${%s}'", v.Name, EnvNameFor(v.Name)))
 		}
 	}
+	for _, n := range sortedKeys(e.Options) {
+		if IsMaskedName(n) && len(e.Options[n]) > 0 {
+			return nil, errs.Usagef("%s is a secret: bam never writes values for it to a file", n).
+				WithWhy("options are printed and saved in clear, and a secret's value must stay out of both").
+				WithTry("leave its options out; the secret itself stays a ${ENV_NAME} reference")
+		}
+	}
 	if err := refuseHeldBelow(HeldBelow(decodeTarget(target), below), e, name, path); err != nil {
 		return nil, err
 	}

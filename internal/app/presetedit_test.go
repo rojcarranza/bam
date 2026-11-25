@@ -181,3 +181,22 @@ func TestPresetEditFormRefusesANameAnotherRepositoryHas(t *testing.T) {
 	f.Fields[0].Value = "lab-three"
 	assert.NoError(t, f.Validate())
 }
+
+// Emptying a plan variable the preset leaves out writes an empty value, as
+// --var NAME= does; a row left alone, or removed with x, writes nothing.
+func TestPresetEditFormWritesAnEmptiedPlanVariable(t *testing.T) {
+	f := NewPresetEditForm(savedPreset(), planVars)
+	for i := range f.Rows {
+		if f.Rows[i].Name == "REGION" {
+			require.False(t, f.Rows[i].InPreset)
+			f.Rows[i].Value = ""
+		}
+	}
+	assert.Equal(t, []config.VarValue{{Name: "REGION", Value: ""}}, f.Edit().Set)
+	for i := range f.Rows {
+		if f.Rows[i].Name == "REGION" {
+			f.Rows[i].Value = f.Rows[i].Orig
+		}
+	}
+	assert.Empty(t, f.Edit().Set)
+}

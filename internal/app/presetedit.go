@@ -166,7 +166,8 @@ func (f PresetForm) validateHeld() error {
 }
 
 // Edit turns the form into the changes it holds against what it opened with.
-// A variable the preset left out is written only when its value changed.
+// A variable the preset left out is written only when its value changed, an
+// empty one included, as --var NAME= does; x leaves it to the plan.
 func (f PresetForm) Edit() config.PresetEdit {
 	var e config.PresetEdit
 	for _, r := range f.Rows {
@@ -175,7 +176,7 @@ func (f PresetForm) Edit() config.PresetEdit {
 			if r.InPreset {
 				e.Unset = append(e.Unset, r.Name)
 			}
-		case r.Value != r.Orig && (r.Value != "" || r.InPreset):
+		case r.Value != r.Orig:
 			e.Set = append(e.Set, config.VarValue{Name: r.Name, Value: r.Value})
 		}
 		if !slices.Equal(r.Options, r.OrigOptions) {

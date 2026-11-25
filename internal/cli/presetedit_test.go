@@ -769,3 +769,19 @@ func TestPresetEditSharedRenameRefusesANameAnotherRepositoryDefines(t *testing.T
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
 	assert.Equal(t, "/somewhere/else", (*offered)[0].TakenElsewhere["lab-two"], "the form refuses it while open")
 }
+
+// Emptying a plan variable in the form saves it empty, as --var NAME= does.
+func TestPresetEditFormSavesAnEmptiedPlanVariable(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	editScript(h, func(f *app.PresetForm) {
+		for i := range f.Rows {
+			if f.Rows[i].Name == "cluster_name" {
+				f.Rows[i].Orig, f.Rows[i].Value = "alpha", ""
+			}
+		}
+	}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	assert.Contains(t, readFile(t, sharedFile(h)), `cluster_name: ""`)
+	assert.NotContains(t, h.stdout.String(), "already has these values")
+}

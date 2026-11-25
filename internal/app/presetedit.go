@@ -301,10 +301,14 @@ func (s *Service) PlanBranchRepositories(ctx context.Context, plan, branch strin
 	if err != nil {
 		return nil, err
 	}
+	built, _, err := s.BuiltRepositories(ctx, key)
+	if err != nil {
+		return nil, err
+	}
 	var out []RepoBranch
-	for _, r := range s.draftRepos(ctx, PlanRef{PlanKey: key, MasterKey: plan, Branch: branch}, "") {
-		if r.Branch != "" {
-			out = append(out, RepoBranch{Name: r.Name, Branch: r.Branch})
+	for _, name := range slices.Sorted(maps.Keys(built)) {
+		if built[name] != "" {
+			out = append(out, RepoBranch{Name: name, Branch: built[name]})
 		}
 	}
 	return out, nil

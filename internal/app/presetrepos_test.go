@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/rojcarranza/bam/internal/config"
@@ -124,5 +125,15 @@ func TestPlanBranchRepositoriesLeavesOutAnUnbuiltRepository(t *testing.T) {
 	p.History["PROJ-PARENT1"] = []provider.Build{unbuilt}
 	got, err := newService(t, p).PlanBranchRepositories(bg, "PROJ-PARENT", "tst")
 	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
+// A build that cannot be read is an error the form shows, not an empty list
+// that would mark every saved repository removed.
+func TestPlanBranchRepositoriesReturnsAFailedBuildRead(t *testing.T) {
+	p := repoBuilds()
+	p.GetErrs = map[string][]error{"PROJ-PARENT1-2": {errors.New("server error")}}
+	got, err := newService(t, p).PlanBranchRepositories(bg, "PROJ-PARENT", "tst")
+	assert.ErrorContains(t, err, "server error")
 	assert.Empty(t, got)
 }

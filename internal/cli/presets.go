@@ -536,7 +536,7 @@ func findPreset(cfg *config.Config, name, noneWhy string) (config.ResolvedTarget
 }
 
 // presetUsedBySet refuses a preset a set runs: it would fail every set
-// command once the preset is gone or renamed.
+// command once the preset is gone.
 func presetUsedBySet(cfg *config.Config, name string) error {
 	sets, err := cfg.Sets()
 	if err != nil {

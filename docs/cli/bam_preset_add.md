@@ -8,7 +8,7 @@ add reads the plan's declared variables from Bamboo and writes a preset named <n
 It writes the plan's project file in your presets directory (~/bam/presets/proj.yaml for
 PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every
 directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no
-one project; --shared writes the repository's .bam.yaml. Edit the values under variables,
+one project; --shared writes the repository's .bam.yaml. Change values later with bam preset edit,
 then run it with bam run <name>. --from with a full build key implies --plan and the build's
 branch. The preset lists every variable the plan declares, with its plan default filled in; a secret
 the plan stores is a commented line. It also writes the server you connected to, the plan branch,
@@ -63,5 +63,5 @@ bam preset add <name> --plan KEY [flags]
 
 ### SEE ALSO
 
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, edit, rm, sync, migrate
 

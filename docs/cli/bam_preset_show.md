@@ -32,5 +32,5 @@ bam preset show <name> [flags]
 
 ### SEE ALSO
 
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, edit, rm, sync, migrate
 

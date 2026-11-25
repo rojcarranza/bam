@@ -289,6 +289,7 @@ More: [Presets](docs/presets.md), [Configuration](docs/configuration.md); `bam i
 | list your presets and their files | `bam preset list` |
 | see one preset | `bam preset show lab1` |
 | add variables the plan gained since | `bam preset sync lab1 --dry-run` |
+| change a saved preset, in a form or with flags | `bam preset edit lab1` |
 | remove a preset, picking it from a list and confirming | `bam preset rm` |
 | generate a repository's `.bam.yaml` | `bam init --server work --project BAMCI --plan BAMCI-BUILD=ci` |
 
@@ -367,7 +368,7 @@ You pushed a branch and want a plan branch to build it. Bamboo does not let bam 
        ...
        Revisions   bam 7ec79b3
 
-2. Add a preset on the plan branch, then give it the branch. `bam preset add my-feature --plan BAMCI-BUILD --branch develop` writes the plan, the branch and every repository of `develop` with the branch it built last; edit the one you want in `~/bam/presets/bamci.yaml`:
+2. Add a preset on the plan branch, then give it the branch. `bam preset add my-feature --plan BAMCI-BUILD --branch develop` writes the plan, the branch and every repository of `develop` with the branch it built last; change the one you want with `bam preset edit my-feature`, which rewrites `~/bam/presets/bamci.yaml`:
 
        my-feature:
          plan: BAMCI-BUILD

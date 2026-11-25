@@ -3,11 +3,13 @@ package config
 import (
 	"fmt"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/rojcarranza/bam/internal/errs"
+	"gopkg.in/yaml.v3"
 )
 
 // EnvServerAlias names the ad-hoc server defined by BAM_URL.
@@ -88,6 +90,62 @@ func (c *Config) OtherRepoTargets() map[string][]string {
 	for _, key := range slices.Sorted(maps.Keys(c.Machine.Repos)) {
 		if key != here && len(c.Machine.Repos[key].Targets) > 0 {
 			out[key] = slices.Sorted(maps.Keys(c.Machine.Repos[key].Targets))
+		}
+	}
+	return out
+}
+
+// otherProjectTargets lists the preset names the .bam.yaml in the folder repo
+// defines; none when repo is this repository or has no readable file.
+func (c *Config) otherProjectTargets(repo string) []string {
+	if repo == "" || filepath.Clean(repo) == filepath.Clean(c.RepoRoot) {
+		return nil
+	}
+	b, err := os.ReadFile(filepath.Join(repo, ProjectFileName))
+	if err != nil {
+		return nil
+	}
+	var pf struct {
+		Targets map[string]yaml.Node `yaml:"targets"`
+	}
+	if yaml.Unmarshal(b, &pf) != nil {
+		return nil
+	}
+	return slices.Sorted(maps.Keys(pf.Targets))
+}
+
+// OtherRepoDefines reports, for the folder of another repository, whether it
+// defines a preset called name in its own machine entry or its own .bam.yaml.
+// A rename of a shared preset leaves that definition on the old name, so that
+// repository's runs and sets keep the name.
+func (c *Config) OtherRepoDefines(name string) func(repo string) bool {
+	entries := map[string]bool{}
+	for key, ns := range c.OtherRepoTargets() {
+		if slices.Contains(ns, name) {
+			entries[c.expand(key)] = true
+		}
+	}
+	return func(repo string) bool {
+		return entries[repo] || slices.Contains(c.otherProjectTargets(repo), name)
+	}
+}
+
+// OtherRepoPresetNames lists, by folder, the preset names the other
+// repositories bam knows define in their own machine entry or .bam.yaml. The
+// known repositories are every entry of the machine file, even one that holds
+// only a server or sets, and extra, the folders of recorded set runs.
+func (c *Config) OtherRepoPresetNames(extra []string) map[string][]string {
+	out := map[string][]string{}
+	for key, ns := range c.OtherRepoTargets() {
+		out[c.expand(key)] = ns
+	}
+	folders := slices.Clone(extra)
+	for key := range c.Machine.Repos {
+		folders = append(folders, c.expand(key))
+	}
+	for _, f := range folders {
+		if ns := c.otherProjectTargets(f); len(ns) > 0 {
+			out[f] = slices.Concat(out[f], ns)
 		}
 	}
 	return out

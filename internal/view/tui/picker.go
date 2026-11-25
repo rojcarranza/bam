@@ -51,6 +51,9 @@ var RunWords = PickerWords{"run which preset?", "enter runs"}
 // a question follows before anything is removed.
 var RemoveWords = PickerWords{"remove which preset?", "enter picks"}
 
+// EditWords are the words of bare bam preset edit, where Enter opens the form.
+var EditWords = PickerWords{"edit which preset?", "enter edits"}
+
 type pickerModel struct {
 	words  PickerWords
 	list   listState[app.TargetInfo]

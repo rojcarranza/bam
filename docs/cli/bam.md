@@ -40,7 +40,7 @@ bam [flags]
 * [bam open](bam_open.md)	 - Open a project, plan, build or job in the browser
 * [bam pin](bam_pin.md)	 - Pins: add, rm, list
 * [bam plan](bam_plan.md)	 - Plans: list, show, vars, branches, stats
-* [bam preset](bam_preset.md)	 - Run presets: list, show, add, rm, sync, migrate
+* [bam preset](bam_preset.md)	 - Run presets: list, show, add, edit, rm, sync, migrate
 * [bam project](bam_project.md)	 - Projects: list
 * [bam queue](bam_queue.md)	 - List the builds waiting for an agent, first in line first
 * [bam run](bam_run.md)	 - Trigger a plan or preset with variables

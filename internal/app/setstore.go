@@ -180,6 +180,45 @@ func (s *SetStore) History(repo, set string) ([]SetRecord, error) {
 	return slices.DeleteFunc(all, func(r SetRecord) bool { return r.Repo != repo || (set != "" && r.Set != set) }), nil
 }
 
+// TrainFiles lists the train files that runs of repo were started from and
+// that still exist, newest run first, each once. An empty repo means every
+// recorded run, whatever folder it started in, except runs of the folders skip
+// accepts (nil skips none).
+func (s *SetStore) TrainFiles(repo string, skip func(repo string) bool) ([]string, error) {
+	recs, err := s.all()
+	if err == nil && repo != "" {
+		recs, err = s.History(repo, "")
+	}
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, r := range recs {
+		if r.File == "" || slices.Contains(out, r.File) || (skip != nil && skip(r.Repo)) {
+			continue
+		}
+		if _, err := os.Stat(r.File); err == nil {
+			out = append(out, r.File)
+		}
+	}
+	return out, nil
+}
+
+// Repos lists the folders recorded set runs started in, each once.
+func (s *SetStore) Repos() ([]string, error) {
+	recs, err := s.all()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, r := range recs {
+		if r.Repo != "" && !slices.Contains(out, r.Repo) {
+			out = append(out, r.Repo)
+		}
+	}
+	return out, nil
+}
+
 // Latest is the newest record of repo, of set when set is not empty, that
 // match accepts (nil accepts every record).
 func (s *SetStore) Latest(repo, set string, match func(SetRecord) bool) (SetRecord, bool, error) {

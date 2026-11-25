@@ -24,9 +24,9 @@ import (
 func init() { commandSets = append(commandSets, addPresets) }
 
 func addPresets(root *cobra.Command, r *runtime) {
-	p := subgroup(root, "preset", "Run presets: list, show, add, rm, sync, migrate", groupRun)
+	p := subgroup(root, "preset", "Run presets: list, show, add, edit, rm, sync, migrate", groupRun)
 	p.SuggestFor = []string{"target", "targets"} // bam target was renamed to bam preset
-	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newPresetRmCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
+	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newPresetEditCmd(r), newPresetRmCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
 	c := newInitCmd(r)
 	c.GroupID = groupSetup
 	root.AddCommand(c)
@@ -44,13 +44,13 @@ func presetWord(args []string) error {
 			WithWhy("presets run with bam run").
 			WithTry(try)
 	}
-	if slices.Contains([]string{"edit", "update", "modify", "change", "set"}, args[0]) {
-		try := "bam preset show <name> prints the file that defines it"
+	if slices.Contains([]string{"update", "modify", "change", "set"}, args[0]) {
+		try := "bam preset edit <name>"
 		if len(args) > 1 {
-			try = "bam preset show " + args[1] + " prints the file that defines it"
+			try = "bam preset edit " + args[1]
 		}
 		return errs.Usagef("bam preset has no %q command", args[0]).
-			WithWhy("presets are edited in YAML, in the file that defines them").
+			WithWhy("bam preset edit changes a saved preset").
 			WithTry(try)
 	}
 	return nil
@@ -349,7 +349,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"It writes the plan's project file in your presets directory (~/bam/presets/proj.yaml for\n" +
 			"PROJ-DEPLOY, or beside BAM_PRESETS), creating it if needed; those presets work in every\n" +
 			"directory. --file NAME writes NAME.yaml in that directory instead, for presets that belong to no\n" +
-			"one project; --shared writes the repository's .bam.yaml. Edit the values under variables,\n" +
+			"one project; --shared writes the repository's .bam.yaml. Change values later with bam preset edit,\n" +
 			"then run it with bam run <name>. --from with a full build key implies --plan and the build's\n" +
 			"branch. The preset lists every variable the plan declares, with its plan default filled in; a secret\n" +
 			"the plan stores is a commented line. It also writes the server you connected to, the plan branch,\n" +
@@ -512,34 +512,48 @@ func removePreset(cfg *config.Config, name string) ([]string, error) {
 
 // removablePreset finds the preset name, or says why bam cannot remove it.
 func removablePreset(cfg *config.Config, name string) (config.ResolvedTarget, error) {
+	t, err := findPreset(cfg, name, "no presets are configured, so there is nothing to remove")
+	if err != nil {
+		return t, err
+	}
+	return t, presetUsedBySet(cfg, name)
+}
+
+// findPreset finds the preset name. When none is configured at all and
+// noneWhy is set, that is the reason given instead of a hint to create one.
+func findPreset(cfg *config.Config, name, noneWhy string) (config.ResolvedTarget, error) {
 	t, ok, err := cfg.Target(name)
 	if err != nil {
 		return t, err
 	}
-	if !ok {
-		if all, _ := cfg.Targets(); len(all) == 0 && len(cfg.OtherRepoTargets()) == 0 {
-			// UnknownTarget's hint would be to create the preset, which is wrong for rm.
-			return t, errs.Usagef("unknown preset %q", name).WithWhy("no presets are configured, so there is nothing to remove")
-		}
-		return t, app.UnknownTarget(cfg, name)
+	if ok {
+		return t, nil
 	}
-	// A set naming the preset would fail every set command once it is gone.
+	if all, _ := cfg.Targets(); noneWhy != "" && len(all) == 0 && len(cfg.OtherRepoTargets()) == 0 {
+		return t, errs.Usagef("unknown preset %q", name).WithWhy(noneWhy)
+	}
+	return t, app.UnknownTarget(cfg, name)
+}
+
+// presetUsedBySet refuses a preset a set runs: it would fail every set
+// command once the preset is gone.
+func presetUsedBySet(cfg *config.Config, name string) error {
 	sets, err := cfg.Sets()
 	if err != nil {
-		return t, err
+		return err
 	}
 	for _, setName := range slices.Sorted(maps.Keys(sets)) {
 		for _, st := range sets[setName].Stages {
 			for _, run := range st {
-				if run.Target == t.Name {
-					return t, errs.Usagef("preset %q is used by set %q", t.Name, setName).
+				if run.Target == name {
+					return errs.Usagef("preset %q is used by set %q", name, setName).
 						WithWhy("defined in " + sets[setName].DefinedIn[len(sets[setName].DefinedIn)-1]).
 						WithTry("remove it from the set first")
 				}
 			}
 		}
 	}
-	return t, nil
+	return nil
 }
 
 // deletePreset removes t from each file that defines it and returns them.

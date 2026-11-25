@@ -87,7 +87,7 @@ func TestEditTargetUnsetRemovesLine(t *testing.T) {
 	path := editFile(t, editYAML)
 	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Unset: []string{"REGION"}}, true)
 	require.NoError(t, err)
-	assert.Equal(t, []FieldChange{{Field: "variables.REGION", Old: "eu"}}, ch)
+	assert.Equal(t, []FieldChange{{Field: "variables.REGION", Old: "eu", Removed: true}}, ch)
 	assert.NotContains(t, read(t, path), "REGION")
 }
 

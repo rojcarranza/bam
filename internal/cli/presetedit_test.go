@@ -784,4 +784,33 @@ func TestPresetEditFormSavesAnEmptiedPlanVariable(t *testing.T) {
 	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
 	assert.Contains(t, readFile(t, sharedFile(h)), `cluster_name: ""`)
 	assert.NotContains(t, h.stdout.String(), "already has these values")
+	assert.Contains(t, h.stdout.String(), `variables.cluster_name: set to ""`, "the line says what the file holds, not that it was removed")
+	assert.NotContains(t, h.stdout.String(), "removed")
+}
+
+// A value set to empty and a removal read differently in the text and in JSON.
+func TestPresetEditEmptyValueIsNotARemoval(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--var", "cluster_type=", "--dry-run", "--json"), h.stderr.String())
+	var set struct {
+		Changes []struct {
+			Field   string
+			Removed bool
+		}
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &set))
+	require.Len(t, set.Changes, 1)
+	assert.False(t, set.Changes[0].Removed)
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--var", "cluster_type=", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `variables.cluster_type: "k8s" -> ""`)
+
+	h.stdout.Reset()
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--unset", "cluster_type", "--dry-run", "--json"), h.stderr.String())
+	var unset = set
+	unset.Changes = nil
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &unset))
+	require.Len(t, unset.Changes, 1)
+	assert.True(t, unset.Changes[0].Removed)
 }

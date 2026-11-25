@@ -36,6 +36,9 @@ type FieldChange struct {
 	Field string `json:"field"`
 	Old   string `json:"old,omitempty"`
 	New   string `json:"new,omitempty"`
+	// Removed is true when the edit took the line out, so a script can tell it
+	// from a value set to empty, which leaves Old and New empty just the same.
+	Removed bool `json:"removed,omitempty"`
 	// File names the file a change outside the edited preset's own file lands
 	// in, in the text output and the JSON, so a script can tell the files apart.
 	File string `json:"file,omitempty"`
@@ -309,7 +312,7 @@ func editVars(target *yaml.Node, key string, vars *yaml.Node, e PresetEdit, ch [
 	}
 	for _, n := range e.Unset {
 		if old := mappingValue(vars, n); old != nil && deleteKey(vars, n) {
-			ch = append(ch, FieldChange{Field: "variables." + n, Old: old.Value})
+			ch = append(ch, FieldChange{Field: "variables." + n, Old: old.Value, Removed: true})
 		}
 	}
 	return ch, nil
@@ -341,7 +344,7 @@ func editBranch(target *yaml.Node, e PresetEdit, ch []FieldChange) []FieldChange
 		return ch
 	}
 	if old, changed := setScalar(target, "branch", *e.Branch); changed {
-		ch = append(ch, FieldChange{Field: "branch", Old: old, New: *e.Branch})
+		ch = append(ch, FieldChange{Field: "branch", Old: old, New: *e.Branch, Removed: *e.Branch == ""})
 	}
 	return ch
 }
@@ -356,7 +359,7 @@ func editTimeout(target *yaml.Node, e PresetEdit, ch []FieldChange) ([]FieldChan
 		}
 	}
 	if old, changed := setScalar(target, "timeout", *e.Timeout); changed {
-		ch = append(ch, FieldChange{Field: "timeout", Old: old, New: *e.Timeout})
+		ch = append(ch, FieldChange{Field: "timeout", Old: old, New: *e.Timeout, Removed: *e.Timeout == ""})
 	}
 	return ch, nil
 }
@@ -394,7 +397,7 @@ func editRepositories(target *yaml.Node, held map[string]string, e PresetEdit, c
 	for i := 0; i+1 < len(repos.Content); {
 		n := repos.Content[i].Value
 		if b, ok := want[n]; !ok {
-			ch = append(ch, FieldChange{Field: "repositories." + n, Old: repos.Content[i+1].Value})
+			ch = append(ch, FieldChange{Field: "repositories." + n, Old: repos.Content[i+1].Value, Removed: true})
 			repos.Content = append(repos.Content[:i], repos.Content[i+2:]...)
 			continue
 		} else if old, changed := setScalar(repos, n, b); changed {
@@ -458,7 +461,7 @@ func editRequired(target *yaml.Node, e PresetEdit, ch []FieldChange) []FieldChan
 		return ch
 	}
 	if old, changed := setList(target, "required", *e.Required); changed {
-		ch = append(ch, FieldChange{Field: "required", Old: strings.Join(old, ", "), New: strings.Join(*e.Required, ", ")})
+		ch = append(ch, FieldChange{Field: "required", Old: strings.Join(old, ", "), New: strings.Join(*e.Required, ", "), Removed: len(*e.Required) == 0})
 	}
 	return ch
 }
@@ -474,7 +477,7 @@ func editOptions(target *yaml.Node, e PresetEdit, ch []FieldChange) []FieldChang
 		}
 		opts.Style &^= yaml.FlowStyle
 		if old, changed := setList(opts, n, e.Options[n]); changed {
-			ch = append(ch, FieldChange{Field: "options." + n, Old: strings.Join(old, ", "), New: strings.Join(e.Options[n], ", ")})
+			ch = append(ch, FieldChange{Field: "options." + n, Old: strings.Join(old, ", "), New: strings.Join(e.Options[n], ", "), Removed: len(e.Options[n]) == 0})
 		}
 		if len(opts.Content) == 0 {
 			deleteKey(target, "options")

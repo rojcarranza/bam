@@ -384,9 +384,9 @@ func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, renam
 			in = " (in " + c.File + ")"
 		}
 		switch {
-		case c.Old == "" && c.New != "":
+		case !c.Removed && c.Old == "":
 			fmt.Fprintf(w, "  %s: set to %q%s\n", c.Field, c.New, in)
-		case c.New == "":
+		case c.Removed:
 			fmt.Fprintf(w, "  %s: removed (was %q)%s\n", c.Field, c.Old, otherFileNote(held, c.Field))
 		default:
 			fmt.Fprintf(w, "  %s: %q -> %q%s\n", c.Field, c.Old, c.New, in)

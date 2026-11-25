@@ -82,14 +82,6 @@ func sameTimeout(a, b string) bool {
 	return da == db
 }
 
-// Changed reports whether the row would write anything.
-func (r FormRow) Changed() bool {
-	if r.Removed {
-		return r.InPreset
-	}
-	return r.Value != r.Orig || !slices.Equal(r.Options, r.OrigOptions)
-}
-
 // Validate checks what the person typed in an edit form, so a mistake is
 // shown while the form is open and not after it closed.
 func (f PresetForm) Validate() error {

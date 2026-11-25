@@ -122,7 +122,7 @@ func TestEditTargetEmptyRepositoryBranchRemovesAndKeepsTheNext(t *testing.T) {
 	repos := []RepoBranch{{Name: "api", Branch: ""}, {Name: "web", Branch: "dev"}}
 	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Repositories: &repos}, true)
 	require.NoError(t, err)
-	assert.Equal(t, []FieldChange{{Field: "repositories.api", Old: "main"}, {Field: "repositories.web", Old: "main", New: "dev"}}, ch)
+	assert.Equal(t, []FieldChange{{Field: "repositories.api", Old: "main", Removed: true}, {Field: "repositories.web", Old: "main", New: "dev"}}, ch)
 	got := read(t, path)
 	assert.NotContains(t, got, "api:")
 	assert.Contains(t, got, `web: "dev"`)

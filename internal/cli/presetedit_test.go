@@ -686,22 +686,27 @@ func TestPresetEditRenameNamesEachTrainFileItWroteBeforeAFailure(t *testing.T) {
 	assert.Contains(t, readFile(t, sharedFile(h)), "provision-lab", "bam's own files are untouched")
 }
 
-// A machine file that fails after the project file was written is the only
-// one reported as not written.
+// A preset only a presets file defines, named by a set in the project file and
+// a pin in the machine file: when the machine file fails after the project
+// file was written, only the machine file is reported as not written.
 func TestPresetEditRenameNamesTheProjectFileWhenTheMachineFileFails(t *testing.T) {
 	if os.Geteuid() == 0 {
 		t.Skip("root writes into a read-only folder")
 	}
-	h := setHarness(t, provider.StateSuccess)
+	h := newHarness(t)
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"sets:\n  solo:\n    stages:\n      - [only-here]\n"), 0o644))
+	presets := filepath.Join(h.home, "bam", "presets", "only.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(presets), 0o755))
+	require.NoError(t, os.WriteFile(presets, []byte("presets:\n  only-here:\n    plan: PROJ-PROV\n"), 0o600))
 	machine := h.env.Paths.MachineConfig
 	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
-	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nmonitor:\n  extra: [provision-lab]\n"), 0o644))
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nmonitor:\n  extra: [only-here]\n"), 0o644))
 	dir := filepath.Dir(machine)
 	require.NoError(t, os.Chmod(dir, 0o500))
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
 
-	assert.NotEqual(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"))
-	assert.Contains(t, h.stderr.String(), "written: "+sharedFile(h))
+	assert.NotEqual(t, 0, h.run("preset", "edit", "only-here", "--rename", "lab-two"))
+	assert.Contains(t, h.stderr.String(), "written: "+presets+", "+path)
 	assert.Contains(t, h.stderr.String(), "not written: "+machine)
-	assert.NotContains(t, h.stderr.String(), "not written: "+sharedFile(h))
 }

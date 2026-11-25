@@ -184,7 +184,7 @@ func TestPresetEditRenameRefusesATopLevelPinOfARepositoryOnlyPreset(t *testing.T
 }
 
 // A shared preset cannot take a name another repository's own .bam.yaml
-// defines, whether bam knows that repository from a recorded run or not.
+// defines, where bam knows that repository from a recorded set run.
 func TestPresetEditSharedRenameRefusesANameAnotherRepositorysProjectFileDefines(t *testing.T) {
 	h := newHarness(t)
 	twoFilePreset(t, h)
@@ -199,6 +199,24 @@ func TestPresetEditSharedRenameRefusesANameAnotherRepositorysProjectFileDefines(
 	assert.Contains(t, h.stderr.String(), "already exists in the repository "+repoB)
 	assert.Equal(t, before, readFile(t, sharedFile(h)))
 	assert.Equal(t, "stages:\n  - [provision-lab]\n", readFile(t, train))
+}
+
+// A machine entry that holds only sets still makes its repository known, so a
+// shared preset cannot take a name that repository's .bam.yaml defines.
+func TestPresetEditSharedRenameRefusesANameOfASetsOnlyEntrysProjectFile(t *testing.T) {
+	h := newHarness(t)
+	twoFilePreset(t, h)
+	repoB := filepath.Join(h.home, "repo-b")
+	require.NoError(t, os.MkdirAll(repoB, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(repoB, ".bam.yaml"), []byte("version: 1\ntargets:\n  lab-three:\n    plan: PROJ-B\n"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte("version: 1\nrepos:\n  "+repoB+":\n    sets:\n      nightly: [[provision-lab]]\n"), 0o644))
+	before := readFile(t, sharedFile(h))
+	machine := readFile(t, h.env.Paths.MachineConfig)
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-three"))
+	assert.Contains(t, h.stderr.String(), "already exists in the repository "+repoB)
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+	assert.Equal(t, machine, readFile(t, h.env.Paths.MachineConfig))
 }
 
 // A stage that reaches the preset through an alias bam cannot see is refused,

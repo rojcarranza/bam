@@ -132,16 +132,16 @@ func (c *Config) OtherRepoDefines(name string) func(repo string) bool {
 
 // OtherRepoPresetNames lists, by folder, the preset names the other
 // repositories bam knows define in their own machine entry or .bam.yaml. The
-// known repositories are the machine file's entries and extra, the folders of
-// recorded set runs.
+// known repositories are every entry of the machine file, even one that holds
+// only a server or sets, and extra, the folders of recorded set runs.
 func (c *Config) OtherRepoPresetNames(extra []string) map[string][]string {
 	out := map[string][]string{}
 	for key, ns := range c.OtherRepoTargets() {
 		out[c.expand(key)] = ns
 	}
 	folders := slices.Clone(extra)
-	for key := range out {
-		folders = append(folders, key)
+	for key := range c.Machine.Repos {
+		folders = append(folders, c.expand(key))
 	}
 	for _, f := range folders {
 		if ns := c.otherProjectTargets(f); len(ns) > 0 {

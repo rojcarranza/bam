@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,7 @@ func refsConfig(t *testing.T, project, machine string) *Config {
 // comment stay as they were.
 func TestRenameRefsRenamesStagesAndPinsInPlace(t *testing.T) {
 	c := refsConfig(t, refsProject, refsMachine)
-	ch, err := c.RenameRefs("lab", "lab-two", true)
+	ch, err := c.RenameRefs("lab", "lab-two", false, true)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []FieldChange{
 		{Field: "sets.train", Old: "lab", New: "lab-two", File: c.ProjectPath},
@@ -81,7 +82,7 @@ func TestRenameRefsRenamesStagesAndPinsInPlace(t *testing.T) {
 
 func TestRenameRefsDryRunWritesNothing(t *testing.T) {
 	c := refsConfig(t, refsProject, refsMachine)
-	ch, err := c.RenameRefs("lab", "lab-two", false)
+	ch, err := c.RenameRefs("lab", "lab-two", false, false)
 	require.NoError(t, err)
 	assert.Len(t, ch, 6)
 	assert.Equal(t, refsProject, read(t, c.ProjectPath))
@@ -90,7 +91,7 @@ func TestRenameRefsDryRunWritesNothing(t *testing.T) {
 
 func TestRenameRefsNothingToRename(t *testing.T) {
 	c := refsConfig(t, refsProject, refsMachine)
-	ch, err := c.RenameRefs("unused", "unused-two", true)
+	ch, err := c.RenameRefs("unused", "unused-two", false, true)
 	require.NoError(t, err)
 	assert.Empty(t, ch)
 	assert.Equal(t, refsProject, read(t, c.ProjectPath))
@@ -102,14 +103,14 @@ func TestRenameRefsNothingToRename(t *testing.T) {
 func TestRenameRefsRefusesAnchorsAndAliases(t *testing.T) {
 	anchored := "version: 1\ntargets:\n  lab:\n    plan: PROJ-LAB\nsets:\n  a:\n    stages:\n      - [&l lab]\n"
 	c := refsConfig(t, anchored, refsMachine)
-	_, err := c.RenameRefs("lab", "lab-two", true)
+	_, err := c.RenameRefs("lab", "lab-two", false, true)
 	require.ErrorContains(t, err, "anchor")
 	assert.Equal(t, anchored, read(t, c.ProjectPath))
 	assert.Equal(t, refsMachine, read(t, c.MachinePath), "the machine file is not written when the project file is refused")
 
 	aliased := "version: 1\ntargets:\n  lab:\n    plan: PROJ-LAB\nx-stage: &st [lab]\nsets:\n  a:\n    stages:\n      - *st\n"
 	c = refsConfig(t, aliased, refsMachine)
-	_, err = c.RenameRefs("lab", "lab-two", true)
+	_, err = c.RenameRefs("lab", "lab-two", false, true)
 	require.ErrorContains(t, err, "alias")
 	assert.Equal(t, aliased, read(t, c.ProjectPath))
 }
@@ -132,7 +133,7 @@ func TestEditTargetEmptyRepositoryBranchRemovesAndKeepsTheNext(t *testing.T) {
 func TestRenameRefsRefusesAPinGroupThatIsAnAlias(t *testing.T) {
 	aliased := "version: 1\ntargets:\n  lab:\n    plan: PROJ-LAB\n    required: &r [lab]\nmonitor:\n  main: *r\n"
 	c := refsConfig(t, aliased, refsMachine)
-	_, err := c.RenameRefs("lab", "lab-two", true)
+	_, err := c.RenameRefs("lab", "lab-two", false, true)
 	require.ErrorContains(t, err, `monitor group "main"`)
 	assert.Equal(t, aliased, read(t, c.ProjectPath))
 }
@@ -192,4 +193,30 @@ func TestRenameInTrainFilesRenamesAStageAnAliasShares(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, read(t, p), "[lab]")
 	assert.Contains(t, read(t, p), "lab-two")
+}
+
+// A preset every repository shares is renamed in the sets of the other
+// repositories' entries too, except where an entry defines a preset of that
+// name itself: that name means another preset there.
+func TestRenameRefsEveryRepoFollowsASharedPreset(t *testing.T) {
+	machine := strings.Replace(refsMachine, "  /work/elsewhere:\n    sets:\n      there: [[lab]]\n",
+		"  /work/elsewhere:\n    sets:\n      there: [[lab]]\n  /work/own:\n    targets:\n      lab:\n        plan: OTHER-LAB\n    sets:\n      kept: [[lab]]\n", 1)
+	c := refsConfig(t, refsProject, machine)
+	ch, err := c.RenameRefs("lab", "lab-two", true, true)
+	require.NoError(t, err)
+	assert.Contains(t, ch, FieldChange{Field: "sets.there", Old: "lab", New: "lab-two", File: c.MachinePath})
+	got := read(t, c.MachinePath)
+	assert.Contains(t, got, "there: [[lab-two]]")
+	assert.Contains(t, got, "kept: [[lab]]", "an entry with a preset of its own name keeps its sets")
+}
+
+func TestSharedIsAPresetWithACopyOutsideTheRepositoryFiles(t *testing.T) {
+	c := refsConfig(t, refsProject, refsMachine)
+	own := TargetLayer{Path: c.ProjectPath, KeyPath: []string{"targets"}}
+	entry := TargetLayer{Path: c.MachinePath, KeyPath: []string{"repos", "/work/repo", "targets"}}
+	top := TargetLayer{Path: c.MachinePath, KeyPath: []string{"targets"}}
+	presets := TargetLayer{Path: filepath.Join(filepath.Dir(c.ProjectPath), "lab.yaml"), KeyPath: []string{"presets"}}
+	assert.False(t, c.Shared(ResolvedTarget{Layers: []TargetLayer{own, entry}}))
+	assert.True(t, c.Shared(ResolvedTarget{Layers: []TargetLayer{own, top}}))
+	assert.True(t, c.Shared(ResolvedTarget{Layers: []TargetLayer{presets}}))
 }

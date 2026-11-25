@@ -37,8 +37,8 @@ type FieldChange struct {
 	Old   string `json:"old,omitempty"`
 	New   string `json:"new,omitempty"`
 	// File names the file a change outside the edited preset's own file lands
-	// in, for the text output; the JSON contract does not carry it.
-	File string `json:"-"`
+	// in, in the text output and the JSON, so a script can tell the files apart.
+	File string `json:"file,omitempty"`
 }
 
 // EditTarget applies e to preset name under keyPath in the YAML file at path,

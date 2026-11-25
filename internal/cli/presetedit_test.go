@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -356,7 +357,7 @@ func TestPresetEditRenameOutputNamesEachFile(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), `sets.release: "provision-lab" -> "lab-two" (in `+sharedFile(h)+")")
 	assert.Contains(t, h.stdout.String(), `monitor.extra: "provision-lab" -> "lab-two" (in `+machine+")")
 	assert.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run", "--json"))
-	assert.NotContains(t, h.stdout.String(), `"file": "`+machine)
+	assert.Contains(t, h.stdout.String(), `"file": "`+machine+`"`, "each set or pin change names the file it lands in")
 }
 
 // What another file holds reaches the form, so a removal it cannot make is
@@ -579,4 +580,81 @@ func TestPresetEditFormCarriesATrainFileRefusal(t *testing.T) {
 	require.Len(t, *offered, 1)
 	assert.Contains(t, (*offered)[0].RenameBlocked, "train file "+train)
 	assert.Contains(t, (*offered)[0].RenameBlocked, "spell it out in "+train)
+}
+
+// saveRun records a past set run of repo that used train.
+func saveRun(t *testing.T, h *harness, repo, train string, n int) {
+	t.Helper()
+	store := &app.SetStore{Dir: h.env.Paths.Sets}
+	at := fixedNow.Add(time.Duration(n) * time.Minute)
+	require.NoError(t, store.Save(app.SetRecord{Version: 1, ID: app.NewSetID("hotfix", at), Set: "hotfix", File: train,
+		Origin: workOrigin, Repo: repo, StartedAt: at, Status: app.SetInterrupted, VarNames: []string{}}))
+}
+
+// A preset a presets file holds works from any folder, so a train file a run
+// started elsewhere is renamed, and the JSON names each file. A preset only
+// this repository defines leaves the other folder's train file alone.
+func TestPresetEditRenameFollowsASharedPresetIntoOtherFoldersTrainFiles(t *testing.T) {
+	h := newHarness(t)
+	twoFilePreset(t, h)
+	elsewhere := filepath.Join(h.home, "trains", "release.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(elsewhere), 0o755))
+	require.NoError(t, os.WriteFile(elsewhere, []byte("stages:\n  - [provision-lab]\n"), 0o644))
+	saveRun(t, h, filepath.Join(h.home, "trains"), elsewhere, 1)
+
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run", "--json"), h.stderr.String())
+	var doc struct {
+		Changes []struct{ Field, File string } `json:"changes"`
+	}
+	require.NoError(t, json.Unmarshal(h.stdout.Bytes(), &doc))
+	assert.Contains(t, doc.Changes, struct{ Field, File string }{"train file", elsewhere})
+	assert.Contains(t, readFile(t, elsewhere), "provision-lab", "a dry run writes nothing")
+
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, readFile(t, elsewhere), "lab-two")
+}
+
+func TestPresetEditRenameLeavesOtherFoldersTrainFilesOfARepositoryOnlyPreset(t *testing.T) {
+	h := newHarness(t)
+	elsewhere := filepath.Join(h.home, "trains", "release.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(elsewhere), 0o755))
+	require.NoError(t, os.WriteFile(elsewhere, []byte("stages:\n  - [provision-lab]\n"), 0o644))
+	saveRun(t, h, filepath.Join(h.home, "trains"), elsewhere, 1)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, readFile(t, elsewhere), "provision-lab", "the name means another preset in that folder")
+}
+
+// A store bam cannot read refuses a rename, since every train file would be
+// left on the old name unseen; other edits still work.
+func TestPresetEditRenameIsRefusedWhenPastRunsCannotBeRead(t *testing.T) {
+	h := newHarness(t)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.Sets), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.Sets, []byte("not a folder"), 0o644))
+	before := readFile(t, sharedFile(h))
+	assert.Equal(t, 3, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"))
+	assert.Contains(t, h.stderr.String(), "past set runs")
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+	h.stderr.Reset()
+	assert.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--var", "cluster_name=beta"), h.stderr.String())
+}
+
+// When a later write fails, the error says what was written and what was
+// not, and the train files, which are written first, are already done.
+func TestPresetEditRenameSaysWhatWasWrittenWhenAWriteFails(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only folder")
+	}
+	h := newHarness(t)
+	train := filepath.Join(h.home, "train.yaml")
+	require.NoError(t, os.WriteFile(train, []byte("stages:\n  - [provision-lab]\n"), 0o644))
+	saveRun(t, h, h.root, train, 1)
+	dir := filepath.Dir(sharedFile(h))
+	require.NoError(t, os.Chmod(dir, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	assert.NotEqual(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"))
+	assert.Contains(t, h.stderr.String(), "only partly renamed")
+	assert.Contains(t, h.stderr.String(), "written: "+train)
+	assert.Contains(t, h.stderr.String(), "not written: "+sharedFile(h))
+	assert.Contains(t, readFile(t, train), "lab-two")
 }

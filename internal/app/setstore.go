@@ -181,9 +181,13 @@ func (s *SetStore) History(repo, set string) ([]SetRecord, error) {
 }
 
 // TrainFiles lists the train files that runs of repo were started from and
-// that still exist, newest run first, each once.
+// that still exist, newest run first, each once. An empty repo means every
+// recorded run, whatever folder it started in.
 func (s *SetStore) TrainFiles(repo string) ([]string, error) {
-	recs, err := s.History(repo, "")
+	recs, err := s.all()
+	if err == nil && repo != "" {
+		recs, err = s.History(repo, "")
+	}
 	if err != nil {
 		return nil, err
 	}

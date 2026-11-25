@@ -12,9 +12,11 @@ import (
 // machine file name it: the stages of the sets that apply here, and the pins
 // of bam top. Each reference is changed in place, so comments and key order
 // stay. Both files are checked before either is written, so a refusal leaves
-// them as they were; write false only reports. Train files are renamed apart,
-// by RenameInTrainFiles.
-func (c *Config) RenameRefs(from, to string, write bool) ([]FieldChange, error) {
+// them as they were; write false only reports. Sets under this repository's
+// entry of the machine file are renamed; with everyRepo, a preset every
+// repository shares, so are those under any other entry that defines no preset
+// of that name. Train files are renamed apart, by RenameInTrainFiles.
+func (c *Config) RenameRefs(from, to string, everyRepo, write bool) ([]FieldChange, error) {
 	repoKey, _, _ := c.repoEntry()
 	var paths []string
 	for _, p := range []string{c.ProjectPath, c.MachinePath} {
@@ -36,7 +38,7 @@ func (c *Config) RenameRefs(from, to string, write bool) ([]FieldChange, error) 
 		if err != nil {
 			return nil, err
 		}
-		ch, err := renameRefsIn(doc, p, repoKey, from, to)
+		ch, err := renameRefsIn(doc, p, repoKey, everyRepo, from, to)
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +59,7 @@ func (c *Config) RenameRefs(from, to string, write bool) ([]FieldChange, error) 
 
 // renameRefsIn renames the references in one document and lists them, one
 // change per set and per pin group.
-func renameRefsIn(doc *yaml.Node, path, repoKey, from, to string) ([]FieldChange, error) {
+func renameRefsIn(doc *yaml.Node, path, repoKey string, everyRepo bool, from, to string) ([]FieldChange, error) {
 	root := doc.Content[0]
 	var ch []FieldChange
 	hit := func(n *yaml.Node, field string, seen map[string]bool) error {
@@ -75,9 +77,14 @@ func renameRefsIn(doc *yaml.Node, path, repoKey, from, to string) ([]FieldChange
 	}
 	seen := map[string]bool{}
 	setsNodes := []*yaml.Node{mappingValue(root, "sets")}
-	if repoKey != "" {
-		if repos := mappingValue(root, "repos"); repos != nil {
-			setsNodes = append(setsNodes, mappingValue(mappingValue(repos, repoKey), "sets"))
+	if repos := mappingValue(root, "repos"); repos != nil && repos.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(repos.Content); i += 2 {
+			key, entry := repos.Content[i].Value, repos.Content[i+1]
+			// A repository whose own entry defines a preset of this name has
+			// another preset by it, so its sets keep theirs.
+			if key == repoKey || (everyRepo && mappingValue(mappingValue(entry, "targets"), from) == nil) {
+				setsNodes = append(setsNodes, mappingValue(entry, "sets"))
+			}
 		}
 	}
 	for _, sets := range setsNodes {
@@ -214,4 +221,17 @@ func RenameInTrainFiles(paths []string, from, to string, write bool) ([]FieldCha
 		}
 	}
 	return all, nil
+}
+
+// Shared says whether t has a copy outside this repository's own files: in a
+// presets file or at the top of the machine file. Every repository can then
+// reach it, so a rename must follow it into the sets and train files of the
+// other repositories too.
+func (c *Config) Shared(t ResolvedTarget) bool {
+	for _, l := range t.Layers {
+		if l.Path != c.ProjectPath && (len(l.KeyPath) == 0 || l.KeyPath[0] != "repos") {
+			return true
+		}
+	}
+	return false
 }

@@ -277,3 +277,27 @@ func TestPresetEditFormShowsALiteralSecretMasked(t *testing.T) {
 	assert.True(t, row.Literal)
 	assert.NotContains(t, h.stdout.String()+h.stderr.String(), "hunter2")
 }
+
+// Preset names are shared by every file: a name another file holds is taken.
+func TestPresetEditRenameToANameAnotherFileHoldsIsRefused(t *testing.T) {
+	h := newHarness(t)
+	other := filepath.Join(h.home, "bam", "presets", "other.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(other), 0o755))
+	require.NoError(t, os.WriteFile(other, []byte("presets:\n  lab-x:\n    plan: PROJ-BUILD\n"), 0o600))
+	before := readFile(t, sharedFile(h))
+	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab", "--rename", "lab-x"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), `preset "lab-x" already exists`)
+	assert.Equal(t, before, readFile(t, sharedFile(h)))
+}
+
+// Replacing a hand-written literal secret with a reference never prints the old value.
+func TestPresetEditNeverPrintsALiteralSecret(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(h.home, "bam", "presets", "lit.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("presets:\n  with-secret:\n    plan: PROJ-PROV\n    variables:\n      api_secret: hunter2\n"), 0o600))
+	require.Equal(t, 0, h.run("preset", "edit", "with-secret", "--var", "api_secret=${API_SECRET}"), h.stderr.String())
+	assert.NotContains(t, h.stdout.String()+h.stderr.String(), "hunter2")
+	assert.Contains(t, h.stdout.String(), `"********" -> "${API_SECRET}"`)
+	assert.NotContains(t, readFile(t, path), "hunter2")
+}

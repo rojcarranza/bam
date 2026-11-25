@@ -61,6 +61,16 @@ Type `bam run` with no name, on a terminal, and bam opens a small picker under t
 - The picker does not edit variables; add `--var` or `--edit` to the command.
 - With a pipe, `--json` or `--no-tui`, bam never opens it: it exits 2 and points to `bam preset list`.
 
+### Edit a preset
+
+`bam preset edit [NAME]` changes a saved preset without opening its YAML. On a terminal it opens the form of `bam preset add`, filled with the saved preset (bare `bam preset edit` picks the preset first, worded "edit which preset?"). The form lists the variables the preset sets, then the plan variables it leaves out, then its settings: name, branch, each repository's branch, `required` and `timeout`.
+
+- `enter` edits a row, `←` `→` step through the choices (the preset's `options` when it has them), `x` removes a variable so the plan's own value applies, `o` edits a variable's options as a comma separated list, `ctrl-s` saves and Esc writes nothing.
+- A variable the preset leaves out is written only when you change it. A secret row takes an environment variable name, never a value.
+- bam rewrites only the lines that change, in the file whose copy of the preset bam uses, and keeps comments, key order, `watch` and the other presets. When the plan cannot be read, the form still opens with the preset's own variables.
+
+For scripts and agents, `--var NAME=VALUE`, `--unset NAME`, `--branch`, `--timeout` and `--rename` apply the change without a form and never ask. `--dry-run` shows the changes and writes nothing, and `--json` prints `{preset, renamed_to, file, dry_run, changed, changes: [{field, old, new}]}`. A literal value for a secret variable is refused (`--var 'db_password=${DB_PASSWORD}'` is the way), and so is a preset that uses YAML anchors or merge keys, a value outside the preset's `options`, a rename to a name another preset has, and a rename of a preset a set uses. Renaming a preset a `bam top` group pins leaves the pin, and bam names the group.
+
 ### Remove a preset
 
 Type `bam preset rm` with no name, on a terminal, and bam opens the same picker as `bam run`, worded "remove which preset?", where Enter only picks. Enter picks a preset and bam asks `Remove preset NAME (PLAN · branch) from FILE? [y/N]`, naming every file that defines it. `y` or `yes` removes it; any other answer removes nothing, prints `nothing removed` and exits 0. `bam preset rm NAME` asks the same question on a terminal, and `--yes` skips it. Esc in the picker removes nothing and exits 130.

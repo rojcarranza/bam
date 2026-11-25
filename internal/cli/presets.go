@@ -24,9 +24,9 @@ import (
 func init() { commandSets = append(commandSets, addPresets) }
 
 func addPresets(root *cobra.Command, r *runtime) {
-	p := subgroup(root, "preset", "Run presets: list, show, add, rm, sync, migrate", groupRun)
+	p := subgroup(root, "preset", "Run presets: list, show, add, edit, rm, sync, migrate", groupRun)
 	p.SuggestFor = []string{"target", "targets"} // bam target was renamed to bam preset
-	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newPresetRmCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
+	p.AddCommand(newTargetListCmd(r), newTargetShowCmd(r), newTargetAddCmd(r), newPresetEditCmd(r), newPresetRmCmd(r), newTargetSyncCmd(r), newPresetMigrateCmd(r))
 	c := newInitCmd(r)
 	c.GroupID = groupSetup
 	root.AddCommand(c)
@@ -44,13 +44,13 @@ func presetWord(args []string) error {
 			WithWhy("presets run with bam run").
 			WithTry(try)
 	}
-	if slices.Contains([]string{"edit", "update", "modify", "change", "set"}, args[0]) {
-		try := "bam preset show <name> prints the file that defines it"
+	if slices.Contains([]string{"update", "modify", "change", "set"}, args[0]) {
+		try := "bam preset edit <name>"
 		if len(args) > 1 {
-			try = "bam preset show " + args[1] + " prints the file that defines it"
+			try = "bam preset edit " + args[1]
 		}
 		return errs.Usagef("bam preset has no %q command", args[0]).
-			WithWhy("presets are edited in YAML, in the file that defines them").
+			WithWhy("bam preset edit changes a saved preset").
 			WithTry(try)
 	}
 	return nil

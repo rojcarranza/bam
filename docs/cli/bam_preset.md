@@ -1,6 +1,6 @@
 ## bam preset
 
-Run presets: list, show, add, rm, sync, migrate
+Run presets: list, show, add, edit, rm, sync, migrate
 
 ```
 bam preset [flags]
@@ -27,6 +27,7 @@ bam preset [flags]
 
 * [bam](bam.md)	 - A terminal remote control for Atlassian Bamboo
 * [bam preset add](bam_preset_add.md)	 - Generate a run preset from a plan's declared variables
+* [bam preset edit](bam_preset_edit.md)	 - Change a saved preset: values, branch, repositories, required, options, timeout or name
 * [bam preset list](bam_preset_list.md)	 - List run presets from your presets files, .bam.yaml and the machine config
 * [bam preset migrate](bam_preset_migrate.md)	 - Move presets from the machine config into your presets file
 * [bam preset rm](bam_preset_rm.md)	 - Remove a run preset from every file that defines it

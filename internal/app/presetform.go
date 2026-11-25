@@ -24,6 +24,27 @@ type FormRow struct {
 	// keeps the stored value, written as a commented line.
 	CanStore  bool
 	Commented bool
+
+	// The fields below are used by bam preset edit only.
+	// InPreset marks a variable the saved preset sets; the others are plan
+	// variables it leaves out, written only once their value changes.
+	InPreset bool
+	// Orig is the value the form opened with; a row is written only when it differs.
+	Orig string
+	// Removed drops the variable from the preset, so the plan's own value applies.
+	Removed bool
+	// Options are the values the preset allows; none means any value.
+	Options     []string
+	OrigOptions []string
+}
+
+// FormField is one setting of a preset other than its variables, shown by
+// bam preset edit as a text row: name, branch, timeout, required, or a
+// repository's branch under the key "repositories.NAME".
+type FormField struct {
+	Key, Label string
+	Value      string
+	Orig       string
 }
 
 // PresetForm is what bam preset add shows before it writes the file: the
@@ -31,6 +52,9 @@ type FormRow struct {
 type PresetForm struct {
 	Name, Plan, Branch, Path string
 	Rows                     []FormRow
+	// Editing marks the form of bam preset edit, whose Fields follow the rows.
+	Editing bool
+	Fields  []FormField
 }
 
 // NewPresetForm builds the form of draft d. planDefaults maps each declared
@@ -50,6 +74,11 @@ func NewPresetForm(d config.TargetDraft, planDefaults map[string]string) PresetF
 		f.Rows = append(f.Rows, row)
 	}
 	return f
+}
+
+// AppendChoices appends the values not already in choices.
+func AppendChoices(choices []string, values ...string) []string {
+	return appendChoice(choices, values...)
 }
 
 func appendChoice(choices []string, values ...string) []string {

@@ -50,7 +50,7 @@ func read(t *testing.T, path string) string {
 func TestEditTargetChangesOnlyNamedLines(t *testing.T) {
 	path := editFile(t, editYAML)
 	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{
-		Set:   []VarValue{{"ENV", "prod"}, {"REGION", "eu"}, {"NEW", "1"}},
+		Set:   []VarValue{{Name: "ENV", Value: "prod"}, {Name: "REGION", Value: "eu"}, {Name: "NEW", Value: "1"}},
 		Unset: []string{"missing"},
 	}, true)
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestEditTargetChangesOnlyNamedLines(t *testing.T) {
 
 func TestEditTargetDryRunWritesNothing(t *testing.T) {
 	path := editFile(t, editYAML)
-	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Set: []VarValue{{"ENV", "prod"}}}, false)
+	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Set: []VarValue{{Name: "ENV", Value: "prod"}}}, false)
 	require.NoError(t, err)
 	assert.Len(t, ch, 1)
 	assert.Equal(t, editYAML, read(t, path))
@@ -76,7 +76,7 @@ func TestEditTargetDryRunWritesNothing(t *testing.T) {
 
 func TestEditTargetNoChangeIsEmpty(t *testing.T) {
 	path := editFile(t, editYAML)
-	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Set: []VarValue{{"ENV", "qa"}}}, true)
+	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Set: []VarValue{{Name: "ENV", Value: "qa"}}}, true)
 	require.NoError(t, err)
 	assert.Empty(t, ch)
 	assert.Equal(t, editYAML, read(t, path))
@@ -93,7 +93,7 @@ func TestEditTargetUnsetRemovesLine(t *testing.T) {
 func TestEditTargetAllFields(t *testing.T) {
 	path := editFile(t, editYAML)
 	branch, timeout := "release-2", "1h"
-	repos := []RepoBranch{{"api", "release-2"}, {"docs", "main"}}
+	repos := []RepoBranch{{Name: "api", Branch: "release-2"}, {Name: "docs", Branch: "main"}}
 	required := []string{"ENV", "REGION"}
 	ch, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{
 		Branch: &branch, Repositories: &repos, Required: &required, Timeout: &timeout,
@@ -122,14 +122,14 @@ func TestEditTargetRefusals(t *testing.T) {
 		edit               PresetEdit
 		msg                string
 	}{
-		{"anchor", anchored, "a", PresetEdit{Set: []VarValue{{"K", "2"}}}, "anchors"},
-		{"alias", anchored, "b", PresetEdit{Set: []VarValue{{"K", "2"}}}, "anchors"},
-		{"merge key", merged, "a", PresetEdit{Set: []VarValue{{"K", "2"}}}, "anchors"},
-		{"literal secret", editYAML, "deploy-qa", PresetEdit{Set: []VarValue{{"db_password", "hunter2"}}}, "secret"},
+		{"anchor", anchored, "a", PresetEdit{Set: []VarValue{{Name: "K", Value: "2"}}}, "anchors"},
+		{"alias", anchored, "b", PresetEdit{Set: []VarValue{{Name: "K", Value: "2"}}}, "anchors"},
+		{"merge key", merged, "a", PresetEdit{Set: []VarValue{{Name: "K", Value: "2"}}}, "anchors"},
+		{"literal secret", editYAML, "deploy-qa", PresetEdit{Set: []VarValue{{Name: "db_password", Value: "hunter2"}}}, "secret"},
 		{"unknown preset", editYAML, "nope", PresetEdit{Unset: []string{"ENV"}}, "nope"},
 		{"rename clash", editYAML, "deploy-qa", PresetEdit{Rename: "other"}, "already exists"},
 		{"bad timeout", editYAML, "deploy-qa", PresetEdit{Timeout: ptr("soon")}, "duration"},
-		{"value outside options", editYAML, "deploy-qa", PresetEdit{Set: []VarValue{{"ENV", "dev"}}}, "not one of"},
+		{"value outside options", editYAML, "deploy-qa", PresetEdit{Set: []VarValue{{Name: "ENV", Value: "dev"}}}, "not one of"},
 		{"repositories without branch", editYAML, "deploy-qa", PresetEdit{Branch: ptr("")}, "without a branch"},
 	}
 	for _, tc := range cases {
@@ -145,7 +145,7 @@ func TestEditTargetRefusals(t *testing.T) {
 
 func TestEditTargetSecretReferenceAllowed(t *testing.T) {
 	path := editFile(t, editYAML)
-	_, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Set: []VarValue{{"db_password", "${OTHER_TOKEN}"}}}, true)
+	_, err := EditTarget(path, []string{"presets"}, "deploy-qa", PresetEdit{Set: []VarValue{{Name: "db_password", Value: "${OTHER_TOKEN}"}}}, true)
 	require.NoError(t, err)
 	assert.Contains(t, read(t, path), "${OTHER_TOKEN}")
 }

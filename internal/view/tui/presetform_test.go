@@ -120,3 +120,54 @@ func TestEditPresetFormRunsInline(t *testing.T) {
 	_, _, err = run("\x03")
 	assert.ErrorIs(t, err, context.Canceled)
 }
+
+func testEditForm() app.PresetForm {
+	return app.PresetForm{Name: "deploy-qa", Plan: "PROJ-DEPLOY", Path: "~/bam/presets/proj.yaml", Editing: true,
+		Rows: []app.FormRow{
+			{Name: "ENV", Value: "qa", Orig: "qa", InPreset: true, Options: []string{"qa", "prod"}, OrigOptions: []string{"qa", "prod"}, Choices: []string{"qa", "prod"}},
+			{Name: "REGION", Value: "eu", Orig: "eu", Plan: "eu", Choices: []string{"eu"}},
+		},
+		Fields: []app.FormField{
+			{Key: "name", Label: "name", Value: "deploy-qa", Orig: "deploy-qa"},
+			{Key: "timeout", Label: "timeout", Value: "", Orig: ""},
+		}}
+}
+
+// x removes a saved variable and again restores it; o edits its options;
+// enter on a setting types its text; a bad timeout keeps the form open.
+func TestPresetEditFormKeys(t *testing.T) {
+	m := newPresetForm(context.Background(), testEditForm(), nil)
+	assert.Contains(t, m.View(), "edit preset deploy-qa")
+	assert.Contains(t, m.View(), "nothing changed yet")
+
+	m = formKey(m, rk("x"))
+	assert.True(t, m.form.Rows[0].Removed)
+	assert.Contains(t, m.View(), "removed: the plan's own value applies")
+	m = formKey(m, rk("x"))
+	assert.False(t, m.form.Rows[0].Removed)
+
+	m = formKey(m, rk("o"))
+	assert.True(t, m.editing)
+	m = formKey(m, kt(tea.KeyEnd), rk(","), rk("d"), rk("e"), rk("v"), kt(tea.KeyEnter))
+	assert.Equal(t, []string{"qa", "prod", "dev"}, m.form.Rows[0].Options)
+	assert.Equal(t, []string{"qa", "prod", "dev"}, m.form.Rows[0].Choices)
+
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), rk("s"), rk("o"), kt(tea.KeyEnter))
+	assert.Equal(t, "so", m.form.Fields[1].Value)
+	m = formKey(m, kt(tea.KeyCtrlS))
+	assert.False(t, m.saved, "a timeout that is no duration is refused while the form is open")
+	assert.Contains(t, m.View(), "not a duration")
+
+	m = formKey(m, kt(tea.KeyEnter), kt(tea.KeyBackspace), kt(tea.KeyBackspace), rk("4"), rk("5"), rk("m"), kt(tea.KeyEnter))
+	m = formKey(m, kt(tea.KeyCtrlS))
+	assert.True(t, m.saved)
+	assert.Equal(t, "45m", m.form.Fields[1].Value)
+}
+
+// x and o are the edit form's; the add form types nothing on them.
+func TestPresetAddFormIgnoresEditKeys(t *testing.T) {
+	m := newPresetForm(context.Background(), testForm(), nil)
+	m = formKey(m, rk("x"), rk("o"))
+	assert.False(t, m.editing)
+	assert.False(t, m.form.Rows[0].Removed)
+}

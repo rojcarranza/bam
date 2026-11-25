@@ -45,6 +45,7 @@ type presetFormModel struct {
 	loading bool
 	cursor  int
 	editing bool
+	options bool // the input holds the options of the variable under the cursor
 	input   textinput.Model
 	err     string
 	width   int
@@ -65,7 +66,22 @@ func (m presetFormModel) Init() tea.Cmd {
 	return func() tea.Msg { return recentMsg(m.load(m.ctx)) }
 }
 
-func (m presetFormModel) row() *app.FormRow { return &m.form.Rows[m.cursor] }
+// row is the variable under the cursor, or nil on a setting of the edit form.
+func (m presetFormModel) row() *app.FormRow {
+	if m.cursor >= len(m.form.Rows) {
+		return nil
+	}
+	return &m.form.Rows[m.cursor]
+}
+
+func (m presetFormModel) field() *app.FormField {
+	if i := m.cursor - len(m.form.Rows); i >= 0 && i < len(m.form.Fields) {
+		return &m.form.Fields[i]
+	}
+	return nil
+}
+
+func (m presetFormModel) lines() int { return len(m.form.Rows) + len(m.form.Fields) }
 
 func (m presetFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -90,21 +106,40 @@ func (m presetFormModel) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.done = true
 		return m, tea.Quit
 	case tea.KeyCtrlS:
+		if m.form.Editing {
+			if err := m.form.Validate(); err != nil {
+				m.err = err.Error()
+				return m, nil
+			}
+		}
 		m.saved, m.done = true, true
 		return m, tea.Quit
 	case tea.KeyUp, tea.KeyCtrlP, tea.KeyShiftTab:
 		m.cursor = max(m.cursor-1, 0)
 	case tea.KeyDown, tea.KeyCtrlN, tea.KeyTab:
-		m.cursor = min(m.cursor+1, len(m.form.Rows)-1)
+		m.cursor = min(m.cursor+1, m.lines()-1)
 	case tea.KeyLeft:
-		step(m.row(), -1)
+		if r := m.row(); r != nil {
+			step(r, -1)
+		}
 	case tea.KeyRight:
-		step(m.row(), 1)
+		if r := m.row(); r != nil {
+			step(r, 1)
+		}
 	case tea.KeyEnter:
-		m.editing = true
-		m.input.SetValue(editText(*m.row()))
-		m.input.CursorEnd()
-		m.input.Focus()
+		m.beginEdit(m.editValue())
+	case tea.KeyRunes:
+		if r := m.row(); r != nil && m.form.Editing && len(msg.Runes) == 1 {
+			switch msg.Runes[0] {
+			case 'x':
+				r.Removed = !r.Removed
+			case 'o':
+				if !r.Secret {
+					m.options = true
+					m.beginEdit(strings.Join(r.Options, ", "))
+				}
+			}
+		}
 	}
 	return m, nil
 }
@@ -112,33 +147,65 @@ func (m presetFormModel) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m presetFormModel) editKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.editing = false
-		m.input.Blur()
+		m.endEdit()
 		return m, nil
 	case tea.KeyCtrlC:
 		m.done = true
 		return m, tea.Quit
 	case tea.KeyEnter:
-		r := m.row()
 		text := m.input.Value()
-		if r.Secret && !app.ValidEnvName(text) {
+		switch r, fl := m.row(), m.field(); {
+		case m.options:
+			r.Options = app.SplitList(text)
+			r.Choices = optionChoices(*r)
+		case fl != nil:
+			fl.Value = text
+		case r.Secret && !app.ValidEnvName(text):
 			m.err = "an environment variable name is letters, digits and _, not starting with a digit"
 			return m, nil
+		case r.Secret:
+			r.Value, r.Commented, r.Removed = "${"+text+"}", false, false
+		default:
+			r.Value, r.Removed = text, false
 		}
-		if r.Secret {
-			r.Value, r.Commented = "${"+text+"}", false
-		} else {
-			r.Value = text
-		}
-		m.editing = false
-		m.input.Blur()
+		m.endEdit()
 		m.err = ""
-		m.cursor = min(m.cursor+1, len(m.form.Rows)-1)
+		m.cursor = min(m.cursor+1, m.lines()-1)
 		return m, nil
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	return m, cmd
+}
+
+// beginEdit opens the input on text.
+func (m *presetFormModel) beginEdit(text string) {
+	m.editing = true
+	m.input.SetValue(text)
+	m.input.CursorEnd()
+	m.input.Focus()
+}
+
+func (m *presetFormModel) endEdit() {
+	m.editing, m.options = false, false
+	m.input.Blur()
+}
+
+// editValue is the text enter opens for the row or setting under the cursor.
+func (m presetFormModel) editValue() string {
+	if fl := m.field(); fl != nil {
+		return fl.Value
+	}
+	return editText(*m.row())
+}
+
+// optionChoices is the values the arrow keys step through: the allowed values
+// when the preset lists them, else the current value, the plan's and recent ones.
+func optionChoices(r app.FormRow) []string {
+	if len(r.Options) > 0 {
+		return append([]string(nil), r.Options...)
+	}
+	return app.AppendChoices(nil, r.Value, r.Plan)
 }
 
 // editText is what enter puts in the input: the value, or for a secret only
@@ -190,7 +257,10 @@ func (m presetFormModel) View() string {
 	cut := func(s string) string { return ansi.Truncate(s, max(m.width-1, 10), "…") }
 	f := m.form
 	head := "new preset " + f.Name + " · " + f.Plan
-	if f.Branch != "" {
+	if f.Editing {
+		head = "edit preset " + f.Name + " · " + f.Plan
+	}
+	if f.Branch != "" && !f.Editing {
 		head += " · branch " + f.Branch
 	}
 	if f.Path != "" {
@@ -201,27 +271,49 @@ func (m presetFormModel) View() string {
 	for _, r := range f.Rows {
 		nameW = max(nameW, len(r.Name))
 	}
-	start, end := 0, len(f.Rows)
-	if len(f.Rows) > presetFormRows {
-		start = min(max(m.cursor-presetFormRows/2, 0), len(f.Rows)-presetFormRows)
+	for _, fl := range f.Fields {
+		nameW = max(nameW, len(fl.Label))
+	}
+	total := m.lines()
+	start, end := 0, total
+	if total > presetFormRows {
+		start = min(max(m.cursor-presetFormRows/2, 0), total-presetFormRows)
 		end = start + presetFormRows
 	}
 	for i := start; i < end; i++ {
-		r := f.Rows[i]
 		mark := "  "
 		if i == m.cursor {
 			mark = "> "
 		}
-		val := rowValue(r)
-		if i == m.cursor && m.editing {
-			val = m.input.View()
-			if r.Secret {
-				val = "${" + m.input.View() + "}"
+		input := m.input.View()
+		var label, val, note string
+		if i < len(f.Rows) {
+			r := f.Rows[i]
+			label, val, note = r.Name, rowValue(r), rowNote(r, f.Editing)
+			if i == m.cursor && m.editing && !m.options {
+				val = input
+				if r.Secret {
+					val = "${" + input + "}"
+				}
+			} else if i == m.cursor && m.editing {
+				val, note = rowValue(r), "options, separated by commas: "+input
+			}
+		} else {
+			fl := f.Fields[i-len(f.Rows)]
+			label, val = fl.Label, fl.Value
+			if val == "" {
+				val = "____"
+			}
+			if i == m.cursor && m.editing {
+				val = input
+			}
+			if fl.Value != fl.Orig {
+				note = "changed"
 			}
 		}
-		lines = append(lines, cut(strings.TrimRight(fmt.Sprintf("%s%-*s  %s  %s", mark, nameW, r.Name, val, dimStyle.Render(rowNote(r))), " ")))
+		lines = append(lines, cut(strings.TrimRight(fmt.Sprintf("%s%-*s  %s  %s", mark, nameW, label, val, dimStyle.Render(note)), " ")))
 	}
-	if r := f.Rows[m.cursor]; len(r.Choices) > 1 && !m.editing {
+	if r := m.row(); r != nil && len(r.Choices) > 1 && !m.editing {
 		lines = append(lines, cut(dimStyle.Render("  ←→ "+strings.Join(quoted(r.Choices), " · "))))
 	}
 	lines = append(lines, cut(dimStyle.Render("  "+m.summary())))
@@ -229,6 +321,9 @@ func (m presetFormModel) View() string {
 		lines = append(lines, cut("  "+m.err))
 	}
 	keys := "↑↓ move · enter edit · ←→ choices · ctrl-s save · esc cancel"
+	if f.Editing {
+		keys = "↑↓ move · enter edit · ←→ choices · x remove · o options · ctrl-s save · esc cancel"
+	}
 	if m.editing {
 		keys = "enter accept · esc keep the old value"
 	}
@@ -251,7 +346,10 @@ func rowValue(r app.FormRow) string {
 	return r.Value
 }
 
-func rowNote(r app.FormRow) string {
+func rowNote(r app.FormRow, editing bool) string {
+	if editing {
+		return editNote(r)
+	}
 	switch {
 	case r.Secret && r.Commented:
 		return "secret · written as a commented line"
@@ -265,6 +363,29 @@ func rowNote(r app.FormRow) string {
 	return "changed"
 }
 
+// editNote says where a row of the edit form stands against the saved preset.
+func editNote(r app.FormRow) string {
+	var parts []string
+	switch {
+	case r.Removed && r.InPreset:
+		parts = append(parts, "removed: the plan's own value applies")
+	case r.Removed:
+		parts = append(parts, "plan value")
+	case !r.InPreset && r.Value == r.Orig:
+		parts = append(parts, "not in the preset")
+	case r.Value != r.Orig:
+		parts = append(parts, "changed")
+	case r.Secret:
+		parts = append(parts, "secret · read from your shell at run time")
+	default:
+		parts = append(parts, "saved")
+	}
+	if len(r.Options) > 0 {
+		parts = append(parts, "options: "+strings.Join(r.Options, ", "))
+	}
+	return strings.Join(parts, " · ")
+}
+
 func quoted(vs []string) []string {
 	out := make([]string, len(vs))
 	for i, v := range vs {
@@ -273,8 +394,22 @@ func quoted(vs []string) []string {
 	return out
 }
 
-// summary counts the rows that differ from the plan and names them.
+// summary counts the rows that differ from the plan and names them; in the
+// edit form it counts what ctrl-s would change instead.
 func (m presetFormModel) summary() string {
+	if m.form.Editing {
+		e := m.form.Edit()
+		n := len(e.Set) + len(e.Unset) + len(e.Options)
+		for _, p := range []bool{e.Branch != nil, e.Repositories != nil, e.Required != nil, e.Timeout != nil, e.Rename != ""} {
+			if p {
+				n++
+			}
+		}
+		if n == 0 {
+			return "nothing changed yet"
+		}
+		return fmt.Sprintf("%d change(s) to save", n)
+	}
 	var names []string
 	for _, r := range m.form.Rows {
 		if r.Differs() {

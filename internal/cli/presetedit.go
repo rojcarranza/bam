@@ -58,9 +58,8 @@ func newPresetEditCmd(r *runtime) *cobra.Command {
 			"repository's own .bam.yaml keeps the old name, and so do the runs and sets of a repository whose\n" +
 			"own .bam.yaml or machine entry defines a preset of that name). Every file a rename writes, train\n" +
 			"files included, is written the same way, so the spacing before a comment can change there too.\n" +
-			"A rename is refused while a set or\n" +
-			"pin in your machine file's top level, which applies in every repository, names a preset only\n" +
-			"this repository defines.\n" +
+			"A rename is refused while a set or pin in your machine file's top level, which applies in every\n" +
+			"repository, names a preset only this repository defines.\n" +
 			"A secret's value is never written: give ${ENV_NAME} and bam reads it from your shell at run\n" +
 			"time. A preset that uses YAML anchors is refused.",
 		Example: "  bam preset edit\n" +

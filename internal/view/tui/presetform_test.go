@@ -146,6 +146,23 @@ func TestPresetEditFormArrowRestoresARemovedVariable(t *testing.T) {
 	assert.Equal(t, "prod", e.Set[0].Value)
 }
 
+// A setting retyped as the same value, a timeout in another unit or a list
+// with other spacing reads unchanged on its row, as it does in the footer.
+func TestPresetEditFormRowNoteAgreesWithTheFooterOnRetypedSettings(t *testing.T) {
+	f := testEditForm()
+	f.Fields = append(f.Fields, app.FormField{Key: "required", Label: "required", Value: "ENV, REGION", Orig: "ENV, REGION"})
+	f.Fields[1].Value, f.Fields[1].Orig = "45m", "45m"
+	m := newPresetForm(context.Background(), f, nil)
+	m.form.Fields[1].Value = "45m0s"
+	m.form.Fields[2].Value = "ENV,REGION"
+	v := m.View()
+	assert.Contains(t, v, "nothing changed yet")
+	assert.NotContains(t, v, "changed  ", "no row reads changed")
+	assert.NotRegexp(t, `45m0s\s+changed|ENV,REGION\s+changed`, v)
+	m.form.Fields[2].Value = "ENV"
+	assert.Regexp(t, `ENV\s+changed`, m.View())
+}
+
 // x removes a saved variable and again restores it; o edits its options;
 // enter on a setting types its text; a bad timeout keeps the form open.
 func TestPresetEditFormKeys(t *testing.T) {

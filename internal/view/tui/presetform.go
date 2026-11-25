@@ -448,7 +448,7 @@ func (m presetFormModel) View() string {
 				note = "added"
 			case strings.TrimSpace(fl.Value) == "" && strings.TrimSpace(fl.Orig) != "" && f.Held.Also[fl.Key] != "":
 				note = "cleared here: the value in " + f.Held.Also[fl.Key] + " applies"
-			case fl.Value != fl.Orig:
+			case fl.Changed():
 				note = "changed"
 			}
 		}

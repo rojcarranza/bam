@@ -182,13 +182,7 @@ func (f PresetForm) Edit() config.PresetEdit {
 	reposChanged := false
 	for _, fl := range f.Fields {
 		v := strings.TrimSpace(fl.Value)
-		changed := v != strings.TrimSpace(fl.Orig)
-		switch fl.Key {
-		case "timeout":
-			changed = !sameTimeout(v, fl.Orig)
-		case "required":
-			changed = !slices.Equal(SplitList(v), SplitList(fl.Orig))
-		}
+		changed := fl.Changed()
 		switch {
 		case fl.Key == "name" && changed:
 			e.Rename = v
@@ -210,6 +204,20 @@ func (f PresetForm) Edit() config.PresetEdit {
 		e.Repositories = &repos
 	}
 	return e
+}
+
+// Changed is the one rule for whether the text of a setting differs from the
+// saved one, shared by the save, the footer and the row's note: blanks around
+// it do not count, a timeout compares as a duration and required as a list.
+func (fl FormField) Changed() bool {
+	v := strings.TrimSpace(fl.Value)
+	switch fl.Key {
+	case "timeout":
+		return !sameTimeout(v, fl.Orig)
+	case "required":
+		return !slices.Equal(SplitList(v), SplitList(fl.Orig))
+	}
+	return v != strings.TrimSpace(fl.Orig)
 }
 
 // RepositoryChanges counts the repositories the form adds, removes or gives

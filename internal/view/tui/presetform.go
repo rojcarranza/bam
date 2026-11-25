@@ -118,6 +118,11 @@ func (m presetFormModel) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case tea.KeyCtrlS:
 		if m.form.Editing {
+			if m.reading != "" {
+				// The answer would replace the repositories, so saving now would keep the old branches.
+				m.err = "still reading the repositories of " + m.reading + "; save once they are listed"
+				return m, nil
+			}
 			if err := m.form.Validate(); err != nil {
 				m.err = err.Error()
 				return m, nil

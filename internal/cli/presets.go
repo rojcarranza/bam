@@ -516,7 +516,7 @@ func removablePreset(cfg *config.Config, name string) (config.ResolvedTarget, er
 	if err != nil {
 		return t, err
 	}
-	return t, presetUsedBySet(cfg, name, "remove it from the set first")
+	return t, presetUsedBySet(cfg, name)
 }
 
 // findPreset finds the preset name. When none is configured at all and
@@ -537,7 +537,7 @@ func findPreset(cfg *config.Config, name, noneWhy string) (config.ResolvedTarget
 
 // presetUsedBySet refuses a preset a set runs: it would fail every set
 // command once the preset is gone or renamed.
-func presetUsedBySet(cfg *config.Config, name, try string) error {
+func presetUsedBySet(cfg *config.Config, name string) error {
 	sets, err := cfg.Sets()
 	if err != nil {
 		return err
@@ -548,7 +548,7 @@ func presetUsedBySet(cfg *config.Config, name, try string) error {
 				if run.Target == name {
 					return errs.Usagef("preset %q is used by set %q", name, setName).
 						WithWhy("defined in " + sets[setName].DefinedIn[len(sets[setName].DefinedIn)-1]).
-						WithTry(try)
+						WithTry("remove it from the set first")
 				}
 			}
 		}

@@ -337,3 +337,22 @@ func TestPresetEditFormHidesTheOptionsOfASecret(t *testing.T) {
 	assert.NotContains(t, m.View(), "s3cret")
 	assert.Contains(t, m.View(), "options: ***", "the row is cut at the screen edge, so only the start shows")
 }
+
+// Saving while the repositories of a new branch are still being read would
+// keep the old ones, so ctrl-s waits for the answer.
+func TestPresetEditFormDoesNotSaveWhileReadingRepositories(t *testing.T) {
+	read := func(context.Context, string) ([]app.RepoBranch, error) { return nil, nil }
+	m := newPresetForm(context.Background(), repoEditForm(read), nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("r"), rk("2"))
+	n, cmd := m.Update(kt(tea.KeyEnter))
+	m = n.(presetFormModel)
+	n, quit := m.Update(kt(tea.KeyCtrlS))
+	m = n.(presetFormModel)
+	assert.Nil(t, quit)
+	assert.False(t, m.saved)
+	assert.Contains(t, m.View(), "still reading the repositories of r2")
+	n, _ = m.Update(cmd())
+	m = n.(presetFormModel)
+	_, quit = m.Update(kt(tea.KeyCtrlS))
+	assert.NotNil(t, quit, "saves once the answer is in")
+}

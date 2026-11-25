@@ -198,7 +198,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
 		}
 		if repo := elsewhere[e.Rename]; repo != "" {
-			return errs.Usagef("preset %q already exists in the repository %s", e.Rename, repo).
+			return errs.Usagef("%s", app.TakenElsewhereError(e.Rename, repo)).
 				WithWhy("this preset is shared, so renaming it also renames it in that repository's sets and train files, where the name means its own preset").
 				WithTry("pick another name")
 		}

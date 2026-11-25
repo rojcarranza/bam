@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/rojcarranza/bam/internal/app"
@@ -87,6 +88,7 @@ func TestPresetEditWithoutAChangeOrATerminalIsAUsageError(t *testing.T) {
 	h := newHarness(t)
 	assert.Equal(t, 2, h.run("preset", "edit", "provision-lab"))
 	assert.Contains(t, h.stderr.String(), "has nothing to change")
+	assert.Contains(t, h.stderr.String(), "--unset, --branch, --repository, --required, --option, --timeout, --rename")
 	h = newHarness(t)
 	assert.Equal(t, 2, h.run("preset", "edit"))
 	assert.Contains(t, h.stderr.String(), "needs a preset name")
@@ -318,12 +320,43 @@ func TestPresetEditFormCarriesTheRenameRules(t *testing.T) {
 	assert.Contains(t, f.TakenNames, "build")
 	assert.Empty(t, f.RenameBlocked, "the set is renamed with the preset")
 
-	_, top := twoFilePreset(t, h)
-	require.NoError(t, os.WriteFile(top, []byte("presets:\n  provision-lab: &p\n    variables:\n      cluster_name: beta\n"), 0o600))
-	h.stdout.Reset()
-	h.stderr.Reset()
-	require.NotEqual(t, 0, h.run("preset", "edit", "provision-lab"))
-	assert.Contains(t, h.stderr.String(), "anchors")
+	lower, _ := twoFilePreset(t, h)
+	require.NoError(t, os.WriteFile(lower, []byte(strings.Replace(readFile(t, lower), "  provision-lab:\n", "  provision-lab: &p\n", 1)), 0o644))
+	*offered = nil
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	require.Len(t, *offered, 1, "the anchored lower copy does not stop the form from opening")
+	assert.Contains(t, (*offered)[0].RenameBlocked, "anchors")
+	assert.Contains(t, (*offered)[0].RenameBlocked, "spell the preset out in "+lower, "the form says what to try")
+}
+
+// A pin that reaches the name through an alias is refused inside the form,
+// so a rename typed there is not lost to a refusal after ctrl-s.
+func TestPresetEditFormCarriesAPinAliasRefusal(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"monitor:\n  g: *r\n"), 0o644))
+	data := strings.Replace(readFile(t, path), "  build:\n    plan: PROJ-BUILD\n", "  build:\n    plan: PROJ-BUILD\n    required: &r [provision-lab]\n", 1)
+	require.NoError(t, os.WriteFile(path, []byte(data), 0o644))
+	offered := editScript(h, func(*app.PresetForm) {}, nil)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab"), h.stderr.String())
+	require.Len(t, *offered, 1)
+	assert.Contains(t, (*offered)[0].RenameBlocked, `monitor group "g"`)
+	assert.Contains(t, (*offered)[0].RenameBlocked, "spell the pins out in "+path)
+}
+
+// The text output says which file each set and pin rename lands in; a dry run
+// names the machine file before anything is written.
+func TestPresetEditRenameOutputNamesEachFile(t *testing.T) {
+	h := setHarness(t, provider.StateSuccess)
+	machine := h.env.Paths.MachineConfig
+	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\nmonitor:\n  extra: [provision-lab]\n"), 0o644))
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), `sets.release: "provision-lab" -> "lab-two" (in `+sharedFile(h)+")")
+	assert.Contains(t, h.stdout.String(), `monitor.extra: "provision-lab" -> "lab-two" (in `+machine+")")
+	assert.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two", "--dry-run", "--json"))
+	assert.NotContains(t, h.stdout.String(), `"file": "`+machine)
 }
 
 // What another file holds reaches the form, so a removal it cannot make is

@@ -69,7 +69,7 @@ func renameRefsIn(doc *yaml.Node, path, repoKey, from, to string) ([]FieldChange
 		n.Value = to
 		if !seen[field] {
 			seen[field] = true
-			ch = append(ch, FieldChange{Field: field, Old: from, New: to})
+			ch = append(ch, FieldChange{Field: field, Old: from, New: to, File: path})
 		}
 		return nil
 	}
@@ -132,6 +132,17 @@ func renameRefsIn(doc *yaml.Node, path, repoKey, from, to string) ([]FieldChange
 						return nil, err
 					}
 				}
+			}
+		}
+	}
+	// An alias hides a group or a pin from the walk, as it hides a stage.
+	var pins map[string][]string
+	if groups != nil && groups.Decode(&pins) == nil {
+		for name, list := range pins {
+			if slices.Contains(list, from) {
+				return nil, errs.Usagef("monitor group %q in %s pins preset %q through a YAML alias", name, path, from).
+					WithWhy("changing one line could change every group that shares the alias").
+					WithTry("spell the pins out in " + path + ", then run bam preset edit again")
 			}
 		}
 	}

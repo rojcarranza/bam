@@ -174,7 +174,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 	}
 	layer := t.Layers[len(t.Layers)-1]
 	// Anchors are refused before the form opens. A removal another file
-	// blocks, and a rename that is refused, are refused inside the form.
+	// blocks, and a rename bam knows it must refuse, are refused inside the form.
 	if err := config.CheckEditable(layer.Path, layer.KeyPath, name); err != nil {
 		return err
 	}
@@ -186,7 +186,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 	} else if !f.given(cmd) {
 		return errs.Usagef("bam preset edit %s has nothing to change", name).
 			WithWhy("without a terminal there is no form, and no flag names a change").
-			WithTry(fmt.Sprintf("bam preset edit %s --var NAME=value, or --unset, --branch, --timeout, --rename", name))
+			WithTry(fmt.Sprintf("bam preset edit %s --var NAME=value, or --unset, --branch, --repository, --required, --option, --timeout, --rename", name))
 	} else if e, err = f.flagEdit(cmd, t.Repositories); err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 		if slices.Contains(takenNames(cfg), e.Rename) {
 			return errs.Usagef("preset %q already exists", e.Rename).WithWhy("preset names are shared by every presets file")
 		}
-		if err := renameBlocked(t); err != nil {
+		if err := renameBlocked(cfg, t); err != nil {
 			return err
 		}
 	}
@@ -270,13 +270,17 @@ func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, renam
 	}
 	fmt.Fprintf(w, "%s preset %s in %s\n", verb, t.Name, file)
 	for _, c := range masked {
+		in := ""
+		if c.File != "" {
+			in = " (in " + c.File + ")"
+		}
 		switch {
 		case c.Old == "" && c.New != "":
-			fmt.Fprintf(w, "  %s: set to %q\n", c.Field, c.New)
+			fmt.Fprintf(w, "  %s: set to %q%s\n", c.Field, c.New, in)
 		case c.New == "":
 			fmt.Fprintf(w, "  %s: removed (was %q)%s\n", c.Field, c.Old, otherFileNote(held, c.Field))
 		default:
-			fmt.Fprintf(w, "  %s: %q -> %q\n", c.Field, c.Old, c.New)
+			fmt.Fprintf(w, "  %s: %q -> %q%s\n", c.Field, c.Old, c.New, in)
 		}
 	}
 	if f.dryRun {
@@ -341,15 +345,18 @@ func editablePreset(cfg *config.Config, name string) (config.ResolvedTarget, err
 }
 
 // renameBlocked says why preset t cannot be renamed, or nil when it can: a
-// copy in a file that uses YAML anchors cannot be renamed in place. Sets and
+// copy in a file that uses YAML anchors, or a set stage or pin that reaches
+// the name through an anchor or alias, cannot be renamed in place. Sets and
 // pins that name it are renamed with it.
-func renameBlocked(t config.ResolvedTarget) error {
+func renameBlocked(cfg *config.Config, t config.ResolvedTarget) error {
 	for _, l := range t.Layers {
 		if err := config.CheckEditable(l.Path, l.KeyPath, t.Name); err != nil {
 			return err
 		}
 	}
-	return nil
+	// Any other name will do: the dry run fails on the old name's references only.
+	_, err := cfg.RenameRefs(t.Name, t.Name+"-renamed", false)
+	return err
 }
 
 // formText is an error as the form shows it, with its try line.
@@ -386,7 +393,7 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	form := app.NewPresetEditForm(t, planVars)
 	form.Path = path
 	form.TakenNames = takenNames(cfg)
-	form.RenameBlocked = formText(renameBlocked(t))
+	form.RenameBlocked = formText(renameBlocked(cfg, t))
 	if svc != nil {
 		form.ReadRepos = func(ctx context.Context, branch string) ([]app.RepoBranch, error) {
 			return svc.PlanBranchRepositories(ctx, t.Plan, branch)

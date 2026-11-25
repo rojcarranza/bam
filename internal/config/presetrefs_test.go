@@ -59,12 +59,12 @@ func TestRenameRefsRenamesStagesAndPinsInPlace(t *testing.T) {
 	ch, err := c.RenameRefs("lab", "lab-two", true)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []FieldChange{
-		{Field: "sets.train", Old: "lab", New: "lab-two"},
-		{Field: "sets.short", Old: "lab", New: "lab-two"},
-		{Field: "monitor.main", Old: "lab", New: "lab-two"},
-		{Field: "sets.mine", Old: "lab", New: "lab-two"},
-		{Field: "monitor.extra", Old: "lab", New: "lab-two"},
-		{Field: "sets.here", Old: "lab", New: "lab-two"},
+		{Field: "sets.train", Old: "lab", New: "lab-two", File: c.ProjectPath},
+		{Field: "sets.short", Old: "lab", New: "lab-two", File: c.ProjectPath},
+		{Field: "monitor.main", Old: "lab", New: "lab-two", File: c.ProjectPath},
+		{Field: "sets.mine", Old: "lab", New: "lab-two", File: c.MachinePath},
+		{Field: "monitor.extra", Old: "lab", New: "lab-two", File: c.MachinePath},
+		{Field: "sets.here", Old: "lab", New: "lab-two", File: c.MachinePath},
 	}, ch)
 
 	project := read(t, c.ProjectPath)
@@ -124,4 +124,14 @@ func TestEditTargetEmptyRepositoryBranchRemovesAndKeepsTheNext(t *testing.T) {
 	got := read(t, path)
 	assert.NotContains(t, got, "api:")
 	assert.Contains(t, got, `web: "dev"`)
+}
+
+// A pin group that is an alias hides its pins from the walk; the rename is
+// refused instead of leaving a pin on the old name.
+func TestRenameRefsRefusesAPinGroupThatIsAnAlias(t *testing.T) {
+	aliased := "version: 1\ntargets:\n  lab:\n    plan: PROJ-LAB\n    required: &r [lab]\nmonitor:\n  main: *r\n"
+	c := refsConfig(t, aliased, refsMachine)
+	_, err := c.RenameRefs("lab", "lab-two", true)
+	require.ErrorContains(t, err, `monitor group "main"`)
+	assert.Equal(t, aliased, read(t, c.ProjectPath))
 }

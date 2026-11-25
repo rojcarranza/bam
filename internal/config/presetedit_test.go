@@ -252,3 +252,14 @@ func TestHeldBelowSeparatesWhatOnlyALowerFileHolds(t *testing.T) {
 	assert.Equal(t, file, h.Only["repositories.api"])
 	assert.NotContains(t, h.Only, "variables.ENV")
 }
+
+// An empty branch is a removal, so a repository only a lower file holds is
+// refused when the edit lists it with no branch.
+func TestEditTargetRefusesAnEmptyBranchRepositoryAnotherFileHolds(t *testing.T) {
+	path := editFile(t, editYAML)
+	below := []TargetLayer{{Path: "low.yaml", Target: Target{Repositories: StringMap{"docs": "main"}}}}
+	repos := []RepoBranch{{Name: "api", Branch: "main"}, {Name: "docs", Branch: ""}}
+	_, err := EditTargetOver(path, []string{"presets"}, "deploy-qa", below, PresetEdit{Repositories: &repos}, true)
+	require.ErrorContains(t, err, "low.yaml")
+	assert.Equal(t, editYAML, read(t, path))
+}

@@ -5,7 +5,7 @@ Remove a run preset from every file that defines it
 ### Synopsis
 
 Remove a run preset from every file that defines it.
-On a terminal, bam rm with no name opens the list of presets to pick from, and asks
+On a terminal, bam preset rm with no name opens the list of presets to pick from, and asks
 before it removes one; --yes skips the question. With a pipe, --json, --no-tui or
 BAM_NO_TUI, bam never asks: rm NAME removes at once and rm alone is a usage error.
 A preset that a set uses is kept.

@@ -17,6 +17,7 @@ import (
 	"github.com/rojcarranza/bam/internal/credential"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/view"
+	"github.com/rojcarranza/bam/internal/view/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -407,7 +408,7 @@ func newPresetRmCmd(r *runtime) *cobra.Command {
 		Use:   "rm [name]",
 		Short: "Remove a run preset from every file that defines it",
 		Long: "Remove a run preset from every file that defines it.\n" +
-			"On a terminal, bam rm with no name opens the list of presets to pick from, and asks\n" +
+			"On a terminal, bam preset rm with no name opens the list of presets to pick from, and asks\n" +
 			"before it removes one; --yes skips the question. With a pipe, --json, --no-tui or\n" +
 			"BAM_NO_TUI, bam never asks: rm NAME removes at once and rm alone is a usage error.\n" +
 			"A preset that a set uses is kept.",
@@ -470,7 +471,7 @@ func (r *runtime) pickPresetToRemove(cmd *cobra.Command, cfg *config.Config, can
 		why, try := noPresetsMessage(cfg)
 		return "", errs.Usagef("bam preset rm needs a preset name").WithWhy(why).WithTry(try)
 	}
-	return r.env.PickPreset(cmd.Context(), r.env.Stdin, r.env.Stdout, items)
+	return r.env.PickPreset(cmd.Context(), r.env.Stdin, r.env.Stdout, items, tui.RemoveWords)
 }
 
 // removeQuestion is what bam asks before it removes t: the plan and branch

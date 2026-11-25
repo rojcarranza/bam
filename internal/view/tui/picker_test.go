@@ -86,7 +86,7 @@ func TestPickPresetRunsInline(t *testing.T) {
 		var out bytes.Buffer
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		name, err := PickPreset(ctx, strings.NewReader(keys), &out, pickerItems())
+		name, err := PickPreset(ctx, strings.NewReader(keys), &out, pickerItems(), RunWords)
 		return name, out.String(), err
 	}
 	name, out, err := run("smo\r")
@@ -96,4 +96,14 @@ func TestPickPresetRunsInline(t *testing.T) {
 
 	_, _, err = run("\x1b")
 	assert.ErrorIs(t, err, context.Canceled)
+}
+
+// Bare bam preset rm words the picker for removing, so Enter does not read as run.
+func TestPickerRemoveWords(t *testing.T) {
+	m := newPicker(pickerItems())
+	m.words = RemoveWords
+	v := m.View()
+	assert.Contains(t, v, "remove which preset?")
+	assert.Contains(t, v, "enter picks")
+	assert.NotContains(t, v, "enter runs")
 }

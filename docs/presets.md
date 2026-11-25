@@ -63,7 +63,7 @@ Type `bam run` with no name, on a terminal, and bam opens a small picker under t
 
 ### Remove a preset
 
-Type `bam preset rm` with no name, on a terminal, and bam opens the same picker as `bam run`. Enter picks a preset and bam asks `Remove preset NAME (PLAN · branch) from FILE? [y/N]`, naming every file that defines it. `y` or `yes` removes it; any other answer removes nothing, prints `nothing removed` and exits 0. `bam preset rm NAME` asks the same question on a terminal, and `--yes` skips it. Esc in the picker removes nothing and exits 130.
+Type `bam preset rm` with no name, on a terminal, and bam opens the same picker as `bam run`, worded "remove which preset?", where Enter only picks. Enter picks a preset and bam asks `Remove preset NAME (PLAN · branch) from FILE? [y/N]`, naming every file that defines it. `y` or `yes` removes it; any other answer removes nothing, prints `nothing removed` and exits 0. `bam preset rm NAME` asks the same question on a terminal, and `--yes` skips it. Esc in the picker removes nothing and exits 130.
 
 With a pipe, `TERM` empty or `dumb`, `--no-tui`, `BAM_NO_TUI` or `--json`, bam never asks: `bam preset rm NAME` removes the preset at once and a bare `bam preset rm` is a usage error. A preset that a set uses is kept until you remove it from the set. A preset that a `bam top` group still pins is removed, and bam names the group so you can drop the pin.
 

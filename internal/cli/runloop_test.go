@@ -13,6 +13,7 @@ import (
 	"github.com/rojcarranza/bam/internal/app"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/view/tui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -652,7 +653,7 @@ func TestPinAddCompletesPresetNames(t *testing.T) {
 // was offered and answers name, or err when the person pressed Esc.
 func pickScript(h *harness, name string, err error) *[]app.TargetInfo {
 	var offered []app.TargetInfo
-	h.env.PickPreset = func(_ context.Context, _ io.Reader, _ io.Writer, items []app.TargetInfo) (string, error) {
+	h.env.PickPreset = func(_ context.Context, _ io.Reader, _ io.Writer, items []app.TargetInfo, _ tui.PickerWords) (string, error) {
 		offered = items
 		return name, err
 	}

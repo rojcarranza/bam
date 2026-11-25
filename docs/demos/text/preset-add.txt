@@ -1,11 +1,28 @@
 ────────────────────────────────────────────────────────────────────────────────
 $
 $ bam preset add deploy --plan SETLIST-DEPLOY
+new preset deploy · SETLIST-DEPLOY → /home/jdoe/bam/presets/setlist.yaml
+> db_password  plan's stored value  secret · written as a commented line
+  environment  dev  plan default
+  region       eu  plan default
+  replicas     2  plan default
+  version      ____  no plan default
+  0 of 5 differ from the plan
+  ↑↓ move · enter edit · ←→ choices · ctrl-s save · esc cancel
+  db_password  plan's stored value  secret · written as a commented line
+> environment  dev  plan default
+  ←→ "dev" · "staging" · "prod"
+> environment  staging  changed
+  1 of 5 differ from the plan: environment
+  environment  staging  changed
+> version      ____  no plan default
+> version         no plan default
+  enter accept · esc keep the old value
+> version      1.2.0   no plan default
+> version      1.2.0  changed
+  2 of 5 differ from the plan: environment, version
 added preset deploy to /home/jdoe/bam/presets/setlist.yaml
 review before commit: values copied from Bamboo
-┌─ values to choose from: recent builds of SETLIST-DEPLOY ┐
-│ environment  "staging"  "dev"                           │
-└─────────────────────────────────────────────────────────┘
 $ bam preset show deploy
 deploy
 Plan        SETLIST-DEPLOY
@@ -14,7 +31,7 @@ Server      work
 Watch       yes
 Defined in  /home/jdoe/bam/presets/setlist.yaml
 Variables
-  environment  dev
+  environment  staging
   region       eu
   replicas     2
-  version
+  version      1.2.0

@@ -212,7 +212,15 @@ func TestPresetEditFormSaysWhichOtherFileValueAppliesAfterClearing(t *testing.T)
 
 	m.form.Fields[1].Value = ""
 	m.form.Rows[0].Options = nil
-	v := m.View()
-	assert.Contains(t, v, "cleared here: the value in low.yaml applies")
-	assert.Contains(t, v, "options cleared here: the value in low.yaml applies")
+	var timeoutRow, envRow string
+	for _, l := range strings.Split(m.View(), "\n") {
+		switch {
+		case strings.Contains(l, "timeout"):
+			timeoutRow = l
+		case strings.Contains(l, "ENV"):
+			envRow = l
+		}
+	}
+	assert.Contains(t, timeoutRow, "cleared here: the value in low.yaml applies")
+	assert.Contains(t, envRow, "options cleared here: the value in low.yaml applies")
 }

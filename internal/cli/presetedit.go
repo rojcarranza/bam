@@ -328,7 +328,7 @@ func (f *presetEditFlags) fillForm(r *runtime, cmd *cobra.Command, cfg *config.C
 	form.Path = path
 	form.TakenNames = takenNames(cfg)
 	form.RenameBlocked = formText(renameBlocked(cfg, t))
-	form.Held = app.Held(config.HeldBelow(t.Layers[len(t.Layers)-1].Target, t.Layers[:len(t.Layers)-1]))
+	form.Held = config.HeldBelow(t.Layers[len(t.Layers)-1].Target, t.Layers[:len(t.Layers)-1])
 	edited, err := r.env.EditPreset(ctx, r.env.Stdin, r.env.Stdout, form, nil)
 	if err != nil {
 		return config.PresetEdit{}, askedCanceled(r, err)

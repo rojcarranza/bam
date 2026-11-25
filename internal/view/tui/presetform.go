@@ -144,9 +144,15 @@ func (m presetFormModel) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			step(r, 1)
 		}
 	case tea.KeyEnter:
+		if m.readingBlocks(false) {
+			return m, nil
+		}
 		m.beginEdit(m.editValue())
 	case tea.KeyRunes:
 		if !m.form.Editing || len(msg.Runes) != 1 {
+			return m, nil
+		}
+		if m.readingBlocks(msg.Runes[0] == 'a') {
 			return m, nil
 		}
 		switch r, fl := m.row(), m.field(); {
@@ -163,6 +169,20 @@ func (m presetFormModel) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// readingBlocks refuses, while the repositories of a branch are being read,
+// adding one or changing the one under the cursor (enter, x): the answer
+// replaces the list and would undo it.
+func (m *presetFormModel) readingBlocks(adding bool) bool {
+	if m.reading == "" {
+		return false
+	}
+	if fl := m.field(); !adding && (fl == nil || !strings.HasPrefix(fl.Key, "repositories.")) {
+		return false
+	}
+	m.err = "still reading the repositories of " + m.reading + "; change them once they are listed"
+	return true
 }
 
 // repos applies the repositories Bamboo listed for the branch just typed. It

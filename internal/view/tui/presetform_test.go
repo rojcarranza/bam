@@ -357,12 +357,12 @@ func TestPresetEditFormDoesNotSaveWhileReadingRepositories(t *testing.T) {
 	assert.NotNil(t, quit, "saves once the answer is in")
 }
 
-// The answer for a branch can arrive while another setting is being typed:
-// it waits until the edit ends, so the text lands in the setting it was typed
-// for, and the cursor stays on that setting afterwards.
+// The answer for a branch can arrive while a setting after the repositories is
+// being typed: it waits until the edit ends, so the text lands in that setting,
+// and the cursor stays on it although the answer adds a repository before it.
 func TestPresetEditFormHoldsTheRepositoriesAnswerWhileTyping(t *testing.T) {
 	read := func(context.Context, string) ([]app.RepoBranch, error) {
-		return []app.RepoBranch{{Name: "scripts", Branch: "develop"}}, nil
+		return []app.RepoBranch{{Name: "api", Branch: "main"}, {Name: "scripts", Branch: "develop"}}, nil
 	}
 	m := newPresetForm(context.Background(), repoEditForm(read), nil)
 	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("r"), rk("2"))
@@ -370,24 +370,38 @@ func TestPresetEditFormHoldsTheRepositoriesAnswerWhileTyping(t *testing.T) {
 	m = n.(presetFormModel)
 	require.NotNil(t, cmd)
 	msg := cmd()
-	typed := m.lineID()
-	m = formKey(m, kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("Z"), rk("Z"))
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("4"), rk("5"), rk("m"))
+	require.Equal(t, "field:timeout", m.lineID())
 	before := len(m.form.Fields)
 	n, _ = m.Update(msg)
 	m = n.(presetFormModel)
 	assert.Equal(t, before, len(m.form.Fields), "the answer waits while a setting is typed")
-	assert.Equal(t, typed, m.lineID())
 	m = formKey(m, kt(tea.KeyEnter))
-	assert.Equal(t, "", m.reading, "the answer applies once the edit ends")
-	assert.Greater(t, len(m.form.Fields), before, "the repositories were listed")
-	found := false
+	assert.Equal(t, before+1, len(m.form.Fields), "the answer applies once the edit ends")
 	for _, fl := range m.form.Fields {
-		if "field:"+fl.Key == typed {
-			found = true
-			assert.Equal(t, "ZZ", fl.Value, "the text stays in the setting it was typed for")
+		if fl.Key == "timeout" {
+			assert.Equal(t, "45m", fl.Value, "the text stays in the setting it was typed for")
+		} else {
+			assert.NotEqual(t, "45m", fl.Value, fl.Key)
 		}
 	}
-	assert.True(t, found)
+	assert.Equal(t, "field:timeout", m.lineID(), "the cursor stays on the setting it was on")
+}
+
+// While the repositories are being read, adding one and changing one are
+// refused, since the answer would replace what was typed.
+func TestPresetEditFormRefusesRepositoryEditsWhileReading(t *testing.T) {
+	read := func(context.Context, string) ([]app.RepoBranch, error) { return nil, nil }
+	m := newPresetForm(context.Background(), repoEditForm(read), nil)
+	m = formKey(m, kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyDown), kt(tea.KeyEnter), kt(tea.KeyCtrlU), rk("r"), rk("2"), kt(tea.KeyEnter))
+	require.Equal(t, "field:repositories.api", m.lineID())
+	require.NotEmpty(t, m.reading)
+	for _, k := range []tea.KeyMsg{kt(tea.KeyEnter), rk("x"), rk("a")} {
+		m = formKey(m, k)
+		assert.False(t, m.editing, "%v", k)
+		assert.False(t, m.form.Fields[2].Removed)
+		assert.Contains(t, m.err, "still reading the repositories of r2")
+	}
 }
 
 // Clearing the branch before the answer arrives drops the answer.

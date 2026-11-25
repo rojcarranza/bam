@@ -19,8 +19,9 @@ const pickerRows = 8
 // prompt, not on a full screen, and leaves nothing behind. Typing filters on
 // the name, the plan, the branch or the file, ignoring case. Enter returns the
 // highlighted name; Esc and ctrl-C return context.Canceled, so nothing runs.
-func PickPreset(ctx context.Context, in io.Reader, out io.Writer, items []app.TargetInfo) (string, error) {
+func PickPreset(ctx context.Context, in io.Reader, out io.Writer, items []app.TargetInfo, w PickerWords) (string, error) {
 	m := newPicker(items)
+	m.words = w
 	final, err := tea.NewProgram(m, tea.WithInput(in), tea.WithOutput(out), tea.WithContext(ctx)).Run()
 	if err != nil {
 		if ctx.Err() != nil {
@@ -35,7 +36,23 @@ func PickPreset(ctx context.Context, in io.Reader, out io.Writer, items []app.Ta
 	return p.chosen, nil
 }
 
+// PickerWords is what the picker says about the choice: the question above
+// the list and what Enter does. PickPreset shows the words it is given, so
+// pass RunWords or RemoveWords rather than the zero value.
+type PickerWords struct {
+	Question string // "run which preset?"
+	Enter    string // "enter runs"
+}
+
+// RunWords are the words of bare bam run.
+var RunWords = PickerWords{"run which preset?", "enter runs"}
+
+// RemoveWords are the words of bare bam preset rm, where Enter only picks:
+// a question follows before anything is removed.
+var RemoveWords = PickerWords{"remove which preset?", "enter picks"}
+
 type pickerModel struct {
+	words  PickerWords
 	list   listState[app.TargetInfo]
 	width  int
 	chosen string
@@ -43,7 +60,7 @@ type pickerModel struct {
 }
 
 func newPicker(items []app.TargetInfo) pickerModel {
-	m := pickerModel{width: 80, list: newList(pickerText)}
+	m := pickerModel{words: RunWords, width: 80, list: newList(pickerText)}
 	m.list.setItems(items)
 	return m
 }
@@ -108,7 +125,7 @@ func (m pickerModel) View() string {
 	}
 	cut := func(s string) string { return ansi.Truncate(s, max(m.width-1, 10), "…") }
 	l := &m.list
-	lines := []string{cut("run which preset? " + l.query + "▌")}
+	lines := []string{cut(m.words.Question + " " + l.query + "▌")}
 	if len(l.visible) == 0 {
 		lines = append(lines, "  no preset matches")
 	}
@@ -129,7 +146,7 @@ func (m pickerModel) View() string {
 	if t, ok := l.selected(); ok {
 		lines = append(lines, cut(dimStyle.Render("  sets: "+pickerVars(t))))
 	}
-	lines = append(lines, cut(dimStyle.Render(fmt.Sprintf("  %d of %d · enter runs · esc cancels", len(l.visible), len(l.items)))))
+	lines = append(lines, cut(dimStyle.Render(fmt.Sprintf("  %d of %d · %s · esc cancels", len(l.visible), len(l.items), m.words.Enter))))
 	return strings.Join(lines, "\n")
 }
 

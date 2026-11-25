@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/rojcarranza/bam/internal/credential"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/view"
+	"github.com/rojcarranza/bam/internal/view/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -401,57 +403,147 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 }
 
 func newPresetRmCmd(r *runtime) *cobra.Command {
-	return &cobra.Command{
-		Use:               "rm <name>",
-		Short:             "Remove a run preset from every file that defines it",
-		Example:           "  bam preset rm deploy-qa",
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "rm [name]",
+		Short: "Remove a run preset from every file that defines it",
+		Long: "Remove a run preset from every file that defines it.\n" +
+			"On a terminal, bam preset rm with no name opens the list of presets to pick from, and asks\n" +
+			"before it removes one; --yes skips the question. With a pipe, --json, --no-tui or\n" +
+			"BAM_NO_TUI, bam never asks: rm NAME removes at once and rm alone is a usage error.\n" +
+			"A preset that a set uses is kept.",
+		Example:           "  bam preset rm\n  bam preset rm deploy-qa\n  bam preset rm deploy-qa --yes",
 		SuggestFor:        []string{"remove", "delete"},
-		Args:              cobra.ExactArgs(1),
+		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
 			cfg, err := r.config()
 			if err != nil {
 				return err
 			}
-			removed, err := removePreset(cfg, args[0])
+			canAsk := !r.flags.json && r.tuiAllowed()
+			var name string
+			if len(args) == 1 {
+				name = args[0]
+			} else if name, err = r.pickPresetToRemove(cmd, cfg, canAsk); err != nil {
+				return err
+			}
+			t, err := removablePreset(cfg, name)
+			if err != nil {
+				return err
+			}
+			if canAsk && !yes {
+				fmt.Fprint(r.env.Stderr, removeQuestion(t))
+				answer, _ := bufio.NewReader(r.env.Stdin).ReadString('\n')
+				if x := strings.ToLower(strings.TrimSpace(answer)); x != "y" && x != "yes" {
+					r.note("nothing removed", "")
+					return nil
+				}
+			}
+			removed, err := deletePreset(t)
 			for _, l := range removed {
-				fmt.Fprintf(r.env.Stdout, "removed preset %s from %s\n", args[0], l)
+				fmt.Fprintf(r.env.Stdout, "removed preset %s from %s\n", name, l)
+			}
+			if err == nil {
+				r.notePinned(cfg, name)
 			}
 			return err
 		}),
+	}
+	cmd.Flags().BoolVar(&yes, "yes", false, "do not ask first")
+	return cmd
+}
+
+// pickPresetToRemove is bare bam preset rm: on a terminal, the picker of bare
+// bam run; anywhere else a usage error, because a script must never wait on
+// a key.
+func (r *runtime) pickPresetToRemove(cmd *cobra.Command, cfg *config.Config, canAsk bool) (string, error) {
+	if !canAsk {
+		return "", errs.Usagef("bam preset rm needs a preset name").
+			WithWhy("the picker needs a terminal, and this is a pipe, --json or --no-tui").
+			WithTry("bam preset list to see the presets, then bam preset rm NAME")
+	}
+	items, err := app.DescribeTargets(cfg, r.env.Getenv)
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		why, try := noPresetsMessage(cfg)
+		return "", errs.Usagef("bam preset rm needs a preset name").WithWhy(why).WithTry(try)
+	}
+	return r.env.PickPreset(cmd.Context(), r.env.Stdin, r.env.Stdout, items, tui.RemoveWords)
+}
+
+// removeQuestion is what bam asks before it removes t: the plan and branch
+// tell presets with alike names apart, and every file it will change is named.
+func removeQuestion(t config.ResolvedTarget) string {
+	return fmt.Sprintf("Remove preset %s (%s) from %s? [y/N] ", t.Name, app.PresetSummary(t.Plan, t.Branch), strings.Join(t.DefinedIn, ", "))
+}
+
+// notePinned says which bam top groups still pin the preset name. Removing a
+// preset leaves its pins in place, and the board then reports each as unknown.
+func (r *runtime) notePinned(cfg *config.Config, name string) {
+	groups, err := cfg.Monitor()
+	if err != nil {
+		return
+	}
+	var in []string
+	for _, g := range groups {
+		if slices.Contains(g.Pins, name) {
+			in = append(in, g.Name)
+		}
+	}
+	if len(in) == 1 {
+		r.note(fmt.Sprintf("preset %s is still pinned in the bam top group %s", name, in[0]), "remove the pin from monitor."+in[0])
+	} else if len(in) > 1 {
+		r.note(fmt.Sprintf("preset %s is still pinned in the bam top groups %s", name, strings.Join(in, ", ")), "remove the pin from those groups")
 	}
 }
 
 // removePreset deletes the preset name from every file that defines it and
 // returns the files it changed. preset rm and the UI's D share it.
 func removePreset(cfg *config.Config, name string) ([]string, error) {
-	t, ok, err := cfg.Target(name)
+	t, err := removablePreset(cfg, name)
 	if err != nil {
 		return nil, err
+	}
+	return deletePreset(t)
+}
+
+// removablePreset finds the preset name, or says why bam cannot remove it.
+func removablePreset(cfg *config.Config, name string) (config.ResolvedTarget, error) {
+	t, ok, err := cfg.Target(name)
+	if err != nil {
+		return t, err
 	}
 	if !ok {
 		if all, _ := cfg.Targets(); len(all) == 0 && len(cfg.OtherRepoTargets()) == 0 {
 			// UnknownTarget's hint would be to create the preset, which is wrong for rm.
-			return nil, errs.Usagef("unknown preset %q", name).WithWhy("no presets are configured, so there is nothing to remove")
+			return t, errs.Usagef("unknown preset %q", name).WithWhy("no presets are configured, so there is nothing to remove")
 		}
-		return nil, app.UnknownTarget(cfg, name)
+		return t, app.UnknownTarget(cfg, name)
 	}
 	// A set naming the preset would fail every set command once it is gone.
 	sets, err := cfg.Sets()
 	if err != nil {
-		return nil, err
+		return t, err
 	}
 	for _, setName := range slices.Sorted(maps.Keys(sets)) {
 		for _, st := range sets[setName].Stages {
 			for _, run := range st {
 				if run.Target == t.Name {
-					return nil, errs.Usagef("preset %q is used by set %q", t.Name, setName).
+					return t, errs.Usagef("preset %q is used by set %q", t.Name, setName).
 						WithWhy("defined in " + sets[setName].DefinedIn[len(sets[setName].DefinedIn)-1]).
 						WithTry("remove it from the set first")
 				}
 			}
 		}
 	}
+	return t, nil
+}
+
+// deletePreset removes t from each file that defines it and returns them.
+func deletePreset(t config.ResolvedTarget) ([]string, error) {
 	var removed []string
 	for _, l := range t.Layers {
 		if err := config.RemoveTarget(l.Path, l.KeyPath, t.Name); err != nil {

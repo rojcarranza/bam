@@ -78,7 +78,7 @@ type Env struct {
 	RunTUI func(context.Context, tui.Deps) error
 	// PickPreset is the picker of bare bam run; a field so tests can script
 	// the choice without a terminal.
-	PickPreset func(ctx context.Context, in io.Reader, out io.Writer, items []app.TargetInfo) (string, error)
+	PickPreset func(ctx context.Context, in io.Reader, out io.Writer, items []app.TargetInfo, words tui.PickerWords) (string, error)
 	// Choose, Ask and EditPreset are the inline prompts of bam preset add on
 	// a terminal; fields so tests can script the answers without one.
 	Choose     func(ctx context.Context, in io.Reader, out io.Writer, prompt string, items []tui.Choice) (int, error)

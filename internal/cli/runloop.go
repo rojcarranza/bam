@@ -15,6 +15,7 @@ import (
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
 	"github.com/rojcarranza/bam/internal/view"
+	"github.com/rojcarranza/bam/internal/view/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -890,7 +891,7 @@ func (r *runtime) pickPreset(cmd *cobra.Command) (string, error) {
 		why, try := noPresetsMessage(cfg)
 		return "", errs.Usagef("bam run needs a plan or preset name").WithWhy(why).WithTry(try)
 	}
-	name, err := r.env.PickPreset(cmd.Context(), r.env.Stdin, r.env.Stdout, items)
+	name, err := r.env.PickPreset(cmd.Context(), r.env.Stdin, r.env.Stdout, items, tui.RunWords)
 	if err != nil {
 		return "", err
 	}

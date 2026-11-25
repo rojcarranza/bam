@@ -2,20 +2,31 @@
 
 Remove a run preset from every file that defines it
 
+### Synopsis
+
+Remove a run preset from every file that defines it.
+On a terminal, bam preset rm with no name opens the list of presets to pick from, and asks
+before it removes one; --yes skips the question. With a pipe, --json, --no-tui or
+BAM_NO_TUI, bam never asks: rm NAME removes at once and rm alone is a usage error.
+A preset that a set uses is kept.
+
 ```
-bam preset rm <name> [flags]
+bam preset rm [name] [flags]
 ```
 
 ### Examples
 
 ```
+  bam preset rm
   bam preset rm deploy-qa
+  bam preset rm deploy-qa --yes
 ```
 
 ### Options
 
 ```
   -h, --help[=true|false]   help for rm
+      --yes[=true|false]    do not ask first
 ```
 
 ### Options inherited from parent commands

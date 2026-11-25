@@ -283,13 +283,28 @@ func (f *presetEditFlags) apply(cfg *config.Config, t config.ResolvedTarget, sco
 			var left []string
 			for _, rest := range steps[i:] {
 				for _, f := range rest.files {
-					if !slices.Contains(done, f) && !slices.Contains(left, f) {
+					if !slices.Contains(left, f) {
 						left = append(left, f)
 					}
 				}
 			}
+			// A file can have two steps, its preset copy and its sets or pins:
+			// it stays under not written until its last step is done, and is
+			// said to be partly written.
+			var whole, partly []string
+			for _, f := range done {
+				if slices.Contains(left, f) {
+					partly = append(partly, f)
+				} else {
+					whole = append(whole, f)
+				}
+			}
+			why := fmt.Sprintf("%v; written: %s; not written: %s", err, strings.Join(whole, ", "), strings.Join(left, ", "))
+			if len(partly) > 0 {
+				why += "; partly written: " + strings.Join(partly, ", ")
+			}
 			return changes, errs.Configf("preset %s was only partly renamed", t.Name).
-				WithWhy(fmt.Sprintf("%v; written: %s; not written: %s", err, strings.Join(done, ", "), strings.Join(left, ", "))).
+				WithWhy(why).
 				WithTry(fmt.Sprintf("change %s to %s by hand in the files not written, then run bam preset list", t.Name, e.Rename))
 		}
 		for _, f := range st.files {

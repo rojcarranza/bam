@@ -710,3 +710,26 @@ func TestPresetEditRenameNamesTheProjectFileWhenTheMachineFileFails(t *testing.T
 	assert.Contains(t, h.stderr.String(), "written: "+presets+", "+path)
 	assert.Contains(t, h.stderr.String(), "not written: "+machine)
 }
+
+// A file whose preset copy was renamed but whose pins were not yet is not
+// reported as done: the machine file keeps a preset and a pin, and the project
+// file, whose folder bam cannot write, keeps a set.
+func TestPresetEditRenameReportsAFileWithTwoStepsAsPartlyWritten(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root writes into a read-only folder")
+	}
+	h := newHarness(t)
+	path := sharedFile(h)
+	require.NoError(t, os.WriteFile(path, []byte(readFile(t, path)+"sets:\n  solo:\n    stages:\n      - [mach-only]\n"), 0o644))
+	machine := h.env.Paths.MachineConfig
+	require.NoError(t, os.MkdirAll(filepath.Dir(machine), 0o755))
+	require.NoError(t, os.WriteFile(machine, []byte("version: 1\ntargets:\n  mach-only:\n    plan: PROJ-PROV\nmonitor:\n  extra: [mach-only]\n"), 0o644))
+	dir := filepath.Dir(path)
+	require.NoError(t, os.Chmod(dir, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+
+	assert.NotEqual(t, 0, h.run("preset", "edit", "mach-only", "--rename", "lab-two"))
+	out := h.stderr.String()
+	assert.Contains(t, out, "; written: ; not written: "+path+", "+machine)
+	assert.Contains(t, out, "; partly written: "+machine)
+}

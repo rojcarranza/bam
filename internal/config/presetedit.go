@@ -36,8 +36,8 @@ type FieldChange struct {
 	Field string `json:"field"`
 	Old   string `json:"old,omitempty"`
 	New   string `json:"new,omitempty"`
-	// Removed is true when the edit took the line out, so a script can tell it
-	// from a value set to empty, which leaves Old and New empty just the same.
+	// Removed is true when the edit took the line out, so a script can tell a
+	// removal from a variable set to empty, whose New is empty too.
 	Removed bool `json:"removed,omitempty"`
 	// File names the file a change outside the edited preset's own file lands
 	// in, in the text output and the JSON, so a script can tell the files apart.

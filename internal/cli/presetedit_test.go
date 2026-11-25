@@ -614,6 +614,25 @@ func TestPresetEditRenameFollowsASharedPresetIntoOtherFoldersTrainFiles(t *testi
 	assert.Contains(t, readFile(t, elsewhere), "lab-two")
 }
 
+// A repository whose own machine entry defines a preset of the same name
+// means that one by it, so its train files keep the name.
+func TestPresetEditSharedRenameLeavesTrainFilesOfARepositoryWithItsOwnPreset(t *testing.T) {
+	h := newHarness(t)
+	twoFilePreset(t, h)
+	require.NoError(t, os.MkdirAll(filepath.Dir(h.env.Paths.MachineConfig), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig, []byte("version: 1\nrepos:\n  /somewhere/else:\n    targets:\n      provision-lab:\n        plan: PROJ-PROV\n"), 0o644))
+	own := filepath.Join(h.home, "own.yaml")
+	other := filepath.Join(h.home, "other.yaml")
+	for _, p := range []string{own, other} {
+		require.NoError(t, os.WriteFile(p, []byte("stages:\n  - [provision-lab]\n"), 0o644))
+	}
+	saveRun(t, h, "/somewhere/else", own, 1)
+	saveRun(t, h, filepath.Join(h.home, "trains"), other, 2)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "lab-two"), h.stderr.String())
+	assert.Contains(t, readFile(t, own), "provision-lab", "that repository's own preset keeps its name")
+	assert.Contains(t, readFile(t, other), "lab-two")
+}
+
 func TestPresetEditRenameLeavesOtherFoldersTrainFilesOfARepositoryOnlyPreset(t *testing.T) {
 	h := newHarness(t)
 	elsewhere := filepath.Join(h.home, "trains", "release.yaml")

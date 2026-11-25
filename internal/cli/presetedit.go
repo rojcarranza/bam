@@ -348,11 +348,13 @@ type renameScope struct {
 func (r *runtime) renameScope(cfg *config.Config, t config.ResolvedTarget) renameScope {
 	s := renameScope{shared: cfg.Shared(t)}
 	repo := cfg.RepoRoot
+	var skip []string
 	if s.shared {
-		repo = ""
+		// A repository with its own preset of this name means that one by it.
+		repo, skip = "", cfg.OtherReposDefining(t.Name)
 	}
 	var err error
-	if s.trains, err = r.setStore().TrainFiles(repo); err != nil {
+	if s.trains, err = r.setStore().TrainFiles(repo, skip...); err != nil {
 		s.err = errs.Configf("cannot rename %s: the record of past set runs cannot be read", t.Name).
 			WithWhy(err.Error()).
 			WithTry("fix or remove that folder to let bam find the train files, or rename the preset by hand")

@@ -93,6 +93,20 @@ func (c *Config) OtherRepoTargets() map[string][]string {
 	return out
 }
 
+// OtherReposDefining lists the folders of the other repositories whose own
+// machine entry defines a preset called name: by that name they mean their
+// own preset, not a shared one.
+func (c *Config) OtherReposDefining(name string) []string {
+	here, _, _ := c.repoEntry()
+	var out []string
+	for _, key := range slices.Sorted(maps.Keys(c.Machine.Repos)) {
+		if _, ok := c.Machine.Repos[key].Targets[name]; ok && key != here {
+			out = append(out, c.expand(key))
+		}
+	}
+	return out
+}
+
 // repoEntry also returns the repos key as written, e.g. "~/src/repo".
 func (c *Config) repoEntry() (string, Repo, bool) {
 	for key, r := range c.Machine.Repos {

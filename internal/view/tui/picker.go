@@ -37,8 +37,8 @@ func PickPreset(ctx context.Context, in io.Reader, out io.Writer, items []app.Ta
 }
 
 // PickerWords is what the picker says about the choice: the question above
-// the list and what Enter does. RunWords is bare bam run; the zero value is
-// the same.
+// the list and what Enter does. PickPreset shows the words it is given, so
+// pass RunWords or RemoveWords rather than the zero value.
 type PickerWords struct {
 	Question string // "run which preset?"
 	Enter    string // "enter runs"

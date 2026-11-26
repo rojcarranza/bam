@@ -2,13 +2,6 @@
 
 The command line for Atlassian Bamboo: run a plan, follow the build, read why it failed and open it in Bamboo, without the browser. See [`VISION.md`](VISION.md) for what bam is and is not.
 
-    bam run BAMCI-BUILD --watch
-    bam logs --last --failed
-    bam open --last
-
-bam works with Bamboo Data Center 9.x and later, using a personal access token.
-
-![bam runs the setlist CI plan, follows the plans it triggers and reads the failure](docs/demos/gifs/hero.gif)
 
 Every GIF in this README is a real recording of bam against a small Bamboo that runs the SETLIST sample service, with only the address changed to `bamboo.example.com`. The text blocks folded under each GIF come from an older sample pipeline (`BAMCI`, `FORGE`) and show the same commands.
 

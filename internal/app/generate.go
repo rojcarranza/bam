@@ -18,8 +18,10 @@ import (
 type GenerateOptions struct {
 	Name    string
 	PlanKey string // optional when From is a full build key
-	From    string // build whose values fill the preset; default last, used only in comments
-	Branch  string // defaults to the branch of a From build key
+	// From is the build whose values fill the preset (default last, used only
+	// in comments), or a plan or plan branch key whose variable values fill it.
+	From   string
+	Branch string // defaults to the branch of a From build key
 	// IncludeUndeclared, with From, also writes the build's variables the plan
 	// does not declare. Bamboo lists every global a build inherited, so they are
 	// left out unless asked for.
@@ -38,6 +40,10 @@ func (s *Service) GenerateTarget(ctx context.Context, o GenerateOptions) (config
 // CheckGenerate reports a bad preset name or plan key without asking Bamboo,
 // so callers can fail before picking a server.
 func CheckGenerate(o GenerateOptions) error {
+	if IsSourcePlan(o.From) && o.IncludeUndeclared {
+		return errs.Usagef("--include-globals reads a build's variables, and --from %s is a plan", o.From).
+			WithTry("drop --include-globals, or pass a build to --from")
+	}
 	if !config.ValidTargetName(o.Name) {
 		e := errs.Usagef("invalid preset name %q", o.Name).
 			WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter")
@@ -51,6 +57,10 @@ func CheckGenerate(o GenerateOptions) error {
 	}
 	return CheckPlanKey(o.PlanKey)
 }
+
+// IsSourcePlan reports whether a --from value names a plan, or a plan branch,
+// to copy variable values from, rather than a build.
+func IsSourcePlan(from string) bool { return IsPlanKey(from) }
 
 // CheckPlanKey returns a usage error, with a hint, when a --plan flag value
 // is not a plan key.
@@ -74,6 +84,17 @@ func CheckPlanKey(key string) error {
 func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.TargetDraft, bool, error) {
 	if err := CheckGenerate(o); err != nil {
 		return config.TargetDraft{}, false, err
+	}
+	var source map[string]provider.Variable
+	var sourceKey string
+	if IsSourcePlan(o.From) {
+		// The values come from the source plan alone; the branch and
+		// repositories still come from the target, as with no --from.
+		sourceKey, o.From = o.From, ""
+		var err error
+		if source, err = s.sourceVariables(ctx, sourceKey); err != nil {
+			return config.TargetDraft{}, false, err
+		}
 	}
 	o, err := s.planFromBuild(ctx, o)
 	if err != nil {
@@ -128,10 +149,17 @@ func (s *Service) generate(ctx context.Context, o GenerateOptions) (config.Targe
 			}
 		}
 		declaredDrafts(&d, declared, used, usedKey, o)
+		if sourceKey != "" {
+			copyFromSource(&d, declared, source, sourceKey)
+		}
 		if len(declared) == 0 {
 			d.Note = fmt.Sprintf("%s lists no variables of its own; global and deployment variables are not read, so add any the run needs under defaults", o.PlanKey)
 		}
 		return d, true, nil
+	case errors.Is(err, errs.ErrUnsupported) && sourceKey != "":
+		return d, false, errs.Bamboof("cannot read the variables of %s", o.PlanKey).
+			WithWhy("this Bamboo server does not list plan variables, so there is nothing to match " + sourceKey + " against").
+			WithTry("drop --from and fill the values by hand")
 	case errors.Is(err, errs.ErrUnsupported):
 		if used == nil {
 			d.Note = "plan variables are not readable on this server; add them under defaults"
@@ -340,4 +368,67 @@ func (s *Service) RecentValues(ctx context.Context, d config.TargetDraft) []Rece
 		out = append(out, RecentVar{Name: v.Name, Values: vals[:min(len(vals), RecentShown)]})
 	}
 	return out
+}
+
+// sourceVariables reads the variables of the plan --from names, by name. A
+// plan branch lists only the variables it overrides, so its main plan's come
+// first and the branch's own replace them.
+func (s *Service) sourceVariables(ctx context.Context, key string) (map[string]provider.Variable, error) {
+	fail := func(err error) error {
+		if errors.Is(err, errs.ErrUnsupported) {
+			return errs.Bamboof("cannot read the variables of %s", key).
+				WithWhy("this Bamboo server does not list plan variables").
+				WithTry("drop --from and fill the values by hand")
+		}
+		return err
+	}
+	plan, err := s.P.GetPlan(ctx, key)
+	if err != nil {
+		return nil, fail(err)
+	}
+	out := map[string]provider.Variable{}
+	if plan.MasterKey != "" && plan.MasterKey != key {
+		base, err := s.P.ListVariables(ctx, plan.MasterKey)
+		if err != nil {
+			return nil, fail(err)
+		}
+		for _, v := range base {
+			out[v.Name] = v
+		}
+	}
+	own, err := s.P.ListVariables(ctx, key)
+	if err != nil {
+		return nil, fail(err)
+	}
+	for _, v := range own {
+		out[v.Name] = v
+	}
+	return out, nil
+}
+
+// copyFromSource sets each variable d declares to the value the source plan
+// has under that name. Bamboo returns a secret as ********, so a secret, on
+// either plan, keeps the draft's own treatment and is only named. The source's
+// other variables are listed, not copied.
+func copyFromSource(d *config.TargetDraft, declared []provider.Variable, source map[string]provider.Variable, key string) {
+	d.Source.Plan = key
+	declaredNames := map[string]bool{}
+	for i, v := range declared {
+		declaredNames[v.Name] = true
+		sv, ok := source[v.Name]
+		if !ok || i >= len(d.Vars) || d.Vars[i].Name != v.Name {
+			continue
+		}
+		if sv.Masked || sv.Value == MaskedDisplay || v.Masked || isSecretDraft(d.Vars[i]) {
+			d.Source.Secrets = append(d.Source.Secrets, v.Name)
+			continue
+		}
+		d.Vars[i].Value = sv.Value
+		d.Source.Copied = append(d.Source.Copied, v.Name)
+	}
+	for _, name := range slices.Sorted(maps.Keys(source)) {
+		if !declaredNames[name] {
+			d.Source.Left = append(d.Source.Left, name)
+		}
+	}
 }

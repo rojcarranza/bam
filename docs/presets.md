@@ -115,6 +115,12 @@ A full build key names the plan too, so `--plan` can go; a branch build also set
 
     bam preset add deploy-eu --from PROJ-DEPLOY-41
 
+To start from another pipeline's values, give `--from` its plan key, a plan branch key or a plan page link, and name the pipeline the preset runs with `--plan`:
+
+    bam preset add deploy-b --plan PROJ-B --from PROJ-A
+
+Each variable PROJ-B declares takes PROJ-A's value when PROJ-A has a variable of the same name. The branch and repositories still come from PROJ-B, and one command copies from one pipeline. `--from PLAN` never names the pipeline the preset runs: with no `--plan` on a terminal, bam asks which one, and in a script it is a usage error. Bamboo never returns a secret's value, so a secret keeps PROJ-B's own treatment (a commented line or a `${ENV_NAME}` reference). A variable PROJ-A has and PROJ-B does not declare is left out; bam lists it after saving, and `bam preset edit` adds it. `--include-globals` reads a build's variables and cannot be combined with a plan. On a terminal the form opens on the copied values, each marked `from PROJ-A`. When PROJ-A cannot be read, bam stops with a Bamboo error and writes nothing.
+
 In `bam ui`, press `p` on a build in the plan screen to do the same: it asks for the name, writes the preset to the plan's project file and shows the path.
 
 ### Set the values

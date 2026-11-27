@@ -17,6 +17,9 @@ type FormRow struct {
 	Value string
 	// Plan is the plan's default; empty when the plan has none.
 	Plan string
+	// From names the plan whose value the row opened with, and FromValue is
+	// that value; empty when the row was not copied from another plan.
+	From, FromValue string
 	// Choices are the values the arrow keys step through, without duplicates.
 	// A secret row has none.
 	Choices []string
@@ -97,6 +100,9 @@ func NewPresetForm(d config.TargetDraft, planDefaults map[string]string) PresetF
 			row.CanStore, row.Commented = v.Commented, v.Commented
 		} else {
 			row.Plan = plan
+			if slices.Contains(d.Source.Copied, v.Name) {
+				row.From, row.FromValue = d.Source.Plan, v.Value
+			}
 			row.Choices = appendChoice(nil, v.Value, plan)
 		}
 		f.Rows = append(f.Rows, row)

@@ -504,6 +504,8 @@ func rowNote(r app.FormRow, editing bool, held app.Held) string {
 		return "secret · written as a commented line"
 	case r.Secret:
 		return "secret · read from your shell at run time"
+	case r.From != "" && r.Value == r.FromValue:
+		return "from " + r.From
 	case r.Value == "" && r.Plan == "":
 		return "no plan default"
 	case r.Value == r.Plan:

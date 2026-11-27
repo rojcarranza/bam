@@ -15,6 +15,10 @@ the plan stores is a commented line. It also writes the server you connected to,
 and watch: true, with no per-line comments except one on a variable the plan does not declare.
 --from writes only the plan's declared variables; --include-globals adds the other variables
 the build ran with, which Bamboo fills with every global.
+--from with another plan's key, plan branch key or page link (PROJ-A) copies that plan's variable
+values into the new preset, matched by name to the variables --plan declares; --plan is still
+required, and branch and repositories come from it. Bamboo never returns a secret's value, so a
+secret keeps the plan's own treatment. Variables only the source has are left out and listed.
 On a terminal, add first opens a form with one row per variable: type a value, step through
 the plan default and up to three values the last 10 builds ran with with the left and right
 arrows, ctrl-s writes the file, esc writes nothing. With no name, or no --plan, it asks for
@@ -31,6 +35,7 @@ bam preset add <name> --plan KEY [flags]
   bam preset add deploy-qa --plan PROJ-DEPLOY
   bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last
   bam preset add deploy-eu --from PROJ-DEPLOY-41
+  bam preset add deploy-b --plan PROJ-B --from PROJ-A
   bam preset add deploy-package --plan PROJ-PKG --file custom-presets
   bam preset add provision-lab --plan PROJ-PROV --shared
   bam run deploy-qa --dry-run
@@ -42,7 +47,7 @@ bam preset add <name> --plan KEY [flags]
   -b, --branch string                  default branch for the preset; defaults to the --from build's branch
       --file string                    write NAME.yaml in your presets directory instead of the plan's project file
       --force[=true|false]             replace an existing preset
-      --from string                    build whose variable values fill the preset: number, key or last
+      --from string                    build whose variable values fill the preset (number, key or last), or a plan, plan branch or plan page link to copy matching variable values from
   -h, --help[=true|false]              help for add
       --include-globals[=true|false]   with --from, also write the build's variables the plan does not declare (Bamboo globals)
       --plan string                    plan key or plan page link to generate from; optional when --from is a build key

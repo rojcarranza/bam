@@ -601,7 +601,7 @@ func TestPresetAddMistypedKeysAndNamesGetHints(t *testing.T) {
 	for args, want := range map[string]string{
 		"x --plan proj-prov":     "try: keys are uppercase: did you mean PROJ-PROV?",
 		"x --from proj-prov12-8": "try: keys are uppercase: did you mean --from PROJ-PROV12-8?",
-		"x --from PROJ-PROV":     "try: bam preset add x --plan PROJ-PROV; --from takes a build",
+		"x --from PROJ-PROV":     "try: --from PROJ-PROV copies values; name the plan the preset runs: bam preset add x --plan PROJ-PLAN --from PROJ-PROV",
 		"Prov --plan PROJ-PROV":  "try: did you mean prov?",
 	} {
 		h.stderr.Reset()

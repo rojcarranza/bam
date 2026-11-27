@@ -6,6 +6,7 @@ import (
 	"github.com/rojcarranza/bam/internal/config"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
+	"github.com/rojcarranza/bam/internal/provider/fake"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -255,4 +256,71 @@ func TestRecentValuesEmptyWhenServerCannotReadBuildVariables(t *testing.T) {
 	require.NoError(t, err)
 	p.BuildVarsErr = errs.Bamboof("no").Wrap(errs.ErrUnsupported)
 	assert.Empty(t, s.RecentValues(bg, d))
+}
+
+// BAM-132: bam preset add NAME --plan B --from A copies A's variable values
+// into the variables B declares, and says what it did with the rest.
+func fromPlanBamboo() *fake.Provider {
+	p := fakeBamboo()
+	p.Plans["PROJ"] = append(p.Plans["PROJ"], provider.Plan{Key: "PROJ-SRC", Name: "Source", ProjectKey: "PROJ"})
+	p.Variables["PROJ-SRC"] = []provider.Variable{
+		{Name: "cluster_type", Value: "dcos"},
+		{Name: "compute_nodes", Value: ""},
+		{Name: "db_password", Value: "********", Masked: true},
+		{Name: "slack_channel", Value: "#deploys"},
+	}
+	return p
+}
+
+func TestGenerateTargetCopiesValuesFromAnotherPlan(t *testing.T) {
+	s := newService(t, fromPlanBamboo())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "deploy-b", PlanKey: "PROJ-PROV", From: "PROJ-SRC"})
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV", d.Plan, "--from PLAN never implies the plan the preset runs")
+	assert.Equal(t, []config.DraftVar{
+		{Name: "cluster_type", Value: "dcos"},
+		{Name: "compute_nodes", Value: ""},
+		{Name: "cluster_name", Value: ""},
+		{Name: "db_password", Value: "${DB_PASSWORD}", Commented: true},
+	}, d.Vars, "an empty source value replaces the target's default of 1; the secret keeps the target's treatment")
+	assert.Equal(t, config.DraftSource{
+		Plan:    "PROJ-SRC",
+		Copied:  []string{"cluster_type", "compute_nodes"},
+		Secrets: []string{"db_password"},
+		Left:    []string{"slack_channel"},
+	}, d.Source)
+}
+
+func TestGenerateTargetFromPlanBranchOverlaysItsMainPlan(t *testing.T) {
+	p := fromPlanBamboo()
+	p.Plans["PROJ"] = append(p.Plans["PROJ"], provider.Plan{Key: "PROJ-SRC4", Name: "Source - dev", ProjectKey: "PROJ", MasterKey: "PROJ-SRC"})
+	p.Variables["PROJ-SRC4"] = []provider.Variable{{Name: "cluster_type", Value: "swarm"}}
+	s := newService(t, p)
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "deploy-b", PlanKey: "PROJ-PROV", From: "PROJ-SRC4"})
+	require.NoError(t, err)
+	assert.Equal(t, "swarm", d.Vars[0].Value, "the branch's own override wins")
+	assert.Equal(t, "", d.Vars[1].Value, "the main plan's value shows through where the branch has none")
+}
+
+func TestGenerateTargetFromPlanTakesNoBranchFromTheSource(t *testing.T) {
+	s := newService(t, fromPlanBamboo())
+	d, err := s.GenerateTarget(bg, GenerateOptions{Name: "deploy-b", PlanKey: "PROJ-PROV", From: "PROJ-SRC"})
+	require.NoError(t, err)
+	assert.Empty(t, d.Branch)
+	assert.Equal(t, "PROJ-PROV", d.BuildPlan)
+}
+
+func TestGenerateTargetFromPlanRefusesIncludeGlobals(t *testing.T) {
+	s := newService(t, fromPlanBamboo())
+	_, err := s.GenerateTarget(bg, GenerateOptions{Name: "deploy-b", PlanKey: "PROJ-PROV", From: "PROJ-SRC", IncludeUndeclared: true})
+	var e *errs.Error
+	require.ErrorAs(t, err, &e)
+	assert.Equal(t, errs.KindUsage, e.Kind)
+}
+
+func TestGenerateTargetFromUnreadablePlanFails(t *testing.T) {
+	s := newService(t, fromPlanBamboo())
+	_, err := s.GenerateTarget(bg, GenerateOptions{Name: "deploy-b", PlanKey: "PROJ-PROV", From: "PROJ-NOPE"})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errs.ErrNotFound)
 }

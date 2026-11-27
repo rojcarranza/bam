@@ -41,7 +41,7 @@ func (f *presetAddFlags) guide(r *runtime, cmd *cobra.Command, name string) (*ap
 		if f.plan, err = f.askPlan(r, cmd.Context(), backend); err != nil {
 			return nil, "", askedCanceled(r, err)
 		}
-		if f.branch == "" && f.from == "" {
+		if f.branch == "" && (f.from == "" || app.IsSourcePlan(f.from)) {
 			if f.branch, err = f.askBranch(r, cmd.Context(), backend); err != nil {
 				return nil, "", askedCanceled(r, err)
 			}

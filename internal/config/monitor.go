@@ -76,20 +76,15 @@ func (c *Config) Monitor() ([]PinGroup, error) {
 	return out, nil
 }
 
-// SplitPin splits a pin into its plan key or preset name and its branch.
+// SplitPin splits a pin into its plan key and its branch. Only a plan key
+// takes a branch after @: any other pin, such as a preset named "qa@eu", is
+// one whole preset name and has no branch.
 func SplitPin(pin string) (plan, branch string) {
 	plan, branch, _ = strings.Cut(pin, "@")
-	return plan, branch
-}
-
-// SplitPin is the package SplitPin, except that only a plan key takes a
-// branch after @: any other pin, such as a preset named "qa@eu", is one whole
-// preset name.
-func (c *Config) SplitPin(pin string) (plan, branch string) {
-	if plan, branch = SplitPin(pin); childPlanKeyRe.MatchString(plan) {
-		return plan, branch
+	if !childPlanKeyRe.MatchString(plan) {
+		return pin, ""
 	}
-	return pin, ""
+	return plan, branch
 }
 
 // checkPin says what is wrong with the shape of pin, or "" when it is a plan
@@ -97,7 +92,7 @@ func (c *Config) SplitPin(pin string) (plan, branch string) {
 // Whether that preset exists depends on the repository, so CheckPin and the
 // board decide that.
 func (c *Config) checkPin(pin string) string {
-	plan, branch := c.SplitPin(pin)
+	plan, branch := SplitPin(pin)
 	switch {
 	case childPlanKeyRe.MatchString(plan):
 		if strings.Contains(pin, "@") && branch == "" {
@@ -116,7 +111,7 @@ func (c *Config) CheckPin(pin string) error {
 	if why := c.checkPin(pin); why != "" {
 		return errs.Usagef("%s", why).WithTry("a pin is a plan key like PROJ-PLAN, PROJ-PLAN@branch, or a preset name")
 	}
-	if plan, _ := c.SplitPin(pin); !childPlanKeyRe.MatchString(plan) {
+	if plan, _ := SplitPin(pin); !childPlanKeyRe.MatchString(plan) {
 		targets, err := c.Targets()
 		if err != nil {
 			return err

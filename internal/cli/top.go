@@ -202,7 +202,7 @@ func (r *runtime) pinNames(ctx context.Context, groups []config.PinGroup) map[st
 	var svc *app.Service
 	for _, g := range groups {
 		for _, pin := range g.Pins {
-			plan, _ := cfg.SplitPin(pin)
+			plan, _ := config.SplitPin(pin)
 			if _, isPreset := cfg.FindPreset(plan); isPreset || !app.IsPlanKey(plan) {
 				continue
 			}

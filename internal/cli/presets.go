@@ -331,7 +331,7 @@ func printSourceSummary(w io.Writer, d config.TargetDraft) {
 	}
 	if len(src.Left) > 0 {
 		fmt.Fprintf(w, "not declared by %s, left out: %s\n", d.Plan, strings.Join(src.Left, ", "))
-		fmt.Fprintf(w, "add one later with bam preset edit %s --var NAME=VALUE\n", d.Name)
+		fmt.Fprintf(w, "add one later with bam preset edit %s --var NAME=VALUE\n", config.ShellWord(d.Name))
 	}
 }
 

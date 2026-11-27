@@ -82,11 +82,6 @@ func SplitPin(pin string) (plan, branch string) {
 	return plan, branch
 }
 
-func (c *Config) hasPreset(name string) bool {
-	_, ok := c.mergedTargets()[name]
-	return ok
-}
-
 // SplitPin is the package SplitPin, except that a preset called exactly pin
 // wins: a preset named "qa@eu" is that preset, not plan "qa" on branch "eu".
 func (c *Config) SplitPin(pin string) (plan, branch string) {
@@ -97,7 +92,9 @@ func (c *Config) SplitPin(pin string) (plan, branch string) {
 }
 
 // checkPin says what is wrong with the shape of pin, or "" when it is a plan
-// key, a plan key with a branch, or a preset name.
+// key, a plan key with a branch, or anything else, which is a preset name.
+// Whether that preset exists depends on the repository, so CheckPin and the
+// board decide that.
 func (c *Config) checkPin(pin string) string {
 	plan, branch := c.SplitPin(pin)
 	switch {
@@ -106,10 +103,10 @@ func (c *Config) checkPin(pin string) string {
 			return pin + " names no branch after @"
 		}
 		return ""
-	case branch == "" && (ValidTargetName(plan) || c.hasPreset(plan)):
+	case ValidPresetName(pin):
 		return ""
 	}
-	return pin + " is not a plan key, a plan with a branch, or a preset"
+	return "a pin is empty"
 }
 
 // CheckPin says why pin cannot be pinned: it is not a plan key, a plan key

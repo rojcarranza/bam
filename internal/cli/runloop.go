@@ -69,7 +69,7 @@ func (f *runFlags) check(r *runtime, cmd *cobra.Command, arg string) error {
 		f.revision = revisionFromBuild
 	}
 	if f.revision == revisionFromBuild && f.from == "" {
-		return errs.Usagef("--revision from needs --from").WithTry("bam run " + arg + " --from last --revision from")
+		return errs.Usagef("--revision from needs --from").WithTry("bam run " + config.ShellWord(arg) + " --from last --revision from")
 	}
 	return nil
 }
@@ -780,7 +780,7 @@ func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (stri
 		return rec.Origin, rec.BuildKey, nil
 	case len(args) == 0:
 		return "", "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a preset, or --last")
-	case isPresetName(cfg, args[0]):
+	case isPreset(cfg, args[0]) || config.ValidTargetName(args[0]):
 		t, ok, err := cfg.Target(args[0])
 		if err != nil {
 			return "", "", err
@@ -895,14 +895,14 @@ func (r *runtime) pickPreset(cmd *cobra.Command) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	r.note("bam run "+name, "")
+	r.note("bam run "+config.ShellWord(name), "")
 	return name, nil
 }
 
-// isPresetName reports whether arg names a preset here, which is read before
-// any Bamboo key; a name nothing defines but shaped like a preset keeps
-// getting the unknown-preset error.
-func isPresetName(cfg *config.Config, arg string) bool {
+// isPreset reports whether arg is a preset here. Asking Target for any other
+// word would validate every preset, so one broken preset would stop commands
+// that name only a Bamboo key.
+func isPreset(cfg *config.Config, arg string) bool {
 	_, ok := cfg.FindPreset(arg)
-	return ok || (config.ValidTargetName(arg) && !app.IsPlanKey(arg) && !app.IsBuildKey(arg))
+	return ok
 }

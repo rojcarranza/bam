@@ -53,6 +53,18 @@ func EnvNameFor(variable string) string {
 // names use ValidPresetName instead.
 func ValidTargetName(name string) bool { return targetNameRe.MatchString(name) }
 
+var shellSafeRe = regexp.MustCompile(`^[A-Za-z0-9_./:@%+,=][A-Za-z0-9_./:@%+,=-]*$`)
+
+// ShellWord writes name so a shell passes it to bam as one argument: bare when
+// that is safe, otherwise in single quotes. Presets may be called anything, so
+// a command bam suggests must not break on "Deploy QA" or "a#b".
+func ShellWord(name string) string {
+	if shellSafeRe.MatchString(name) {
+		return name
+	}
+	return "'" + strings.ReplaceAll(name, "'", `'\''`) + "'"
+}
+
 // ValidPresetName reports whether name can be a preset name: anything that is
 // not empty after trimming its ends. A preset wins over a Bamboo key of the
 // same spelling (see Config.FindPreset), so no shape is needed to tell them

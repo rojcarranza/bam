@@ -101,6 +101,15 @@ func TestAnyPresetNameLoadsInEveryLayerButBlank(t *testing.T) {
 	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
 }
 
+func TestShellWord(t *testing.T) {
+	for name, want := range map[string]string{
+		"deploy-qa": "deploy-qa", "qa.eu": "qa.eu", "Deploy QA": "'Deploy QA'",
+		"a#b": "'a#b'", "-x": "'-x'", "it's": `'it'\''s'`, "Ünï": "'Ünï'",
+	} {
+		assert.Equal(t, want, ShellWord(name), name)
+	}
+}
+
 func TestEnvRef(t *testing.T) {
 	name, ok := EnvRef("${LAB_DB_PASSWORD}")
 	assert.True(t, ok)

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/config"
 	"github.com/rojcarranza/bam/internal/credential"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -499,9 +500,9 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 					msg += " on branch " + ref.Branch
 				}
 				// With a --state filter, the plan may well have builds: offer the unfiltered list.
-				try := "bam run " + arg
+				try := "bam run " + config.ShellWord(arg)
 				if st != "" {
-					try = "bam build list " + arg
+					try = "bam build list " + config.ShellWord(arg)
 				}
 				if branch != "" {
 					try += " --branch " + branch

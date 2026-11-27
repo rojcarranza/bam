@@ -718,7 +718,7 @@ func TestPresetAddFromLeavesBuildGlobalsOutUnlessAsked(t *testing.T) {
 func TestPresetAddAcceptsAnyName(t *testing.T) {
 	h := newHarness(t)
 	path := filepath.Join(h.home, "bam", "presets", "proj.yaml")
-	names := []string{"Deploy QA", "qa.eu", "2nd deploy", "2024", "yes", "Ünï: prod #1", "PROJ-BUILD"}
+	names := []string{"Deploy QA", "qa.eu", "2nd deploy", "2024", "yes", "Ünï: prod #1", "PROJ-BUILD", "null", "NULL"}
 	for _, name := range names {
 		require.Equal(t, 0, h.run("preset", "add", name, "--plan", "PROJ-PROV"), name+": "+h.stderr.String())
 	}
@@ -735,16 +735,39 @@ func TestPresetAddAcceptsAnyName(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "add", "   ", "--plan", "PROJ-PROV"), "a blank name is refused")
 }
 
-// A preset spelt like another preset in a different case is found exactly
-// first, so both stay addressable.
+// Exact spelling is read before another case: both presets stay addressable,
+// and bam run reaches each one's own plan.
 func TestPresetNameExactMatchBeatsOtherCase(t *testing.T) {
 	h := newHarness(t)
 	require.Equal(t, 0, h.run("preset", "add", "qa", "--plan", "PROJ-PROV"), h.stderr.String())
 	require.Equal(t, 0, h.run("preset", "add", "QA", "--plan", "PROJ-BUILD"), h.stderr.String())
-	h.stdout.Reset()
-	require.Equal(t, 0, h.run("preset", "show", "QA"), h.stderr.String())
-	assert.Contains(t, h.stdout.String(), "PROJ-BUILD")
-	h.stdout.Reset()
-	require.Equal(t, 0, h.run("preset", "show", "qa"), h.stderr.String())
-	assert.Contains(t, h.stdout.String(), "PROJ-PROV")
+	for name, plan := range map[string]string{"QA": "PROJ-BUILD", "qa": "PROJ-PROV"} {
+		h.stdout.Reset()
+		require.Equal(t, 0, h.run("run", name, "--var", "cluster_name=x", "--dry-run"), h.stderr.String())
+		assert.Contains(t, h.stdout.String(), plan, name)
+	}
+}
+
+func TestKeyShapedNameNote(t *testing.T) {
+	for name, warns := range map[string]bool{
+		"PROJ-DEPLOY": true, "proj-deploy": false, "2024": true, "#12": true, "PROJ": true,
+		"PROJ-BUILD-12": true, "Deploy QA": false, "qa.eu": false, "deploy-qa": false,
+	} {
+		note := keyShapedNameNote(name)
+		assert.Equal(t, warns, note != "", name)
+		if warns {
+			assert.Contains(t, note, "now runs this preset", name)
+		}
+	}
+}
+
+// A preset that cannot load must not stop commands that name only a Bamboo
+// key: only a word that names a preset asks for the presets to be loaded.
+func TestABrokenPresetDoesNotStopACommandNamingAKey(t *testing.T) {
+	h := newHarness(t)
+	dir := filepath.Join(h.home, "bam")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "presets.yaml"), []byte("presets:\n  broken:\n    plan: not-a-plan\n"), 0o644))
+	require.NotEqual(t, 0, h.run("preset", "list"), "the config really is refused")
+	assert.Equal(t, 0, h.run("logs", "PROJ-BUILD-482", "--failed"), h.stderr.String())
 }

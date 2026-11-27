@@ -38,7 +38,7 @@ func presetWord(args []string) error {
 	if args[0] == "run" {
 		try := "bam run <preset>"
 		if len(args) > 1 {
-			try = "bam run " + args[1]
+			try = "bam run " + config.ShellWord(args[1])
 		}
 		return errs.Usagef("bam preset has no \"run\" command").
 			WithWhy("presets run with bam run").
@@ -47,7 +47,7 @@ func presetWord(args []string) error {
 	if slices.Contains([]string{"update", "modify", "change", "set"}, args[0]) {
 		try := "bam preset edit <name>"
 		if len(args) > 1 {
-			try = "bam preset edit " + args[1]
+			try = "bam preset edit " + config.ShellWord(args[1])
 		}
 		return errs.Usagef("bam preset has no %q command", args[0]).
 			WithWhy("bam preset edit changes a saved preset").
@@ -183,14 +183,14 @@ func originOf(link string) string {
 // check validates the flags on their own, before any network.
 func (f *presetAddFlags) check(r *runtime, name string) error {
 	if f.plan == "" && !app.IsBuildKey(f.from) {
-		try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", name)
+		try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", config.ShellWord(name))
 		switch up := strings.ToUpper(f.from); {
 		case app.IsSourcePlan(f.from):
-			try = fmt.Sprintf("--from %s copies values; name the plan the preset runs: bam preset add %s --plan PROJ-PLAN --from %s", f.from, name, f.from)
+			try = fmt.Sprintf("--from %s copies values; name the plan the preset runs: bam preset add %s --plan PROJ-PLAN --from %s", f.from, config.ShellWord(name), f.from)
 		case app.IsBuildKey(up):
 			try = "keys are uppercase: did you mean --from " + up + "?"
 		case app.IsPlanKey(up):
-			try = fmt.Sprintf("bam preset add %s --plan PROJ-PLAN --from %s", name, up)
+			try = fmt.Sprintf("bam preset add %s --plan PROJ-PLAN --from %s", config.ShellWord(name), up)
 		}
 		return errs.Usagef("--plan is required").WithTry(try)
 	}
@@ -1078,14 +1078,18 @@ func newPresetMigrateCmd(r *runtime) *cobra.Command {
 	return cmd
 }
 
-// keyShapedNameNote warns that a preset name also reads as a Bamboo key. The
-// preset wins everywhere, so the plan it shadows is then reached by its key
-// only through --plan.
+// keyShapedNameNote warns that a preset name also reads as a Bamboo key or a
+// build number. A preset is read first, so after this bam run NAME, bam logs
+// NAME and the like mean the preset, not the key; "" when the name reads as
+// no key. A lowercase name is left alone even when its uppercase form is a
+// key: that shape is every ordinary name (deploy-qa, build), and the shadowing
+// only shows when someone types the key in capitals.
 func keyShapedNameNote(name string) string {
 	name = strings.TrimSpace(name)
-	if app.IsPlanKey(name) || app.IsBuildKey(name) || app.IsProjectKey(name) {
-		return "warning: " + name + " is also a Bamboo key; bam reads the preset first, so the " +
-			"Bamboo key of that spelling can only be reached through --plan or another command's --plan"
+	n := strings.TrimPrefix(name, "#")
+	digits := n != "" && strings.Trim(n, "0123456789") == ""
+	if digits || app.IsPlanKey(name) || app.IsBuildKey(name) || app.IsProjectKey(name) {
+		return "warning: " + name + " is also a Bamboo key or build number; bam run " + config.ShellWord(name) + " now runs this preset"
 	}
 	return ""
 }

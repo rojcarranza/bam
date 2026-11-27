@@ -387,7 +387,6 @@ func (c *Config) PresetsUsingServer(alias string) []string {
 	return slices.Sorted(maps.Keys(set))
 }
 
-// Target returns one merged target.
 // FindPreset returns the preset arg names: the preset called exactly arg, else
 // the only preset whose name differs from arg in case alone. ok is false when
 // none matches or several differ only in case, so a typed name never guesses.
@@ -410,6 +409,7 @@ func (c *Config) FindPreset(arg string) (name string, ok bool) {
 	return "", false
 }
 
+// Target returns one merged target.
 func (c *Config) Target(name string) (ResolvedTarget, bool, error) {
 	all, err := c.Targets()
 	if err != nil {

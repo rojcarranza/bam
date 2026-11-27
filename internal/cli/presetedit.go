@@ -192,7 +192,7 @@ func (f *presetEditFlags) run(r *runtime, cmd *cobra.Command, name string) error
 	} else if !f.given(cmd) {
 		return errs.Usagef("bam preset edit %s has nothing to change", name).
 			WithWhy("without a terminal there is no form, and no flag names a change").
-			WithTry(fmt.Sprintf("bam preset edit %s --var NAME=value, or --unset, --branch, --repository, --required, --option, --timeout, --rename", name))
+			WithTry(fmt.Sprintf("bam preset edit %s --var NAME=value, or --unset, --branch, --repository, --required, --option, --timeout, --rename", config.ShellWord(name)))
 	} else if e, err = f.flagEdit(cmd, t.Repositories); err != nil {
 		return err
 	}

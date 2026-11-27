@@ -63,7 +63,6 @@ func TestMonitorValidation(t *testing.T) {
 		{"monitor:\n  integration: [PROJ-BUILD, PROJ-BUILD]\n", "pins PROJ-BUILD twice"},
 		{"monitor:\n  a: [PROJ-BUILD]\n  b: [PROJ-BUILD]\n", `PROJ-BUILD is pinned in "a" and in "b"`},
 		{"monitor:\n  a: [PROJ-BUILD@]\n", "names no branch"},
-		{"monitor:\n  a: [PROJ-BUILD-45]\n", "is not a plan key"},
 	} {
 		cfg, err := loadProject(t, "version: 1\n"+tc.yaml, "")
 		require.NoError(t, err, tc.yaml)

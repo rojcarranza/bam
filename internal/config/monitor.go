@@ -62,7 +62,7 @@ func (c *Config) Monitor() ([]PinGroup, error) {
 	where := map[string]string{} // pin → group that holds it
 	for _, name := range slices.Sorted(maps.Keys(byName)) {
 		for _, pin := range byName[name] {
-			if why := checkPin(pin); why != "" {
+			if why := c.checkPin(pin); why != "" {
 				return nil, errs.Configf("monitor group %q: %s", name, why).
 					WithTry("a pin is a plan key like PROJ-PLAN, PROJ-PLAN@branch, or a preset name")
 			}
@@ -76,15 +76,22 @@ func (c *Config) Monitor() ([]PinGroup, error) {
 	return out, nil
 }
 
-// SplitPin splits a pin into its plan key or preset name and its branch.
+// SplitPin splits a pin into its plan key and its branch. Only a plan key
+// takes a branch after @: any other pin, such as a preset named "qa@eu", is
+// one whole preset name and has no branch.
 func SplitPin(pin string) (plan, branch string) {
 	plan, branch, _ = strings.Cut(pin, "@")
+	if !childPlanKeyRe.MatchString(plan) {
+		return pin, ""
+	}
 	return plan, branch
 }
 
 // checkPin says what is wrong with the shape of pin, or "" when it is a plan
-// key, a plan key with a branch, or a preset name.
-func checkPin(pin string) string {
+// key, a plan key with a branch, or anything else, which is a preset name.
+// Whether that preset exists depends on the repository, so CheckPin and the
+// board decide that.
+func (c *Config) checkPin(pin string) string {
 	plan, branch := SplitPin(pin)
 	switch {
 	case childPlanKeyRe.MatchString(plan):
@@ -92,16 +99,16 @@ func checkPin(pin string) string {
 			return pin + " names no branch after @"
 		}
 		return ""
-	case branch == "" && ValidTargetName(plan):
+	case ValidPresetName(pin):
 		return ""
 	}
-	return pin + " is not a plan key, a plan with a branch, or a preset"
+	return "a pin is empty"
 }
 
 // CheckPin says why pin cannot be pinned: it is not a plan key, a plan key
 // with a branch, or an existing preset. It returns nil for a good pin.
 func (c *Config) CheckPin(pin string) error {
-	if why := checkPin(pin); why != "" {
+	if why := c.checkPin(pin); why != "" {
 		return errs.Usagef("%s", why).WithTry("a pin is a plan key like PROJ-PLAN, PROJ-PLAN@branch, or a preset name")
 	}
 	if plan, _ := SplitPin(pin); !childPlanKeyRe.MatchString(plan) {

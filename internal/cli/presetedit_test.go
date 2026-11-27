@@ -919,3 +919,12 @@ func TestPresetEditEmptyValueIsNotARemoval(t *testing.T) {
 	require.Len(t, unset.Changes, 1)
 	assert.True(t, unset.Changes[0].Removed)
 }
+
+// Source: the captain asked for no restriction in preset names; a rename takes
+// any name too.
+func TestPresetEditRenameTakesAnyName(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("preset", "edit", "provision-lab", "--rename", "Lab: EU #2"), h.stderr.String())
+	assert.Equal(t, 0, h.run("preset", "show", "Lab: EU #2"), h.stderr.String())
+	assert.Equal(t, 2, h.run("preset", "edit", "Lab: EU #2", "--rename", "  "))
+}

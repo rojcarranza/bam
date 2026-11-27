@@ -117,7 +117,7 @@ A set with no `timeout` can be written as just its list of stages: `release: [[p
 
 Rules, checked when the file loads:
 
-- set names follow the target name rules;
+- set names are lowercase letters, digits, `-` and `_`, starting with a letter (preset names can be anything);
 - every stage lists at least one preset, and every preset exists;
 - a preset appears at most once per stage (it may appear again in a later stage);
 - a set runs on one server, so presets with an explicit `server` must agree;
@@ -203,7 +203,7 @@ monitor:
   nightly: [provision-lab]
 ```
 
-- A group name is lowercase letters, digits, `-` and `_`. A pin is a plan key, a plan key with a branch after `@`, or the name of a preset.
+- A group name is lowercase letters, digits, `-` and `_`. A pin is a plan key, a plan key with a branch after `@`, or the name of a preset, which can be anything (`Deploy QA`). A pin that names no preset in this repository is reported on its own row, not as a config error.
 - A pin that is a plan key without a branch also lists the plan's branches that built in the last 7 days (up to 10) under it on the board.
 - The project file and the machine file may each set it; groups with the same name are joined, project first. A pin may appear once, in one group.
 - `bam pin add GROUP PIN...`, `bam pin rm PIN` and `bam pin list` edit the machine file and keep its comments. A pin in `.bam.yaml` is edited by hand.

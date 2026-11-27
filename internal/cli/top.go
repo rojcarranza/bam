@@ -195,11 +195,15 @@ func (r *runtime) pinNames(ctx context.Context, groups []config.PinGroup) map[st
 	ctx, cancel := context.WithTimeout(ctx, shortTimeout)
 	defer cancel()
 	names := map[string]string{}
+	cfg, err := r.config()
+	if err != nil {
+		return nil
+	}
 	var svc *app.Service
 	for _, g := range groups {
 		for _, pin := range g.Pins {
 			plan, _ := config.SplitPin(pin)
-			if !app.IsPlanKey(plan) {
+			if _, isPreset := cfg.FindPreset(plan); isPreset || !app.IsPlanKey(plan) {
 				continue
 			}
 			if svc == nil {

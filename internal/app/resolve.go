@@ -101,10 +101,12 @@ func (s *Service) ResolvePlanToRun(ctx context.Context, arg, branch string) (Pla
 // resolves several things and must see one version of the files.
 func (s *Service) resolvePlanIn(ctx context.Context, cfg *config.Config, arg, branch string) (PlanRef, error) {
 	var ref PlanRef
-	arg = PresetName(cfg, arg)
+	name, isPreset := cfg.FindPreset(arg)
 	switch {
-	case config.ValidTargetName(arg):
-		t, ok, err := cfg.Target(arg)
+	case isPreset || config.ValidTargetName(arg):
+		// A lowercase word no preset has is an unknown preset: it cannot be a
+		// Bamboo key, which is uppercase.
+		t, ok, err := cfg.Target(name)
 		if err != nil {
 			return PlanRef{}, err
 		}
@@ -121,11 +123,8 @@ func (s *Service) resolvePlanIn(ctx context.Context, cfg *config.Config, arg, br
 		return PlanRef{}, errs.Usagef("%q is a build key, not a plan key", arg).
 			WithTry("its plan, " + arg[:strings.LastIndex(arg, "-")])
 	case projectRe.MatchString(arg):
-		try := "bam plan list " + arg + " to see its plans"
-		if p := lowerPreset(cfg, arg); p != "" {
-			try += ", or the preset " + p
-		}
-		return PlanRef{}, errs.Usagef("%q is a project key, not a plan key", arg).WithTry(try)
+		return PlanRef{}, errs.Usagef("%q is a project key, not a plan key", arg).
+			WithTry("bam plan list " + arg + " to see its plans")
 	default:
 		try := "bam preset list, or a plan key such as PROJ-PLAN"
 		if k := tidyBuildKey(arg); IsPlanKey(k) {
@@ -149,30 +148,16 @@ func (s *Service) resolvePlanIn(ctx context.Context, cfg *config.Config, arg, br
 	return ref, nil
 }
 
-// PresetName is arg in lowercase when that names a preset, so "Deploy-QA"
-// names deploy-qa; a plan, build or project key and anything else is
-// returned unchanged.
+// PresetName is the preset arg names, or arg unchanged when it names none.
+// The preset comes first, ahead of any reading of arg as a Bamboo key: the
+// preset called exactly arg, else the only preset spelt like it in another
+// case, so "Deploy-QA" names deploy-qa. A preset spelt like a plan key
+// therefore shadows that plan.
 func PresetName(cfg *config.Config, arg string) string {
-	if IsPlanKey(arg) || IsBuildKey(arg) || projectRe.MatchString(arg) {
-		return arg
-	}
-	if p := lowerPreset(cfg, arg); p != "" {
+	if p, ok := cfg.FindPreset(arg); ok {
 		return p
 	}
 	return arg
-}
-
-// lowerPreset returns arg in lowercase when that names a preset, for a
-// preset typed in the wrong case; otherwise "".
-func lowerPreset(cfg *config.Config, arg string) string {
-	low := strings.ToLower(arg)
-	if low == arg || !config.ValidTargetName(low) {
-		return ""
-	}
-	if _, ok, _ := cfg.Target(low); ok {
-		return low
-	}
-	return ""
 }
 
 // UnknownTarget is the usage error for a preset name that does not apply
@@ -215,10 +200,10 @@ func UnknownTarget(cfg *config.Config, name string) error {
 		if isKey {
 			// with no presets, a lowercase key is a key typed in lowercase
 			return e.WithWhy("no presets are configured").
-				WithTry(keys + " or, to make a preset by that name: bam preset add " + name + " --plan KEY")
+				WithTry(keys + " or, to make a preset by that name: bam preset add " + config.ShellWord(name) + " --plan KEY")
 		}
 		return e.WithWhy("no presets are configured").
-			WithTry("bam preset add " + name + " --plan KEY to create it; " + keys)
+			WithTry("bam preset add " + config.ShellWord(name) + " --plan KEY to create it; " + keys)
 	}
 	if c := errs.Nearest(name, names); c != "" {
 		e = e.WithTry("did you mean " + c + "? bam preset list shows them all")
@@ -306,12 +291,18 @@ type BuildArg struct {
 // ResolveBuild returns a build key: the key itself, the latest build of a
 // plan or target, or the last build bam triggered from this repository.
 func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) {
-	a.Arg = PresetName(s.Config(), a.Arg)
+	name, isPreset := s.Config().FindPreset(a.Arg)
+	if isPreset {
+		a.Arg = name
+	}
 	bare := s.bareNumberBuild(a.Arg)
 	switch {
 	case a.Last:
 		rec, err := s.LastBuild()
 		return rec.BuildKey, err
+	case isPreset:
+		// A preset is read before any key, so one spelt like a build key or
+		// a bare number still names its plan.
 	case IsBuildKey(a.Arg):
 		return CanonicalBuildKey(a.Arg)
 	case bare != "":
@@ -343,7 +334,7 @@ func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) 
 		return "", err
 	}
 	if len(builds) == 0 {
-		return "", errs.Bamboof("no builds of %s yet", ref.PlanKey).WithTry("bam run " + a.Arg)
+		return "", errs.Bamboof("no builds of %s yet", ref.PlanKey).WithTry("bam run " + config.ShellWord(a.Arg))
 	}
 	return builds[0].Key, nil
 }

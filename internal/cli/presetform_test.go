@@ -315,3 +315,12 @@ func TestPresetAddFormLabelsValuesCopiedFromAnotherPlan(t *testing.T) {
 	assert.Equal(t, "PROJ-SRC", row.From)
 	assert.Equal(t, "k8s", row.Plan)
 }
+
+// A suggested command must paste back as typed: a free preset name with a
+// space is one argument only when quoted.
+func TestPresetAddFromQuotesAFreeNameInTheEditHint(t *testing.T) {
+	h := newHarness(t)
+	srcPlan(h)
+	require.Equal(t, 0, h.run("preset", "add", "Deploy QA", "--plan", "PROJ-PROV", "--from", "PROJ-SRC"), h.stderr.String())
+	assert.Contains(t, h.stderr.String(), "add one later with bam preset edit 'Deploy QA' --var NAME=VALUE")
+}

@@ -209,8 +209,8 @@ func TestPresetAddChecksThePlanKeyBeforeConnecting(t *testing.T) {
 	assert.Equal(t, "error: \"PROJ-BUILD-482\" is not a plan key\n  try: its plan, PROJ-BUILD\n", h.stderr.String())
 	assert.Equal(t, 2, h.run("preset", "add", "x", "--plan", "PROJ"))
 	assert.Equal(t, "error: \"PROJ\" is not a plan key\n  try: bam plan list PROJ to see its plans\n", h.stderr.String())
-	assert.Equal(t, 2, h.run("preset", "add", "Deploy", "--plan", "PROJ-BUILD"))
-	assert.Contains(t, h.stderr.String(), "did you mean deploy?")
+	assert.Equal(t, 2, h.run("preset", "add", " ", "--plan", "PROJ-BUILD"))
+	assert.Contains(t, h.stderr.String(), "a preset needs a name")
 	assert.Empty(t, h.connectOpts, "bad input is reported before any server is picked")
 }
 
@@ -275,13 +275,10 @@ func TestInitChecksPlansBeforeConnecting(t *testing.T) {
 	base := []string{"init", "--server", "work", "--url", "https://bamboo.example.com", "--project", "PROJ", "--force"}
 	assert.Equal(t, 2, h.run(append(base, "--plan", "proj-build")...))
 	assert.Equal(t, "error: \"proj-build\" is not a plan key\n  try: keys are uppercase: did you mean PROJ-BUILD?\n", h.stderr.String())
-	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD=Lab")...))
-	assert.Contains(t, h.stderr.String(), "invalid preset name \"Lab\"", "an explicit name is not derived")
-	assert.Contains(t, h.stderr.String(), "did you mean lab?")
-	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD=web deploy")...))
-	assert.Contains(t, h.stderr.String(), "try: did you mean web-deploy?")
+	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-BUILD= ")...))
+	assert.Contains(t, h.stderr.String(), "a preset needs a name", "an explicit name is not derived")
 	assert.Equal(t, 2, h.run(append(base, "--plan", "PROJ-2X")...))
-	assert.Equal(t, "error: cannot derive a preset name from PROJ-2X\n  try: --plan PROJ-2X=NAME\n", h.stderr.String())
+	assert.Equal(t, "error: \"PROJ-2X\" is not a plan key\n  try: bam plan list\n", h.stderr.String())
 	assert.Empty(t, h.connectOpts, "bad --plan input is reported before connecting")
 }
 
@@ -602,7 +599,6 @@ func TestPresetAddMistypedKeysAndNamesGetHints(t *testing.T) {
 		"x --plan proj-prov":     "try: keys are uppercase: did you mean PROJ-PROV?",
 		"x --from proj-prov12-8": "try: keys are uppercase: did you mean --from PROJ-PROV12-8?",
 		"x --from PROJ-PROV":     "try: --from PROJ-PROV copies values; name the plan the preset runs: bam preset add x --plan PROJ-PLAN --from PROJ-PROV",
-		"Prov --plan PROJ-PROV":  "try: did you mean prov?",
 	} {
 		h.stderr.Reset()
 		assert.Equal(t, 2, h.run(append([]string{"preset", "add"}, strings.Fields(args)...)...), args)
@@ -714,4 +710,64 @@ func TestPresetAddFromLeavesBuildGlobalsOutUnlessAsked(t *testing.T) {
 	h.fake.BuildVars["PROJ-PROV12-8"]["global_flag"] = "x"
 	assert.Equal(t, 0, h.run("preset", "add", "x", "--from", "PROJ-PROV12-8", "--include-globals", "--print"), h.stderr.String())
 	assert.Contains(t, h.stdout.String(), `global_flag: "x"  # not declared by the plan`)
+}
+
+// Source: the captain asked to use any name in bam preset add, no restriction.
+// Each name is written to the file, listed, shown and run by exactly that
+// spelling, and read back as the same name.
+func TestPresetAddAcceptsAnyName(t *testing.T) {
+	h := newHarness(t)
+	path := filepath.Join(h.home, "bam", "presets", "proj.yaml")
+	names := []string{"Deploy QA", "qa.eu", "2nd deploy", "2024", "yes", "Ünï: prod #1", "PROJ-BUILD", "null", "NULL"}
+	for _, name := range names {
+		require.Equal(t, 0, h.run("preset", "add", name, "--plan", "PROJ-PROV"), name+": "+h.stderr.String())
+	}
+	for _, name := range names {
+		h.stdout.Reset()
+		require.Equal(t, 0, h.run("preset", "show", name), name+": "+h.stderr.String())
+		assert.Contains(t, h.stdout.String(), path, name)
+		assert.Equal(t, 0, h.run("run", name, "--var", "cluster_name=x", "--dry-run"), name+": "+h.stderr.String())
+	}
+	h.stderr.Reset()
+	require.Equal(t, 0, h.run("preset", "add", "PROJ-OTHER", "--plan", "PROJ-PROV"))
+	assert.Contains(t, h.stderr.String(), "PROJ-OTHER is also a Bamboo key", "a key-shaped name warns")
+	assert.Equal(t, 2, h.run("preset", "add", "Deploy QA", "--plan", "PROJ-PROV"), "a taken name is still refused")
+	assert.Equal(t, 2, h.run("preset", "add", "   ", "--plan", "PROJ-PROV"), "a blank name is refused")
+}
+
+// Exact spelling is read before another case: both presets stay addressable,
+// and bam run reaches each one's own plan.
+func TestPresetNameExactMatchBeatsOtherCase(t *testing.T) {
+	h := newHarness(t)
+	require.Equal(t, 0, h.run("preset", "add", "qa", "--plan", "PROJ-PROV"), h.stderr.String())
+	require.Equal(t, 0, h.run("preset", "add", "QA", "--plan", "PROJ-BUILD"), h.stderr.String())
+	for name, plan := range map[string]string{"QA": "PROJ-BUILD", "qa": "PROJ-PROV"} {
+		h.stdout.Reset()
+		require.Equal(t, 0, h.run("run", name, "--var", "cluster_name=x", "--dry-run"), h.stderr.String())
+		assert.Contains(t, h.stdout.String(), plan, name)
+	}
+}
+
+func TestKeyShapedNameNote(t *testing.T) {
+	for name, warns := range map[string]bool{
+		"PROJ-DEPLOY": true, "proj-deploy": false, "2024": true, "#12": true, "PROJ": true,
+		"PROJ-BUILD-12": true, "Deploy QA": false, "qa.eu": false, "deploy-qa": false,
+	} {
+		note := keyShapedNameNote(name)
+		assert.Equal(t, warns, note != "", name)
+		if warns {
+			assert.Contains(t, note, "now runs this preset", name)
+		}
+	}
+}
+
+// A preset that cannot load must not stop commands that name only a Bamboo
+// key: only a word that names a preset asks for the presets to be loaded.
+func TestABrokenPresetDoesNotStopACommandNamingAKey(t *testing.T) {
+	h := newHarness(t)
+	dir := filepath.Join(h.home, "bam")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "presets.yaml"), []byte("presets:\n  broken:\n    plan: not-a-plan\n"), 0o644))
+	require.NotEqual(t, 0, h.run("preset", "list"), "the config really is refused")
+	assert.Equal(t, 0, h.run("logs", "PROJ-BUILD-482", "--failed"), h.stderr.String())
 }

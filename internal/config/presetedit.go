@@ -520,8 +520,8 @@ func checkEdited(target *yaml.Node, below []TargetLayer, name, path string) erro
 }
 
 func renameKey(parent *yaml.Node, from, to, path string, ch []FieldChange) ([]FieldChange, error) {
-	if !ValidTargetName(to) {
-		return ch, errs.Usagef("%q is not a valid preset name", to).WithTry("lowercase letters, digits and - or _")
+	if !ValidPresetName(to) {
+		return ch, errs.Usagef("the new preset name is empty").WithTry("give it a name")
 	}
 	if mappingValue(parent, to) != nil {
 		return ch, errs.Usagef("preset %q already exists in %s", to, path)

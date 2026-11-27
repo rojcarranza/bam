@@ -189,6 +189,19 @@ func TestTopShowsAPresetUnknownHereOnItsPinAlone(t *testing.T) {
 	assert.Contains(t, h.stdout.String(), "integration  deploy-qa")
 }
 
+// A pin may name a preset with any spelling, here or in another repository:
+// the config loads and the board reports the unknown pin on its own row.
+func TestAFreePresetNamePinnedHereOrElsewhereIsNotAConfigError(t *testing.T) {
+	h := topHarness(t)
+	require.NoError(t, os.MkdirAll(strings.TrimSuffix(h.env.Paths.MachineConfig, "/config.yaml"), 0o755))
+	require.NoError(t, os.WriteFile(h.env.Paths.MachineConfig,
+		[]byte("version: 1\nmonitor:\n  integration: [PROJ-BUILD, Deploy QA, qa@eu]\n"), 0o644))
+	require.Equal(t, 0, h.run("top"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "Deploy QA")
+	require.Equal(t, 0, h.run("pin", "list"), h.stderr.String())
+	assert.Contains(t, h.stdout.String(), "integration  qa@eu")
+}
+
 func TestPinListWithoutPins(t *testing.T) {
 	h := topHarness(t)
 	require.Equal(t, 0, h.run("pin", "list"))

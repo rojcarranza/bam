@@ -91,8 +91,8 @@ func (f PresetForm) Validate() error {
 	for _, fl := range f.Fields {
 		v := strings.TrimSpace(fl.Value)
 		switch {
-		case fl.Key == "name" && !config.ValidTargetName(v):
-			return fmt.Errorf("%q is not a valid preset name: lowercase letters, digits, - and _", v)
+		case fl.Key == "name" && !config.ValidPresetName(v):
+			return fmt.Errorf("a preset needs a name")
 		case fl.Key == "name" && v != strings.TrimSpace(fl.Orig) && slices.Contains(f.TakenNames, v):
 			return fmt.Errorf("preset %q already exists", v)
 		case fl.Key == "name" && v != strings.TrimSpace(fl.Orig) && f.TakenElsewhere[v] != "":

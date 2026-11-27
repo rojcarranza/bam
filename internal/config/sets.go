@@ -129,7 +129,7 @@ func unknownPreset(e *errs.Error, name string, targets map[string]ResolvedTarget
 		return e.WithTry(fmt.Sprintf("a set lists presets, not plans; bam preset add %s --plan %s creates one", preset, name))
 	}
 	if len(targets) == 0 {
-		return e.WithTry("bam preset add " + name + " --plan PROJ-PLAN creates it")
+		return e.WithTry("bam preset add " + ShellWord(name) + " --plan PROJ-PLAN creates it")
 	}
 	names := slices.Sorted(maps.Keys(targets))
 	if near := errs.Nearest(name, names); near != "" {

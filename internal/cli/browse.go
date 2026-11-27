@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/rojcarranza/bam/internal/app"
+	"github.com/rojcarranza/bam/internal/config"
 	"github.com/rojcarranza/bam/internal/credential"
 	"github.com/rojcarranza/bam/internal/errs"
 	"github.com/rojcarranza/bam/internal/provider"
@@ -412,7 +413,7 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 			// Checked before any config or network.
 			if last < 1 || last > 100 {
 				return errs.Usagef("--last takes 1 to 100, not %d", last).
-					WithTry(fmt.Sprintf("bam plan stats %s -n %d", args[0], min(max(last, 1), 100)))
+					WithTry(fmt.Sprintf("bam plan stats %s -n %d", config.ShellWord(args[0]), min(max(last, 1), 100)))
 			}
 			ctx := cmd.Context()
 			svc, arg, err := r.resolvePlanArg(ctx, args[0])
@@ -499,9 +500,9 @@ func newBuildListCmd(r *runtime) *cobra.Command {
 					msg += " on branch " + ref.Branch
 				}
 				// With a --state filter, the plan may well have builds: offer the unfiltered list.
-				try := "bam run " + arg
+				try := "bam run " + config.ShellWord(arg)
 				if st != "" {
-					try = "bam build list " + arg
+					try = "bam build list " + config.ShellWord(arg)
 				}
 				if branch != "" {
 					try += " --branch " + branch

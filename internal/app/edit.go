@@ -117,7 +117,7 @@ func EditBuffer(ref PlanRef, opened VarSet, getenv func(string) string, server s
 	var b strings.Builder
 	head := []string{"bam run " + ref.MasterKey}
 	if ref.Target != nil {
-		head = []string{"bam run " + ref.Target.Name, ref.MasterKey}
+		head = []string{"bam run " + config.ShellWord(ref.Target.Name), ref.MasterKey}
 	}
 	if ref.Branch != "" {
 		head = append(head, "branch "+ref.Branch)

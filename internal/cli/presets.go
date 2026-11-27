@@ -38,7 +38,7 @@ func presetWord(args []string) error {
 	if args[0] == "run" {
 		try := "bam run <preset>"
 		if len(args) > 1 {
-			try = "bam run " + args[1]
+			try = "bam run " + config.ShellWord(args[1])
 		}
 		return errs.Usagef("bam preset has no \"run\" command").
 			WithWhy("presets run with bam run").
@@ -47,7 +47,7 @@ func presetWord(args []string) error {
 	if slices.Contains([]string{"update", "modify", "change", "set"}, args[0]) {
 		try := "bam preset edit <name>"
 		if len(args) > 1 {
-			try = "bam preset edit " + args[1]
+			try = "bam preset edit " + config.ShellWord(args[1])
 		}
 		return errs.Usagef("bam preset has no %q command", args[0]).
 			WithWhy("bam preset edit changes a saved preset").
@@ -183,14 +183,14 @@ func originOf(link string) string {
 // check validates the flags on their own, before any network.
 func (f *presetAddFlags) check(r *runtime, name string) error {
 	if f.plan == "" && !app.IsBuildKey(f.from) {
-		try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", name)
+		try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", config.ShellWord(name))
 		switch up := strings.ToUpper(f.from); {
 		case app.IsSourcePlan(f.from):
-			try = fmt.Sprintf("--from %s copies values; name the plan the preset runs: bam preset add %s --plan PROJ-PLAN --from %s", f.from, name, f.from)
+			try = fmt.Sprintf("--from %s copies values; name the plan the preset runs: bam preset add %s --plan PROJ-PLAN --from %s", f.from, config.ShellWord(name), f.from)
 		case app.IsBuildKey(up):
 			try = "keys are uppercase: did you mean --from " + up + "?"
 		case app.IsPlanKey(up):
-			try = fmt.Sprintf("bam preset add %s --plan PROJ-PLAN --from %s", name, up)
+			try = fmt.Sprintf("bam preset add %s --plan PROJ-PLAN --from %s", config.ShellWord(name), up)
 		}
 		return errs.Usagef("--plan is required").WithTry(try)
 	}
@@ -300,6 +300,9 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 		return err
 	}
 	fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
+	if n := keyShapedNameNote(d.Name); n != "" {
+		fmt.Fprintln(r.env.Stderr, n)
+	}
 	if d.Note != "" {
 		fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
 	}
@@ -328,7 +331,7 @@ func printSourceSummary(w io.Writer, d config.TargetDraft) {
 	}
 	if len(src.Left) > 0 {
 		fmt.Fprintf(w, "not declared by %s, left out: %s\n", d.Plan, strings.Join(src.Left, ", "))
-		fmt.Fprintf(w, "add one later with bam preset edit %s --var NAME=VALUE\n", d.Name)
+		fmt.Fprintf(w, "add one later with bam preset edit %s --var NAME=VALUE\n", config.ShellWord(d.Name))
 	}
 }
 
@@ -869,7 +872,7 @@ func (f *initFlags) planOptions() ([]app.GenerateOptions, error) {
 			o.Name = defaultTargetName(key)
 		}
 		if err := app.CheckGenerate(o); err != nil {
-			if name == "" && !config.ValidTargetName(o.Name) {
+			if name == "" && !config.ValidPresetName(o.Name) {
 				return nil, errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
 			}
 			return nil, err
@@ -1073,4 +1076,20 @@ func newPresetMigrateCmd(r *runtime) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would move and write nothing")
 	return cmd
+}
+
+// keyShapedNameNote warns that a preset name also reads as a Bamboo key or a
+// build number. A preset is read first, so after this bam run NAME, bam logs
+// NAME and the like mean the preset, not the key; "" when the name reads as
+// no key. A lowercase name is left alone even when its uppercase form is a
+// key: that shape is every ordinary name (deploy-qa, build), and the shadowing
+// only shows when someone types the key in capitals.
+func keyShapedNameNote(name string) string {
+	name = strings.TrimSpace(name)
+	n := strings.TrimPrefix(name, "#")
+	digits := n != "" && strings.Trim(n, "0123456789") == ""
+	if digits || app.IsPlanKey(name) || app.IsBuildKey(name) || app.IsProjectKey(name) {
+		return "warning: " + name + " is also a Bamboo key or build number; bam run " + config.ShellWord(name) + " now runs this preset"
+	}
+	return ""
 }

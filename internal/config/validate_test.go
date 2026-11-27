@@ -86,14 +86,28 @@ func TestLiteralSecretInMachineFileIsAllowed(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestInvalidTargetNamesRejectedInEveryLayer(t *testing.T) {
-	_, err := loadProject(t, "version: 1\ntargets:\n  Provision:\n    plan: PROJ-PROV\n", "")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `"Provision"`)
+// Source: the captain asked for no restriction on preset names (BAM-132).
+func TestAnyPresetNameLoadsInEveryLayerButBlank(t *testing.T) {
+	cfg, err := loadProject(t, "version: 1\ntargets:\n  Deploy QA:\n    plan: PROJ-PROV\n  qa.eu:\n    plan: PROJ-PROV\n  \"2024\":\n    plan: PROJ-PROV\n", "version: 1\nrepos:\n  /x:\n    targets:\n      BAD:\n        plan: PROJ-PROV\n")
+	require.NoError(t, err)
+	all, err := cfg.Targets()
+	require.NoError(t, err)
+	for _, n := range []string{"Deploy QA", "qa.eu", "2024"} {
+		assert.Contains(t, all, n)
+	}
 
-	_, err = loadProject(t, "", "version: 1\nrepos:\n  /x:\n    targets:\n      BAD:\n        plan: PROJ-PROV\n")
+	_, err = loadProject(t, "version: 1\ntargets:\n  \" \":\n    plan: PROJ-PROV\n", "")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), `"BAD"`)
+	assert.Equal(t, errs.KindConfig, errs.KindOf(err))
+}
+
+func TestShellWord(t *testing.T) {
+	for name, want := range map[string]string{
+		"deploy-qa": "deploy-qa", "qa.eu": "qa.eu", "Deploy QA": "'Deploy QA'",
+		"a#b": "'a#b'", "-x": "'-x'", "it's": `'it'\''s'`, "Ünï": "'Ünï'",
+	} {
+		assert.Equal(t, want, ShellWord(name), name)
+	}
 }
 
 func TestEnvRef(t *testing.T) {

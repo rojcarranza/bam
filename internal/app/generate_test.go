@@ -51,7 +51,7 @@ func TestGenerateTargetWithNothingReadable(t *testing.T) {
 
 func TestGenerateTargetRejectsBadInput(t *testing.T) {
 	s := newService(t, fakeBamboo())
-	_, err := s.GenerateTarget(bg, GenerateOptions{Name: "Prov", PlanKey: "PROJ-PROV"})
+	_, err := s.GenerateTarget(bg, GenerateOptions{Name: "  ", PlanKey: "PROJ-PROV"})
 	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
 	_, err = s.GenerateTarget(bg, GenerateOptions{Name: "prov", PlanKey: "PROJ-NOPE"})
 	assert.Equal(t, errs.KindBamboo, errs.KindOf(err))

@@ -63,7 +63,6 @@ func TestMonitorValidation(t *testing.T) {
 		{"monitor:\n  integration: [PROJ-BUILD, PROJ-BUILD]\n", "pins PROJ-BUILD twice"},
 		{"monitor:\n  a: [PROJ-BUILD]\n  b: [PROJ-BUILD]\n", `PROJ-BUILD is pinned in "a" and in "b"`},
 		{"monitor:\n  a: [PROJ-BUILD@]\n", "names no branch"},
-		{"monitor:\n  a: [PROJ-BUILD-45]\n", "is not a plan key"},
 	} {
 		cfg, err := loadProject(t, "version: 1\n"+tc.yaml, "")
 		require.NoError(t, err, tc.yaml)
@@ -169,4 +168,22 @@ func TestAddPinsWritesSeveralPinsInOneWriteKeepingComments(t *testing.T) {
 	assert.Contains(t, text, "# main build")
 	assert.Equal(t, 1, strings.Count(text, "PROJ-BUILD"))
 	assert.Less(t, strings.Index(text, "PROJ-PROV"), strings.Index(text, "OPS-DEPLOY"))
+}
+
+// A pin shaped like preset@branch where the left part is no plan key is one
+// whole preset name, not a preset on a branch.
+func TestMonitorPinWithAtAfterANonKeyIsOneWholePresetName(t *testing.T) {
+	cfg, err := loadProject(t, "version: 1\n", "version: 1\ntargets:\n  qa:\n    plan: PROJ-PROV\nmonitor:\n  release: [qa@eu]\n")
+	require.NoError(t, err)
+	_, err = cfg.Monitor()
+	require.NoError(t, err)
+	plan, branch := SplitPin("qa@eu")
+	assert.Equal(t, "qa@eu", plan)
+	assert.Empty(t, branch)
+	err = cfg.CheckPin("qa@eu")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "qa@eu is not a preset")
+	plan, branch = SplitPin("PROJ-PROV@eu")
+	assert.Equal(t, "PROJ-PROV", plan)
+	assert.Equal(t, "eu", branch)
 }

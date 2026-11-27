@@ -376,8 +376,9 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 		v = s.readPinBuilds(ctx, v, false, prev)
 		return s.followBranches(ctx, v, prev)
 	}
-	plan, branch := config.SplitPin(pin)
 	cfg := s.Config()
+	plan, branch := config.SplitPin(pin)
+	_, isPreset := cfg.FindPreset(plan)
 	if t, ok, _ := cfg.Target(PresetName(cfg, plan)); ok && t.Server != "" && !strings.EqualFold(t.Server, s.Server.Alias) {
 		v.Err = errs.Usagef("preset %s is on server %s; bam top shows one server, %s", t.Name, t.Server, s.Server.Alias)
 		return v
@@ -388,10 +389,12 @@ func (s *Service) readPin(ctx context.Context, pin string, prev *PinView) PinVie
 		return v
 	}
 	v.PlanKey, v.Branch = ref.PlanKey, ref.Branch
-	if IsPlanKey(plan) {
+	// A preset spelt like a plan key is the preset: it names its own plan.
+	isPlan := IsPlanKey(plan) && !isPreset
+	if isPlan {
 		v.Name, _ = s.PlanName(ctx, ref.MasterKey)
 	}
-	v.follow = IsPlanKey(plan) && ref.Branch == ""
+	v.follow = isPlan && ref.Branch == ""
 	v = s.readPinBuilds(ctx, v, true, nil)
 	return s.followBranches(ctx, v, nil)
 }

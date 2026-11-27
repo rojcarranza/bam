@@ -62,7 +62,7 @@ func (c *Config) Monitor() ([]PinGroup, error) {
 	where := map[string]string{} // pin → group that holds it
 	for _, name := range slices.Sorted(maps.Keys(byName)) {
 		for _, pin := range byName[name] {
-			if why := checkPin(pin); why != "" {
+			if why := c.checkPin(pin); why != "" {
 				return nil, errs.Configf("monitor group %q: %s", name, why).
 					WithTry("a pin is a plan key like PROJ-PLAN, PROJ-PLAN@branch, or a preset name")
 			}
@@ -82,17 +82,31 @@ func SplitPin(pin string) (plan, branch string) {
 	return plan, branch
 }
 
+func (c *Config) hasPreset(name string) bool {
+	_, ok := c.mergedTargets()[name]
+	return ok
+}
+
+// SplitPin is the package SplitPin, except that a preset called exactly pin
+// wins: a preset named "qa@eu" is that preset, not plan "qa" on branch "eu".
+func (c *Config) SplitPin(pin string) (plan, branch string) {
+	if _, ok := c.mergedTargets()[pin]; ok {
+		return pin, ""
+	}
+	return SplitPin(pin)
+}
+
 // checkPin says what is wrong with the shape of pin, or "" when it is a plan
 // key, a plan key with a branch, or a preset name.
-func checkPin(pin string) string {
-	plan, branch := SplitPin(pin)
+func (c *Config) checkPin(pin string) string {
+	plan, branch := c.SplitPin(pin)
 	switch {
 	case childPlanKeyRe.MatchString(plan):
 		if strings.Contains(pin, "@") && branch == "" {
 			return pin + " names no branch after @"
 		}
 		return ""
-	case branch == "" && ValidTargetName(plan):
+	case branch == "" && (ValidTargetName(plan) || c.hasPreset(plan)):
 		return ""
 	}
 	return pin + " is not a plan key, a plan with a branch, or a preset"
@@ -101,10 +115,10 @@ func checkPin(pin string) string {
 // CheckPin says why pin cannot be pinned: it is not a plan key, a plan key
 // with a branch, or an existing preset. It returns nil for a good pin.
 func (c *Config) CheckPin(pin string) error {
-	if why := checkPin(pin); why != "" {
+	if why := c.checkPin(pin); why != "" {
 		return errs.Usagef("%s", why).WithTry("a pin is a plan key like PROJ-PLAN, PROJ-PLAN@branch, or a preset name")
 	}
-	if plan, _ := SplitPin(pin); !childPlanKeyRe.MatchString(plan) {
+	if plan, _ := c.SplitPin(pin); !childPlanKeyRe.MatchString(plan) {
 		targets, err := c.Targets()
 		if err != nil {
 			return err

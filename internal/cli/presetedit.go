@@ -409,6 +409,9 @@ func (f *presetEditFlags) print(r *runtime, t config.ResolvedTarget, file, renam
 		for _, l := range t.Layers[:len(t.Layers)-1] {
 			fmt.Fprintf(w, "  name: %q -> %q (in %s)\n", t.Name, rename, l.Path)
 		}
+		if n := keyShapedNameNote(rename); n != "" {
+			fmt.Fprintln(r.env.Stderr, n)
+		}
 	}
 	if f.dryRun {
 		fmt.Fprintln(w, "dry run: nothing written")

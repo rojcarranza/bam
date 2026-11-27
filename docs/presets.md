@@ -33,7 +33,7 @@ Leave out the name or the plan and bam asks for it first on a terminal: `bam pre
 
 The form and these questions never open with a pipe, `TERM` empty or `dumb`, `--no-tui`, `BAM_NO_TUI`, `--json` or `--print`, or for a plan with no variables. bam then writes the plan's values at once, as before, and a missing name is a usage error.
 
-- `deploy-qa` is a name you choose. It is what you type later in `bam run deploy-qa`, and what the terminal UI lists under presets. It is not a Bamboo name: lowercase letters, digits, `-` and `_`, starting with a letter.
+- `deploy-qa` is a name you choose. It is what you type later in `bam run deploy-qa`, and what the terminal UI lists under presets. It is not a Bamboo name, and it can be anything that is not empty: `Deploy QA`, `qa.eu` and `2nd deploy` all work. bam reads a preset name before it reads a Bamboo key, so if a preset is spelt like a plan key (`PROJ-DEPLOY`) it wins, and `bam preset add` warns. If two presets differ only in case, the exact spelling is the one you get; otherwise the only preset spelt in another case is used.
 - `--plan` is the Bamboo plan key. `--branch` is optional and sets the plan branch the preset runs.
 - By default bam writes the plan's project file, `~/bam/presets/proj.yaml` for `PROJ-DEPLOY`, and creates the directory and file the first time. Its presets work from any directory. `bam preset list` shows which file each preset is in.
 - `--file NAME` writes `~/bam/presets/NAME.yaml` instead, for presets that belong to no one project: `bam preset add deploy-package --plan PROJ-PKG --file custom-presets`. `NAME` is a plain file name (letters, digits, `-`, `_`, `.`); a path or `..` is refused.

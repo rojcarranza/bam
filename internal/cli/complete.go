@@ -219,7 +219,7 @@ func (r *runtime) recentBuilds(cmd *cobra.Command, args []string) []provider.Bui
 	if k, ok := pageKey(arg); ok {
 		key = k
 	}
-	if !config.ValidTargetName(key) && !app.IsPlanKey(key) {
+	if !config.ValidPresetName(key) && !app.IsPlanKey(key) {
 		return nil
 	}
 	svc, arg, err := r.resolvePlanArg(cmd.Context(), arg)

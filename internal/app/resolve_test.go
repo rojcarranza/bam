@@ -302,3 +302,35 @@ func TestResolvePlanWithBuildKeyPointsAtItsPlan(t *testing.T) {
 	assert.Equal(t, `"PROJ-PLAN-12" is a build key, not a plan key`, e.What)
 	assert.Equal(t, "its plan, PROJ-PLAN", e.Try)
 }
+
+// Source: BAM-132 plan, "any preset name": a preset is read before any Bamboo
+// key, so one named like a plan key, a build key or a bare number is that
+// preset; exact spelling beats a preset that differs only in case.
+func TestPresetIsReadBeforeBambooKeys(t *testing.T) {
+	s := newService(t, fakeBamboo())
+	s.Cfg = config.Fixed(func() *config.Config {
+		c := testConfig(t.TempDir())
+		c.Project.Targets["PROJ-BUILD"] = config.Target{Plan: "PROJ-PROV"}
+		c.Project.Targets["Deploy QA"] = config.Target{Plan: "PROJ-PROV", Branch: "develop"}
+		c.Project.Targets["deploy qa"] = config.Target{Plan: "PROJ-BUILD"}
+		return c
+	}())
+
+	ref, err := s.ResolvePlan(bg, "PROJ-BUILD", "")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV", ref.MasterKey, "the preset shadows the plan of the same spelling")
+	require.NotNil(t, ref.Target)
+
+	ref, err = s.ResolvePlan(bg, "Deploy QA", "")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-PROV12", ref.PlanKey, "exact spelling first")
+	ref, err = s.ResolvePlan(bg, "deploy qa", "")
+	require.NoError(t, err)
+	assert.Equal(t, "PROJ-BUILD", ref.MasterKey)
+
+	_, err = s.ResolvePlan(bg, "DEPLOY QA", "")
+	assert.Error(t, err, "two presets differ only in case: no guess")
+
+	_, err = s.ResolvePlan(bg, "Nope Such", "")
+	assert.Equal(t, errs.KindUsage, errs.KindOf(err))
+}

@@ -102,8 +102,9 @@ func (s *Service) ResolvePlanToRun(ctx context.Context, arg, branch string) (Pla
 func (s *Service) resolvePlanIn(ctx context.Context, cfg *config.Config, arg, branch string) (PlanRef, error) {
 	var ref PlanRef
 	arg = PresetName(cfg, arg)
+	_, isPreset := cfg.FindPreset(arg)
 	switch {
-	case config.ValidTargetName(arg):
+	case isPreset || (config.ValidTargetName(arg) && !IsPlanKey(arg) && !IsBuildKey(arg) && !projectRe.MatchString(arg)):
 		t, ok, err := cfg.Target(arg)
 		if err != nil {
 			return PlanRef{}, err
@@ -149,28 +150,23 @@ func (s *Service) resolvePlanIn(ctx context.Context, cfg *config.Config, arg, br
 	return ref, nil
 }
 
-// PresetName is arg in lowercase when that names a preset, so "Deploy-QA"
-// names deploy-qa; a plan, build or project key and anything else is
-// returned unchanged.
+// PresetName is the preset arg names, or arg unchanged when it names none.
+// The preset comes first, ahead of any reading of arg as a Bamboo key: the
+// preset called exactly arg, else the only preset spelt like it in another
+// case, so "Deploy-QA" names deploy-qa. A preset spelt like a plan key
+// therefore shadows that plan.
 func PresetName(cfg *config.Config, arg string) string {
-	if IsPlanKey(arg) || IsBuildKey(arg) || projectRe.MatchString(arg) {
-		return arg
-	}
-	if p := lowerPreset(cfg, arg); p != "" {
+	if p, ok := cfg.FindPreset(arg); ok {
 		return p
 	}
 	return arg
 }
 
-// lowerPreset returns arg in lowercase when that names a preset, for a
-// preset typed in the wrong case; otherwise "".
+// lowerPreset returns the preset arg names when it is spelt differently from
+// arg, for a preset typed in the wrong case; otherwise "".
 func lowerPreset(cfg *config.Config, arg string) string {
-	low := strings.ToLower(arg)
-	if low == arg || !config.ValidTargetName(low) {
-		return ""
-	}
-	if _, ok, _ := cfg.Target(low); ok {
-		return low
+	if p, ok := cfg.FindPreset(arg); ok && p != arg {
+		return p
 	}
 	return ""
 }
@@ -307,11 +303,15 @@ type BuildArg struct {
 // plan or target, or the last build bam triggered from this repository.
 func (s *Service) ResolveBuild(ctx context.Context, a BuildArg) (string, error) {
 	a.Arg = PresetName(s.Config(), a.Arg)
+	_, isPreset := s.Config().FindPreset(a.Arg)
 	bare := s.bareNumberBuild(a.Arg)
 	switch {
 	case a.Last:
 		rec, err := s.LastBuild()
 		return rec.BuildKey, err
+	case isPreset:
+		// A preset is read before any key, so one spelt like a build key or
+		// a bare number still names its plan.
 	case IsBuildKey(a.Arg):
 		return CanonicalBuildKey(a.Arg)
 	case bare != "":

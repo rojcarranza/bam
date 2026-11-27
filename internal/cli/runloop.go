@@ -780,7 +780,7 @@ func (r *runtime) browseKey(ctx context.Context, args []string, last bool) (stri
 		return rec.Origin, rec.BuildKey, nil
 	case len(args) == 0:
 		return "", "", errs.Usagef("which Bamboo page?").WithTry("pass a key such as PROJ-PLAN, a preset, or --last")
-	case config.ValidTargetName(args[0]):
+	case isPresetName(cfg, args[0]):
 		t, ok, err := cfg.Target(args[0])
 		if err != nil {
 			return "", "", err
@@ -897,4 +897,12 @@ func (r *runtime) pickPreset(cmd *cobra.Command) (string, error) {
 	}
 	r.note("bam run "+name, "")
 	return name, nil
+}
+
+// isPresetName reports whether arg names a preset here, which is read before
+// any Bamboo key; a name nothing defines but shaped like a preset keeps
+// getting the unknown-preset error.
+func isPresetName(cfg *config.Config, arg string) bool {
+	_, ok := cfg.FindPreset(arg)
+	return ok || (config.ValidTargetName(arg) && !app.IsPlanKey(arg) && !app.IsBuildKey(arg))
 }

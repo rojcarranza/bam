@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // DraftVar is one variable of a generated target.
@@ -57,9 +59,14 @@ type DraftRepo struct {
 
 var plainKeyRe = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 
+// yamlKey writes k as a mapping key that reads back as the same string. A
+// preset may be called anything, so a name that YAML would read as a number,
+// a boolean or null ("2024", "yes", "null") is quoted like one with a space.
 func yamlKey(k string) string {
 	if plainKeyRe.MatchString(k) {
-		return k
+		if b, err := yaml.Marshal(k); err == nil && strings.TrimSpace(string(b)) == k {
+			return k
+		}
 	}
 	return quote(k)
 }

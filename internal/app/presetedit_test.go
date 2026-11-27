@@ -87,7 +87,7 @@ func TestPresetEditFormOmittedVariableLeftAloneIsNotWritten(t *testing.T) {
 
 func TestPresetEditFormValidate(t *testing.T) {
 	cases := map[string]func(*PresetForm){
-		"name":       func(f *PresetForm) { f.Fields[0].Value = "Bad Name" },
+		"name":       func(f *PresetForm) { f.Fields[0].Value = "  " },
 		"timeout":    func(f *PresetForm) { f.Fields[4].Value = "soon" },
 		"branch":     func(f *PresetForm) { f.Fields[1].Value = "" },
 		"repository": func(f *PresetForm) { f.Fields[2].Value = "" },

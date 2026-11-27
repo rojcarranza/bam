@@ -300,6 +300,9 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 		return err
 	}
 	fmt.Fprintf(r.env.Stdout, "added preset %s to %s\n", d.Name, path)
+	if n := keyShapedNameNote(d.Name); n != "" {
+		fmt.Fprintln(r.env.Stderr, n)
+	}
 	if d.Note != "" {
 		fmt.Fprintln(r.env.Stderr, "note: "+d.Note)
 	}
@@ -869,7 +872,7 @@ func (f *initFlags) planOptions() ([]app.GenerateOptions, error) {
 			o.Name = defaultTargetName(key)
 		}
 		if err := app.CheckGenerate(o); err != nil {
-			if name == "" && !config.ValidTargetName(o.Name) {
+			if name == "" && !config.ValidPresetName(o.Name) {
 				return nil, errs.Usagef("cannot derive a preset name from %s", key).WithTry(fmt.Sprintf("--plan %s=NAME", key))
 			}
 			return nil, err
@@ -1073,4 +1076,16 @@ func newPresetMigrateCmd(r *runtime) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show what would move and write nothing")
 	return cmd
+}
+
+// keyShapedNameNote warns that a preset name also reads as a Bamboo key. The
+// preset wins everywhere, so the plan it shadows is then reached by its key
+// only through --plan.
+func keyShapedNameNote(name string) string {
+	name = strings.TrimSpace(name)
+	if app.IsPlanKey(name) || app.IsBuildKey(name) || app.IsProjectKey(name) {
+		return "warning: " + name + " is also a Bamboo key; bam reads the preset first, so the " +
+			"Bamboo key of that spelling can only be reached through --plan or another command's --plan"
+	}
+	return ""
 }

@@ -44,13 +44,8 @@ func CheckGenerate(o GenerateOptions) error {
 		return errs.Usagef("--include-globals reads a build's variables, and --from %s is a plan", o.From).
 			WithTry("drop --include-globals, or pass a build to --from")
 	}
-	if !config.ValidTargetName(o.Name) {
-		e := errs.Usagef("invalid preset name %q", o.Name).
-			WithWhy("preset names are lowercase letters, digits, - and _, starting with a letter")
-		if s := config.TargetNameFor(o.Name); s != "" {
-			e = e.WithTry("did you mean " + s + "?")
-		}
-		return e
+	if !config.ValidPresetName(o.Name) {
+		return errs.Usagef("a preset needs a name").WithTry("give the preset a name, for example bam preset add deploy-qa")
 	}
 	if o.PlanKey == "" && IsBuildKey(o.From) {
 		return nil // the build names the plan

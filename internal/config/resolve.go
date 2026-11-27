@@ -388,6 +388,28 @@ func (c *Config) PresetsUsingServer(alias string) []string {
 }
 
 // Target returns one merged target.
+// FindPreset returns the preset arg names: the preset called exactly arg, else
+// the only preset whose name differs from arg in case alone. ok is false when
+// none matches or several differ only in case, so a typed name never guesses.
+// It reads the merged layers without validating them, so a broken preset
+// elsewhere does not hide this one.
+func (c *Config) FindPreset(arg string) (name string, ok bool) {
+	all := c.mergedTargets()
+	if _, exact := all[arg]; exact {
+		return arg, true
+	}
+	var found []string
+	for n := range all {
+		if strings.EqualFold(n, arg) {
+			found = append(found, n)
+		}
+	}
+	if len(found) == 1 {
+		return found[0], true
+	}
+	return "", false
+}
+
 func (c *Config) Target(name string) (ResolvedTarget, bool, error) {
 	all, err := c.Targets()
 	if err != nil {

@@ -73,7 +73,7 @@ Shortcuts are cobra aliases of the `build` subcommands: same flags, same output,
 Each command accepts one entity type, so parsing never guesses the hierarchy level.
 
 - **`<plan>`** - a target name or a plan key.
-  - Target names are validated as `^[a-z][a-z0-9_-]*$`. Plan keys are uppercase. The two can never collide.
+  - A preset name is any text that is not empty after trimming its ends (changed from `^[a-z][a-z0-9_-]*$`, which existed so names never collide with uppercase plan keys; the captain asked for no restriction). Collisions are settled by lookup order instead: the preset called exactly that, then the only preset spelt in another case, then the argument read as a Bamboo key, build number or `last`. A preset spelt like a plan key shadows that plan, and `preset add` and a rename warn. Set names, `bam top` group names and server aliases keep the lowercase rule.
   - An exact target name resolves to that target's plan, server and branch. A target name typed with capitals (`Deploy-QA`) names that target.
   - Otherwise the argument must match `^[A-Z][A-Z0-9]*-[A-Z][A-Z0-9]*$`.
   - Anything else is a usage error that lists the configured target names.

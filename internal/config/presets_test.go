@@ -121,7 +121,7 @@ func TestLoadPresetsFileErrors(t *testing.T) {
 		"version 2":     "version: 2\npresets: {}\n",
 		"targets key":   "targets: {}\n",
 		"both var keys": "presets:\n  x:\n    plan: PROJ-X\n    variables: {a: b}\n    defaults: {a: c}\n",
-		"bad name":      "presets:\n  Bad Name:\n    plan: PROJ-X\n",
+		"empty name":    "presets:\n  \" \":\n    plan: PROJ-X\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
@@ -284,9 +284,9 @@ func TestLoadPresetsDirectoryDuplicateNames(t *testing.T) {
 
 func TestLoadPresetsDirectoryErrorsNameTheFile(t *testing.T) {
 	for name, body := range map[string]string{
-		"malformed": "presets: [\n",
-		"bad name":  "presets:\n  Bad Name:\n    plan: PROJ-X\n",
-		"unknown":   "targets: {}\n",
+		"malformed":  "presets: [\n",
+		"empty name": "presets:\n  \" \":\n    plan: PROJ-X\n",
+		"unknown":    "targets: {}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()

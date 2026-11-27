@@ -33,6 +33,20 @@ type TargetDraft struct {
 	// builds now. They are written active only when Branch is set and every
 	// repository has a branch; otherwise commented. Empty writes a placeholder.
 	Repos []DraftRepo
+	// Source is set when the values were copied from another plan; it is not rendered.
+	Source DraftSource
+}
+
+// DraftSource says what bam preset add --from PLAN did with another plan's variables.
+type DraftSource struct {
+	Plan string // the plan the values came from
+	// Copied are the variables that took the source plan's value.
+	Copied []string
+	// Secrets are variables the source lists that keep the target's own
+	// treatment, because Bamboo never returns a secret's value.
+	Secrets []string
+	// Left are variables the source lists and the target does not declare.
+	Left []string
 }
 
 // DraftRepo is one repository of a generated target.

@@ -185,10 +185,12 @@ func (f *presetAddFlags) check(r *runtime, name string) error {
 	if f.plan == "" && !app.IsBuildKey(f.from) {
 		try := fmt.Sprintf("bam preset add %s --plan PROJ-PLAN, or --from PROJ-PLAN-41", name)
 		switch up := strings.ToUpper(f.from); {
+		case app.IsSourcePlan(f.from):
+			try = fmt.Sprintf("--from %s copies values; name the plan the preset runs: bam preset add %s --plan PROJ-PLAN --from %s", f.from, name, f.from)
 		case app.IsBuildKey(up):
 			try = "keys are uppercase: did you mean --from " + up + "?"
 		case app.IsPlanKey(up):
-			try = fmt.Sprintf("bam preset add %s --plan %s; --from takes a build", name, up)
+			try = fmt.Sprintf("bam preset add %s --plan PROJ-PLAN --from %s", name, up)
 		}
 		return errs.Usagef("--plan is required").WithTry(try)
 	}
@@ -282,6 +284,7 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 		if _, err := fmt.Fprint(r.env.Stdout, config.DraftYAML(key, d)); err != nil {
 			return err
 		}
+		printSourceSummary(r.env.Stderr, d)
 		printRecentBox(r.env.Stderr, d.BuildPlan, svc.RecentValues(cmd.Context(), d))
 		return nil
 	}
@@ -303,10 +306,30 @@ func (f *presetAddFlags) run(r *runtime, cmd *cobra.Command, name string) error 
 	if len(d.Vars) > 0 {
 		fmt.Fprintln(r.env.Stderr, "review before commit: values copied from Bamboo")
 	}
+	printSourceSummary(r.env.Stderr, d)
 	if !filled {
 		printRecentBox(r.env.Stdout, d.BuildPlan, svc.RecentValues(cmd.Context(), d))
 	}
 	return nil
+}
+
+// printSourceSummary says what bam preset add --from PLAN did with the
+// source plan's variables: what it copied, which secrets kept the preset
+// plan's own treatment, and which variables it left out. It prints nothing
+// for a preset not copied from a plan.
+func printSourceSummary(w io.Writer, d config.TargetDraft) {
+	src := d.Source
+	if src.Plan == "" {
+		return
+	}
+	fmt.Fprintf(w, "copied %d of %d variables from %s\n", len(src.Copied), len(d.Vars), src.Plan)
+	if len(src.Secrets) > 0 {
+		fmt.Fprintf(w, "secrets keep %s's own treatment, Bamboo never returns their values: %s\n", d.Plan, strings.Join(src.Secrets, ", "))
+	}
+	if len(src.Left) > 0 {
+		fmt.Fprintf(w, "not declared by %s, left out: %s\n", d.Plan, strings.Join(src.Left, ", "))
+		fmt.Fprintf(w, "add one later with bam preset edit %s --var NAME=VALUE\n", d.Name)
+	}
 }
 
 // printRecentBox lists the values recent builds of plan ran with, for the
@@ -356,6 +379,10 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 			"and watch: true, with no per-line comments except one on a variable the plan does not declare.\n" +
 			"--from writes only the plan's declared variables; --include-globals adds the other variables\n" +
 			"the build ran with, which Bamboo fills with every global.\n" +
+			"--from with another plan's key, plan branch key or page link (PROJ-A) copies that plan's variable\n" +
+			"values into the new preset, matched by name to the variables --plan declares; --plan is still\n" +
+			"required, and branch and repositories come from it. Bamboo never returns a secret's value, so a\n" +
+			"secret keeps the plan's own treatment. Variables only the source has are left out and listed.\n" +
 			"On a terminal, add first opens a form with one row per variable: type a value, step through\n" +
 			"the plan default and up to three values the last 10 builds ran with with the left and right\n" +
 			"arrows, ctrl-s writes the file, esc writes nothing. With no name, or no --plan, it asks for\n" +
@@ -364,6 +391,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 		Example: "  bam preset add deploy-qa --plan PROJ-DEPLOY\n" +
 			"  bam preset add deploy-qa --plan PROJ-DEPLOY --branch main --from last\n" +
 			"  bam preset add deploy-eu --from PROJ-DEPLOY-41\n" +
+			"  bam preset add deploy-b --plan PROJ-B --from PROJ-A\n" +
 			"  bam preset add deploy-package --plan PROJ-PKG --file custom-presets\n" +
 			"  bam preset add provision-lab --plan PROJ-PROV --shared\n" +
 			"  bam run deploy-qa --dry-run",
@@ -389,7 +417,7 @@ func newTargetAddCmd(r *runtime) *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVar(&fl.plan, "plan", "", "plan key or plan page link to generate from; optional when --from is a build key")
-	f.StringVar(&fl.from, "from", "", "build whose variable values fill the preset: number, key or last")
+	f.StringVar(&fl.from, "from", "", "build whose variable values fill the preset (number, key or last), or a plan, plan branch or plan page link to copy matching variable values from")
 	f.BoolVar(&fl.includeGlobals, "include-globals", false, "with --from, also write the build's variables the plan does not declare (Bamboo globals)")
 	f.StringVarP(&fl.branch, "branch", "b", "", "default branch for the preset; defaults to the --from build's branch")
 	f.BoolVar(&fl.shared, "shared", false, "write to the repository's .bam.yaml instead of your presets directory")

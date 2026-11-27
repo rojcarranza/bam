@@ -240,3 +240,78 @@ func TestPresetAddWithoutANameOffATerminalIsAUsageError(t *testing.T) {
 	assert.Equal(t, 2, h.run("preset", "add"))
 	assert.Contains(t, h.stderr.String(), "missing <name>")
 }
+
+// BAM-132: --from takes another plan, and its values fill the new preset.
+func srcPlan(h *harness) {
+	h.fake.Plans["PROJ"] = append(h.fake.Plans["PROJ"], provider.Plan{Key: "PROJ-SRC", Name: "Source", ProjectKey: "PROJ"})
+	h.fake.Variables["PROJ-PROV"] = []provider.Variable{
+		{Name: "cluster_type", Value: "k8s"},
+		{Name: "compute_nodes", Value: "1"},
+		{Name: "db_password", Value: "********", Masked: true},
+		{Name: "cluster_name", Value: ""},
+	}
+	h.fake.Variables["PROJ-SRC"] = []provider.Variable{
+		{Name: "cluster_type", Value: "dcos"},
+		{Name: "db_password", Value: "********", Masked: true},
+		{Name: "slack_channel", Value: "#deploys"},
+	}
+}
+
+func TestPresetAddFromAnotherPlanCopiesItsValues(t *testing.T) {
+	for name, from := range map[string]string{
+		"plan key":  "PROJ-SRC",
+		"page link": "https://bamboo.example.com/browse/PROJ-SRC",
+	} {
+		t.Run(name, func(t *testing.T) {
+			h := newHarness(t)
+			srcPlan(h)
+			require.Equal(t, 0, h.run("preset", "add", "deploy-b", "--plan", "PROJ-PROV", "--from", from), h.stderr.String())
+			data, err := os.ReadFile(provFile(h))
+			require.NoError(t, err)
+			assert.Contains(t, string(data), `cluster_type: "dcos"`)
+			assert.NotContains(t, string(data), "slack_channel")
+			assert.NotContains(t, string(data), "********")
+			errOut := h.stderr.String()
+			assert.Contains(t, errOut, "copied 1 of 4 variables from PROJ-SRC")
+			assert.Contains(t, errOut, "secrets keep PROJ-PROV's own treatment, Bamboo never returns their values: db_password")
+			assert.Contains(t, errOut, "not declared by PROJ-PROV, left out: slack_channel")
+		})
+	}
+}
+
+func TestPresetAddFromAnotherPlanNeedsAPlan(t *testing.T) {
+	h := newHarness(t)
+	srcPlan(h)
+	require.Equal(t, 2, h.run("preset", "add", "deploy-b", "--from", "PROJ-SRC"))
+	assert.Contains(t, h.stderr.String(), "--plan is required")
+	assert.NoFileExists(t, provFile(h))
+}
+
+func TestPresetAddFromAnotherPlanRefusesIncludeGlobals(t *testing.T) {
+	h := newHarness(t)
+	srcPlan(h)
+	require.Equal(t, 2, h.run("preset", "add", "deploy-b", "--plan", "PROJ-PROV", "--from", "PROJ-SRC", "--include-globals"))
+	assert.NoFileExists(t, provFile(h))
+}
+
+func TestPresetAddFromUnreadablePlanWritesNothing(t *testing.T) {
+	h := newHarness(t)
+	code := h.run("preset", "add", "deploy-b", "--plan", "PROJ-PROV", "--from", "PROJ-NOPE")
+	assert.NotEqual(t, 0, code)
+	assert.NoFileExists(t, provFile(h))
+}
+
+// The form opens on the source's values and labels each as coming from it.
+func TestPresetAddFormLabelsValuesCopiedFromAnotherPlan(t *testing.T) {
+	h := newHarness(t)
+	h.tty = true
+	srcPlan(h)
+	offered := formScript(h, func(*app.PresetForm) {}, nil)
+	require.Equal(t, 0, h.run("preset", "add", "deploy-b", "--plan", "PROJ-PROV", "--from", "PROJ-SRC"), h.stderr.String())
+	require.Len(t, *offered, 1)
+	row := (*offered)[0].Rows[0]
+	assert.Equal(t, "cluster_type", row.Name)
+	assert.Equal(t, "dcos", row.Value)
+	assert.Equal(t, "PROJ-SRC", row.From)
+	assert.Equal(t, "k8s", row.Plan)
+}

@@ -169,3 +169,21 @@ func TestAddPinsWritesSeveralPinsInOneWriteKeepingComments(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(text, "PROJ-BUILD"))
 	assert.Less(t, strings.Index(text, "PROJ-PROV"), strings.Index(text, "OPS-DEPLOY"))
 }
+
+// A pin shaped like preset@branch where the left part is no plan key is one
+// whole preset name, not a preset on a branch.
+func TestMonitorPinWithAtAfterANonKeyIsOneWholePresetName(t *testing.T) {
+	cfg, err := loadProject(t, "version: 1\n", "version: 1\ntargets:\n  qa:\n    plan: PROJ-PROV\nmonitor:\n  release: [qa@eu]\n")
+	require.NoError(t, err)
+	_, err = cfg.Monitor()
+	require.NoError(t, err)
+	plan, branch := cfg.SplitPin("qa@eu")
+	assert.Equal(t, "qa@eu", plan)
+	assert.Empty(t, branch)
+	err = cfg.CheckPin("qa@eu")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "qa@eu is not a preset")
+	plan, branch = cfg.SplitPin("PROJ-PROV@eu")
+	assert.Equal(t, "PROJ-PROV", plan)
+	assert.Equal(t, "eu", branch)
+}

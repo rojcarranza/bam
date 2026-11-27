@@ -413,7 +413,7 @@ func newPlanStatsCmd(r *runtime) *cobra.Command {
 			// Checked before any config or network.
 			if last < 1 || last > 100 {
 				return errs.Usagef("--last takes 1 to 100, not %d", last).
-					WithTry(fmt.Sprintf("bam plan stats %s -n %d", args[0], min(max(last, 1), 100)))
+					WithTry(fmt.Sprintf("bam plan stats %s -n %d", config.ShellWord(args[0]), min(max(last, 1), 100)))
 			}
 			ctx := cmd.Context()
 			svc, arg, err := r.resolvePlanArg(ctx, args[0])

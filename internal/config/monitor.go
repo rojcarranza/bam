@@ -82,13 +82,14 @@ func SplitPin(pin string) (plan, branch string) {
 	return plan, branch
 }
 
-// SplitPin is the package SplitPin, except that a preset called exactly pin
-// wins: a preset named "qa@eu" is that preset, not plan "qa" on branch "eu".
+// SplitPin is the package SplitPin, except that only a plan key takes a
+// branch after @: any other pin, such as a preset named "qa@eu", is one whole
+// preset name.
 func (c *Config) SplitPin(pin string) (plan, branch string) {
-	if _, ok := c.mergedTargets()[pin]; ok {
-		return pin, ""
+	if plan, branch = SplitPin(pin); childPlanKeyRe.MatchString(plan) {
+		return plan, branch
 	}
-	return SplitPin(pin)
+	return pin, ""
 }
 
 // checkPin says what is wrong with the shape of pin, or "" when it is a plan

@@ -117,6 +117,13 @@ func (m presetFormModel) key(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc, tea.KeyCtrlC:
 		m.done = true
 		return m, tea.Quit
+	case tea.KeyCtrlR:
+		if !m.form.RunMode {
+			return m, nil
+		}
+		m.form.StartNow = true
+		m.saved, m.done = true, true
+		return m, tea.Quit
 	case tea.KeyCtrlS:
 		if m.form.Editing {
 			if m.reading != "" {
@@ -389,6 +396,9 @@ func (m presetFormModel) View() string {
 	cut := func(s string) string { return ansi.Truncate(s, max(m.width-1, 10), "…") }
 	f := m.form
 	head := "new preset " + f.Name + " · " + f.Plan
+	if f.RunMode {
+		head = "run " + f.Plan
+	}
 	if f.Editing {
 		head = "edit preset " + f.Name + " · " + f.Plan
 	}
@@ -422,6 +432,9 @@ func (m presetFormModel) View() string {
 		if i < len(f.Rows) {
 			r := f.Rows[i]
 			label, val, note = r.Name, rowValue(r), rowNote(r, f.Editing, f.Held)
+			if f.RunMode {
+				note = runNote(r)
+			}
 			if i == m.cursor && m.editing && !m.adding && !m.options {
 				val = input
 				if r.Secret {
@@ -468,6 +481,9 @@ func (m presetFormModel) View() string {
 	if f.Editing {
 		keys = "↑↓ move · enter edit · ←→ choices · x remove · o options · a add repository · ctrl-s save · esc cancel"
 	}
+	if f.RunMode {
+		keys = "↑↓ move · enter edit · ←→ choices · ctrl-s print · ctrl-r run · esc cancel"
+	}
 	if m.editing {
 		keys = "enter accept · esc keep the old value"
 	}
@@ -493,6 +509,22 @@ func rowValue(r app.FormRow) string {
 		return "____"
 	}
 	return r.Value
+}
+
+// runNote says where a row of the run form stands: a secret is the plan's
+// stored value or comes from the shell the command runs in.
+func runNote(r app.FormRow) string {
+	switch {
+	case r.Secret && r.Commented:
+		return "secret · the plan's stored value is used"
+	case r.Secret && r.Literal && r.Value == r.Orig:
+		return "secret · typed with --var; the shared line asks your shell for it"
+	case r.Secret:
+		return "secret · read from your shell when the command runs"
+	case r.Undeclared:
+		return "not declared by the plan"
+	}
+	return rowNote(r, false, app.Held{})
 }
 
 func rowNote(r app.FormRow, editing bool, held app.Held) string {

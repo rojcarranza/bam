@@ -336,6 +336,7 @@ On a terminal the tree redraws while the builds run. bam exits 0 when every buil
 | see what would be sent, start nothing | `bam run FORGE-PROV --var cluster_name=lab2 --dry-run` |
 | reuse the last build's variables | `bam run FORGE-PROV --from last` |
 | change them in your editor first | `bam run FORGE-PROV --from last --edit` |
+| fill them in a form, then run or share the command | `bam run FORGE-PROV --plan` ([Share a run](docs/presets.md#share-a-run-without-saving-a-preset)) |
 | run an existing plan branch | `bam run BAMCI-BUILD --branch fix-cancel-stale-tree-reads` |
 | build one commit | `bam run BAMCI-BUILD --revision 41d06ce` |
 | test a pushed branch on a plan branch | `bam run BAMCI-BUILD --branch develop --repository bam=fix/cancel-stale-tree-reads --dry-run` (see Test a feature branch) |

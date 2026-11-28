@@ -19,3 +19,7 @@ func osc52(w io.Writer, s string) error {
 	_, err := io.WriteString(w, "\x1b]52;c;"+base64.StdEncoding.EncodeToString([]byte(s))+"\x07")
 	return err
 }
+
+// CopyToClipboard asks the terminal to put s on the clipboard, as the
+// terminal UI's copy key does.
+func CopyToClipboard(w io.Writer, s string) error { return osc52(w, s) }

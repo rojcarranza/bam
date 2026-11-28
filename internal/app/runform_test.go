@@ -43,7 +43,7 @@ func TestNewRunFormKeepsATypedSecretLiteral(t *testing.T) {
 	assert.Equal(t, "${DB_PASSWORD}", f.Rows[0].Value)
 	assert.True(t, f.Rows[0].Literal)
 	assert.Empty(t, f.RunEdits())
-	assert.NotContains(t, ShareCommand(ref, f), "x ")
+	assert.Equal(t, `bam run PROJ-DEPLOY --var db_password="${DB_PASSWORD:?}"`, ShareCommand(ref, f))
 }
 
 // Intent: the printed line names the plan, so a preset's rules and unset

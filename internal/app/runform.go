@@ -59,13 +59,6 @@ func (f PresetForm) RunEdits() []Edit {
 	return out
 }
 
-// ApplyEdited lays the form's edits over base without the preset's rules or
-// the environment: the printed line names the plan and the runner's shell
-// fills in the secrets, so neither applies to it.
-func ApplyEdited(ref PlanRef, base VarSet, flags []string, edits []Edit) (VarSet, error) {
-	return applyInputs(ref, base, flags, edits)
-}
-
 // RunRecent reads the values recent builds of the run's plan ran with, for
 // the form's arrow keys.
 func (s *Service) RunRecent(ctx context.Context, ref PlanRef, f PresetForm) []RecentVar {

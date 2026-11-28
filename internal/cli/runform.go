@@ -85,12 +85,11 @@ func (f *runFlags) formVars(ctx context.Context, r *runtime, svc *app.Service, r
 		return vs, "", false, canceledRun(r, err)
 	}
 	line = app.ShareCommand(ref, edited)
-	if edited.StartNow {
-		vs, err = app.ValidateEdited(ref, base, f.vars, edited.RunEdits(), r.env.Getenv)
-	} else {
-		vs, err = app.ApplyEdited(ref, base, f.vars, edited.RunEdits())
+	if !edited.StartNow {
+		return vs, line, false, nil
 	}
-	return vs, line, edited.StartNow, err
+	vs, err = app.ValidateEdited(ref, base, f.vars, edited.RunEdits(), r.env.Getenv)
+	return vs, line, true, err
 }
 
 // printLine shows the command ctrl-s made and copies it when the terminal

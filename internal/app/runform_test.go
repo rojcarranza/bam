@@ -3,7 +3,6 @@ package app
 import (
 	"testing"
 
-	"github.com/rojcarranza/bam/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -44,16 +43,4 @@ func TestNewRunFormKeepsATypedSecretLiteral(t *testing.T) {
 	assert.True(t, f.Rows[0].Literal)
 	assert.Empty(t, f.RunEdits())
 	assert.Equal(t, `bam run PROJ-DEPLOY --var db_password="${DB_PASSWORD:?}"`, ShareCommand(ref, f))
-}
-
-// Intent: the printed line names the plan, so a preset's rules and unset
-// environment variables never stop ctrl-s.
-func TestApplyEditedIgnoresPresetRules(t *testing.T) {
-	tgt := &config.ResolvedTarget{}
-	tgt.Name, tgt.Options = "p", map[string][]string{"env": {"qa"}}
-	ref := PlanRef{MasterKey: "PROJ-DEPLOY", Target: tgt}
-	base := VarSet{Declared: map[string]bool{"env": true}, DeclaredKnown: true,
-		Vars: []ResolvedVar{{Name: "env", Value: "qa", PlanValue: "qa", Declared: true}}}
-	_, err := ApplyEdited(ref, base, nil, []Edit{{Name: "env", Value: "${UNSET_ENV}"}})
-	assert.NoError(t, err)
 }

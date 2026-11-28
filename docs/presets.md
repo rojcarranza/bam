@@ -256,6 +256,28 @@ Precedence, lowest to highest: plan values, preset defaults, `--from` build, `--
 
 Only variables that differ from the plan are sent, and secrets print as `********`.
 
+### Share a run without saving a preset
+
+`--plan` opens the form of `bam preset add` on the values the run would send. It asks for no name and writes nothing:
+
+    bam run PROJ-DEPLOY --plan                    # the plan's own values
+    bam run --plan                                # pick the plan, then its branch, from a list
+    bam run --plan --from PROJ-DEPLOY-41          # that build's values; its plan and branch are implied
+
+Arrows step through the plan's value and up to three values from the last 10 builds; `enter` types a value. A secret opens as the plan's stored value; an arrow key switches it to an environment variable. Then:
+
+| Key | What happens |
+| --- | --- |
+| `ctrl-s` | prints one `bam run` line, copies it when the terminal allows, starts nothing |
+| `ctrl-r` | starts the build and prints the same line |
+| `esc` | starts nothing |
+
+The line names the plan, never a preset or your server alias, and carries `--branch`, `--revision`, `--repository` and only the values that differ from the plan. It leaves out `--watch`, `--timeout` and `--notify`. A secret is written as `"${DB_PASSWORD:?}"`, so whoever runs the line fills it from their shell, and the shell stops when it is unset. A colleague runs the line as it is, with no preset and no form:
+
+    bam run PROJ-DEPLOY --branch develop --var region=us --var db_password="${DB_PASSWORD:?}"
+
+`--plan` needs a terminal and exits 2 on a pipe or with `--no-tui`. With `--json`, `ctrl-s` prints `{"command": "..."}`. With `--read-only`, `ctrl-s` still prints and `ctrl-r` is refused.
+
 To see what a build used before choosing:
 
     bam plan vars PROJ-DEPLOY --from 41

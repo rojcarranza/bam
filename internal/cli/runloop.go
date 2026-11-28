@@ -52,6 +52,7 @@ type runFlags struct {
 	vars, repositories     []string
 	from, branch, revision string
 	watch, dryRun, edit    bool
+	plan                   bool
 	timeout                time.Duration
 }
 
@@ -61,6 +62,11 @@ func (f *runFlags) check(r *runtime, cmd *cobra.Command, arg string) error {
 	// write into the pipe.
 	if f.edit && (!r.env.StdinTTY || !r.env.StdoutTTY) {
 		return errs.Usagef("--edit needs a terminal").WithTry("pass the values with --var")
+	}
+	if f.plan {
+		if err := f.checkForm(r); err != nil {
+			return err
+		}
 	}
 	if cmd.Flags().Changed("revision") && f.revision == "" {
 		return errs.Usagef("--revision needs a value")
@@ -140,16 +146,29 @@ func newRunCmd(r *runtime) *cobra.Command {
 			"  bam run deploy-qa --from last --dry-run\n" +
 			"  bam run PROJ-BUILD --from 482 --revision from\n" +
 			"  bam run deploy-qa --repository repo-a=feature/PROJ-101\n" +
-			"  bam run                  # on a terminal: pick a preset from a list",
+			"  bam run                  # on a terminal: pick a preset from a list\n" +
+			"  bam run --plan           # pick a plan, fill its variables in a form, print a line to share\n" +
+			"  bam run PROJ-BUILD --plan\n" +
+			"  bam run --plan --from PROJ-BUILD-41",
 		Long: "Trigger a plan or preset with variables.\n\n" +
 			"With no name, on a terminal, bam run opens a small picker of your presets: type to\n" +
 			"filter on a name, plan, branch or file, Enter runs the highlighted one with the flags\n" +
 			"you gave, Esc cancels. The picker does not edit variables; use --var or --edit.\n" +
-			"Without a terminal, or with --json, a name is required.",
+			"Without a terminal, or with --json, a name is required.\n\n" +
+			"With --plan, bam run opens the form of bam preset add on the plan's variables, with no\n" +
+			"name to give and nothing saved. Name the plan, or on a terminal pick it and its branch\n" +
+			"from a list; --from PROJ-BUILD-41, or that build's page link, names the plan and\n" +
+			"opens the form on the build's values. Arrows step through the plan's value and recent\n" +
+			"ones. ctrl-s prints one bam run line, copies it and starts nothing; ctrl-r starts the\n" +
+			"build and prints the same line; Esc starts nothing. The line names the plan, carries\n" +
+			"--branch, --revision, --repository and the values that differ from the plan, and leaves\n" +
+			"out your server, --watch, --timeout and --notify. A secret is written as\n" +
+			"\"${NAME:?}\", so whoever runs the line fills it from their shell.",
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: r.completeTargets,
 		RunE: r.wrap(func(cmd *cobra.Command, args []string) error {
-			if !rf.dryRun {
+			// With --plan, ctrl-s only prints a line, so a read-only bam still gets one.
+			if !rf.dryRun && !rf.plan {
 				if err := r.refuseWrite("run a plan"); err != nil {
 					return err
 				}
@@ -165,7 +184,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if _, err := app.RepositoryWants(rf.repositories, nil); err != nil {
 				return err
 			}
-			if len(args) == 0 {
+			if len(args) == 0 && !rf.plan {
 				name, err := r.pickPreset(cmd)
 				if err != nil {
 					return err
@@ -173,11 +192,25 @@ func newRunCmd(r *runtime) *cobra.Command {
 				args = []string{name}
 			}
 			ctx := cmd.Context()
-			svc, arg, err := r.resolvePlanArg(ctx, args[0])
+			var svc *app.Service
+			var arg string
+			var err error
+			if len(args) == 0 {
+				svc, arg, err = rf.askTarget(r, cmd)
+			} else {
+				svc, arg, err = r.resolvePlanArg(ctx, args[0])
+			}
 			if err != nil {
 				return err
 			}
-			ref, err := svc.ResolvePlanToRun(ctx, arg, rf.branch)
+			branch := rf.branch
+			if cfg, cerr := r.config(); rf.plan && cerr == nil && app.IsPlanKey(arg) && !isPreset(cfg, arg) && branch == "" {
+				// A plan branch key, such as the plan of a --from build, opens on that branch.
+				if plan, b := svc.MainPlan(ctx, arg); b != "" {
+					arg, branch = plan, b
+				}
+			}
+			ref, err := svc.ResolvePlanToRun(ctx, arg, branch)
 			if err != nil {
 				return err
 			}
@@ -185,9 +218,11 @@ func newRunCmd(r *runtime) *cobra.Command {
 			if err := rf.resolveFrom(ctx, svc, &ref); err != nil {
 				return err
 			}
-			vs, err := rf.resolveVars(ctx, r, svc, ref)
-			if err != nil {
-				return err
+			var vs app.VarSet
+			if !rf.plan {
+				if vs, err = rf.resolveVars(ctx, r, svc, ref); err != nil {
+					return err
+				}
 			}
 			if ref.Repositories, err = app.RepositoryWants(rf.repositories, ref.Target); err != nil {
 				return err
@@ -198,6 +233,22 @@ func newRunCmd(r *runtime) *cobra.Command {
 			check, err := svc.CheckRepositories(ctx, ref, ref.Repositories)
 			if err != nil {
 				return err
+			}
+			if rf.plan {
+				var line string
+				var start bool
+				if vs, line, start, err = rf.formVars(ctx, r, svc, ref); err != nil {
+					return err
+				}
+				if !start {
+					return r.printLine(line)
+				}
+				if !rf.dryRun {
+					if err := r.refuseWrite("run a plan"); err != nil {
+						return err
+					}
+				}
+				r.note(line, "")
 			}
 			if rf.dryRun {
 				if w := svc.DisabledWarning(ctx, ref.PlanKey); w != "" {
@@ -256,6 +307,7 @@ func newRunCmd(r *runtime) *cobra.Command {
 	f.DurationVar(&rf.timeout, "timeout", 0, "stop watching after this long (the build keeps running)")
 	f.BoolVar(&rf.dryRun, "dry-run", false, "resolve and validate variables, trigger nothing")
 	addNotifyFlag(cmd, r)
+	f.BoolVar(&rf.plan, "plan", false, "open a form on the plan's variables, then print a bam run line to share (ctrl-s) or run it (ctrl-r)")
 	f.BoolVar(&rf.edit, "edit", false, "review and change the variables in $EDITOR before running")
 	_ = cmd.RegisterFlagCompletionFunc("var", r.completeVar)
 	_ = cmd.RegisterFlagCompletionFunc("revision", r.completeRevision)

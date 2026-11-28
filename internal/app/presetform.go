@@ -28,6 +28,13 @@ type FormRow struct {
 	CanStore  bool
 	Commented bool
 
+	// Undeclared marks a variable the plan does not declare: a run always
+	// sends it, as it has no plan value to match.
+	Undeclared bool
+	// OrigCommented is whether a secret opened as the plan's stored value,
+	// which the run form shows and bam run --plan reads back.
+	OrigCommented bool
+
 	// The fields below are used by bam preset edit only.
 	// InPreset marks a variable the saved preset sets; the others are plan
 	// variables it leaves out, written only once their value changes.
@@ -64,6 +71,10 @@ type RepoBranch struct{ Name, Branch string }
 type PresetForm struct {
 	Name, Plan, Branch, Path string
 	Rows                     []FormRow
+	// RunMode is the form of bam run --plan: no name or file, and ctrl-s
+	// prints the command while ctrl-r runs it. StartNow is set on return when
+	// the person pressed ctrl-r.
+	RunMode, StartNow bool
 	// Editing marks the form of bam preset edit, whose Fields follow the rows.
 	Editing bool
 	Fields  []FormField

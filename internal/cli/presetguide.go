@@ -38,11 +38,11 @@ func (f *presetAddFlags) guide(r *runtime, cmd *cobra.Command, name string) (*ap
 		if svc, backend, err = r.connect(cmd.Context(), ""); err != nil {
 			return nil, "", err
 		}
-		if f.plan, err = f.askPlan(r, cmd.Context(), backend); err != nil {
+		if f.plan, err = r.askPlan(cmd.Context(), backend, "add a preset for which plan?", "bam preset add NAME --plan PROJ-PLAN"); err != nil {
 			return nil, "", askedCanceled(r, err)
 		}
 		if f.branch == "" && (f.from == "" || app.IsSourcePlan(f.from)) {
-			if f.branch, err = f.askBranch(r, cmd.Context(), backend); err != nil {
+			if f.branch, err = r.askBranch(cmd.Context(), backend, f.plan); err != nil {
 				return nil, "", askedCanceled(r, err)
 			}
 		}
@@ -64,7 +64,10 @@ func (f *presetAddFlags) guide(r *runtime, cmd *cobra.Command, name string) (*ap
 	return svc, name, nil
 }
 
-func (f *presetAddFlags) askPlan(r *runtime, ctx context.Context, backend Backend) (string, error) {
+// askPlan lists the plans of the configured projects and returns the one
+// picked. bam preset add and bam run --plan share it; try names the flag form
+// when no plan is listed.
+func (r *runtime) askPlan(ctx context.Context, backend Backend, question, try string) (string, error) {
 	cfg, err := r.config()
 	if err != nil {
 		return "", err
@@ -95,9 +98,9 @@ func (f *presetAddFlags) askPlan(r *runtime, ctx context.Context, backend Backen
 	if len(keys) == 0 {
 		return "", errs.Usagef("no plans to pick from").
 			WithWhy("the server lists none for " + strings.Join(projects, ", ")).
-			WithTry("bam preset add NAME --plan PROJ-PLAN")
+			WithTry(try)
 	}
-	i, err := r.env.Choose(ctx, r.env.Stdin, r.env.Stdout, "add a preset for which plan?", items)
+	i, err := r.env.Choose(ctx, r.env.Stdin, r.env.Stdout, question, items)
 	if err != nil {
 		return "", err
 	}
@@ -106,8 +109,8 @@ func (f *presetAddFlags) askPlan(r *runtime, ctx context.Context, backend Backen
 
 // askBranch offers the plan's branches, with the plan itself first. It asks
 // nothing when the plan has none, and returns "" for the plan's default branch.
-func (f *presetAddFlags) askBranch(r *runtime, ctx context.Context, backend Backend) (string, error) {
-	branches, err := backend.ListBranches(ctx, f.plan)
+func (r *runtime) askBranch(ctx context.Context, backend Backend, plan string) (string, error) {
+	branches, err := backend.ListBranches(ctx, plan)
 	if err != nil || len(branches) == 0 {
 		return "", nil
 	}
@@ -121,7 +124,7 @@ func (f *presetAddFlags) askBranch(r *runtime, ctx context.Context, backend Back
 		names = append(names, name)
 		items = append(items, tui.Choice{Label: name})
 	}
-	i, err := r.env.Choose(ctx, r.env.Stdin, r.env.Stdout, "which branch of "+f.plan+"?", items)
+	i, err := r.env.Choose(ctx, r.env.Stdin, r.env.Stdout, "which branch of "+plan+"?", items)
 	if err != nil {
 		return "", err
 	}

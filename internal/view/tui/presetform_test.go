@@ -467,3 +467,27 @@ func TestPresetEditFormDropsTheAnswerForAClearedBranch(t *testing.T) {
 	assert.Equal(t, before, len(m.form.Fields), "the old branch's repositories are not applied")
 	assert.Equal(t, "", m.reading)
 }
+
+// The run form of bam run --plan has no name or file: ctrl-s keeps the values
+// and starts nothing, ctrl-r asks to start, and ctrl-r means nothing in the
+// preset form.
+func TestRunFormKeys(t *testing.T) {
+	form := testForm()
+	form.RunMode, form.Name, form.Path = true, "", ""
+	m := newPresetForm(context.Background(), form, nil)
+	v := m.View()
+	assert.Contains(t, v, "run PROJ-DEPLOY · branch main")
+	assert.NotContains(t, v, "new preset")
+	assert.Contains(t, v, "ctrl-s print · ctrl-r run · esc cancel")
+
+	printed := formKey(m, kt(tea.KeyCtrlS))
+	assert.True(t, printed.saved)
+	assert.False(t, printed.form.StartNow)
+
+	run := formKey(m, kt(tea.KeyCtrlR))
+	assert.True(t, run.saved)
+	assert.True(t, run.form.StartNow)
+
+	preset := formKey(newPresetForm(context.Background(), testForm(), nil), kt(tea.KeyCtrlR))
+	assert.False(t, preset.saved, "ctrl-r runs nothing in bam preset add")
+}
